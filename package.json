@@ -1,0 +1,17 @@
+{
+	"name": "eform",
+	"version": "1.0.0",
+	"main": "index.js",
+	"scripts": {
+		"start": "node server.js",
+		"dev": "node --watch server.js"
+	},
+	"keywords": [],
+	"author": "Pawel Woroniecki",
+	"license": "ISC",
+	"description": "Serwis do zarządzania zleceniami od klientów",
+	"dependencies": {
+		"express": "^4.21.2",
+		"nunjucks": "^3.2.4"
+	}
+}

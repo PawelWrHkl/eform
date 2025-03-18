@@ -1,0 +1,22 @@
+.login-box {
+	margin: 0 auto;
+	color: #131313;
+	background-color: #ddd;
+	max-width: 400px;
+	text-align: center;
+	height: fit-content;
+	margin-top: 12%;
+	border-radius: 25px;
+	box-shadow: 1ch;
+	justify-content: center;
+	padding: 40px;
+}
+
+.btn {
+	margin-top: 25px !important;
+}
+
+.input-space {
+	margin-left: 20px;
+	margin-top: 10px;
+}

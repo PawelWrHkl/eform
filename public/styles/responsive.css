@@ -1,0 +1,42 @@
+@media (max-width: 1300px) {
+	.form-content {
+		margin-left: 260px;
+		max-width: calc(100% - 260px);
+	}
+
+	.container {
+		padding: 10px;
+	}
+
+	#dynamic-form {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
+@media (max-width: 920px) {
+	#dynamic-form {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 650px) {
+	.desktop-nav {
+		display: none;
+	}
+
+	.mobile-nav {
+		display: block !important;
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		z-index: 1100;
+	}
+
+	.form-content {
+		margin-top: 70px;
+		margin-left: 10px;
+		max-width: calc(100% - 20px);
+	}
+}

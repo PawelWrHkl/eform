@@ -1,0 +1,27 @@
+{% extends "base.njk" %}
+{% block title %}
+Formularz HKL
+{% endblock title %}
+
+{% block content %}
+            <h1> Formularz Zamówieniowy HKL</h1>
+            <div class="container">
+                <label for="asortment-group">Wybierz grupę</label>
+                <select name="asortment-group" id="asortment-group">
+                    <option value="" disabled selected></option>
+                    <option value="43">Cossyflor</option>
+                    <option value="71">EOS</option>
+                    <option value="72">CHR</option>
+
+                </select>
+            </div>
+            <div class="container">
+                <h1>Wartości proszę uzupełniać zgodnie z kolejnością</h1>
+                <form id="dynamic-form"></form>
+            </div>
+
+            <div id="buttons-space">
+            </div>
+        </div>
+    </main>
+{% endblock %}
