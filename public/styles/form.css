@@ -34,3 +34,9 @@ input[type="number"]:focus {
 }
 
 
+.form-content {
+	max-width: 90%;
+	float: left;
+	margin-left: 20%;
+	max-width: calc(100% - 270px);
+}

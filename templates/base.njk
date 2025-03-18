@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial0-scale=1.0">
 
     <title>{% block title %}Portal zamówień HKL{% endblock title %} </title>
-    <link rel="stylesheet" href="styles/main.css">
-    <link rel="stylesheet" href="styles/layout.css">
-    <link rel="stylesheet" href="styles/form.css">
-    <link rel="stylesheet" href="styles/components.css">
-    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="/styles/layout.css">
+    <link rel="stylesheet" href="/styles/form.css">
+    <link rel="stylesheet" href="/styles/components.css">
+    <link rel="stylesheet" href="/styles/responsive.css">
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet" />
@@ -31,7 +31,7 @@ v
 
     <nav class="desktop-nav">
     <a href="/">
-        <img src="img/logo.png" id="hkl-logo" alt="logo HKL">
+        <img src="/img/logo.png" id="hkl-logo" alt="logo HKL">
         </a>
         <div class="side-nav">
             <ul class="nav flex-column">
@@ -61,14 +61,16 @@ v
         </div>
     </nav>
 
-
+    
     <div class="update-info">
         <span>
             Ostatnie zmiany: <br>
             <b>-funkcja resetowania pól zależnych (DEPENDENCES)</b> <br>
             <b>-Reset całego formularza</b><br>
             <b>-wybór grupy asortymentowej</b><br>
+            <b>-Panel logowania</b><br>
             <b>-Pasek nawigacyjny</b><br>
+            <b>-Obsługa serwera</b><br>
         </span>
     </div>
 
@@ -77,7 +79,7 @@ v
         <div class="content">
         {% block content %}
             <div class="container">
-            główny interfejs
+            Witamy w portalu do zarzadzania zamówieniami. Strona w budowie
             </div>
         {% endblock %}
 

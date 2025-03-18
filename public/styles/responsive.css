@@ -1,7 +1,7 @@
 @media (max-width: 1300px) {
 	.form-content {
 		margin-left: 260px;
-		max-width: calc(100% - 260px);
+		max-width: calc(100% - 290px);
 	}
 
 	.container {
@@ -24,7 +24,9 @@
 	.desktop-nav {
 		display: none;
 	}
-
+	.content {
+		margin-left: 2%;
+	}
 	.mobile-nav {
 		display: block !important;
 		position: fixed;

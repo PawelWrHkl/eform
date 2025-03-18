@@ -1,33 +1,57 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Panel Logowania</title>
-    <link rel="stylesheet" href="styles/main.css">
-    <link rel="stylesheet" href="styles/login.css">
+  
+    <title>Logowanie</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="/styles/login.css">
+    <link rel="stylesheet" href="/styles/components.css">
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
+    rel="stylesheet"/>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-    crossorigin="anonymous"></script>
 </head>
+
+
 <body>
-<form action="/login" method="POST">
+    <div class="update-info">
+        <span>
+            Ostatnie zmiany: <br>
+            <b>-funkcja resetowania pól zależnych (DEPENDENCES)</b> <br>
+            <b>-Reset całego formularza</b><br>
+            <b>-Panel logowania</b><br>
+            <b>-Pasek nawigacyjny</b><br>
+            <b>-Obsługa serwera</b><br>
+        </span>
+    </div>
+
+<form action="/auth/login" method="POST">
   <div class="login-box">
-    <h3 class='p-3 ms-3 mr-5' > Panel logowania HKL</h3>
-    <div class="input-space pt-3">
-      <p>Podaj pin</p>
-      <input type="text" name="username" placeholder='pin'>
+    <h3 >E-Formularz</h3>
+    <div class="input-space">
+      <label for='pin' id='pin'>Pin</p>
+      <input type="text" name="pin" placeholder='Podaj pin'>
     </div>
     <div class="input-space">
-      <p>Podaj hasło</p>
-      <input type="password" name="password" placeholder='hasło'>
+      <label for='password' id='password'>Hasło</p>
+      <input type="password" name="password" placeholder='Podaj hasło'>
     </div>
-  <button class="btn btn-outline-secondary">Zaloguj się</button>
+    {% if message %}
+    <p class="alert alert-danger mt-4 p-2 w-75 ms-5">{{ message }} </p>
+    {% endif %}
+  <button class="btn btn-secondary" type="submit">Zaloguj się</button>
 </div>
 </form>
 
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+    crossorigin="anonymous"></script>
 </body>
 </html>
