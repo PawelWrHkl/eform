@@ -1,18 +1,13 @@
-import { parseData, convertDictValues } from "./dataLoader.js";
+import { parseData, convertDictValues } from "./formTools/dataLoader.js";
 import {
 	getPossibleValues,
 	createInputField,
-	checkRelated,
-	processInputs,
+	validateFormInput,
 	updateFieldInputs,
 	updateFieldStates,
-	resetSelectValues,
 	resetDependences,
-	saveOrderPositionToJson,
 	buildValuesToDisplay,
-	setDefaultValues
-
-} from "./formTools.js";
+} from "./formTools/formTools.js";
 
 export async function generateForm(
 	files,
@@ -40,7 +35,7 @@ export async function generateForm(
 
 	for (let i = 0; i < params.length; i++) {
 		let param = params[i];
-		options = getPossibleValues(param, allOptionsByParameter[param.NAME], values);
+		options = getPossibleValues(allOptionsByParameter[param.NAME]);
 		await buildHtml(options, param);
 	}
 
@@ -86,7 +81,7 @@ export async function generateForm(
 
 			inputs[key].addEventListener('blur', function() {
 				updateFieldInputs(params, inputs, allOptionsByParameter, values, options, this.name, this.value, this.tagName, displayValues);
-				processInputs(params, inputs, values, this);
+				validateFormInput(values, this);
 				buildValuesToDisplay(allOptionsByParameter, this.value, this.name, displayValues, this.tagName);
 				updateFieldStates(params, inputs, values);
 			});

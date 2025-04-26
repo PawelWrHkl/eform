@@ -1,4 +1,4 @@
-export function getPossibleValues(param, dictValues, values) {
+export function getPossibleValues(dictValues) {
 	logFunctionName('getPossibleValues')
 	const possibleElements = [];
 
@@ -91,7 +91,7 @@ export function checkRelated(params, values) {
 }
 
 
-export function processInputs(params, inputs, values, actualInput) {
+export function processInputs(values, actualInput) {
 	logFunctionName('processInputs')
 
 	let rightValidators = {};
@@ -165,37 +165,31 @@ export function processInputs(params, inputs, values, actualInput) {
 		}
 	
 }
-export function setDefaultValues(actualValue,actualParameter,value, inputs,values,allOptionsByParameter, displayValues) {
-	logFunctionName('setDefaultValues')
+export function setDefaultValues(inputs,values,allOptionsByParameter, displayValues) {
+    logFunctionName('setDefaultValues');
 
+    Object.entries(inputsValidatiors).forEach(([firstParam, models]) => {
+        Object.entries(models).forEach(([modelName, validators]) => {
+            Object.entries(validators).forEach(([param, functions]) => {
+                if ('DOM' in functions) {
+                    const domValue = functions.DOM;
+                    values[param] = domValue;
+                    const input = inputs[param];
+                    buildValuesToDisplay(allOptionsByParameter, domValue, input.name, displayValues, input.tagName);
 
-	for (let [firstParam, models] of Object.entries(inputsValidatiors)) {
-	for (let [modelName, validators] of Object.entries(models)) {
-	for (let [param, functions] of Object.entries(validators)) {
+                    if (input.tagName === 'INPUT' && !input.innerHTML) {
+                        input.value = domValue;
+                    } else if (input.tagName === 'BUTTON' && !input.value) {
+                        const currentParam = allOptionsByParameter[param].find(v => v.VALUE === domValue);
+                        input.innerHTML = `${domValue} - ${currentParam.DESCRIPTION}`;
+                        input.value = domValue;
+                    }
+                }
+            });
+        });
+    });}
 
-		for (let [functionName, value] of Object.entries(functions)) {
-			
-		if (functionName == 'DOM') {
-			values[param] = value;
-			let input = inputs[param];
-			buildValuesToDisplay(allOptionsByParameter, value, input.name, displayValues,input.tagName)
-			if (input.tagName == 'INPUT' && !input.innerHTML){
-			inputs[param].value = value;}
-			else if (input.tagName == 'BUTTON' && !input.value){
-
-				const currentParam = allOptionsByParameter[param].find(v => v.VALUE === value)
-
-
-				inputs[param].innerHTML = `${value} - ${currentParam.DESCRIPTION}`;
-				inputs[param].value = value;
-
-			}
-		}
-		}}}
-}
-}
-
-function getProcedures(params, inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues){
+function getProcedures(inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues){
 	logFunctionName('getProcedures')
 	
 	if (tagName != "INPUT"){
@@ -216,14 +210,14 @@ function getProcedures(params, inputs, allOptionsByParameter, values,options, ac
 
 		
 
-		setDefaultValues(selectedValue,actualParameter,value,inputs,values,allOptionsByParameter, displayValues)
+		setDefaultValues(inputs,values,allOptionsByParameter, displayValues)
 	}
 }
 
 export function updateFieldInputs(params, inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues) {
 	logFunctionName('updateFieldInputs')
 
-	getProcedures(params, inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues)
+	getProcedures(inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues)
 	let btns = [];
 	const allowedOptions = {};
 	const allowedParameters = {};
@@ -286,14 +280,12 @@ export function updateFieldInputs(params, inputs, allOptionsByParameter, values,
 			if (!allowed.has(optionValue)) {
 				if (!child.classList.contains("hidden")) {
 					child.classList.add("hidden");
-					// child.hidden = true;
 				}
 				child.disabled = true;
 			} else {
 				if (child.classList.contains("hidden")) {
 					child.classList.remove("hidden");
 				}
-				// child.hidden = false;
 				child.disabled = false;
 			}
 		}
@@ -310,7 +302,6 @@ export function updateFieldStates(params, inputs, values) {
 		for (let i = 0; i < params.length; i++) {
 			if (params[i].NAME === key) {
 				param = params[i];
-
 				break;
 			}
 		}
@@ -325,7 +316,7 @@ export function updateFieldStates(params, inputs, values) {
 		let paramDiv = inputs[key].parentNode;
 
 		paramDiv.hidden = !shouldEnable;
-		let labelText = paramDiv.children[0].innerHTML;
+		paramDiv.children[0].innerHTML;
 
 	}
 }
@@ -336,7 +327,6 @@ function resetDisplayEntry(param, display) {
 		const existing = display.get(param);
 		display.set(param, { param_description: existing.param_description });
 	}
-	
 }
 
 export function resetSelectValues([parameters,display], inputs, values) {
@@ -514,8 +504,6 @@ export function buildValuesToDisplay(dictValues, value, paramName,  displayValue
 		const currentParam = dictValues[paramName].find(v => v.VALUE === value)
 		currentValue['option_description'] = currentParam.DESCRIPTION;
 		}
-	
-
 }
 
 export function checkFlags() {

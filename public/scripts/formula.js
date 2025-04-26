@@ -108,7 +108,7 @@ parser.setFunction("USTAW", function (params) {
     const wartosc = params[2];
     const validatorModel = inputsValidatiors[actualParam][actualValue]
 	const aktualnaWartosc = parser.getVariable(pole) || window.formulaContext[pole];
-
+    console.log(pole,parametr,wartosc,validatorModel,aktualnaWartosc,'formula')
 	if (!validatorModel[pole]) {
 		validatorModel[pole] = {};
 	}

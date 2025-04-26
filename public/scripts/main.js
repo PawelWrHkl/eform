@@ -1,7 +1,7 @@
 import { generateForm } from "/scripts/form.js";
 import { resetSelectValues,
 		 processCommissionInput,
-		checkFlags } from "/scripts/formTools.js";
+		checkFlags } from "/scripts/formTools/formTools.js";
 import {buildOrderItemStructure} from '/scripts/orderBuilder.js'
 
 async function loadJsonConfig() {

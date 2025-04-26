@@ -96,7 +96,6 @@ export function convertDictValues(dictData) {
 				let enable = row[paramName + "_ENABLE"];
 				let proc = row[paramName + "_PROC"];
 				let graphics = row[paramName + "_GRAPHICS"];
-
 				if (enable === "<NULL>") {
 					enable = null;
 				}
