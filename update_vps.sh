@@ -1,2 +1,0 @@
-#!/bin/bash
-sshpass -p ""
