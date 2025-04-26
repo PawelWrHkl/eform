@@ -1,0 +1,23 @@
+git add . - dodawanie git do katalogu 
+git commit -m "wiadomość do commita"
+
+Wyświetlenie tylko nazw plików staged
+git diff --name-only --cached
+
+Lista plików gotowych do commita
+git status
+
+Wysyłanie zmian do repozyto
+git push
+
+jak konflikty, które chcesz rozwiązać 
+git pull --no-rebase
+
+wypychanie na siłę 
+git push --force
+
+nowa wersja
+
+git tag -a v0.0.0 -m "opis wersji"
+git push origin <tag>  przykład "git push origin v0.0.0"
+
