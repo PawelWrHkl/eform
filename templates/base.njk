@@ -2,9 +2,8 @@
 <html lang="pl">
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial0-scale=1.0">
-
     <title>{% block title %}Portal zamówień HKL{% endblock title %} </title>
     <link rel="stylesheet" href="/styles/main.css">
     <link rel="stylesheet" href="/styles/layout.css">
@@ -27,69 +26,100 @@
     {% block head %}{% endblock head %}
 </head>
 <body>
-v
-
-    <nav class="desktop-nav">
-    <a href="/">
-        <img src="/img/logo.png" id="hkl-logo" alt="logo HKL">
+  <nav class="navbar navbar-expand-lg navbar-light bg-light mobile-nav">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+            <img src="/img/logo.png" alt="logo HKL" id="hkl-logo">
         </a>
-        <div class="side-nav">
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    <a href="/orders" class="nav-link">Twoje zamówienia</a>
-                </li>
-                <li class="nav-item">
-                    <a href="/new_order" class="nav-link">Nowe zamówienie</a>
-                </li>
-                <li class="nav-item">
-                  <form action="/logout" method="POST" style="display: inline;">
-                    <button type="submit" class="nav-link btn btn-link" style="text-decoration: none;">
-                      Wyloguj
-                    </button>
-                  </form>
-                </li>
-
-                </li>
-                <div class="side-nav" id="bottom-nav-menu">
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">Produkty</a>
-                        </li>
-                    </ul>
-                </div>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNav"
+            aria-controls="mobileNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mobileNav">
+       <ul class="nav flex-column">
+           <li class="nav-item">
+               <a href="/orders" class="nav-link">Twoje zamówienia</a>
+           </li>
+           <li class="nav-item">
+               <a href="/orders/add-order" class="nav-link">Nowe zamówienie</a>
+           </li>
+           <li class="nav-item">
+             <form action="/logout" method="POST" style="display: inline;">
+               <button type="submit" class="nav-link btn btn-link" style="text-decoration: none;">
+                 Wyloguj
+               </button>
+             </form>
             </ul>
         </div>
-    </nav>
-
-    
-    <div class="update-info">
-        <span>
-            Ostatnie zmiany: <br>
-            <b>-funkcja resetowania pól zależnych (DEPENDENCES)</b> <br>
-            <b>-Reset całego formularza</b><br>
-            <b>-wybór grupy asortymentowej</b><br>
-            <b>-Panel logowania</b><br>
-            <b>-Pasek nawigacyjny</b><br>
-            <b>-Obsługa serwera</b><br>
-        </span>
     </div>
+</nav>
 
+<nav class="desktop-nav">
+<a href="/">
+   <img src="/img/logo.png" id="hkl-logo" alt="logo HKL">
+   </a>
+   <div class="side-nav">
+       <ul class="nav flex-column">
+           <li class="nav-item">
+               <a href="/orders" class="nav-link">Twoje zamówienia</a>
+           </li>
+           <li class="nav-item">
+               <a href="/orders/add-order" class="nav-link">Nowe zamówienie</a>
+           </li>
+           <li class="nav-item">
+             <form action="/user/logout" method="POST" style="display: inline;">
+               <button type="submit" class="nav-link btn btn-link" style="text-decoration: none;">
+                 Wyloguj
+               </button>
+             </form>
+           </li>
 
-    <main> 
-        <div class="content">
-        {% block content %}
-            <div class="container">
-            Witamy w portalu do zarzadzania zamówieniami. Strona w budowie
-            </div>
-        {% endblock %}
+           </li>
+           <div class="side-nav" id="bottom-nav-menu">
+               <ul class="nav flex-column">
+                   <li class="nav-item">
+                       <a href="#" class="nav-link">Produkty</a>
+                   </li>
+               </ul>
+           </div>
+       </ul>
+   </div>
+</nav>
+
+<main> 
+{% block content %}
+<div class="content">
+<div class="container my-5 col-12 w-100 ">
+  {% if user %}
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-8 col-lg-6 text-center">
+        <h3 class="mb-3">Dane użytkownika</h3>
+        <h5>Witaj, {{ user.client_name }}</h5>
+        <p><strong>NIP:</strong> {{ user.tax_id }}</p>
+        <hr>
+        <h6 class="mb-3">Informacje kontaktowe:</h6>
+        <p><strong>Ulica:</strong> {{ user.street }}</p>
+        <p><strong>Kod pocztowy:</strong> {{ user.zip }}</p>
+        <p><strong>Miasto:</strong> {{ user.city }}, {{ user.country }}</p>
+        <p>(Testowo) ident: {{ user.ident }}</p>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-warning mt-4 text-center" role="alert">
+      Brak danych użytkownika.
+    </div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}
+</main> 
 
     <script src="https://cdn.jsdelivr.net/npm/hyperformula@latest/dist/hyperformula.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hot-formula-parser@4.0.0/dist/formula-parser.min.js"></script>
     <!-- <script src="scripts/custom_formula.js"></script> -->
-    <script src="scripts/formula.js"></script>
+    <script src="/scripts/formula.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.2/dist/jstat.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/formulajs/formulajs@2.9.3/dist/formula.min.js"></script>
-    <script type="module" src="scripts/main.js"></script>
     {% block scripts %}
     {% endblock scripts %}
 </body>

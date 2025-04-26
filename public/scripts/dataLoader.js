@@ -21,8 +21,8 @@ export async function loadData(file) {
 }
 
 export async function parseData(files) {
-	const paramsData = await loadData(`./data/${files["params"]}`);
-	const dictData = await loadData(`./data/${files["paramdict"]}`);
+	const paramsData = await loadData(`/data/${files["params"]}`);
+	const dictData = await loadData(`/data/${files["paramdict"]}`);
 
 	if (!paramsData || !dictData) {
 		console.error("Nie udało się wczytać CSV");
@@ -94,15 +94,15 @@ export function convertDictValues(dictData) {
 				}
 
 				let enable = row[paramName + "_ENABLE"];
-				let active = row[paramName + "_ACTIVE"];
+				let proc = row[paramName + "_PROC"];
 				let graphics = row[paramName + "_GRAPHICS"];
 
 				if (enable === "<NULL>") {
 					enable = null;
 				}
 
-				if (active === "<NULL>") {
-					active = null;
+				if (proc === "<NULL>") {
+					proc = null;
 				}
 
 				if (graphics === "<NULL>") {
@@ -114,7 +114,7 @@ export function convertDictValues(dictData) {
 					VALUE: value,
 					DESCRIPTION: description,
 					ENABLE: enable,
-					ACTIVE: active,
+					PROC: proc,
 					GRAPHICS: graphics,
 				};
 				if (!resultList[paramName]) {

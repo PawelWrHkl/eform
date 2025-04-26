@@ -1,3 +1,11 @@
-wymagania.xlsx
-node-modules/
+# catalogs
+node_modules/
+public/data/
+.vscode/
+
+# files
 .env
+.env-dev
+.env-prod
+.git-instrukcje.txt
+.git_auto_commit.sh

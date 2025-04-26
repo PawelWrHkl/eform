@@ -1,0 +1,89 @@
+{
+    "Plisy": {
+
+        "43": {
+            "name":"Cosiflor",
+            "params": "43param.txt",
+            "paramdict": "43paramdict.txt"
+        },
+        "59": {
+            "name":"Test plisy 1",
+            "params": "59param.txt",
+            "paramdict": "59paramdict.txt"
+        },
+        "71": {
+            "name":"EOS",
+            "params": "71param.txt",
+            "paramdict": "71paramdict.txt"
+        },
+        "72": {
+            "name":"MFPLus",
+            "params": "72param.txt",
+            "paramdict": "72paramdict.txt"
+        },
+        "101": {
+            "name":"Ramki",
+            "params": "72param.txt",
+            "paramdict": "72paramdict.txt"
+        }
+    },
+    
+    "Zaluzje 25": {"39": {
+        "name":"Żaluzje 16_25",
+        "params": "39param.txt",
+        "paramdict": "39paramdict.txt"
+    }},
+
+    "Zaluzje 50": {
+        "7": {
+            "name":"Test Zaluzje 1",
+            "params": "7param.txt",
+            "paramdict": "7paramdict.txt"
+        },
+        "9": {
+            "name":"Test Zaluzje 2",
+            "params": "9param.txt",
+            "paramdict": "9paramdict.txt"
+        }},
+
+
+    "Rolety rzymskie":{
+    "24": {
+        "name":"Test Raffrollo 1",
+        "params": "39param.txt",
+        "paramdict": "39paramdict.txt"
+    },
+    "36": {
+        "name":"Test Raffrollo 2",
+        "params": "36param.txt",
+        "paramdict": "36paramdict.txt"
+    }
+},
+    
+
+    "Rolety":{       
+    "68": {
+        "name":"Test Rolety 1",
+        "params": "68param.txt",
+        "paramdict": "68paramdict.txt"
+    },
+    "8": {
+        "name":"Test Rolety 2",
+        "params": "8param.txt",
+        "paramdict": "8paramdict.txt"
+    }},
+
+    "Wertikale":{
+        "14": {
+            "name":"Test Wertikale 1 ",
+            "params": "14param.txt",
+            "paramdict": "14paramdict.txt"
+        },
+        "15": {
+            "name":"Test Wertikale 2",
+            "params": "43param.txt",
+            "paramdict": "43paramdict.txt"
+        }}
+    
+
+}

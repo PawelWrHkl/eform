@@ -1,0 +1,66 @@
+{% extends "base.njk" %}
+{% block title %}Zamówienie nr.{{ orderDetails.id }}{% endblock title %}
+
+{% block content %}
+<div class="table-content center-content ">
+<div class="container my-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold header ps-5 pos-header">Zamówienie nr.{{ orderDetails.id }} <br>
+    <p>"{{ orderDetails.commision }}"</p></h2>
+    <button class="btn btn-danger">Usuń zamówienie</button>
+
+  </div>
+  {% if orderItems %}
+  <table class="table align-middle ">
+    <thead>
+    <tr>
+      <th scope="col">#</th>
+      <th scope="col">Nazwa Pozycji</th
+      >
+      {% for head in heads %}
+      <th scope="col">{{head}}</th>
+      {% endfor %}      
+      <th scope="col">Ilość</th>
+      <th scope="col">Akcja</th>
+    </tr>
+  </thead>
+    <tbody>
+
+    
+
+      {% for position in orderItems %}
+
+    <tr onclick="window.location.href=''" style="cursor: pointer;">
+      <th scope="row">{{ position.id }}</th>
+      <td>{{ position.commision }}</td>
+      
+      {% for fieldName,value in position.json_parameters %}
+      {% for head in  heads %}
+        {% if fieldName == head %}
+        
+        <td>{{ value }} &nbsp;&nbsp;</td>
+
+        {% endif %}
+        {% endfor %}
+        <td>-</td>
+      {% endfor %}
+      <td>{{ position.amount }}</td><td class='col-2'>
+      <a class="btn btn-outline-primary me-2" href='#'>Edytuj</a>
+      <a class="btn btn-outline-danger" href='#'>Usuń</a>
+      </td>      
+      </tr>
+      {% endfor %}
+        </tbody>
+</table>
+    </div>
+  {% else %}
+    <div class="text-center py-5">
+      <h3 class="mb-4">Brak pozycji.</h3>
+      <p class="lead">Dodaj pozycję zamówienia</p>
+
+    </div>
+  {% endif %}
+        <a href="/orders/order/{{ orderDetails.id }}/new-position/" class="btn btn-outline-secondary p-2 mb-5" id='new-order-button' type='button'>Dodaj pozycję</a>
+</div>
+</div>
+{% endblock %}

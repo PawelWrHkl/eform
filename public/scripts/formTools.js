@@ -1,5 +1,5 @@
 export function getPossibleValues(param, dictValues, values) {
-	console.log(param, dictValues, values);
+	logFunctionName('getPossibleValues')
 	const possibleElements = [];
 
 	if (!dictValues || dictValues.length === 0) {
@@ -8,7 +8,7 @@ export function getPossibleValues(param, dictValues, values) {
 
 	for (let i = 0; i < dictValues.length; i++) {
 		let row = dictValues[i];
-
+		if(row.VALUE == '-' || row.VALUE == '=' || row.VALUE == ''){continue};
 		if (row.VALUE == "<NULL>") row.VALUE = null;
 		if (row.DESCRIPTION == "<NULL>") row.DESCRIPTION - null;
 		let row_number = row.ROW_NUM;
@@ -18,8 +18,22 @@ export function getPossibleValues(param, dictValues, values) {
 	return { possibleElements };
 }
 
-export function createInputField(param, options) {
+export function createInputField(param, options,groupNumber) {
+	logFunctionName('createInputField')
+
 	options = options.possibleElements;
+	if (param.GRAPHICS =='true' && Array.isArray(options)){
+		let btn = document.createElement("button");
+		btn.classList.add("btn", 'color-dialog-btn');
+		btn.id= param.NAME;
+		btn.type='button';
+		btn.innerHTML = `Wybierz ${param.DESCRIPTION}`;
+		btn.onclick = function() {
+			createDialog(param, options,groupNumber);
+		};
+		return btn;
+
+	}
 
 	if (options.length > 1) {
 		let select = document.createElement("select");
@@ -28,7 +42,7 @@ export function createInputField(param, options) {
 		for (let idx = 0; idx < options.length; idx++) {
 			let row = options[idx];
 
-			let optionText = `(${row.VALUE}) ${row.DESCRIPTION}`;
+			let optionText = `${row.VALUE} ${row.DESCRIPTION}`;
 			let option = new Option(optionText || row.VALUE, row.VALUE);
 			option.id = `${row.ROW_NUM}-${param.NAME}`;
 
@@ -38,7 +52,11 @@ export function createInputField(param, options) {
 	}
 
 	let input = document.createElement("input");
+
+
+	
 	if (param.TYPE === "number") {
+
 		input.type = "number";
 	} else {
 		input.type = "text";
@@ -47,10 +65,11 @@ export function createInputField(param, options) {
 }
 
 export function checkRelated(params, values) {
-	let parameters = Object.values(params);
-	// console.log(params);
-	console.log("checkRelated");
+	logFunctionName('checkRelated')
 
+	let parameters = Object.values(params);
+
+	console.log("checkRelated");
 	for (let idx = 0; idx < parameters.length; idx++) {
 		let param = parameters[idx];
 		let relatedValue = param.RELATED;
@@ -71,64 +90,220 @@ export function checkRelated(params, values) {
 	}
 }
 
-export function updateFieldInputs(params, inputs, testValues, values) {
-	console.log("updateFieldInputs:");
+
+export function processInputs(params, inputs, values, actualInput) {
+	logFunctionName('processInputs')
+
+	let rightValidators = {};
+
+		for (let [param, models] of Object.entries(inputsValidatiors)) {
+
+			
+			for (let [model, validators] of Object.entries(models)) {
+
+				if (Object.values(values).includes(model)){
+					if (Object.keys(validators).length !== 0){
+						rightValidators = validators;
+						if (validators[actualInput.name].MAX || validators[actualInput.name].MIN) {
+							const max = validators[actualInput.name].MAX;
+							const min = validators[actualInput.name].MIN;	
+							
+							const value = parseFloat(actualInput.value);
+							
+							if (value > max || value < min) {
+								actualInput.classList.add("invalid-input");
+								
+								const existingLabel = document.getElementById(`${actualInput.id}-label`);
+								if (existingLabel) {
+									existingLabel.remove();
+								}
+								
+								const label = document.createElement('label');
+								label.id = `${actualInput.id}-label`;
+								label.classList.add('invalid-label');
+								label.textContent = 'Prawidłowa szerokość to ' + min + ' - ' + max + ' cm';
+								label.setAttribute('for', actualInput.id);
+								
+								actualInput.parentNode.appendChild(label);
+					
+								inputFlags[actualInput.name] = false;
+
+							} else {
+								inputFlags[actualInput.name] = true;
+								actualInput.classList.remove("invalid-input");
+								
+								const existingLabel = document.getElementById(`${actualInput.id}-label`);
+								if (existingLabel) {
+									existingLabel.remove();
+								
+								}
+							}
+					
+						}
+						if (validators[actualInput.name].DOM) {
+							const dom = inputsValidatiors[actualInput.name].DOM;
+
+							if (dom) {
+								window.FormulaHandler.setVariable(dom, actualInput.value);
+								window.formulaContext[dom] = actualInput.value;
+							}
+						}
+					}if (!rightValidators) {
+						inputFlags[actualInput.name] = true;
+						actualInput.classList.remove("invalid-input");
+						
+						const existingLabel = document.getElementById(`${actualInput.id}-label`);
+						if (existingLabel) {
+							existingLabel.remove();
+						
+						}
+					}
+					
+
+				}
+			}
+		}
+	
+}
+export function setDefaultValues(actualValue,actualParameter,value, inputs,values,allOptionsByParameter, displayValues) {
+	logFunctionName('setDefaultValues')
+
+
+	for (let [firstParam, models] of Object.entries(inputsValidatiors)) {
+	for (let [modelName, validators] of Object.entries(models)) {
+	for (let [param, functions] of Object.entries(validators)) {
+
+		for (let [functionName, value] of Object.entries(functions)) {
+			
+		if (functionName == 'DOM') {
+			values[param] = value;
+			let input = inputs[param];
+			buildValuesToDisplay(allOptionsByParameter, value, input.name, displayValues,input.tagName)
+			if (input.tagName == 'INPUT' && !input.innerHTML){
+			inputs[param].value = value;}
+			else if (input.tagName == 'BUTTON' && !input.value){
+
+				const currentParam = allOptionsByParameter[param].find(v => v.VALUE === value)
+
+
+				inputs[param].innerHTML = `${value} - ${currentParam.DESCRIPTION}`;
+				inputs[param].value = value;
+
+			}
+		}
+		}}}
+}
+}
+
+function getProcedures(params, inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues){
+	logFunctionName('getProcedures')
+	
+	if (tagName != "INPUT"){
+		let selectedValue = allOptionsByParameter[actualParameter].find(v => v.VALUE == value)
+		actualParam = actualParameter;
+
+		if (!inputsValidatiors[actualParam]) {
+			inputsValidatiors[actualParam] = {};
+		}
+		inputsValidatiors[actualParam][value] = {};
+		actualValue = value;
+
+			const checkProcedure = window.FormulaHandler.evaluateFormula(
+				selectedValue.PROC,
+				values,
+				"PROCEDURE"
+			);
+
+		
+
+		setDefaultValues(selectedValue,actualParameter,value,inputs,values,allOptionsByParameter, displayValues)
+	}
+}
+
+export function updateFieldInputs(params, inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues) {
+	logFunctionName('updateFieldInputs')
+
+	getProcedures(params, inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues)
+	let btns = [];
 	const allowedOptions = {};
+	const allowedParameters = {};
 	for (const paramName in inputs) {
+		// BUTTON
+		if (inputs[paramName].tagName == 'BUTTON'){
+			btns.push(inputs[paramName])
+		}
+		
+
 		allowedOptions[paramName] = new Set();
+		allowedParameters[paramName] =[];
 	}
 	// sprawdzenie enable za pomoca formuly
-	for (const paramName in testValues) {
-		const paramArray = testValues[paramName];
+	for (const paramName in allOptionsByParameter) {
+		const paramArray = allOptionsByParameter[paramName];
 
 		if (!inputs[paramName]) continue;
 
 		for (const param of paramArray) {
+			
 			const isEnabled = window.FormulaHandler.evaluateFormula(
 				param.ENABLE,
 				values,
 				"paramdict"
-			);
-			// if(paramName == 'TYP')console.log(param.VALUE,param.ENABLE,values,isEnabled);
-			if (isEnabled) {
+			);	
+			// TUTAJ PRZYCISKI DALEJ SIĘ WYŚWIETLAJ
+			if (isEnabled && param.VALUE != '-') {
 				if (param.ROW_NUM) {
 					const idAndValue = `${param.ROW_NUM}-${paramName}`;
 					allowedOptions[paramName].add(idAndValue);
+					allowedParameters[paramName].push(param);
 				}
-				// console.log(paramArray)
+			
 			}
 		}
 	}
-	// console.log(allowedOptions)
-	// wlaczenie i wylaczenie
+
+
+	
 	for (const paramName in inputs) {
 		let param = params.find((param) => param.NAME === paramName);
-		// console.log(allowedOptions)
 		const currentSelect = inputs[paramName];
+		
+		if (currentSelect.tagName === "INPUT") {
+			
+		}
+		
 		const allowed = allowedOptions[paramName];
-
-		// console.log(currentSelect,allowed)
-		// console.log(allowed.ROW_NUM)
+		if (currentSelect.tagName === 'BUTTON') {
+			currentSelect.onclick = function() {
+				createDialog(param, allowedParameters[paramName], tempGroupNumber);
+			};
+		}
+	
 		for (const child of currentSelect.children) {
+			
 			const optionValue = child.id.replace(/\s+/g, " ").trim();
 
 			if (!allowed.has(optionValue)) {
+				if (!child.classList.contains("hidden")) {
+					child.classList.add("hidden");
+					// child.hidden = true;
+				}
 				child.disabled = true;
-				child.hidden = true;
 			} else {
+				if (child.classList.contains("hidden")) {
+					child.classList.remove("hidden");
+				}
+				// child.hidden = false;
 				child.disabled = false;
-				child.hidden = false;
 			}
 		}
-		if (param.RELATED) {
-			console.log(inputs[param.RELATED]);
-			inputs[param.RELATED].parentElement.style.display = "none";
-		}
+
+
 	}
 }
 
 export function updateFieldStates(params, inputs, values) {
-	console.log("updateFieldStates");
+	logFunctionName('updateFieldStates')
 
 	for (let key in inputs) {
 		let param;
@@ -140,43 +315,73 @@ export function updateFieldStates(params, inputs, values) {
 			}
 		}
 		if (!param || !param.ENABLE) continue;
-		// console.log(param.ENABLE);
+
 		let shouldEnable = window.FormulaHandler.evaluateFormula(
 			param.ENABLE,
 			values,
 			"param"
 		);
-		// console.log(param.NAME, shouldEnable, 'param')
-		//let shouldEnable = window.FormulaHandler.evaluateFormula(param.ENABLE, values);
-		// console.log("Sprawdzenie dla:", key, " Wynik:", shouldEnable);
+
 		let paramDiv = inputs[key].parentNode;
+
 		paramDiv.hidden = !shouldEnable;
 		let labelText = paramDiv.children[0].innerHTML;
 
-		console.log(labelText.slice(1));
 	}
 }
 
-export function resetSelectValues(parameters, inputs, values) {
-	// Funkcja przyjmuje liste parametrów np.[MODEL,KOLSYST,RELATED] i resetuje przypisane selecty
+function resetDisplayEntry(param, display) {
+	logFunctionName('resetDisplayEntry')
+	if (display.has(param)) {
+		const existing = display.get(param);
+		display.set(param, { param_description: existing.param_description });
+	}
+	
+}
+
+export function resetSelectValues([parameters,display], inputs, values) {
+	logFunctionName('resetSelectValues')
+	for (let idx = 0; idx < parameters.length; idx++) {
+		let paramName = parameters[idx];
+		const param = params.find(obj => obj.NAME === paramName);
+
+		if (inputs[paramName]) {
+			inputs[paramName].selectedIndex = 0;
+			values[paramName] = "";
+			
+
+		if (inputs[paramName].tagName == 'BUTTON'){
+			inputs[paramName].innerHTML = `Wybierz ${param.DESCRIPTION}`;
+			inputs[paramName].value = '';
+		}
+		if (inputs[paramName].tagName == 'INPUT'){
+			inputs[paramName].value = '';
+		}
+		} else {
+			console.warn(`Pole ${paramName} nie istnieje w inputs`);
+		}
+	}
 	for (let idx = 0; idx < parameters.length; idx++) {
 		let param = parameters[idx];
-		console.log(param, "siema");
-		inputs[param].selectedIndex = 0;
-		values[param] = "";
+		resetDisplayEntry(param, display);
 	}
 }
 
-export function resetDependences(params, name, inputs, values) {
+export function resetDependences([params,display], name, inputs, values) {
+	logFunctionName('resetDependences')
+	
+
 	let param = params.find((obj) => obj.NAME === name);
 	if (param && param.DEPENDENCES && typeof param.DEPENDENCES === "string") {
 		let paramsToReset = param.DEPENDENCES.split(",");
 
-		resetSelectValues(paramsToReset, inputs, values);
+		resetSelectValues([paramsToReset,display], inputs, values);
 	}
 }
 
 export function saveOrderPositionToJson(data, filename) {
+	logFunctionName('saveOrderPositionToJson')
+
 	const jsonData = JSON.stringify(data, null, 2);
 	const blob = new Blob([jsonData], { type: "application/json" });
 	const url = URL.createObjectURL(blob);
@@ -187,4 +392,146 @@ export function saveOrderPositionToJson(data, filename) {
 	a.click();
 	document.body.removeChild(a);
 	URL.revokeObjectURL(url);
+}
+
+export function processCommissionInput() {
+	logFunctionName('processCommissionInput')
+
+    const hiddenClass = document.querySelector('.asortment-container');
+    hiddenClass.style.setProperty('display', 'block', 'important');
+    const label = document.querySelector('label[for="commision-input"]');
+    label.innerHTML = 'Pozycja (Komission):';
+
+    const inputElement = document.getElementById('commistion-input');
+    if (inputElement) {
+        const inputValue = inputElement.value;
+        const commissionLabel = document.createElement('h5');
+        commissionLabel.textContent = inputValue;
+        const parent = inputElement.parentElement;
+        parent.replaceChild(commissionLabel, inputElement);
+
+        const saveCommissionButton = document.getElementById('commision-save-btn');
+        const editCommissionButton = document.getElementById('commision-edit-btn');
+        
+        if (saveCommissionButton && saveCommissionButton.parentElement) {
+            editCommissionButton.style.display = 'block';
+            saveCommissionButton.style.display = 'none';
+        }
+        
+        editCommissionButton.addEventListener('click', function () {
+            parent.replaceChild(inputElement, commissionLabel);
+
+            if (editCommissionButton.parentElement) {
+                editCommissionButton.style.display = 'none';
+                saveCommissionButton.style.display = 'block';
+            }
+        });
+    }
+
+}
+
+async function createDialog(param, options, grNr) {
+	logFunctionName('createDialog')
+
+	let jsonBody= JSON.stringify({ 
+		options: options, 
+		groupNumber: grNr, 
+		folderName: param.NAME 
+	})
+	const response = await fetch('/position/check-images', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: jsonBody
+	});
+	
+	const imageMap = await response.json();
+
+    const colorDialog = document.getElementById('color-dialog');
+    const listOfParams = document.getElementById('dynamic-options-list');
+    listOfParams.innerHTML = '';
+
+    for (let option of options) {
+        const colorBox = document.createElement('div');
+
+	colorBox.addEventListener('click', () => {
+		document.querySelectorAll('.image-box').forEach(e => e.classList.remove('active'));
+		colorBox.classList.add('active');
+		colorBox.dataset.paramName = param.NAME;
+		colorBox.dataset.paramDescription = option.DESCRIPTION;
+	});
+		
+		colorBox.classList.add('image-box')
+		colorBox.id=option.VALUE;
+        const colorName = document.createElement('p');
+		colorName.classList.add('image-name');
+        colorName.innerHTML = `${option.VALUE}<br>${option.DESCRIPTION}`;
+		colorName.dataset.id = `${option.ROW_NUM}-${param.NAME}`;
+		colorName.dataset.value = option.VALUE;
+        const colorImage = document.createElement('img');
+        colorImage.classList.add('diag-image');
+		
+
+        const ext = imageMap[option.VALUE];
+		if (ext) {
+			const imageSrc = `/data/${grNr}/${param.NAME}/${option.VALUE}.${ext}`;
+			colorImage.src = imageSrc;
+			colorImage.classList.add('diag-image');
+		
+			const previewOverlay = document.createElement('img');
+			previewOverlay.classList.add('preview-box');
+			previewOverlay.src='/img/window.png'
+			previewOverlay.addEventListener('click', (e) => {
+				
+				const previewDialog = document.getElementById('image-preview-dialog');
+				const previewImage = document.getElementById('preview-image');
+				previewImage.src = imageSrc;
+				previewDialog.showModal();
+			});
+		
+			const imageWrapper = document.createElement('div');
+			imageWrapper.classList.add('image-wrapper');
+			imageWrapper.appendChild(colorImage);
+			imageWrapper.appendChild(previewOverlay);
+		
+			colorBox.appendChild(imageWrapper);
+		}
+
+        colorBox.appendChild(colorName);
+        listOfParams.appendChild(colorBox);
+    }
+	colorDialog.showModal()
+}
+
+
+
+export function buildValuesToDisplay(dictValues, value, paramName,  displayValues,tagName){
+	logFunctionName('buildValuesToDisplay')
+
+	const currentValue = displayValues.get(paramName);
+	currentValue['option_value'] = value;
+
+	if (tagName != "INPUT"){
+		const currentParam = dictValues[paramName].find(v => v.VALUE === value)
+		currentValue['option_description'] = currentParam.DESCRIPTION;
+		}
+	
+
+}
+
+export function checkFlags() {
+	logFunctionName('checkFlags')
+
+    const notTrue = Object.entries(inputFlags)
+        .filter(([key, value]) => value !== true);
+
+    if (notTrue.length === 0) {
+        return true;
+    } else {
+        return notTrue.map(([key, value]) => ({ key, value }));
+    }
+}
+
+export function logFunctionName(functionName){
+	const sep = '-'.repeat(10)
+	console.log(`${sep} ${functionName} ${sep}`)
 }

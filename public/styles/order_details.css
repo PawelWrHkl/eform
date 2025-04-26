@@ -1,0 +1,72 @@
+.position-container {
+    border: 2px solid rgb(228, 228, 228);
+    border-radius: 13px;
+    padding: 10px;
+    margin: 20px 10px 25px 10px;
+    box-shadow: 2px 2px rgb(224, 224, 224);
+}
+
+#delete-order-btn {
+    top: 6%;
+    left: 0%;
+    transform: translateY(-50%);
+}
+
+.edit-buttons {
+    min-width: 100px;
+}
+
+.table-scroll {
+    overflow-x: auto;
+    width: 100%;
+}
+
+.order-table {
+    width: max-content; 
+    table-layout: auto;
+    border-collapse: collapse;
+}
+
+.order-table th,
+.order-table td {
+    white-space: nowrap;
+    min-width: 50px;
+    text-align: center;
+    vertical-align: middle;
+    padding: 8px 12px;
+}
+
+.th-field,
+.td-val {
+    min-width: 50px;
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+}
+.comment-space {
+    display: flex;
+    justify-content: center; /* poziomo */
+    align-items: center;     /* pionowo */
+  }
+#comment-btn{
+    /* background-color: rgb(243, 243, 243) !important; */
+    border-radius: 1% !important;
+}
+.comment-space {
+    flex-direction: row;
+  }
+#comment-input{
+    width:80%
+}  
+#edit-icon{
+    color: rgb(0, 0, 0);
+    font-size: 20px;
+    cursor: pointer;
+    width:25px;
+    height:25px;
+}
+#comment-input{
+    border:1px solid rgb(228, 228, 228) !important;
+}

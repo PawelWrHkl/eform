@@ -1,0 +1,174 @@
+{% extends "base.njk" %}
+
+{% block title %}
+Nowe Zamówienie
+{% endblock title %}
+
+{% block content %}
+<div class="content col-10 center-content">
+  <div class=" my-5">
+    <h2 class="p-3">
+      {% block order_title %}Nowe zamówienie{% endblock order_title %}
+    </h2>
+
+    <div class="row justify-content-center">
+      <div class="card m-3 mb-5 col-md-6 shadow-lg">
+        <div class="card-body">
+          
+          <div class="row mb-4 align-items-center mt-3">
+            <div class="col-md-3 text-start fw-semibold">
+              <label for="commission-input">*Nazwa Zamówienia</label>
+            </div>
+            <div class="col-md-9">
+              {% block commision_input %}
+              <input 
+                type="text" 
+                class="form-control" 
+                id="commission-input" 
+                placeholder="Nazwa" 
+                value=""
+              />
+              {% endblock commision_input %}
+            </div>
+          </div>
+
+          <div class="row mb-4 align-items-center">
+            <div class="col-md-3 text-start fw-semibold">
+              <label for="email">*Adres E-mail klienta</label>
+            </div>
+            <div class="col-md-9">
+              {% block email_input %}
+              <input 
+                type="text" 
+                class="form-control" 
+                id="email" 
+                placeholder="Email" 
+                value=""
+              />
+              {% endblock email_input %}
+            </div>
+          </div>
+
+          <div class="row mb-4 align-items-center">
+            <div class="col-md-3 text-start fw-semibold">
+              <label for="phone">*Numer telefonu</label>
+            </div>
+            <div class="col-md-9">
+              {% block phone_input %}
+              <input 
+                type="text" 
+                class="form-control" 
+                id="phone" 
+                placeholder="Telefon" 
+                value=""
+              />
+              {% endblock phone_input %}
+            </div>
+          </div>
+
+          <div class="row mb-4 align-items-center">
+            <div class="col-md-3 text-start fw-semibold">
+              <label for="street">*Ulica</label>
+            </div>
+            <div class="col-md-9">
+              {% block street_input %}
+              <input 
+                type="text" 
+                class="form-control" 
+                id="street" 
+                placeholder="Ulica" 
+                value=""
+              />
+              {% endblock street_input %}
+            </div>
+          </div>
+
+          <div class="row mb-4 align-items-center">
+            <div class="col-md-3 text-start fw-semibold">
+              <label for="city">*Miasto</label>
+            </div>
+            <div class="col-md-9">
+              {% block city_input %}
+              <input 
+                type="text" 
+                class="form-control" 
+                id="city" 
+                placeholder="Miasto" 
+                value=""
+              />
+              {% endblock city_input %}
+            </div>
+          </div>
+
+      
+          <div class="row mb-4 align-items-center">
+            <div class="col-md-3 text-start fw-semibold">
+              <label for="zip">*Kod pocztowy</label>
+            </div>
+            <div class="col-md-9">
+              {% block zip_input %}
+              <input 
+                type="text" 
+                class="form-control" 
+                id="zip" 
+                placeholder="Poczta" 
+                value=""
+              />
+              {% endblock zip_input %}
+            </div>
+          </div>
+
+  
+          <div class="row mb-4 align-items-center">
+            <div class="col-md-3 text-start fw-semibold">
+              <label for="country">*Kraj</label>
+            </div>
+            <div class="col-md-9">
+              {% block country_input %}
+              <input 
+                type="text" 
+                class="form-control" 
+                id="country" 
+                placeholder="Kraj" 
+                value=""
+              />
+              {% endblock country_input %}
+            </div>
+          </div>
+
+          <div class="row mb-4 align-items-center">
+            <div class="col-md-3 text-start fw-semibold">
+              <label for="comment">Uwagi do zamówienia</label>
+            </div>
+            <div class="col-md-8">
+              {% block comment_input %}
+              <textarea type="text"class="form-control" id="comment"placeholder="Uwagi"  cols="40" value=""rows="5"></textarea>
+              {% endblock comment_input %}
+            </div>
+          </div>
+
+
+          <div class="d-flex justify-content-center gap-3">
+            {% block sendBbtn %}
+              <button
+                class="btn btn-outline-secondary p-2 col-3"
+                type="button"
+                id="save-order-btn"
+                data-href="/orders/save-order"
+              >
+                Zapisz
+              </button>
+            {% endblock sendBbtn %}
+            
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script type="module" src="/scripts/orders.js"></script>
+{% endblock scripts %}
