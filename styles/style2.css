@@ -1,0 +1,65 @@
+:root {
+    --background: linear-gradient(30deg, #f7f7f7 30%, #85662e);
+    --background-select: linear-gradient(to left, #05002c 3rem, #8d8383 3rem);
+}
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+}
+body {
+    display: grid;
+    place-content: center;
+
+    background: var(--background);
+    color: white;
+  }
+.select {
+  position: relative;
+  display: flex;
+  width: min(28rem, 90vw);
+  background: var(--background-select);
+  border-radius: 0.25rem;
+  overflow: hidden;
+  margin-left: auto;
+  margin-right: auto;
+}
+select {
+  flex: 1;
+  padding: 10px;
+  cursor: pointer;
+}
+select::-ms-expand {
+    display: none;
+}
+
+@keyframes bounce {
+    25% {
+      transform: translatey(5px);
+    }
+    75% {
+      transform: translatey(-5px);
+    }
+  }
+  
+.select-area{
+display:grid;
+border:1px solid rgb(0, 0, 0);
+border-radius: 10px;
+box-shadow:3cm;
+max-width: 70%;
+margin:20px;
+margin-left: auto;
+margin-right: auto;
+padding: 5px;
+background: #001325;
+
+}
+
+
+label{
+    color:rgb(236, 238, 240);
+    margin-bottom: 15px;
+text-align: center;
+}
+

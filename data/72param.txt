@@ -1,0 +1,24 @@
+NAME	DESCRIPTION	TYPE	ACTIVE	ENABLE	SOURCE	GRAPHICS	DEPENDENCES	RELATED
+RODZ	Rodzaj tkaniny: P-Plissa, D-Duette	text	true	<NULL>		<NULL>	KOLOR,KOLORZAM,KOLOR2,KOLORZAM2	
+SYS	System: CHR	text	true	<NULL>		<NULL>		
+MODEL	Model	text	true	<NULL>		<NULL>	STER,STSTER,LPOK,KOLOR,KOLORZAM	
+KOLOR	Kolor tkaniny	text	true	<NULL>		<NULL>		
+KOLORZAM	Oryginalny kolor tkaniny z zamówienia	text	true	<NULL>		<NULL>		KOLOR
+KOLOR2	Kolor drugiej tkaniny	text	true	<NULL>		<NULL>		
+KOLORZAM2	Oryginalny kolor drugiej tkaniny z zamówienia	text	true	<NULL>		<NULL>		KOLOR2
+KOLSYS	Kolor systemu	text	true	<NULL>		<NULL>	STER	
+B	Szerokość w cm	number	true	<NULL>		<NULL>		
+H	Wysokość w cm	number	true	<NULL>		<NULL>	LPOK	
+STER	Rodzaj sterowania	text	true	<NULL>		<NULL>		
+STSTER	Strona sterowania	text	true	<NULL>		<NULL>		
+LPOK	Długość sterowania	number	true	<NULL>		<NULL>		
+PROW	Prowadnice, listwy	text	true	<NULL>		<NULL>		
+UCH	Rodzaj uchwytu mocowania	text	true	<NULL>		<NULL>		
+DODATKI	Dodatki-uchwyty sterownia	text	true	<NULL>		<NULL>		
+EL	Zestaw elektryczny (Plissee Elektryk)	text	true	<NULL>	01.EL	<NULL>		
+T	Transport	text	true	<NULL>		<NULL>		
+UWAGI	Uwagi	text	true	<NULL>		<NULL>		
+ODBIORCA						
+DEALER						
+KOOPERANT						
+SPRZEDAWCA						
