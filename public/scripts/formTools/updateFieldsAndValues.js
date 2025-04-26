@@ -62,7 +62,7 @@ export function buildValuesToDisplay(dictValues, value, paramName,  displayValue
         }
 }
 
-export function updateFieldInputs(params, inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues) {
+export function updateFieldInputs(params, inputs, values, displayValues,allOptionsByParameter, options, actualParameter,value,tagName) {
     logFunctionName('updateFieldInputs')
 
     getProcedures(inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues)

@@ -1,4 +1,10 @@
-import { logFunctionName } from './formTools.js';
+import { logFunctionName,
+    buildValuesToDisplay,
+    resetDependences,
+    updateFieldInputs,
+    updateFieldStates,
+
+ } from './formTools.js';
 
 export async function createDialog(param, options, grNr) {
     logFunctionName('createDialog')
@@ -72,3 +78,23 @@ export async function createDialog(param, options, grNr) {
     colorDialog.showModal()
 }
 
+export function getInfoFromDialog(values, inputs) {
+    logFunctionName('getInfoFromDialog')
+    const activeBox = document.querySelector('.image-box.active');
+    if (!activeBox) return;
+
+    const selectedValue = activeBox.querySelector('.image-name').dataset.value;
+    let paramName = activeBox.dataset.paramName;
+    let paramDescription = activeBox.dataset.paramDescription;
+    values[paramName] = selectedValue;
+    let currentInput = inputs[paramName];
+
+    if (currentInput && currentInput.tagName === "BUTTON") {
+        currentInput.innerText = `${selectedValue} - ${paramDescription}`;
+        currentInput.value = selectedValue;
+    }
+
+
+    document.getElementById("color-dialog").close();
+    return [selectedValue, paramName];
+}

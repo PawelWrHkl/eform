@@ -7,6 +7,7 @@ import {
 	updateFieldStates,
 	resetDependences,
 	buildValuesToDisplay,
+	getInfoFromDialog,
 } from "./formTools/formTools.js";
 
 export async function generateForm(
@@ -80,7 +81,8 @@ export async function generateForm(
 		if (inputs[key].tagName === "INPUT") {
 
 			inputs[key].addEventListener('blur', function() {
-				updateFieldInputs(params, inputs, allOptionsByParameter, values, options, this.name, this.value, this.tagName, displayValues);
+
+				updateFieldInputs(params, inputs, values, displayValues,allOptionsByParameter, options, this.name, this.value, this.tagName);
 				validateFormInput(values, this);
 				buildValuesToDisplay(allOptionsByParameter, this.value, this.name, displayValues, this.tagName);
 				updateFieldStates(params, inputs, values);
@@ -88,38 +90,19 @@ export async function generateForm(
 		} else {
 			inputs[key].addEventListener('change', function() {
 
-				updateFieldInputs(params, inputs, allOptionsByParameter, values, options, this.name, this.value, this.tagName, displayValues);
+				updateFieldInputs(params, inputs, values, displayValues,allOptionsByParameter, options, this.name, this.value, this.tagName);
 				updateFieldStates(params, inputs, values);
 			});
 		}
-	
 
 		document.getElementById('dialog-confirm').onclick = () => {
-			const activeBox = document.querySelector('.image-box.active');
-			if (!activeBox) return;
-	
-			const selectedValue = activeBox.querySelector('.image-name').dataset.value;
-			let paramName = activeBox.dataset.paramName;
-			let paramDescription = activeBox.dataset.paramDescription;
-			values[paramName] = selectedValue;
-			let currentInput = inputs[paramName];
-	
-			if (currentInput && currentInput.tagName === "BUTTON") {
-				currentInput.innerText = `${selectedValue} - ${paramDescription}`;
-				currentInput.value = selectedValue;
-			}
+			let [selectedValue, paramName] = getInfoFromDialog(values, inputs);
 
 			buildValuesToDisplay(allOptionsByParameter, selectedValue, paramName, displayValues, 'BUTTON');
-			
 			resetDependences([params,displayValues], paramName, inputs, values);
-			updateFieldInputs(params, inputs, allOptionsByParameter, values,options, paramName,selectedValue,'BUTTON', displayValues);
+			updateFieldInputs(params, inputs,values, displayValues, allOptionsByParameter, options, paramName,selectedValue,'BUTTON');
 			updateFieldStates(params, inputs, values);
-			document.getElementById("color-dialog").close();
 		};
-	
-	
-
-
 	}
 
 	return [inputs, values, displayValues];

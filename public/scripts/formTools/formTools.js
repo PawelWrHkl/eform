@@ -22,7 +22,8 @@ import {
 	validateFormInput
 } from './validateUtils.js';
 
-import {createDialog,
+import {createDialog,getInfoFromDialog,
+
 } from './dialogUtils.js';
 
 export function logFunctionName(functionName){
@@ -46,5 +47,6 @@ export {
 	setDefaultValues,
 	checkFlags,
 	validateFormInput,
-	createDialog
+	createDialog,
+	getInfoFromDialog
 }
