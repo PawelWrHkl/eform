@@ -1,0 +1,13 @@
+.order-row{
+    cursor:pointer;
+    transition: background-color 0.2s ease;
+
+}
+
+
+.order-row:hover td,
+.order-row:hover th {
+
+  background-color: rgb(235, 235, 235) !important;
+
+}

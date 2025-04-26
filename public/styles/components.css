@@ -6,21 +6,36 @@
 }
 
 #buttons-space {
-	display: grid;
+	display: flex;
 	margin-top: 10px;
 }
 
 .form-button {
-	margin-left: auto;
-	margin-right: 0;
+
 	margin-top: 10px;
 	border: #4d4646 solid 1px;
 	border-radius: 10px;
 	font-weight: 550;
 	width: 300px;
 }
+
 .content {
 	max-width: 95%;
 	float: left;
-	margin-left: 270px;
+	margin-left: 225px;
+	min-width: 63% !important;
+	max-width: 90%;
+	float: left;
+	min-width: calc(100% - 220px) !important;
+}
+
+
+#save-btn {
+	margin-bottom: 15%;
+	margin-left: 300%;
+	padding-left: 20% !important;
+	padding-right: 20% !important;
+}
+.commision-space{
+	margin-right: 2% !important;
 }

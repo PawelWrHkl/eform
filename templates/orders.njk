@@ -1,8 +1,53 @@
 {% extends "base.njk" %}
-{% block title %}Twoje zamówienia{% endblock title %}
-
+{% block title %}Twoje Zamówienia{% endblock title %}
+{% block head %}
+<<link rel="stylesheet" href="/styles/orders.css">
+{% endblock head %}
 {% block content %}
-            <div class="container">
-            Tu powstanie interfejs do zarzadzania zgloszeniami.
-            </div>
+<div class="content col-10 center-content">
+<div class="container my-5 col-12 w-100 ">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold header">Twoje Zamówienia</h2>
+
+  </div>
+  {% if orders %}
+  <table class="table align-middle">
+    <thead>
+    <tr>
+      <th scope="col">Nr. Zam.</th>
+      <th scope="col">Commission</th>
+      <th scope="col">Data utworzenia</th>
+      <th scope="col">Akcja</th>
+    </tr>
+  </thead>
+    <tbody>
+      {% for order in orders %}
+    
+    <tr onclick="window.location.href='/orders/order/{{ order.id }}'" class="order-row">
+      <th scope="row">{{ order.id }}</th>
+      <td>{{ order.commision }}</td>
+      <td>{{ order.created_date }}</td>
+      <td>
+      <a class="btn btn-outline-secondary p-1" href='/orders/edit/{{ order.id }}'>
+      <img src="/img/edit-text.png" alt="edytuj">
+      </a>
+      <a class="btn btn-outline-success p-1" href='/orders/edit/{{ order.id }}'>
+      <img src="/img/send.png" alt="edytuj"></a>
+      </td>      
+
+      </tr>
+      {% endfor %}
+        </tbody>
+</table>
+    </div>
+  {% else %}
+    <div class="text-center py-5">
+      <h3 class="mb-4">Brak Zamówień.</h3>
+      <p class="lead">Dodaj nowe zamówienie, aby rozpocząć.</p>
+
+    </div>
+  {% endif %}
+        <a href="orders/add-order/" class="btn btn-outline-success p-2 mb-5" id='new-order-button' type='button'>Dodaj zamówienie</a>
+</div>
+</div>
 {% endblock %}

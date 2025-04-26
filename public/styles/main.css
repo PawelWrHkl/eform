@@ -37,7 +37,7 @@ button {
 	cursor: pointer;
 	transition: background-color 0.3s;
 	margin-right: 10px;
-	max-height: 40px;
+	max-height: fit-content;
 }
 button:hover {
 	background-color: #444;
@@ -62,4 +62,8 @@ input[type="text"]:focus,
 input[type="number"]:focus {
 	border-color: #999;
 	outline: none;
+}
+
+body{
+	overflow-x: auto !important;
 }

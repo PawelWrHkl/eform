@@ -4,7 +4,7 @@
 	gap: 20px;
 }
 
-#dynamic-form > div {
+#dynamic-form>div {
 	margin-bottom: 16px;
 }
 
@@ -37,6 +37,83 @@ input[type="number"]:focus {
 .form-content {
 	max-width: 90%;
 	float: left;
-	margin-left: 20%;
-	max-width: calc(100% - 270px);
+	margin-left: 20% !important;
+	min-width: calc(100% - 220px) !important;
+}
+
+.buttons-space {
+	display: none !important;
+}
+
+.order-reminder {
+	display: none !important;
+}
+
+.asortment-container {
+	display: none !important;
+}
+
+.comment-space {
+	grid-column: 1 / -1;
+	justify-self: center;
+	width: 70%;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+
+.comment-space .item-comment {
+	width: 98%;
+	box-sizing: border-box;
+	resize: vertical;
+}
+
+.form-select {
+	width: 20%;
+}
+
+.asortment-inputs div {
+	margin-left: 3% !important;
+	margin-right: 5% !important;
+
+}
+
+/* Stylizacja nieprawidłowych pól */
+.invalid-input {
+	border: 1px solid red !important;
+	border-bottom: 2px solid red !important;
+	color:red;
+  }
+  
+  /* Wyświetlanie komunikatu błędu poprzez pseudo-element */
+  .invalid-input::after {
+	content: attr(data-error-message);
+	display: block;
+	color: red;
+	font-size: 12px;
+	margin-top: 4px;
+  }
+  
+  /* Dodatkowe style dla lepszej widoczności błędu */
+  .invalid-input:focus {
+	outline: none;
+	box-shadow: 0 0 3px red;
+	color:red
+  }
+  .invalid-label{
+	color:red
+  }
+  @keyframes flashError {
+    0% { background-color: transparent; }
+    25% { background-color: rgba(255, 0, 0, 0.3); }
+    50% { background-color: transparent; }
+    75% { background-color: rgba(255, 0, 0, 0.3); }
+    100% { background-color: transparent; }
+}
+
+.flash-error {
+    animation: flashError 2s ease;
+    border: 1px solid red !important;
+    box-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
 }

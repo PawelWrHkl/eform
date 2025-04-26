@@ -1,0 +1,72 @@
+{% block content %}
+<div class="content col-10 center-content">
+  <div class="container my-5">
+    <div class="position-relative ms-5 mb-4">
+      <h2 class="fw-bold header text-center p-4">
+        Zamówienie nr. {{ orderDetails.id }}
+        <br />
+        <p>"{{ orderDetails.commision }}"</p>
+      </h2>
+      <button class="btn btn-danger position-absolute" 
+      id="delete-order-btn">
+        Usuń zamówienie
+      </button>
+    </div>
+
+    {% if orderItems %}
+      {% for position in orderItems %}
+        <div class="position-container">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">{{ loop.index }}. {{ position.commision }}</h5>
+            <div>
+              <span class="me-3">
+                <strong>Ilość:</strong> {{ position.amount }}
+              </span>
+              <a class="btn btn-outline-primary me-2" href="#">
+                Edytuj
+              </a>
+              <a class="btn btn-outline-danger" id ='delete-button' href="#">
+                Usuń
+              </a>
+            </div>
+          </div>
+
+          <table class="table table-sm table-bordered mb-4">
+            <tbody class="p-5">
+              {% set columnsPerRow = 6 %}
+              {% set i = 0 %}
+              <tr>
+                {% for key, value in position.json_parameters %}
+                  {% if value %} 
+                    <td>
+                      <strong>{{ key }}</strong>: {{ value }}
+                    </td>
+                    {% set i = i + 1 %}
+                    {% if i % columnsPerRow == 0 %}
+                      </tr><tr>
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-5">
+        <h3 class="mb-4">Brak pozycji.</h3>
+        <p class="lead">Dodaj pozycję zamówienia</p>
+      </div>
+    {% endif %}
+    <a
+      href="/orders/order/{{ orderDetails.id }}/new-position/"
+      class="btn btn-outline-secondary p-2 my-5"
+      id="new-order-button"
+      type="button"
+    >Dodaj pozycję
+    </a>
+  </div>
+
+</div>
+{% endblock %}
+

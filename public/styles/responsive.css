@@ -18,15 +18,31 @@
 	#dynamic-form {
 		grid-template-columns: 1fr;
 	}
+	.comment-space{
+		width:80%;
+	}
 }
 
 @media (max-width: 650px) {
 	.desktop-nav {
-		display: none;
+		display: none !important;
 	}
 	.content {
-		margin-left: 2%;
+		margin-left: 3%;
+		max-width: 90%;
+		float: left;
+		min-width: calc(100% - 6%) !important;
 	}
+	[class$="-select-area"] {
+		display: flex;
+		flex-direction: column;
+	  }
+	  
+	  [class$="-select-area"] > button {
+		display: block;
+		width: 90% !important;
+	  }
+
 	.mobile-nav {
 		display: block !important;
 		position: fixed;
@@ -41,4 +57,27 @@
 		margin-left: 10px;
 		max-width: calc(100% - 20px);
 	}
+	.update-info{
+		margin-top: 10%;
+		margin-bottom: 10%;
+	}
+	.mobile-nav .nav-link {
+		color: #2b2b2b !important;
+		font-weight: 475;
+	  }
+	.buttons-space{
+		width:fit-content !important;
+	}
+	.form-button{
+		width:fit-content !important;
+	}
+	.btn{
+		width:fit-content !important;
+	}
+	.table{
+		width:80% !important;
+		table-layout:fit-content !important;
+
+	}
+	
 }

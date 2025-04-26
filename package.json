@@ -3,7 +3,7 @@
 	"version": "1.0.0",
 	"main": "index.js",
 	"scripts": {
-		"start": "node server.js",
+		"start": "node --openssl-legacy-provider server.js",
 		"dev": "node --watch server.js"
 	},
 	"keywords": [],
@@ -15,7 +15,14 @@
 		"dotenv": "^16.4.7",
 		"express": "^4.21.2",
 		"express-session": "^1.18.1",
+		"fs": "^0.0.1-security",
+		"lodash": "^4.17.21",
 		"mysql": "^2.18.1",
-		"nunjucks": "^3.2.4"
+		"mysql2": "^3.13.0",
+		"n_": "^4.0.1",
+		"nunjucks": "^3.2.4",
+		"path": "^0.12.7",
+		"smb2": "^0.2.11",
+		"util": "^0.12.5"
 	}
 }

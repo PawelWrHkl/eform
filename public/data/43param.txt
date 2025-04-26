@@ -1,28 +1,24 @@
 NAME	DESCRIPTION	TYPE	ACTIVE	ENABLE	SOURCE	GRAPHICS	DEPENDENCES	RELATED
-RODZ	Rozmiar platka	text	true	<NULL>		<NULL>	KOLOR,KOLORZAM,MODEL,KOLOR2,KOLORZAM2,TYP	
-MODEL	Rodzaj Modelu	text	true	<NULL>		<NULL>	BMALA,LMALA,LPOK,UCHD,TYP,KOLOR,KOLORZAM,STER,RODZST,KOLOR2,KOLORZAM2,UCHG	
-TYP	Typ Modelu	text	true	<NULL>		<NULL>	KOLOR2,KOLORZAM2,BMALA,LMALA,UCHD,RODZST,EL,PROW,KOLSYST,UCHG	
-KOLOR	Kolor Tkaniny (pierwszej od góry)	text	true	<NULL>		<NULL>		
-KOLORZAM	Zamówieniowy kolor tkaniny	text	true	<NULL>		<NULL>		KOLOR
-KOLOR2	Kolor Tkaniny (drugiej od góry dla plissee "noc-dzien")	text	true	OR(TYP="3",TYP="3 M",TYP="3 SF",TYP="SD",TYP="3 SD",TYP="2 DOUBLE",TYP="2 DOUBLE M",TYP="2 DOUBLE SL",TYP="2 DOUBLE SL HG")		<NULL>		
-KOLORZAM2	Zamówieniowy kolor drugiej tkanin	text	true	OR(TYP="3",TYP="3 M",TYP="3 SF",TYP="SD",TYP="3 SD",TYP="2 DOUBLE",TYP="2 DOUBLE M",TYP="2 DOUBLE SL",TYP="2 DOUBLE SL HG")		<NULL>		KOLOR2
-KOLSYST	Kolor systemu (szyny)	text	true	<NULL>		<NULL>	RODZST	
-B	Szerokosc calkowita (cm)	number	true	<NULL>		<NULL>		
-L	Wysokosc calkowita (cm)	number	true	<NULL>		<NULL>	LPOK	
-BMALA	Mniejsza szerokosc przy skosach (cm)	number	true	IF(AND(Model="VS",OR(typ="5",typ="5 SD",typ="5 L",typ="5 SD L",typ="6",typ="6 SD",typ="6 L",typ="6 SD L", typ="7",typ="7 L",typ="8",typ="8 L",typ="9",typ="10")),1,IF(AND(Model="F",Typ="7"),1,0))		<NULL>		
-LMALA	Mniejsza wysokosc przy skosach (cm)	number	true	IF(AND(Model="VS",OR(typ="4",typ="4 S",typ="5",typ="5 SD",typ="5 L",typ="5 SD L",typ="6",typ="6 SD",typ="6 L", typ="6 SD L")),1,IF(AND(Model="F",OR(typ="Slope1",typ="Slope2")),1,0))		<NULL>		
-STER	Strona Sterowania	text	true	<NULL>		<NULL>		
-RODZST	Rodzaj Sterowania	text	true	<NULL>		<NULL>	EL	
-LPOK	Dlugosc sznura, koralika lub endlosschnura (dl robocza), w przypadku raczki podac dlugosc miotly jezeli klient zamawia	number	true	OR(Model="F",Model="FD",Model="Foto F",Model="VS",Model="Foto VS")		<NULL>		
-PROW	Prowadnice, listwy	text	true	<NULL>		<NULL>	UCHD	
-UCHG	Uchwyt Górny	text	true	<NULL>		<NULL>		
-UCHD	Uchwyt Dolny	text	true	OR(Model="VS",Model="Foto VS",Typ="1 SF",Typ="2 SF",Typ="3 SF",Typ="4 SF",Typ="E SF")		<NULL>		
-DODATKI	Dodatkowe elementy wyposazenia	text	true	<NULL>		<NULL>		
-EL	Zestaw elektryczny (Plissee Elektryk)	text	true	RODZST="motor"	01.EL	<NULL>		
-TUBA	Sposób Pakowania	text	true	<NULL>		<NULL>		
-UWAGI	Uwagi	text	true	<NULL>		<NULL>		
-KOM	Komission	text	true	<NULL>		<NULL>		
-ODBIORCA	Odbiorca	text	true	<NULL>		<NULL>	KOLOR,KOLORZAM,KOLOR2,KOLORZAM2,RODZST	
-DEALER	Dealer	text	true	<NULL>		<NULL>		
-KOOPERANT	Kooperant	text	true	<NULL>		<NULL>		
-SPRZEDAWCA	Sprzedawca	text	true	<NULL>		<NULL>		
+MODEL	MODEL	<NULL>	true	<NULL>		true		
+TYP_TKANINY	STOFFART	<NULL>	true	<NULL>		<NULL>		
+KOLOR	STOFF1	<NULL>	true	<NULL>		true		
+KOLOR_DODATKOWY	STOFF2	<NULL>	true	=ZAWIERA(MODEL,"F3,VS3,AO30,AU30,AB30,BO30,BB30,BB35,BBSD,DB30,DB30s")		true		
+KOLOR_SYSTE	SYSTEMFARBE	<NULL>	true	<NULL>		true		
+SZEROKOSC	BREITE IN CM	<NULL>	true	<NULL>		<NULL>		
+WYSOKOSC	HOHE IN CM	<NULL>	true	<NULL>		<NULL>		
+WYMIAROWANIE_SLOPOW	SLOPE MASSE	<NULL>	true	=1=2		<NULL>		
+STEROWANIE	BEDIENUNG	<NULL>	true	<NULL>		<NULL>		
+STRONA_STEROWANIA	BEDIENUNGSEITE	<NULL>	true	=ZAWIERA(MODEL,"F1,F1 SF,AO10,AO40,AO70,BO10,AU10")		<NULL>		
+KOLOR_STEROWANIA	FARBE SCHNUR	<NULL>	true	=1=2		<NULL>		
+STEROWANIE_ELEKTRYCZNE	ELEKRTISCHE BEDINUNG	<NULL>	true	=ZAWIERA(MODEL,"FE,PLE12,FOTO FE,AE20,BE10")		<NULL>		
+STRONA_LADOWANIA	SEITE LADESTECKDOSE	<NULL>	true	=1=2		<NULL>		
+STRONA_WYJSCIA_PRZEWODU	SEITE KABELAUSTRIT	<NULL>	true	=1=2		<NULL>		
+OCHRONA_CHILD_SAFETY	CHILDSAFTE	<NULL>	true	=1=2		<NULL>		
+DLUGOSC_STER	LAENGE DER BEDIENUNG	<NULL>	true	=ZAWIERA(MODEL,"F1,F1 SF,AO10,AO40,AO70,BO10,AU10")		<NULL>		
+WYSOKOSC_MONTAZU	MONTAGEHOHE/GRAPFIK?	<NULL>	true	=1=2		<NULL>		
+PROWADNICE	FUHRUNGSCHIENE	<NULL>	true	=1=2		<NULL>		
+MONTAZ	MONTAGEART	<NULL>	true	<NULL>		true		
+ODBIORCA						
+DEALER						
+KOOPERANT						
+SPRZEDAWCA						

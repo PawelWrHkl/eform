@@ -1,0 +1,84 @@
+{% extends "new-order.njk" %}
+{% block title %}Edytuj zamówienie{% endblock title %}
+{% block order_title %}Edytuj dane zlecenia{% endblock order_title %}
+
+{% block commision_input %}
+          <input
+            type="text"
+            class="form-control"
+            id="commission-input"
+            value='{{orderData.commision}}'
+            placeholder="Nazwa"
+          />
+{% endblock commision_input %}
+
+{% block email_input %}
+            <input
+              type="text"
+              class="form-control"
+              id="email"
+              value = '{{orderData.email}}'
+              placeholder="Email"
+            />
+{% endblock email_input %}
+
+{% block phone_input %}
+<input
+  type="text"
+  class="form-control"
+  id="phone"
+  placeholder="Telefon" 
+  value = '{{orderData.phone}}'
+/>
+{% endblock phone_input %}
+
+{% block street_input %}
+<input
+  type="text"
+  class="form-control"
+  id="street"
+  placeholder="Ulica" 
+  value = '{{orderData.street}}'
+/>         
+{% endblock street_input %}
+{% block city_input %}
+<input
+  type="text"
+  class="form-control"
+  id="city"
+  placeholder="Miasto" 
+  value = '{{orderData.city}}'
+/>
+{% endblock city_input %}
+{% block zip_input %}
+<input
+  type="text"
+  class="form-control"
+  id="zip"
+  placeholder="Poczta"
+  value = '{{orderData.zip}}'
+/>
+{% endblock zip_input %}
+{% block country_input %}
+<input
+  type="text"
+  class="form-control"
+  id="country"
+  placeholder="Kraj" 
+  value = '{{orderData.country}}'
+/>
+{% endblock country_input %}
+
+{% block comment_input %}
+<textarea type="text"class="form-control" id="comment"placeholder="Uwagi"  cols="40" rows="5">
+{{orderData.comment}}</textarea>
+{% endblock comment_input %}
+{% block sendBbtn %}
+      <button
+        class="btn btn-outline-secondary p-2 col-3"
+        id="update-order"
+        type="button"
+        data-id="{{orderData.id}}"
+        >Zapisz</button>
+{% endblock %}
+

@@ -1,0 +1,26 @@
+{
+    "39":{
+        "params":"39param.txt", 
+       "paramdict":"39paramdict.txt"
+   },
+
+    "43": {
+        "params":"43param.txt", 
+        "paramdict":"43paramdict.txt"},
+        "59":{
+            "params":"59param.txt", 
+           "paramdict":"59paramdict.txt"
+       },
+    "71": {
+        "params":"71param.txt", 
+        "paramdict":"71paramdict.txt"
+    },
+    "72":{
+         "params":"72param.txt", 
+        "paramdict":"72paramdict.txt"
+    },
+    "101":{
+        "params":"72param.txt", 
+       "paramdict":"72paramdict.txt"
+   }
+}

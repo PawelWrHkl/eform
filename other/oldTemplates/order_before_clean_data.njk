@@ -1,0 +1,120 @@
+{% extends "base.njk" %}
+{% block title %}Zamówienie nr.{{ orderDetails.id }}{% endblock title %}
+
+{% block head %}
+<link rel="stylesheet" href="/styles/order_details.css">
+<link rel="stylesheet" href="/styles/dialog.css">
+{% endblock head %}
+
+{% block content %}
+<div class="table-content center-content ">
+  <div class="container my-5">
+   <div class="position-relative ms-5 mb-4">
+      <h2 class="fw-bold header text-center p-4">
+        Zamówienie nr. {{ orderDetails.id }}
+        <br />
+        <p>"{{ orderDetails.commision }}"</p>
+      </h2>
+      <button class="btn btn-danger position-absolute" 
+      id="delete-order-btn" data-href ='/orders/order/{{orderDetails.id}}/delete' type ='button'>
+        Usuń zamówienie
+      </button>
+    </div>
+    {% if orderItems and orderItems.length > 0 %}
+      {% set prevHeaders = null %}
+      {% for position in orderItems %}
+
+        {% set currentHeaders = '' %}
+        {% for fieldName, value in position.json_parameters %}
+          {% set currentHeaders = currentHeaders ~ fieldName ~ ',' %}
+        {% endfor %}
+        
+        {% if prevHeaders == null or currentHeaders != prevHeaders %}
+          {% if not loop.first %}
+            <div class="my-4"></div>
+          {% endif %}
+          <div class="order-table-container "style="overflow-x: auto;">
+            <div class="table-scroll">
+          <table class="table align-left table-bordered order-table ">
+            <thead>
+              <tr>
+              <th scope="col "class='edit-buttons'>Akcja</th>
+                <th scope="col" class='edit-buttons'>#</th>
+                <th scope="col" class='edit-buttons'>Ilość</th>
+                
+                {% for fieldName, value in position.json_parameters %}
+                  {% if value %}
+                  <th scope="col" class='th-field'>{{ fieldName }}</th>
+                  {% else %}
+                  {% endif %}
+                {% endfor %}
+
+              </tr>
+            </thead>
+
+            <tbody>
+        {% endif %}
+
+        <tr style="cursor: pointer">
+            <td>
+    <button class="btn btn-outline-primary me-2 edit-position-btn" 
+            type="button" 
+            data-id="{{ position.id }}"
+            >
+      Edytuj
+    </button>
+
+    <button class="btn btn-outline-danger delete-position-btn" 
+            type="button" 
+            data-id="{{ position.id }}"
+            data-href="/position/{{ position.id }}/delete"
+            >
+      Usuń
+    </button>
+            
+          </td>
+          <th scope="row">{{ loop.index }}</th>
+          <td>{{ position.amount }}</td>
+
+          {% for fieldName, value in position.json_parameters %}
+            {% if value %}
+              <td class='td-val'>{{ value }}</td>
+            {% else %}
+            {% endif %}
+          {% endfor %}
+
+        </tr>
+        {% set prevHeaders = currentHeaders %}
+      {% endfor %}
+      </tbody>
+      </table>
+      </div>
+      </div>
+    {% else %}
+      <div class="text-center py-5">
+        <h3 class="mb-4">Brak pozycji.</h3>
+        <p class="lead">Dodaj pozycję zamówienia</p>
+      </div>
+    {% endif %}
+  </div>
+      <a href="/orders/order/{{ orderDetails.id }}/new-position/" class="btn btn-outline-success p-2 mb-5" id="new-order-button" type="button">Dodaj pozycję</a>
+</div>
+
+<div id='dialog-container'>
+  <dialog id="delete-dialog">
+    <h3 id='dialog-title'>Usuń element</h3>
+    <p>Czy na pewno chcesz usunąć?</p>
+        <div class="alert" id='status-info'>
+  </div>
+    <div class="confirmattion-buttons">
+      <button id="cancel-btn" class="btn btn-secondary me-1" type="button">Anuluj</button>
+      <button id="confirm-btn" class="btn btn-danger ms-1" type="button" >Potwierdź</button>
+    </div>
+    
+  </dialog>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/scripts/order.js"></script>
+{% endblock scripts %}

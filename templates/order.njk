@@ -1,0 +1,132 @@
+{% extends "base.njk" %}
+
+{% block title %}
+Zamówienie nr.{{ orderDetails.id }}
+{% endblock title %}
+
+{% block head %}
+<link rel="stylesheet" href="/styles/order_details.css">
+<link rel="stylesheet" href="/styles/dialog.css">
+{% endblock head %}
+
+{% block content %}
+<div class="content center-content col-10 ">
+  <div class="container my-5">
+    <div class="position-relative  mb-4">
+      <h2 class="fw-bold header text-center p-4">
+        Zamówienie nr. {{ orderDetails.id }}
+        <br />
+
+        <p>"{{ orderDetails.commision }}"</p>
+      </h2>
+      <div class="comment-space d-flex align-items-center justify-content-center">
+
+      <h3 id='comment' class='h3 fw-bold btn' data-id = "{{ orderDetails.id }}">Komentarz: {{ orderDetails.comment }}</h3>
+     <!-- {% if orderDetails.comment %}
+
+      <input id='comment-input'class='h3 btn d-none' value ='{{ orderDetails.comment }}' data-value='{{ orderDetails.comment }}'>
+
+      {% else %}
+      <button id='comment-btn'class='h3 btn' data-id = "{{ orderDetails.id }}"  >Kliknij, aby dodać opis</button>
+      <input id='comment-input'class='h3 btn d-none' data-value ='{{ orderDetails.comment }}'>
+      {% endif %}
+      <button id='edit-comment-btn' class ='btn btn-outline-secondary mb-2'>
+      <img src="/img/pencil.png" alt="edycja opisu" class= "edit-icon" id="edit-icon">
+      </button>
+      <button id='accept-comment-btn' class ='btn btn-outline-success mb-2 d-none'>
+      <img src="/img/done.png" alt="akceptuj opis" class= "accept-icon" id="accept-icon">
+      </button>
+      -->
+    </div>
+      <button class="btn btn-danger position-absolute" 
+              id="delete-order-btn" 
+              data-href='/orders/order/{{ orderDetails.id }}/delete' 
+              type='button'>
+        Usuń zamówienie
+      </button>
+    </div>
+
+    {% if cleanOrderItems.length > 0 %}
+    <div class="order-table-container" style="overflow-x: auto;">
+    {% set globalIndex = 1 %}
+
+      {% for table in cleanOrderItems %}
+        <div class="table-scroll mb-5">
+          <table class="table align-left table-bordered order-table">
+            <thead>
+              <tr>
+                <th class="edit-buttons">Akcja</th>
+                <th class="edit-buttons">#</th>
+                <th class="edit-buttons">Ilość</th>
+                <th class="edit-buttons">Nazwa</th>
+                {% for header in table.headers %}
+                  <th class="th-field">{{ header }}</th>
+                {% endfor %}
+              <th class="edit-buttons">Komentarz</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for rowObj in table.rows %}
+                <tr style="cursor: pointer">
+                  <td>
+                    <a class="btn btn-outline-secondary me-2 p-1 edit-position-btn"
+                            href="/position/{{ rowObj.item.id }}">
+                      <img src="/img/edit-text.png" alt="edytuj">
+                    </a>
+
+                    <button class="btn btn-outline-danger p-2  delete-position-btn" 
+                            type="button" 
+                            data-id="{{ rowObj.item.id }}"
+                            data-href="/position/{{ rowObj.item.id }}/delete">
+                        <img src="/img/delete.png" alt="Usuń" style="height: 24px;" />
+                    </button>
+                  </td>
+                  <th scope="row">{{ globalIndex }}</th>
+                  <td>{{ rowObj.item.amount or "-" }}</td>
+                  <td>{{ rowObj.item.commision or "-" }}</td>
+                  {% for cell in rowObj.row %}
+                    <td class="td-val">{{ cell }}</td>
+                  {% endfor %}
+                  <td>{{ rowObj.item.comment or "-" }}</td>
+                </tr>
+                {% set globalIndex = globalIndex + 1 %}
+              {% endfor %}
+              
+            </tbody>
+          </table>
+        </div>
+
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="text-center py-5">
+        <h3 class="mb-4">Brak pozycji.</h3>
+        <p class="lead">Dodaj pozycję zamówienia</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <a href="/orders/order/{{ orderDetails.id }}/new-position/" 
+     class="btn btn-outline-success p-2 mb-5" 
+     id="new-order-button" 
+     type="button">
+    Dodaj pozycję
+  </a>
+</div>
+
+<div id='dialog-container'>
+  <dialog id="delete-dialog">
+    <h3 class="text-center" id='dialog-title'>Usuń element</h3>
+    <p class="text-center">Czy na pewno chcesz usunąć?</p>
+    <div class="alert" id='status-info'></div>
+    <div class="confirmattion-buttons">
+      <button id="cancel-btn" class="btn btn-secondary me-1" type="button">Anuluj</button>
+      <button id="confirm-btn" class="btn btn-danger ms-1" type="button">Potwierdź</button>
+    </div>
+  </dialog>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/scripts/order.js"></script>
+{% endblock scripts %}

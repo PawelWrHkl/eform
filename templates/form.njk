@@ -2,26 +2,80 @@
 {% block title %}
 Formularz HKL
 {% endblock title %}
-
+{% block head %}
+<link rel="stylesheet" href="/styles/dialog.css">
+{% endblock head %}
 {% block content %}
+        <form action="post" class='full-form'>
+        <p id="orderId" class='d-none'>{{orderId}}</p>
+        <div class='content'>
             <h1> Formularz Zamówieniowy HKL</h1>
-            <div class="container">
-                <label for="asortment-group">Wybierz grupę</label>
-                <select name="asortment-group" id="asortment-group">
-                    <option value="" disabled selected></option>
-                    <option value="43">Cossyflor</option>
-                    <option value="71">EOS</option>
-                    <option value="72">CHR</option>
+            <div class='container d-flex col-12 p-3'>
+                <div class='commission-space d-flex mb-4 col-12'>
+                    <div class="comm-input d-grid col-8">
+                        <label for="commision-input">*Podaj nazwę pozycji (Komission)</label>
+                        <input type="text" id="commistion-input" placeholder='Nazwa'> 
+                    </div>
+                    <button class="btn btn-outline-secondary mr-3 mt-4 col-3" id ='commision-save-btn' type='button'>Zapisz</button>
+                    <button class="btn btn-outline-secondary col-2 mt-4 col-3" id ='commision-edit-btn' style='display:none' type='button'>Edycja</button>
+                </div>
 
-                </select>
+
             </div>
-            <div class="container">
-                <h1>Wartości proszę uzupełniać zgodnie z kolejnością</h1>
-                <form id="dynamic-form"></form>
+          <div class="container asortment-container">
+          <div class= 'd-flex justify-content-xxl-start asortment-inputs'>
+            <div class="col-2 d-flex flex-column">
+              <label for="department">Wybierz dział</label>
+              <select name="department" id="department-select" class="form-select">
+
+              </select>
+            </div>
+            <div class="col-2 d-flex flex-column">
+              <label for="asortment-group">Wybierz grupę</label>
+              <select name="asortment-group" id="asortment-group-select" class="form-select">
+              </select>
+            </div>
+          </div>
+          </div>
+
+            <div class="container order-reminder">
+                <h3>Wartości proszę uzupełniać zgodnie z kolejnością</h3>
+            <div id="dynamic-form">
+            </div>
+            <div id="file-error-message" class="alert alert-danger d-none col-12 " role="alert">
             </div>
 
-            <div id="buttons-space">
+            <div id="buttons-space" class='justify-content-between'>
+            <button class="btn btn-outline-secondary form-button" type='button' id ='show-button'>
+            Zapisz</button>
+            <button class="btn btn-outline-secondary form-button" type='button' id='reset-button'>
+            Resetuj wartości</button>
             </div>
         </div>
-    </main>
+        </form>
+
+
+<dialog id="color-dialog">
+  <div id="dialog-container" class="d-grid">
+    <h3 id="dialog-title" class="text-center">Wybór parametru</h3>
+    <p class="text-center">Dostosuj pozycję</p>
+
+    <div id="dynamic-options-list" class="options-scrollable">
+    </div>
+    <div class="text-center mt-3">
+      <button id="dialog-confirm" class="btn btn-success me-2" type='button'>Zastosuj</button>
+      <button id="dialog-close" class="btn btn-secondary" type='button'>Anuluj</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="image-preview-dialog" class="image-preview-dialog">
+  <button id="close-dialog-btn" class="close-dialog-btn" type='button'>✖</button>
+  <img id="preview-image" src="" alt="Podgląd" />
+</dialog>
+
 {% endblock %}
+{% block scripts %}
+    <script type="module" src="/scripts/main.js"></script>
+    <script type="module" src="/scripts/testExcel.js"></script>
+{% endblock scripts %}    
