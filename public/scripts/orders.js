@@ -1,4 +1,4 @@
-
+import { showToast } from "./components/toast.js";
 async function prepareRestData() {
 	
 		const orderCommision = document.getElementById("commission-input").value;
@@ -35,8 +35,11 @@ async function createOrder(){
 		const result = await response.json();
 		console.log(response)
 		if (result.redirect){
-			alert('Pomyślnie zapisano dane');
-			window.location.href = result.redirect;
+			showToast('success', 'Pomyślnie zapisano dane');
+			setTimeout(() => {
+                window.location.href = result.redirect;
+            }, 3000);
+			
 		}
 	}
 		

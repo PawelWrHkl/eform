@@ -42,8 +42,8 @@ export function showToastInContainer(parent,type,message){
     customToastContainer.classList.add('toast-container', 'toast-top-right');
     parent.appendChild(customToastContainer);
     toastr.options.containerId= customToastContainer.id;
+
     showToast(type,message);
 
     toastr.options = previousOptions;
-    costomToastContainer.remove();
 }
