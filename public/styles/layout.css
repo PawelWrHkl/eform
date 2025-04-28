@@ -109,3 +109,11 @@
 	border-collapse: collapse;
 
 }
+#toast-container {
+    z-index: 9999999 !important;
+    position: relative;
+}
+
+.toast {
+    z-index: 10000000 !important;
+}

@@ -3,6 +3,7 @@ import { resetSelectValues,
 		 processCommissionInput,
 		checkFlags } from "/scripts/formTools/formTools.js";
 import {buildOrderItemStructure} from '/scripts/orderBuilder.js'
+import { showToast } from "/scripts/components/toast.js";
 
 async function loadJsonConfig() {
 	const data = await fetch("/config/files.json");
@@ -91,6 +92,7 @@ async function loadJsonConfig() {
 		};
 
 		resetButton.onclick = function () {
+			showToast('info', 'Loading form...');
 			resetSelectValues( [Object.keys(values),valuesToDisplay], inputs, values);
 			console.log(valuesToDisplay)
 		};

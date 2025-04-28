@@ -24,7 +24,7 @@ import {
 
 import {createDialog,getInfoFromDialog,
 
-} from './dialogUtils.js';
+} from './dialogUtils_copy.js';
 
 export function logFunctionName(functionName){
 	const sep = '-'.repeat(10)

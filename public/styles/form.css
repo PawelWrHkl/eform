@@ -117,3 +117,37 @@ input[type="number"]:focus {
     border: 1px solid red !important;
     box-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
 }
+
+.search-input {
+	margin-left: 5%;
+	margin-top: 2%;
+	margin-bottom: 1%;
+	width: 95% !important;
+}
+.filter-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-bottom: 15px;
+	padding: 10px;
+	background-color: #f5f5f5;
+	border-radius: 4px;
+	margin-left: 5%;
+	width: 95% !important;
+
+}
+  
+  .filter-group {
+	display: flex;
+	align-items: center;
+	margin-right: 15px;
+  }
+  
+  .filter-label {
+	margin-right: 8px;
+	font-weight: bold;
+  }
+  
+  .filter-select {
+	min-width: 120px;
+  }

@@ -1,5 +1,5 @@
 import { logFunctionName } from './formTools.js';
-import { createDialog } from './dialogUtils.js';
+import { createDialog } from './dialogUtils_copy.js';
 
 export function processCommissionInput() {
     logFunctionName('processCommissionInput')
@@ -67,6 +67,7 @@ export function createInputField(param, options,groupNumber) {
         btn.id= param.NAME;
         btn.type='button';
         btn.innerHTML = `Wybierz ${param.DESCRIPTION}`;
+
         btn.onclick = function() {
             createDialog(param, options,groupNumber);
         };
