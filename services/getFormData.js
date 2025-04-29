@@ -7,7 +7,7 @@ const CONFIG = {
 	host: "\\\\192.168.101.1\\shared",
 	username: "nobody",
 	password: "nobody",
-	remoteRoot: "eform/proc_test",
+	remoteRoot: "eform/data",
 	localRoot: path.join(__dirname, "../public/data"),
 };
 

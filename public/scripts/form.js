@@ -15,11 +15,12 @@ export async function generateForm(
 	values = {}
 	
 ) {
+
 	window.inputsValidatiors = {};
 	window.inputFlags = {};
 	window.tempGroupNumber = files.params.substring(0,2);
+	console.log(files,tempGroupNumber);
 	const data = await parseData(files);
-
 	window.params = data.params;
 	window.actualParam = '';
 	window.actualValue = '';
@@ -107,3 +108,58 @@ export async function generateForm(
 
 	return [inputs, values, displayValues];
 }
+
+
+export function buildCommentSpace(destinationNode) {
+	const commentDiv = document.createElement('div');
+	commentDiv.classList.add('comment-space', 'col-12');
+  
+	const commentLabel = document.createElement('label');
+	commentLabel.setAttribute('for', 'orderComment');
+	commentLabel.textContent = 'UWAGI DO ZAMÓWIENIA:';
+	commentLabel.classList.add('form-label', 'mb-1');
+  
+	const comment = document.createElement('textarea');
+	comment.id = 'orderComment';
+	comment.classList.add('form-control', 'item-comment');
+	comment.rows = 4;
+  
+	commentDiv.appendChild(commentLabel);
+	commentDiv.appendChild(comment);
+	destinationNode.appendChild(commentDiv);
+  
+	return comment;
+}
+
+
+export function buildMainSelect(files) {
+	const asortmentGroupSelect = document.getElementById("asortment-group-select");
+	const departmentSelect = document.getElementById("department-select");
+	departmentSelect.innerHTML = `<option value="" disabled selected>Wybierz dział</option>`;
+	for (let department of Object.keys(files)) {
+	  const option = document.createElement("option");
+
+	  option.value = department;
+	  option.textContent = department;
+	  departmentSelect.appendChild(option);
+	  
+	}
+  
+	departmentSelect.addEventListener("change", () => {
+	  const selectedDepartment = departmentSelect.value;
+	  const groups = files[selectedDepartment];
+  
+
+	  asortmentGroupSelect.innerHTML = `<option value="" disabled selected>Wybierz grupę</option>`;
+  
+
+	  for (let [groupKey, groupData] of Object.entries(groups)) {
+		const option = document.createElement("option");
+		option.value = groupKey;
+		option.textContent = groupData.name;
+		asortmentGroupSelect.appendChild(option);
+	  }
+	});
+	return {asortmentGroupSelect, departmentSelect};
+
+  }

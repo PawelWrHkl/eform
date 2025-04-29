@@ -1,22 +1,23 @@
-import { generateForm } from "/scripts/form.js";
-import { resetSelectValues,
-		 processCommissionInput,
-		checkFlags } from "/scripts/formTools/formTools.js";
+import {
+		 generateForm,
+		 buildCommentSpace,
+		 buildMainSelect
+ } from "/scripts/form.js";
+import { 
+		resetSelectValues,
+		processCommissionInput,
+		checkFlags 
+	} from "/scripts/formTools/formTools.js";
 import {buildOrderItemStructure} from '/scripts/orderBuilder.js'
 import { showToast } from "/scripts/components/toast.js";
+import { set } from "lodash";
 
 async function loadJsonConfig() {
 	const data = await fetch("/config/files.json");
 	const departments = await data.json();
-
 	const formContainer = document.getElementById("dynamic-form");
-	const asortmentGroupSelect = document.getElementById("asortment-group-select");
-	const departmentSelect = document.getElementById("department-select");
-
-	buildMainSelect(departmentSelect, asortmentGroupSelect, departments);
-
+	const {asortmentGroupSelect, departmentSelect} = buildMainSelect(departments);
 	const buttonsDiv = document.getElementById("buttons-space");
-
 	const showButton = document.getElementById('show-button');
 	let resetButton = document.getElementById('reset-button');
 
@@ -26,21 +27,46 @@ async function loadJsonConfig() {
 	asortmentGroupSelect.addEventListener("input", async function () {
 		let selectedDepartment = departments[departmentSelect.value]
 		let selectedGroupId = selectedDepartment[asortmentGroupSelect.value];
-		
-		console.log(selectedGroupId)
 		const hiddenClass = document.querySelector('.order-reminder');
+
 		hiddenClass.style.setProperty('display', 'block', 'important');
 		let filesToGenerate = {
 			params: selectedGroupId.params,
 			paramdict: selectedGroupId.paramdict
 		  };
-		console.log();
+
 		try{
 		const [inputs, values, valuesToDisplay] = await generateForm(filesToGenerate);
 		 const orderId = document.getElementById('orderId').textContent;
 		 const comment = buildCommentSpace(formContainer);
 
 		showButton.onclick = async function () {
+			if(!errorHandler()){
+				return;
+			}
+			const result = sendData(inputs,values,valuesToDisplay,orderId,comment);
+
+		};
+
+		resetButton.onclick = function () {
+			showToast('info', 'Loading form...');
+			resetSelectValues( [Object.keys(values),valuesToDisplay], inputs, values);
+			console.log(valuesToDisplay)
+		};
+	}
+	catch (err) {
+		console.error("NIE MA PLIKÓW", err);
+	    formContainer.innerHTML = "";
+		const alertBox = document.getElementById("file-error-message");
+		alertBox.textContent = "Nie udało się załadować plików dla wybranej grupy.";
+		alertBox.classList.remove("d-none");
+		setTimeout(() => alertBox.classList.add("d-none"), 6000);
+	  }
+	});
+	
+}
+
+async function errorHandler(){
 			const correctFlag = await checkFlags();
 			if (typeof checkFlags() !== 'boolean'){
 				for (let {key, value} of correctFlag) {
@@ -57,88 +83,43 @@ async function loadJsonConfig() {
 				console.log('nie wszystkie flagi ok');
 				return false;
 			}
-
-			console.log("Aktualne wartości pól:", values);
-			console.log(values)
-			const commission = document.querySelector('.commission-space h5').innerHTML;
-			const jsonValuesToDisplay = JSON.stringify(Array.from(valuesToDisplay.entries()));
-			
-			let postBody = buildOrderItemStructure(
-				parseInt(orderId)
-				,{},0,0,0,0,
-				commission,
-				commission,
-				values,
-				jsonValuesToDisplay,
-				1,
-				comment.value
-			);
-			let json = JSON.stringify(postBody);
-			
-			try {
-				const response = await fetch("/position/save", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: json,
-				});
-				const result = await response.json();
-				console.log("wysłano do backendu");
-				window.location.href =`/orders/order/${orderId}`
-			} catch (error) {
-				console.error("Bład przy wysyłaniu", error);
-			}
-		};
-
-		resetButton.onclick = function () {
-			showToast('info', 'Loading form...');
-			resetSelectValues( [Object.keys(values),valuesToDisplay], inputs, values);
-			console.log(valuesToDisplay)
-		};
-	}
-	catch (err) {
-		console.error("NIE MA PLIKÓW", err);
-	    formContainer.innerHTML = "";
-
-		const alertBox = document.getElementById("file-error-message");
-		alertBox.textContent = "Nie udało się załadować plików dla wybranej grupy.";
-		alertBox.classList.remove("d-none");
-		setTimeout(() => alertBox.classList.add("d-none"), 6000);
-	  }
-	
-	});
-	
+}
+function prepareForm(){
 }
 
-function buildMainSelect(departmentSelect, asortmentGroupSelect, files) {
+async function sendData(inputs,values,valuesToDisplay,orderId,comment){
+	const commission = document.querySelector('.commission-space h5').innerHTML;
+	const jsonValuesToDisplay = JSON.stringify(Array.from(valuesToDisplay.entries()));
 	
-	departmentSelect.innerHTML = `<option value="" disabled selected>Wybierz dział</option>`;
-	for (let department of Object.keys(files)) {
-	  const option = document.createElement("option");
+	let postBody = buildOrderItemStructure(
+		parseInt(orderId)
+		,{},0,0,0,0,
+		commission,
+		commission,
+		values,
+		jsonValuesToDisplay,
+		1,
+		comment.value
+	);
+	let json = JSON.stringify(postBody);
+	try {
+		const response = await fetch("/position/save", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: json,
+		});
+		const result = await response.json();
+		setTimeout(() => {}, 3000);// MUSISZ SIE DOWIEDZIEC CZEMU BLAD WYSKAKUJE
+		window.location.href =`/orders/order/${orderId}`
 
-	  option.value = department;
-	  option.textContent = department;
-	  departmentSelect.appendChild(option);
-	  
+	} catch (error) {
+		console.error("Bład przy wysyłaniu", error);
 	}
-  
-	departmentSelect.addEventListener("change", () => {
-	  const selectedDepartment = departmentSelect.value;
-	  const groups = files[selectedDepartment];
-  
+	return result;
+}
 
-	  asortmentGroupSelect.innerHTML = `<option value="" disabled selected>Wybierz grupę</option>`;
-  
-
-	  for (let [groupKey, groupData] of Object.entries(groups)) {
-		const option = document.createElement("option");
-		option.value = groupKey;
-		option.textContent = groupData.name;
-		asortmentGroupSelect.appendChild(option);
-	  }
-	});
-  }
 
 let saveCommisionButton = document.getElementById('commision-save-btn');
 	saveCommisionButton.addEventListener('click', function(){
@@ -163,23 +144,3 @@ document.getElementById("dialog-close").addEventListener('click', function () {
 	document.getElementById('color-dialog').close();
 });
 
-function buildCommentSpace(destinationNode) {
-	const commentDiv = document.createElement('div');
-	commentDiv.classList.add('comment-space', 'col-12');
-  
-	const commentLabel = document.createElement('label');
-	commentLabel.setAttribute('for', 'orderComment');
-	commentLabel.textContent = 'UWAGI DO ZAMÓWIENIA:';
-	commentLabel.classList.add('form-label', 'mb-1');
-  
-	const comment = document.createElement('textarea');
-	comment.id = 'orderComment';
-	comment.classList.add('form-control', 'item-comment');
-	comment.rows = 4;
-  
-	commentDiv.appendChild(commentLabel);
-	commentDiv.appendChild(comment);
-	destinationNode.appendChild(commentDiv);
-  
-	return comment;
-}
