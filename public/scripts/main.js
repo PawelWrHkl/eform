@@ -10,7 +10,7 @@ import {
 	} from "/scripts/formTools/formTools.js";
 import {buildOrderItemStructure} from '/scripts/orderBuilder.js'
 import { showToast } from "/scripts/components/toast.js";
-import { set } from "lodash";
+
 
 async function loadJsonConfig() {
 	const data = await fetch("/config/files.json");
@@ -111,8 +111,9 @@ async function sendData(inputs,values,valuesToDisplay,orderId,comment){
 			body: json,
 		});
 		const result = await response.json();
-		setTimeout(() => {}, 3000);// MUSISZ SIE DOWIEDZIEC CZEMU BLAD WYSKAKUJE
-		window.location.href =`/orders/order/${orderId}`
+		setTimeout(() => {
+			window.location.href = `/orders/order/${orderId}`;
+		}, 3000);
 
 	} catch (error) {
 		console.error("Bład przy wysyłaniu", error);
