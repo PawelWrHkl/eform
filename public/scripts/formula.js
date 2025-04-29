@@ -5,6 +5,7 @@ let success_count = 0;
 
 function zaw(params){
 	if (!params || params.length < 2) return false;
+    console.log(co,lista)
     let co = (params[0] || "").toString();
     let lista = (params[1] || "").toString();
     co = "," + co + ",";
@@ -193,8 +194,12 @@ function evaluateFormula(expression, context) {
 
 		expression = expression.replace(/^=/, '');
 		expression = expression.toUpperCase();
-		
+
 		let result = parser.parse(expression);
+        if (expression.includes("ZAWIERA(MODEL,AO10")) {
+            console.log('expression', expression, result,context)
+
+        }
 		if (result.result == "0") {
 			result.result = false;
 		}
