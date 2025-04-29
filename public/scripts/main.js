@@ -11,13 +11,13 @@ import {
   import { buildOrderItemStructure } from '/scripts/orderBuilder.js';
   import { showToast } from "/scripts/components/toast.js";
   
-  /* --- Inicjalizacja i główna obsługa formularza --- */
+  /* Inicjalizacja i główna obsługa formularza */
   function initialize() {
 	setupGlobalListeners();
 	setupCommissionButton();
   }
   
-  /* --- Ładowanie konfiguracji i budowa formularza --- */
+  /* Ładowanie konfiguracji i budowa formularza */
   async function loadJsonConfig() {
 	const departments = await fetchDepartments();
 	const { asortmentGroupSelect, departmentSelect } = buildMainSelect(departments);
@@ -30,7 +30,7 @@ import {
 	return await data.json();
   }
   
-  /* --- Obsługa wyboru grupy asortymentowej --- */
+  /*Obsługa wyboru grupy asortymentowej */
   function setupMainSelectListener(departments, asortmentGroupSelect, departmentSelect) {
 	asortmentGroupSelect.addEventListener("input", async function () {
 	  const selectedDepartment = departments[departmentSelect.value];
@@ -55,7 +55,7 @@ import {
 	hiddenClass.style.setProperty('display', 'block', 'important');
   }
   
-  /* --- Budowa dynamicznego formularza --- */
+  /* Budowa dynamicznego formularza*/
   async function buildDynamicForm(filesToGenerate) {
 	const formContainer = document.getElementById("dynamic-form");
 	const [inputs, values, valuesToDisplay] = await generateForm(filesToGenerate);
@@ -66,7 +66,7 @@ import {
 	setupResetButton(inputs, values, valuesToDisplay);
   }
   
-  /* --- Obsługa przycisku "Pokaż" --- */
+  /* Obsługa przycisku "Pokaż" */
   function setupShowButton(inputs, values, valuesToDisplay, orderId, comment) {
 	const showButton = document.getElementById('show-button');
 	showButton.onclick = async function () {
@@ -78,7 +78,7 @@ import {
 	};
   }
   
-  /* --- Obsługa przycisku "Resetuj" --- */
+  /* Obsługa przycisku "Resetuj" */
   function setupResetButton(inputs, values, valuesToDisplay) {
 	const resetButton = document.getElementById('reset-button');
 	resetButton.onclick = function () {
@@ -88,7 +88,7 @@ import {
 	};
   }
   
-  /* --- Walidacja formularza --- */
+  /* Walidacja formularza */
   async function validateForm() {
 	const correctFlag = await checkFlags();
 	if (typeof correctFlag !== 'boolean') {
@@ -111,7 +111,7 @@ import {
 	}
   }
   
-  /* --- Wysyłka danych --- */
+  /* Wysyłka danych  */
   async function sendData(inputs, values, valuesToDisplay, orderId, comment) {
 	const commission = document.querySelector('.commission-space h5').innerHTML;
 	const jsonValuesToDisplay = JSON.stringify(Array.from(valuesToDisplay.entries()));
@@ -139,7 +139,7 @@ import {
 	}
   }
   
-  /* --- Obsługa błędów ładowania formularza --- */
+  /* Obsługa błędów ładowania formularza */
   function handleFormLoadError(err) {
 	console.error("NIE MA PLIKÓW", err);
 	document.getElementById("dynamic-form").innerHTML = "";
@@ -149,7 +149,7 @@ import {
 	setTimeout(() => alertBox.classList.add("d-none"), 6000);
   }
   
-  /* --- Przygotowanie przycisków formularza --- */
+  /* Przygotowanie przycisków formularza */
   function setupFormButtons() {
 	const buttonsDiv = document.getElementById("buttons-space");
 	const showButton = document.getElementById('show-button');
@@ -158,7 +158,7 @@ import {
 	buttonsDiv.appendChild(showButton);
   }
   
-  /* --- Obsługa przycisku zapisu komisji --- */
+  /*  Obsługa przycisku zapisu komisji */
   function setupCommissionButton() {
 	let saveCommissionButton = document.getElementById('commision-save-btn');
 	saveCommissionButton.addEventListener('click', function () {
@@ -167,7 +167,7 @@ import {
 	});
   }
   
-  /* --- Obsługa globalnych zdarzeń UI --- */
+  /*Obsługa globalnych zdarzeń UI */
   function setupGlobalListeners() {
 	document.addEventListener('click', handleImagePreviewClick);
 	document.getElementById("close-dialog-btn").addEventListener('click', function () {
@@ -187,6 +187,5 @@ import {
 	}
   }
   
-  /* --- Start aplikacji --- */
-  initialize();
+initialize();
   

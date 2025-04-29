@@ -6,7 +6,7 @@ import { logFunctionName,
 } from './formTools.js';
 import { showToast,
         showToastInContainer } from '../components/index.js';
-
+import {createElement} from '../components/htmlManipulator.js'
 export class DialogManager {
 constructor() {
   this.dialog = document.getElementById('color-dialog');
@@ -136,50 +136,75 @@ createSearchField() {
 
 // Tworzenie kontrolek filtrowania
 createFilterControls() {
-  // Bezpośrednie utworzenie kontrolek filtrów z testowymi danymi
-  const filterControls = document.createElement('div');
-  filterControls.classList.add('filter-controls', 'mb-2');
-  filterControls.style.border = '1px solid gray'; // Dla lepszej widoczności
-  
-  // Testowe filtry
+  const filterControls = createElement('div', {
+    class: ['filter-controls', 'mb-2'],
+    style: { border: '1px solid gray' }
+  });
+
   const testFilters = {
     "GRUBOŚĆ": ["cienka", "średnia", "gruba"],
     "PRZEJRZYSTOŚĆ": ["nieprzeźroczysta", "półprzeźroczysta", "przeźroczysta"]
   };
-  
+
   for (const [filterName, filterValues] of Object.entries(testFilters)) {
-    const filterGroup = document.createElement('div');
-    filterGroup.classList.add('filter-group', 'me-3');
-    
-    const filterLabel = document.createElement('label');
-    filterLabel.textContent = this.formatFilterName(filterName) + ': ';
-    filterLabel.classList.add('filter-label');
-    filterGroup.appendChild(filterLabel);
-    
-    const filterSelect = document.createElement('select');
-    filterSelect.classList.add('filter-select', 'form-select');
-    filterSelect.name = filterName;
-    
-    // Dodaj opcję "Wszystkie"
-    const defaultOption = document.createElement('option');
-    defaultOption.value = '';
-    defaultOption.textContent = 'Wszystkie';
-    filterSelect.appendChild(defaultOption);
-    
-    // Dodaj opcje filtrowania
+    const filterGroup = createElement('div', { class: ['filter-group', 'me-3'] }, filterControls);
+
+    createElement('label', {
+      class: ['filter-label'],
+      text: this.formatFilterName(filterName) + ': '
+    }, filterGroup);
+
+    // Dropdown Bootstrap
+    const dropdown = createElement('div', { class: ['dropdown', 'd-inline-block'] }, filterGroup);
+
+    const dropdownToggle = createElement('button', {
+      class: ['btn', 'btn-outline-secondary', 'dropdown-toggle'],
+      type: 'button',
+      id: `${filterName}-dropdown`,
+      'data-bs-toggle': 'dropdown',
+      'aria-expanded': 'false',
+      text: `Wybierz ${this.formatFilterName(filterName)}`
+    }, dropdown);
+
+    const dropdownMenu = createElement('ul', {
+      class: ['dropdown-menu', 'p-2'],
+      'aria-labelledby': `${filterName}-dropdown`
+    }, dropdown);
+
+    // "Wszystkie"
+    const allLi = createElement('li', {}, dropdownMenu);
+    const allCheckbox = createElement('input', {
+      type: 'checkbox',
+      class: ['dropdown-option', 'form-check-input', 'me-2'],
+      value: '',
+      id: `${filterName}-all`
+    }, allLi);
+    createElement('label', {
+      class: ['form-check-label'],
+      text: 'Wszystkie',
+      for: `${filterName}-all`
+    }, allLi);
+
+    // Pozostałe opcje
     filterValues.forEach(value => {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = value;
-      filterSelect.appendChild(option);
+      const li = createElement('li', {}, dropdownMenu);
+      const checkbox = createElement('input', {
+        type: 'checkbox',
+        class: ['dropdown-option', 'form-check-input', 'me-2'],
+        value: value,
+        id: `${filterName}-${value}`
+      }, li);
+      createElement('label', {
+        class: ['form-check-label'],
+        text: value,
+        for: `${filterName}-${value}`
+      }, li);
     });
-    
-    filterSelect.addEventListener('change', (e) => this.handleFilter(e));
-    filterGroup.appendChild(filterSelect);
-    
-    filterControls.appendChild(filterGroup);
+
+    // Obsługa zmian (delegacja zdarzeń)
+    dropdownMenu.addEventListener('change', (e) => this.handleFilter(e, filterName));
   }
-  
+
   return filterControls;
 }
 
@@ -338,48 +363,43 @@ handleSearch(searchInput) {
 }
 
 // Obsługa filtrowania
-handleFilter(event) {
-  const filterValue = event.target.value;
-  const filterName = event.target.name;
-  
-  if (filterValue) {
-    this.activeFilters[filterName] = filterValue;
+handleFilter(event, filterName) {
+
+  const dropdownMenu = event.currentTarget;
+  const checked = Array.from(dropdownMenu.querySelectorAll('input[type="checkbox"]:checked'))
+    .map(cb => cb.value)
+    .filter(val => val !== ''); 
+
+  if (checked.length > 0) {
+    this.activeFilters[filterName] = checked;
   } else {
     delete this.activeFilters[filterName];
   }
-  
+
   const searchTerm = this.searchInput ? this.searchInput.value.toLowerCase() : '';
   this.filterAndDisplayOptions(searchTerm, this.activeFilters);
 }
 
-// Filtrowanie i wyświetlanie opcji
 filterAndDisplayOptions(searchTerm, filters) {
   if (!this.listContainer) return;
-  
   const optionElements = this.listContainer.querySelectorAll('.image-box');
-  
+
   optionElements.forEach(element => {
-    // Filtrowanie po tekście wyszukiwania
     const name = element.querySelector('.image-name').textContent.toLowerCase();
     const matchesSearch = !searchTerm || name.includes(searchTerm);
-    
-    // Filtrowanie po wybranych filtrach
+
     let matchesFilters = true;
-    for (const [filterName, filterValue] of Object.entries(filters)) {
-      // Pobierz wartość filtra z atrybutu data-*
+    for (const [filterName, filterValues] of Object.entries(filters)) {
       const elementFilterValue = element.dataset[filterName.toLowerCase()];
-      if (!elementFilterValue || elementFilterValue !== filterValue) {
+      if (!filterValues.includes(elementFilterValue)) {
         matchesFilters = false;
         break;
       }
     }
-    
-    // Pokaż element tylko jeśli pasuje do wyszukiwania i wszystkich filtrów
     element.style.display = (matchesSearch && matchesFilters) ? 'block' : 'none';
   });
 }
 
-// Obsługa przycisku potwierdzenia
 handleConfirm() {
   const selectedData = this.getSelectedValue();
   if (!selectedData) {
