@@ -11,6 +11,7 @@
 	"license": "ISC",
 	"description": "Serwis do zarządzania zleceniami od klientów",
 	"dependencies": {
+		"@marsaud/smb2": "^0.18.0",
 		"bcryptjs": "^3.0.2",
 		"dotenv": "^16.4.7",
 		"express": "^4.21.2",
@@ -22,6 +23,7 @@
 		"n_": "^4.0.1",
 		"nunjucks": "^3.2.4",
 		"path": "^0.12.7",
+		"smb-enumerate-files": "^1.0.4",
 		"smb2": "^0.2.11",
 		"util": "^0.12.5"
 	}

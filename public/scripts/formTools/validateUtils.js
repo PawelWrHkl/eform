@@ -113,7 +113,7 @@ function setInputValid(input, isValid, min, max) {
     const existingLabel = document.getElementById(labelId);
     if (existingLabel) existingLabel.remove();
 
-    if (!isValid) {
+    if (!isValid || !input) {
         const label = document.createElement('label');
         label.id = labelId;
         label.classList.add('invalid-label');

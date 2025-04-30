@@ -2,6 +2,8 @@ const SMB2 = require("smb2");
 const fs = require("fs");
 const path = require("path");
 const util = require("util");
+const smbEnumFiles = require('smb-enumerate-files'); 
+const { config } = require("dotenv");
 
 const CONFIG = {
 	host: "\\\\192.168.101.1\\shared",
@@ -69,57 +71,6 @@ async function readRemoteFile(client, remoteFilePath, retries = 5, delay = 200) 
 	}
 	return await readFile(remoteFilePath);
 }
-
-// 🔍 Obliczanie rozmiaru katalogu (rekurencyjnie)
-async function calculateRemoteDirectorySize(client, remoteDir) {
-	let size = 0;
-
-	try {
-		const entries = await readRemoteDirectory(client, remoteDir);
-		for (const entry of entries) {
-			const entryPath = path.posix.join(remoteDir, entry);
-			try {
-				const data = await readRemoteFile(client, entryPath);
-				size += data.length;
-			} catch (err) {
-				if (isDirectoryError(err)) {
-					size += await calculateRemoteDirectorySize(client, entryPath);
-				}
-			}
-		}
-	} catch (err) {
-		console.warn(`Błąd przy obliczaniu rozmiaru katalogu ${remoteDir}:`, err);
-	}
-
-	return size;
-}
-
-function calculateLocalDirectorySize(localDir) {
-	let size = 0;
-	if (!fs.existsSync(localDir)) return 0;
-
-	const entries = fs.readdirSync(localDir);
-	for (const entry of entries) {
-		const entryPath = path.join(localDir, entry);
-		const stats = fs.statSync(entryPath);
-		if (stats.isDirectory()) {
-			size += calculateLocalDirectorySize(entryPath);
-		} else {
-			size += stats.size;
-		}
-	}
-	return size;
-}
-
-function isDirectoryError(err) {
-	return (
-		err.code === "STATUS_ACCESS_DENIED" ||
-		err.code === "EISDIR" ||
-		err.message.includes("EISDIR") ||
-		err.message.includes("Illegal operation on a directory")
-	);
-}
-
 
 function removeLocalEntry(entryPath) {
 	if (!fs.existsSync(entryPath)) return;
@@ -229,13 +180,21 @@ async function isRemoteDir(client, remotePath) {
 
 async function syncFromSMB() {
 	const smb2Client = connectSMB();
-	const report = getLocalDirectoryReport(CONFIG.localRoot);
+
 	// report.files.forEach((file) => {
 	// 	console.log(`- ${file.path} (${file.size} B, zmodyfikowano: ${file.mtime})`);
 	// });
 
 	try {
+		const report = getLocalDirectoryReport(CONFIG.localRoot);
+
 		await syncDirectory(smb2Client, CONFIG.remoteRoot, CONFIG.localRoot);
+		const reportAfter = getLocalDirectoryReport(CONFIG.localRoot);
+		console.log(typeof report.files, typeof reportAfter)
+		for(let i = 0; i<report.length;i++){
+			console.log("old: " ,report[i].mtime, 'new: ', reportAfter[i].mtime)
+		}
+	
 		console.log("zakończono.");
 	} catch (err) {
 		console.error("Błąd :", err);
@@ -246,7 +205,51 @@ async function syncFromSMB() {
 	}
 }
 
+async function testMeta(){
+	smbEnumFiles.enumerate({
+		host: "192.168.0.1",
+		username: CONFIG.username,
+		password: CONFIG.password,
+		share: 'shared',
+		path: "eform/v",
+	  }).then(files => {
+		const txtFiles = []
+		for (file of files){
+			if (file.filename.endsWith('txt')){
+				txtFiles.push(file)
+			}
+		}
+		return txtFiles
+	  }).catch(err => console.log(err))
+	  
 
+}
+
+const txtFiles = testMeta()
+
+async function controlVersion(txtFiles){
+	const smb2Client = connectSMB();
+	try {
+		let directory = path.join(CONFIG.remoteRoot, 'version_control.txt');
+		console.log('directory:', directory, typeof directory); // sprawdź, czy to string
+		
+		const readFile = util.promisify(smb2Client.readFile.bind(smb2Client));
+		let x = await readFile(directory);
+		if (x) {
+			console.log(x.toString());
+		} else {
+			console.error('Plik nie został odczytany lub jest pusty');
+		}
+	} catch (e) {
+		console.error(e);
+	}
+	finally {
+		await disconnectSMB(smb2Client).catch((e) =>
+			console.error("Błąd:", e)
+		);
+}}
+// syncFromSMB();
+controlVersion(txtFiles)
 
 
 module.exports = { syncFromSMB };
