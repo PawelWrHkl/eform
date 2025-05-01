@@ -1,17 +1,26 @@
 const mysql = require("mysql2/promise");
 const dateUtils = require("../utils/humanize_date.js")
 
+// async function connetToDb() {
+	// const connection = await mysql.createConnection({
+		// host: process.env.DATABASE_HOST,
+		// port: process.env.DATABASE_PORT,
+		// user: process.env.DATABASE_USER,
+		// password: process.env.DATABASE_PASSWORD,
+		// database: process.env.DATABASE,
+	// });
+	// return connection;
+// }
 async function connetToDb() {
 	const connection = await mysql.createConnection({
-		host: process.env.DATABASE_HOST,
-		port: process.env.DATABASE_PORT,
-		user: process.env.DATABASE_USER,
-		password: process.env.DATABASE_PASSWORD,
-		database: process.env.DATABASE,
+		host: '192.168.0.8',
+		port: '8001',
+		user: 'portal_eform',
+		password: 'A5q|:4Ny',
+		database: 'eform'
 	});
 	return connection;
 }
-
 async function selectQuery(query,data) {
     const connection = await connetToDb();
     await connection.connect();
@@ -305,6 +314,13 @@ async function updateOrderComment(orderId, comment){
         return false;
     }
 }
+async function getFormVersion(groupNr){
+    const query = `select ver from order_item where asortment_group_number = ? order by id desc limit 1`
+
+    let response = await selectQuery(query, groupNr);
+    
+    return response[0];
+}
 
 module.exports = { 
     getDbPassword,
@@ -320,5 +336,6 @@ module.exports = {
     deletePosition,
     getOrderWithItems,
     getPosition,
-    updateOrderComment 
+    updateOrderComment,
+    getFormVersion
 };

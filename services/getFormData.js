@@ -4,6 +4,8 @@ const path = require("path");
 const util = require("util");
 const smbEnumFiles = require('smb-enumerate-files'); 
 const { config } = require("dotenv");
+const dbHelper = require('../db/db_helper.js');
+const { response } = require("express");
 
 const CONFIG = {
 	host: "\\\\192.168.101.1\\shared",
@@ -205,51 +207,136 @@ async function syncFromSMB() {
 	}
 }
 
-async function testMeta(){
-	smbEnumFiles.enumerate({
-		host: "192.168.0.1",
-		username: CONFIG.username,
-		password: CONFIG.password,
-		share: 'shared',
-		path: "eform/v",
-	  }).then(files => {
-		const txtFiles = []
-		for (file of files){
-			if (file.filename.endsWith('txt')){
-				txtFiles.push(file)
-			}
-		}
-		return txtFiles
-	  }).catch(err => console.log(err))
-	  
 
+
+
+
+function connectSMB() {
+    return new SMB2({
+        share: CONFIG.host,
+        domain: "",
+        username: CONFIG.username,
+        password: CONFIG.password,
+        stats: true
+    });
 }
 
-const txtFiles = testMeta()
+function disconnectSMB(client) {
+    return new Promise((resolve, reject) => {
+        client.close((err) => {
+            if (err) return reject(err);
+            resolve();
+        });
+    });
+}
 
-async function controlVersion(txtFiles){
-	const smb2Client = connectSMB();
-	try {
-		let directory = path.join(CONFIG.remoteRoot, 'version_control.txt');
-		console.log('directory:', directory, typeof directory); // sprawdź, czy to string
-		
-		const readFile = util.promisify(smb2Client.readFile.bind(smb2Client));
-		let x = await readFile(directory);
-		if (x) {
-			console.log(x.toString());
-		} else {
-			console.error('Plik nie został odczytany lub jest pusty');
-		}
-	} catch (e) {
-		console.error(e);
-	}
-	finally {
-		await disconnectSMB(smb2Client).catch((e) =>
-			console.error("Błąd:", e)
-		);
-}}
-// syncFromSMB();
-controlVersion(txtFiles)
+async function testMeta() {
+    try {
+        const files = await smbEnumFiles.enumerate({
+            host: "192.168.0.1",
+            username: CONFIG.username,
+            password: CONFIG.password,
+            share: 'shared',
+            path: "eform/v",
+        });
+        const txtFiles = [];
+        for (let file of files) {
+            if (file.filename.endsWith('txt')) {
+                file = {
+                    filename: file.filename,
+                    size: file.size,
+                    modified: file.modified
+                }
+                txtFiles.push(file);
+            }
+        }
+        return txtFiles;
+    } catch (err) {
+        console.log(err);
+        return [];
+    }
+}
+
+function areFileListsEqual(listA, listB) {
+    if (listA.length !== listB.length) return false;
+    const sortByName = arr => arr.slice().sort((a, b) => a.filename.localeCompare(b.filename));
+    const aSorted = sortByName(listA);
+    const bSorted = sortByName(listB);
+    for (let i = 0; i < aSorted.length; i++) {
+        const a = aSorted[i], b = bSorted[i];
+        if (
+            a.filename !== b.filename ||
+            a.size !== b.size ||
+            a.modified !== b.modified
+        ) {
+            return false;
+        }
+    }
+    return true;
+}
+
+async function controlVersion() {
+    const txtFiles = await testMeta();
+
+    // Jeśli masz bazę, pobierz wersję, jeśli nie - możesz pominąć
+    // let latestVersion = await dbHelper.getFormVersion('71');
+    // latestVersion = latestVersion.ver;
+    // let [major, minor, patch] = latestVersion.split('.');
+    // patch = parseInt(patch);
+
+    const smb2Client = connectSMB();
+
+    try {
+        let directory = path.join(CONFIG.remoteRoot, 'version_control.txt');
+        const readFile = util.promisify(smb2Client.readFile.bind(smb2Client));
+        let x;
+        try {
+            x = await readFile(directory);
+        } catch (e) {
+            x = null;
+        }
+        let oldFiles = x ? JSON.parse(x.toString()) : [];
+        if (!areFileListsEqual(txtFiles, oldFiles)) {
+            // znajdź pierwszy różniący się plik
+            const diffFile = txtFiles.find(fileA =>
+                !oldFiles.some(fileB =>
+                    fileA.filename === fileB.filename &&
+                    fileA.size === fileB.size &&
+                    fileA.modified === fileB.modified
+                )
+            );
+            if (diffFile) {
+                const versionDir = path.posix.join(CONFIG.remoteRoot, 'versions', diffFile.filename.slice(0, 2));
+                const mkdir = util.promisify(smb2Client.mkdir.bind(smb2Client));
+                try {
+                    await mkdir(versionDir);
+                    console.log('Utworzono katalog:', versionDir);
+                } catch (e) {
+                    if (e.code === 'STATUS_OBJECT_NAME_COLLISION') {
+                        console.log('Katalog już istnieje:');
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+            // Nadpisz plik version_control.txt nową listą plików
+            const writeFile = util.promisify(smb2Client.writeFile.bind(smb2Client));
+            await writeFile(directory, JSON.stringify(txtFiles, null, 2));
+            console.log('Zaktualizowano version_control.txt');
+        } else {
+            console.log('Brak zmian w plikach.');
+        }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await disconnectSMB(smb2Client).catch((e) =>
+            console.error("Błąd:", e)
+        );
+    }
+}
+
+controlVersion();
+
 
 
 module.exports = { syncFromSMB };
