@@ -24,7 +24,10 @@ export function showToast(type, message) {
         toastr.success(message);
     }
     else if (type === 'error') {
+        const previousOptions = {...toastr.options};
+        toastr.options.timeOut = '10000';
         toastr.error(message);
+        toastr.options = previousOptions;
     } 
     else if (type === 'info') {
         toastr.info(message);

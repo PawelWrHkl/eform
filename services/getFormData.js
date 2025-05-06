@@ -295,7 +295,17 @@ async function controlVersion() {
         } catch (e) {
             x = null;
         }
-        let oldFiles = x ? JSON.parse(x.toString()) : [];
+		let oldFiles;
+		if (x && x.length > 0) {
+			try {
+				oldFiles = JSON.parse(x.toString());
+			} catch (e) {
+				console.error('Błąd parsowania version_control.txt:', e);
+				oldFiles = [];
+			}
+		} else {
+			oldFiles = [];
+		}
         if (!areFileListsEqual(txtFiles, oldFiles)) {
             // znajdź pierwszy różniący się plik
             const diffFile = txtFiles.find(fileA =>
@@ -309,6 +319,7 @@ async function controlVersion() {
                 const versionDir = path.posix.join(CONFIG.remoteRoot, 'versions', diffFile.filename.slice(0, 2));
                 const mkdir = util.promisify(smb2Client.mkdir.bind(smb2Client));
                 try {
+					console.log('tutej')
                     await mkdir(versionDir);
                     console.log('Utworzono katalog:', versionDir);
                 } catch (e) {

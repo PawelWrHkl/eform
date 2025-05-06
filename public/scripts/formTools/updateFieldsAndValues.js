@@ -2,7 +2,7 @@ import { logFunctionName } from './formTools.js';
 import { getProcedures } from './formTools.js';
 import { createDialog } from './formTools.js';
 import { validateFormInput } from './validateUtils.js';
-
+import { showToast } from '../components/toast.js';
 export function resetDependences([params,display], name, inputs, values) {
     logFunctionName('resetDependences')
 
@@ -62,7 +62,7 @@ export function buildValuesToDisplay(dictValues, value, paramName,  displayValue
         }
 }
 
-export function updateFieldInputs(params, inputs, values, displayValues,allOptionsByParameter, options, actualParameter,value,tagName) {
+export async function updateFieldInputs(params, inputs, values, displayValues,allOptionsByParameter, options, actualParameter,value,tagName) {
     logFunctionName('updateFieldInputs')
 
     getProcedures(inputs, allOptionsByParameter, values,options, actualParameter,value,tagName, displayValues)
@@ -86,12 +86,17 @@ export function updateFieldInputs(params, inputs, values, displayValues,allOptio
         if (!inputs[paramName]) continue;
 
         for (const param of paramArray) {
-            
-            const isEnabled = window.FormulaHandler.evaluateFormula(
+            let isEnabled =false;
+            try{
+            isEnabled = await window.FormulaHandler.evaluateFormula(
                 param.ENABLE,
                 values,
                 "paramdict"
-            );	
+            );}
+            catch(error){
+
+                showToast('error',`Parametr: ${param.VALUE}.  ${error.message}`)
+            }
             // TUTAJ PRZYCISKI DALEJ SIĘ WYŚWIETLAJ
             if (isEnabled && param.VALUE != '-') {
                 if (param.ROW_NUM) {
@@ -150,13 +155,18 @@ export function updateFieldStates(params, inputs, values) {
             }
         }
         if (!param || !param.ENABLE) continue;
-
-        let shouldEnable = window.FormulaHandler.evaluateFormula(
+        let shouldEnable = false;
+        try{
+        shouldEnable = window.FormulaHandler.evaluateFormula(
             param.ENABLE,
             values,
             "param"
         );
-
+    }
+    catch(error){
+                
+        showToast('error',error)
+    }
         let paramDiv = inputs[key].parentNode;
 
         paramDiv.hidden = !shouldEnable;

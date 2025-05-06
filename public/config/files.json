@@ -6,11 +6,6 @@
             "params": "43param.txt",
             "paramdict": "43paramdict.txt"
         },
-        "59": {
-            "name":"Test plisy 1",
-            "params": "59param.txt",
-            "paramdict": "59paramdict.txt"
-        },
         "71": {
             "name":"EOS",
             "params": "71param.txt",
@@ -29,7 +24,7 @@
     },
     
     "Zaluzje 25": {"39": {
-        "name":"Żaluzje 16_25",
+        "name":"Żaluzje 16/25",
         "params": "39param.txt",
         "paramdict": "39paramdict.txt"
     }},
