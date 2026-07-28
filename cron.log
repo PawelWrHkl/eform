@@ -2853,3 +2853,10 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 === 2026-07-28 14:22:45 - Koniec ===
 === 2026-07-28 14:27:58 - Start ===
 === 2026-07-28 14:27:58 - Dodawanie zmian do commita ===
+[main 5cd38ec] Automatic commit 2026-07-28 14:27
+ 2 files changed, 39 insertions(+)
+=== 2026-07-28 14:27:59 - Wysyłanie do origin/main ===
+remote: Permission to PawelWoronieckiHkl/eform.git denied to PawelWrHkl.
+fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: The requested URL returned error: 403
+=== 2026-07-28 14:29:37 - Start ===
+=== 2026-07-28 14:29:37 - Dodawanie zmian do commita ===
