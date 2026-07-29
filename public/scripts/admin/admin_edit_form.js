@@ -140,17 +140,19 @@ function syncLockedAndSubFlags(displayValues) {
 }
 
 /**
- * Admin users never get SUB___ inputs in the form (form.js skips them for non-client
- * accounts). After recalculation, mirror each SUB___ param's value from its calculated
- * base param entry so json_parameters_desc contains the correct sub-price rows that
- * clients rely on for their position preview.
+ * enableSubPriceViewForAdminEdit() (below) makes generateForm() render real
+ * SUB___ inputs, so the standard calc pipeline computes them for real in the
+ * common case. This is now only a fallback for SUB___ params that have
+ * NEITHER a resolved SOURCE nor a FORMULA (no per-client SUB script
+ * configured for this client at all): mirror the base param's value so the
+ * preview isn't blank, since there is nothing else to compute it from.
  */
 function syncSubPriceDisplayEntries(displayValues) {
     const params = window.params || [];
     const locked = window.lockedParams || [];
-    const sub = window.subParams || [];
     for (const param of params) {
         if (!param?.NAME?.startsWith('SUB___')) continue;
+        if (isCalculatedParam(param)) continue; // already computed for real — never overwrite
         const baseParamName = param.NAME.slice(6); // 'SUB___CENA' → 'CENA'
         const baseEntry = displayValues.get(baseParamName);
         if (!baseEntry?.option_value) continue;
@@ -164,6 +166,32 @@ function syncSubPriceDisplayEntries(displayValues) {
             row: existing.row || param.LISTROW || '1'
         });
     }
+}
+
+/**
+ * By default form.js never renders an <input> for SUB___ params unless the
+ * viewer is isGroup/isGroupShop/isClient, or has canViewSubPrices/
+ * viewAsOrganization/hasSubPriceToggle set (see createForm.js
+ * canUserSeeSubPrices() and form.js's buildHtml gate) — those flags come from
+ * services/subPriceContext.js, keyed off the order owner's *organization id*.
+ * For a client whose org happens to be HKL itself (id 3) but who is really a
+ * distinct reseller with its own SUB pricing script (e.g. TCN — a "group"
+ * account under org HKL), that org-id check never turns on, so admin-redit
+ * got neither a rendered SUB___ input nor a computed SUB price — regardless
+ * of whether selectPrices() already resolved a real per-client SOURCE for it
+ * (e.g. SUB___CENA=param-SUB___CENA-J.js).
+ *
+ * admin-redit is already admin-only (routes/positions.js gates the whole
+ * route on req.session.user.isAdmin), so there's no extra exposure in always
+ * enabling the SUB view here — this mirrors exactly how a normal order page
+ * shows SUB prices to admin/owner. Setting these before generateForm() makes
+ * buildHtml() create real SUB___ inputs, which lets the standard
+ * updateFieldStates dispatch (keyed by `inputs`) actually invoke their real
+ * SOURCE script/FORMULA — the same computation a client/group user would get.
+ */
+function enableSubPriceViewForAdminEdit() {
+    window.canViewSubPrices = true;
+    window.hasSubPriceToggle = true;
 }
 
 async function init() {
@@ -221,6 +249,11 @@ async function init() {
             versionDiv.innerHTML = `v ${latestVersion} <span class="admin-redit-badge">${label}</span>`;
         }
 
+        // Always compute+show the SUB (organizational) price view here — admin-redit
+        // is already admin-only, so this is safe, and it's the only way the SUB___
+        // params' real per-client scripts ever get invoked (see function docs below).
+        enableSubPriceViewForAdminEdit();
+
         // Pass old displayValues (with cleared locked flags) so fillFields()
         // can restore button labels and option descriptions.
         // editFlag=true pre-fills all inputs from values.
@@ -243,9 +276,8 @@ async function init() {
         // Synchronizuj locked/sub flagi ze stanu po obliczeniach.
         syncLockedAndSubFlags(editValuesToDisplay);
 
-        // Admin users never get SUB___ inputs created in generateForm (those inputs are
-        // skipped for non-client accounts). Mirror each SUB___ entry from its base param so
-        // json_parameters_desc contains the correct sub-price rows for client previews.
+        // Fallback mirror for SUB___ params without a real per-client script/formula
+        // (see enableSubPriceViewForAdminEdit / syncSubPriceDisplayEntries docs above).
         syncSubPriceDisplayEntries(editValuesToDisplay);
 
         setupResetButton(editInputs, editValues, editValuesToDisplay);

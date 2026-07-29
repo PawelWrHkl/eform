@@ -165,6 +165,11 @@ async function processOneFile(fileName) {
         const paramSnapshot = await snapshotOrderParameters(importResult.orderId);
 
         const { recalculateOrderInBrowser } = require('./browserRecalculator');
+        // recalculateOrderInBrowser retries internally a few times — the order
+        // is already committed by this point, so we can't retry the whole
+        // import without risking a duplicate. If every attempt fails, the
+        // order keeps whatever (possibly zero/approximate) prices the JSDOM
+        // engine computed at insert time and must be recalculated manually.
         const recalcResult = await recalculateOrderInBrowser(importResult.orderId);
         if (recalcResult.success) {
           // Browser recalculate clears disabled params (WYSOKOSC/SZEROKOSC…) from
@@ -175,10 +180,13 @@ async function processOneFile(fileName) {
           }
           const { rebuildDisplayValuesForOrder } = require('./displayValueRebuilder');
           await rebuildDisplayValuesForOrder(importResult.orderId);
-          log(`Import+recalculate OK for order ${importResult.orderId}`);
+          log(`Import+recalculate OK for order ${importResult.orderId} (attempt ${recalcResult.attempts}/3)`);
         } else {
-          log(`WARN: import OK but recalculate failed for order ${importResult.orderId}: ${recalcResult.message}`);
-          result.warnings.push(`Przeliczanie w przeglądarce nie powiodło się: ${recalcResult.message}`);
+          log(`WARN: import OK but recalculate failed for order ${importResult.orderId} after ${recalcResult.attempts} attempts: ${recalcResult.message}`);
+          result.warnings.push(
+            `Przeliczanie cen w przeglądarce nie powiodło się po ${recalcResult.attempts} próbach (${recalcResult.message}) — `
+            + `zamówienie ma tylko przybliżone ceny, wymaga ręcznego przeliczenia z panelu.`
+          );
         }
 
         // Flag positions that still price to 0 despite the import — these need a

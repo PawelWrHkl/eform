@@ -133,6 +133,13 @@ router.patch('/edit/save', requireLogin, upload.any(), async (req, res) => {
 
     const positionForRecalc = await db.getPosition(formData.id);
     if (positionForRecalc) {
+      // updatePosition only writes this position's own unit_price/total_price/
+      // total_price_sub — the `order` row's aggregate totals are a separate,
+      // denormalized copy that must be explicitly recomputed from all its
+      // order_item rows, or they go stale (e.g. stuck at whatever the initial
+      // import computed, even after every position has since been resaved with
+      // correct prices).
+      await db.updateOrderPrice(positionForRecalc.order_id, null);
       await recalcAndSaveMaxProdDays(positionForRecalc.order_id);
     }
 
