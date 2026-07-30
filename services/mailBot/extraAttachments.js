@@ -3,6 +3,7 @@ const { fileExists,
 const path = require('path');
 const sharp = require('sharp');
 const { log } = require('../../utils/logging');
+const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 
 async function addTextOverlayToImage(imageBuffer, dimensions) {
     if (!dimensions) {
@@ -75,7 +76,7 @@ async function getExtraAttachments(attachmentPaths) {
                 : (item?.attachmentName || path.basename(filePath));
 
             attachments.push({
-                filename: filename,
+                filename: sanitizeFilename(filename),
                 content: content
             });
         }

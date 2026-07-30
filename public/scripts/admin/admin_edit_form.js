@@ -1,6 +1,7 @@
 import {
     generateForm,
     buildCommentSpace,
+    buildVatFields,
     getTotal,
     recalculateLastChangedField
 
@@ -269,6 +270,11 @@ async function init() {
         if (!result) throw new Error(`Nie udało się wygenerować formularza (v${latestVersion}, gr=${groupNumber})`);
 
         const [editInputs, editValues, editValuesToDisplay] = result;
+
+        // Built before forceRecalculation() so applyVatToGrossValue() (called from the
+        // standard updateFieldStates pipeline that forceRecalculation triggers) finds
+        // #WARTOSC_BRUTTO already in the DOM and fills it on this same recalc pass.
+        buildVatFields(formDiv);
 
         // Force full recalculation so all formulas/scripts run with the new schema rules.
         await forceRecalculation(editInputs, editValues);

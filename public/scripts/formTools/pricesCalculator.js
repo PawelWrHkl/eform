@@ -67,6 +67,101 @@ function formatSpecDisplay(raw) {
     return numPart + ', ' + codePart;
 }
 
+/**
+ * Fills the read-only WARTOSC_VAT (VAT amount in currency) and WARTOSC_BRUTTO
+ * fields (built by form.js's buildVatFields()) from SUB___SUMA_BRUTTO + the
+ * server-computed VAT rate (window.vatRate, see services/vatCalculator.js).
+ * Despite its name, SUB___SUMA_BRUTTO is a net value (FORMULA =
+ * SUB___CENA_SUMA * ILOSC, no VAT applied) — VAT still needs to be added on
+ * top of it.
+ * For HKL (window.isHklOrg, org id 3 — SUB___ prices don't apply to it, see
+ * services/subPriceContext.js's nonHklOrg check), SUB___* params are never
+ * even present in `values`, so the plain SUMA_BRUTTO / WARTOSC_KONCOWA (no
+ * SUB___ prefix) is the client's price there instead. Tries the pair matching
+ * window.isHklOrg first, then falls back to the other pair (SUB___* undefined
+ * for HKL is the norm, not an error — and some non-HKL groups simply don't
+ * define SUB___SUMA_BRUTTO/SUB___WARTOSC_KONCOWA in param.txt either), so a
+ * wrong/stale isHklOrg detection can't leave the fields stuck at 0.
+ *
+ * displayValues entries follow the same nomenclature as the other price
+ * params: for HKL, VAT/WARTOSC_VAT/WARTOSC_BRUTTO are recorded under their
+ * plain names with row '2' (matching CENA/CENA_SUMA/SUMA_BRUTTO/
+ * WARTOSC_KONCOWA's own LISTROW). For non-HKL clients they're recorded under
+ * SUB___VAT/SUB___WARTOSC_VAT/SUB___WARTOSC_BRUTTO with `sub: true` and row
+ * '2', the same shape real SUB___ price params get (see
+ * buildValuesToDisplay/hideSub) — so they sit alongside
+ * SUB___CENA/SUB___SUMA_BRUTTO rather than the regular price rows.
+ *
+ * No-op wherever the WARTOSC_BRUTTO field doesn't exist (edit_form.js /
+ * admin_edit_form.js don't build it) — never adds stray keys to
+ * values/displayValues on those flows.
+ */
+export function applyVatToGrossValue(values, displayValues) {
+    const bruttoInput = document.getElementById('WARTOSC_BRUTTO');
+    if (!bruttoInput) return;
+    const vatValueInput = document.getElementById('WARTOSC_VAT');
+
+    const isHklOrg = !!window.isHklOrg;
+    const keyPairs = isHklOrg
+        ? [['SUMA_BRUTTO', 'WARTOSC_KONCOWA'], ['SUB___SUMA_BRUTTO', 'SUB___WARTOSC_KONCOWA']]
+        : [['SUB___SUMA_BRUTTO', 'SUB___WARTOSC_KONCOWA'], ['SUMA_BRUTTO', 'WARTOSC_KONCOWA']];
+
+    let netValue = NaN;
+    for (const [sumaBruttoKey, wartoscKoncowaKey] of keyPairs) {
+        const rawNetValue = values[sumaBruttoKey] !== undefined
+            ? values[sumaBruttoKey]
+            : values[wartoscKoncowaKey];
+        netValue = parseFloat(rawNetValue);
+        if (Number.isFinite(netValue)) break;
+    }
+    if (!Number.isFinite(netValue)) return;
+
+    const vatRate = Number(window.vatRate) || 0;
+    const grossValue = parseFloat((netValue * (1 + vatRate / 100)).toFixed(2));
+    const vatValue = parseFloat((grossValue - netValue).toFixed(2));
+
+    values['WARTOSC_VAT'] = vatValue;
+    values['WARTOSC_BRUTTO'] = grossValue;
+    if (vatValueInput) vatValueInput.value = vatValue;
+    bruttoInput.value = grossValue;
+
+    if (displayValues) {
+        const vatKey = isHklOrg ? 'VAT' : 'SUB___VAT';
+        const vatValueKey = isHklOrg ? 'WARTOSC_VAT' : 'SUB___WARTOSC_VAT';
+        const bruttoKey = isHklOrg ? 'WARTOSC_BRUTTO' : 'SUB___WARTOSC_BRUTTO';
+
+        const existingVat = displayValues.get(vatKey) || {};
+        displayValues.set(vatKey, {
+            param_description: existingVat.param_description || t('form.vat_label'),
+            option_value: `${vatRate}%`,
+            option_description: '',
+            locked: false,
+            sub: !isHklOrg,
+            row: existingVat.row || '2'
+        });
+
+        const existingVatValue = displayValues.get(vatValueKey) || {};
+        displayValues.set(vatValueKey, {
+            param_description: existingVatValue.param_description || t('form.wartosc_vat_label'),
+            option_value: String(vatValue),
+            option_description: '',
+            locked: false,
+            sub: !isHklOrg,
+            row: existingVatValue.row || '2'
+        });
+
+        const existingBrutto = displayValues.get(bruttoKey) || {};
+        displayValues.set(bruttoKey, {
+            param_description: existingBrutto.param_description || t('form.wartosc_brutto_label'),
+            option_value: String(grossValue),
+            option_description: '',
+            locked: false,
+            sub: !isHklOrg,
+            row: existingBrutto.row || '2'
+        });
+    }
+}
+
 export function checkIfPriceIsCorrect(values, inputs, displayValues) {
     const priceParams = ['CENA', 'CENA_SUMA', 'SUMA_BRUTTO'];
     const destinationParams = ['CENA', 'CENA_SUMA', 'SUMA_BRUTTO', 'DOPLATA', 'CENA_RABAT', 'CENA_RABAT', 'CENA_KONCOWA', 'WARTOSC_KONCOWA', "DOPLATA_EL_RABAT"];

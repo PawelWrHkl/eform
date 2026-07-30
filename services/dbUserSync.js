@@ -137,6 +137,41 @@ function compareClients(fileClients, dbClients) {
 }
 
 
+/**
+ * Refreshes a single user's `country` from contractors.txt's "kraj" column.
+ * Called on every client login (see services/authService.js) instead of
+ * waiting for the periodic full updateClients() sync, since country drives
+ * language detection elsewhere (e.g. userResolver.js during order import) and
+ * should stay current per-user without needing a full contractors.txt sync.
+ *
+ * @param {string} pin
+ */
+async function syncUserCountry(pin) {
+  if (!pin) return;
+  try {
+    const contractorsFileName = 'contractors.txt';
+    const contractorsPath = path.join(usersPath, contractorsFileName);
+    const fileClientsObjRaw = await csv({ delimiter: '\t' }).fromFile(contractorsPath);
+    const fileClientsObj = parseClients(fileClientsObjRaw);
+
+    const fileClient = fileClientsObj.find(c => (c.pin || '').toUpperCase() === String(pin).toUpperCase());
+    if (!fileClient) return;
+
+    const fileCountry = (fileClient.kraj || '').trim();
+    if (!fileCountry) return;
+
+    const result = await db.selectQuery('SELECT country FROM `user` WHERE pin = ?', pin);
+    const dbCountry = (result[0]?.country || '').trim();
+
+    if (fileCountry.toLowerCase() !== dbCountry.toLowerCase()) {
+      await db.updateQuery('UPDATE eform.`user` SET country = ? WHERE pin = ?', [fileCountry, pin]);
+      log(`Zaktualizowano kraj dla PIN ${pin}: "${dbCountry}" -> "${fileCountry}"`);
+    }
+  } catch (err) {
+    log(`Błąd przy synchronizacji kraju dla PIN ${pin}:`, err.message);
+  }
+}
+
 function parseClients(inputArray) {
   const orgMap = {
     COZY: 1,
@@ -360,4 +395,4 @@ async function fixEncodingInDatabase() {
     }
   }
 }
-module.exports = { updateClients, fixEncodingInDatabase, updateExistingClients };
+module.exports = { updateClients, fixEncodingInDatabase, updateExistingClients, syncUserCountry };

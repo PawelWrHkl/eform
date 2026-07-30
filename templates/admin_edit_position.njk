@@ -107,5 +107,10 @@
                     <div class="overlay"></div>
                   {% endblock content %}
                   {% block scripts %}
+                    <script>
+                      window.vatRate = {{ vatRate | default(0) | dump | safe }};
+                      window.vatReason = {{ vatReason | default("unknown") | dump | safe }};
+                      window.isHklOrg = {{ isHklOrg | default(false) | dump | safe }};
+                    </script>
                     <script type='module' src="/scripts/admin/admin_edit_form.js"></script>
                   {% endblock scripts %}

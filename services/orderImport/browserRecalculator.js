@@ -115,11 +115,36 @@ async function recalculatePositionViaAdminEdit(page, positionId, timeout) {
   const saveResponsePromise = page.waitForResponse(
     (resp) => resp.url().includes('/position/edit/save') && resp.request().method() === 'PATCH',
     { timeout }
-  );
+  ).then((response) => ({ kind: 'response', response }));
+
+  // setUpSaveButton's validateForm() runs before ever sending the PATCH. When
+  // it fails (e.g. a required field left empty by the import payload, like
+  // DLUGSTER on a U25SD model) admin_edit_form.js deliberately swallows the
+  // toast for that specific error and just marks the field — no request is
+  // ever sent, so waiting the full `timeout` for a PATCH response would just
+  // hang pointlessly. Race the real save against this fast validation-failure
+  // signal so we fail in ~5s with the actual missing field instead of a bare
+  // "timeout exceeded" after 3 full retries.
+  const invalidFieldPromise = page.waitForSelector('.invalid-input', { timeout: 5000 })
+    .then(() => ({ kind: 'invalid' }))
+    .catch(() => null); // no invalid field appeared — fine, the real save may still be in flight
 
   await page.click('#show-button');
 
-  const response = await saveResponsePromise;
+  const outcome = await Promise.race([
+    saveResponsePromise,
+    invalidFieldPromise.then((r) => r || new Promise(() => {})) // null = keep waiting for the real response
+  ]);
+
+  if (outcome.kind === 'invalid') {
+    const invalidFields = await page.$$eval('.invalid-input', (els) => els.map((el) => el.id || el.name).filter(Boolean));
+    return {
+      success: false,
+      message: `Walidacja formularza nie powiodła się — brakujące/niepoprawne pole(a): ${invalidFields.join(', ') || '(nieznane)'}. Wymaga ręcznej edycji.`
+    };
+  }
+
+  const { response } = outcome;
   const ok = response.ok();
   const data = await response.json().catch(() => ({}));
   return {

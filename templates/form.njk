@@ -90,6 +90,16 @@
                     <div class="overlay"></div>
                   {% endblock content %}
                   {% block scripts %}
+                    <script>
+                      // Server-computed VAT rate (services/vatCalculator.js) — domestic sale
+                      // (organization country == user country) uses that country's rate,
+                      // cross-border sale is 0%. Read by pricesCalculator.js when computing
+                      // WARTOSC_BRUTTO from SUB___SUMA_BRUTTO (net despite its "BRUTTO" name;
+                      // falls back to SUB___WARTOSC_KONCOWA where SUB___SUMA_BRUTTO doesn't exist).
+                      window.vatRate = {{ vatRate | default(0) | dump | safe }};
+                      window.vatReason = {{ vatReason | default("unknown") | dump | safe }};
+                      window.isHklOrg = {{ isHklOrg | default(false) | dump | safe }};
+                    </script>
                     <script type="module" src="/scripts/main.js"></script>
                     <script type="module" src="/scripts/tools/betterNumberValidator.js"></script>
                   {% endblock scripts %}

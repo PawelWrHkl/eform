@@ -655,6 +655,63 @@ export function buildCommentSpace(destinationNode, comment = '') {
   return textarea;
 }
 
+/**
+ * VAT field (read-only, percentage from services/vatCalculator.js via
+ * window.vatRate) + VAT-amount field (read-only, the VAT rate applied in
+ * euros) + gross-value field (read-only) — all three filled by
+ * pricesCalculator.js' applyVatToGrossValue() from SUB___SUMA_BRUTTO on every
+ * recalculation. None is a param.txt-driven field — same pattern as
+ * buildCommentSpace().
+ */
+export function buildVatFields(destinationNode) {
+  const vatRate = Number(window.vatRate) || 0;
+  if (vatRate === 0) return {};
+
+  const vatDiv = createElement('div', { class: ['VAT-select-area'] }, destinationNode);
+  createElement('label', {
+    for: 'VAT',
+    text: t('form.vat_label'),
+    class: ['form-label', 'mb-1']
+  }, vatDiv);
+  const vatInput = createElement('input', {
+    type: 'text',
+    id: 'VAT',
+    class: ['input-form'],
+    disabled: true,
+    value: `${vatRate}%`
+  }, vatDiv);
+
+  const vatValueDiv = createElement('div', { class: ['WARTOSC_VAT-select-area'] }, destinationNode);
+  createElement('label', {
+    for: 'WARTOSC_VAT',
+    text: t('form.wartosc_vat_label'),
+    class: ['form-label', 'mb-1']
+  }, vatValueDiv);
+  const vatValueInput = createElement('input', {
+    type: 'text',
+    id: 'WARTOSC_VAT',
+    class: ['input-form'],
+    disabled: true,
+    value: '0'
+  }, vatValueDiv);
+
+  const bruttoDiv = createElement('div', { class: ['WARTOSC_BRUTTO-select-area'] }, destinationNode);
+  createElement('label', {
+    for: 'WARTOSC_BRUTTO',
+    text: t('form.wartosc_brutto_label'),
+    class: ['form-label', 'mb-1']
+  }, bruttoDiv);
+  const bruttoInput = createElement('input', {
+    type: 'text',
+    id: 'WARTOSC_BRUTTO',
+    class: ['input-form'],
+    disabled: true,
+    value: '0'
+  }, bruttoDiv);
+
+  return { vatInput, vatValueInput, bruttoInput };
+}
+
 export function getTotal(displayValues) {
   const totalObj = {};
   for (let [key, value] of displayValues) {

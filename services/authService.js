@@ -8,6 +8,7 @@ const langVer = require('../services/languageManager')
 const { dataDir, localesDir } = require('../config');
 const { log } = require('../utils/logging');
 const { rejectIfBlockedForLogin } = require('./accessLockAuth');
+const { syncUserCountry } = require('./dbUserSync');
 
 async function handleAuthLogin(req, res, next, pin, password) {
     try {
@@ -32,6 +33,9 @@ async function handleAuthLogin(req, res, next, pin, password) {
             req.session.user.isGroup = role === "group";
 
             await logService.logUserLogin(pin, await db.getUserIdent(pin));
+            // Fire-and-forget: refreshes user.country from contractors.txt's "kraj"
+            // column on every login, without adding file-read/parse latency to it.
+            syncUserCountry(pin).catch((err) => log('syncUserCountry failed:', err.message));
             langVer.checkTranslateLegacy(localesDir)
             let lang;
             try {

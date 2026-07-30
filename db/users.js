@@ -222,15 +222,17 @@ async function getUserData(pin) {
 
 async function getUsers() {
     const sql = `
-        SELECT 
-            ident, 
-            client_name AS name, 
-            street AS address, 
-            city, 
-            zip, 
-            tax_id AS taxid, 
-            pin, 
-            password
+        SELECT
+            ident,
+            client_name AS name,
+            street AS address,
+            city,
+            zip,
+            tax_id AS taxid,
+            pin,
+            password,
+            phone,
+            country AS kraj
         FROM eform.\`user\`
     `;
     const result = await selectQuery(sql);

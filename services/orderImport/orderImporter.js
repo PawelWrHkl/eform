@@ -66,6 +66,36 @@ function seedDictionaryDescriptions(values, paramdict) {
   return values;
 }
 
+/**
+ * DLUGSTER and DLUGOSC_STER are two names for the same concept ("control
+ * length") — mutually exclusive per MODEL (each is only ENABLE'd for a
+ * different, non-overlapping set of models, see param.txt), so exactly one of
+ * them is ever actually required/validated for a given position. Import
+ * payloads sometimes omit both entirely (the sender didn't send a control
+ * length), which fails form validation on save (whichever one applies is
+ * required, MIN 100 / MAX 6000) and blocks the position from ever being
+ * recalculated/saved. When that happens, approximate it from the blind
+ * height: 2/3 of WYSOKOSC, rounded down to the nearest hundred. Set both
+ * names since we don't know here which model-specific one will actually be
+ * enabled — the inactive one is simply never read/validated.
+ *
+ * @param {object} values  Mutated in place.
+ * @returns {object} the same `values` object.
+ */
+function seedControlLengthDefault(values) {
+  if (!values) return values;
+  const hasValue = (v) => v !== undefined && v !== null && v !== '';
+  if (hasValue(values.DLUGSTER) || hasValue(values.DLUGOSC_STER)) return values;
+
+  const wysokosc = parseFloat(values.WYSOKOSC);
+  if (!Number.isFinite(wysokosc)) return values;
+
+  const controlLength = Math.floor((wysokosc * 2 / 3) / 100) * 100;
+  values.DLUGSTER = controlLength;
+  values.DLUGOSC_STER = controlLength;
+  return values;
+}
+
 function readQuantity(parameters) {
   if (!parameters) return 1;
   const raw = parameters.ILOSC != null
@@ -320,6 +350,7 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     // the price scripts can resolve the price group (see seedDictionaryDescriptions).
     const paramdict = await getParamdict(groupNumber);
     seedDictionaryDescriptions(cleanValues, paramdict);
+    seedControlLengthDefault(cleanValues);
 
     // Run the full server-side form engine (singlePass) to get authoritative
     // row/locked/sub/listsum and real prices. Falls back to lightweight

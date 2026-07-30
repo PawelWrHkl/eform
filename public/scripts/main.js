@@ -1,6 +1,7 @@
 import {
 	generateForm,
 	buildCommentSpace,
+	buildVatFields,
 	recalculateLastChangedField,
 	getTotal
 } from "/scripts/form.js";
@@ -211,6 +212,7 @@ async function buildDynamicForm(version, groupNumber, config = null) {
 
 	const orderId = document.getElementById('orderId').textContent;
 	const comment = buildCommentSpace(formContainer);
+	buildVatFields(formContainer);
 	setTimeout(() => {
 		console.log('siema eniu shortjson')
 

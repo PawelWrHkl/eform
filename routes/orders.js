@@ -16,12 +16,14 @@ const { buildOrderItemStructure } = require('../services/itemBuilder.js');
 const { getPriceAfterDiscount } = require('../services/getDiscount.js');
 const { SyncProdStatus, setParcelHref, parseSpeditionNumbers } = require('../services/prodStatus.js');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
+const { applySubPriceLocals } = require('../services/subPriceContext');
 const { log } = require('../utils/logging');
 const { availabeLanguages } = require('../config');
 const { translateOrderItems } = require('../services/translationDict/itemTranslator');
 const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../services/productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../utils/productionSendGuard');
 const { getOrderMutationBlock, shouldRedirectFromActiveOrderView } = require('../utils/orderStatusGuard');
+const { resolveVatRateForUser } = require('../services/vatCalculator');
 
 function sentOrderPath(orderId) {
     return `/orders/history/order/${orderId}`;
@@ -509,6 +511,26 @@ router.get("/add-order", requireLogin, async (req, res) => {
 
 
 router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwnership, loadEmployeePermissions, filterPriceData, async (req, res) => {
+    // Admin opening an order directly (not via "Zamówienia klienta" first) has
+    // no session.context_user set, so isGroup/canViewSubPrices/viewAsOrganization
+    // (services/subPriceContext.js, consumed by templates/order.njk's SUB-total
+    // gate `{% if isGroup or canViewSubPrices or viewAsOrganization %}`) all stay
+    // false regardless of the order's real owner — the SUB total block is
+    // silently skipped even though order.total_price_sub is correctly computed.
+    // Auto-resolve context to this order's actual owner (mirrors the admin-redit
+    // fix in routes/positions.js) so opening any order shows correct SUB
+    // visibility without a separate "switch client" step. applySubPriceLocals
+    // ran as global middleware in server.js BEFORE this handler using the old
+    // context, so it must be re-run here to refresh res.locals with the
+    // corrected one.
+    if (req.session.user?.isAdmin) {
+        const ownerIdent = await db.getOrderOwnerIdent(req.params.orderId);
+        if (ownerIdent && req.session.context_user?.ident !== ownerIdent) {
+            await ownerService.setContextUserByIdent(req, ownerIdent);
+            applySubPriceLocals(req, res);
+        }
+    }
+
     if (await redirectSentOrder(req, res)) {
         return;
     }
@@ -843,7 +865,18 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
         return;
     }
 
-    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices });
+    // VAT rule: domestic sale (organization country == logged-in user's
+    // country) uses that country's own rate; cross-border sale is VAT-exempt
+    // (0%) — vatReason distinguishes intra-EU reverse-charge from export, for
+    // invoice wording. See services/vatCalculator.js.
+    const currentUser = ownerService.getCurrentUser(req);
+    const { vatRate, reason: vatReason } = await resolveVatRateForUser(currentUser?.userId, currentUser?.orgId);
+    // HKL (org id 3) is "home" org — SUB___ prices don't apply to it (see
+    // services/subPriceContext.js's nonHklOrg check), so VAT there must be
+    // computed from the plain SUMA_BRUTTO, not SUB___SUMA_BRUTTO.
+    const isHklOrg = Number(currentUser?.orgId) === 3;
+
+    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, vatRate, vatReason, isHklOrg });
 });
 
 

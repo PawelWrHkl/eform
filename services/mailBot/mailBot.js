@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const confLang = require('./conf');
 const { log } = require('../../utils/logging');
+const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 
 
 const transporter = nodemailer.createTransport({
@@ -36,7 +37,9 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
 
   const attachments = [
     {
-      filename: `${__('history_order.title')}${templateVars.orderNr}.pdf`,
+      // Sanitized: iOS Mail can fail to open/save attachments whose filename
+      // contains non-ASCII characters or spaces (e.g. "Zamówienie nr.2819.pdf").
+      filename: sanitizeFilename(`${__('history_order.title')}${templateVars.orderNr}.pdf`),
       content: pdfBuffer,
       contentType: 'application/pdf'
     }
@@ -56,7 +59,7 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
     attachmentsBuffer.forEach(attachment => {
       if (attachment.filename && attachment.content) {
         attachments.push({
-          filename: attachment.filename,
+          filename: sanitizeFilename(attachment.filename),
           content: attachment.content
         });
       }
