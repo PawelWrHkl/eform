@@ -4,6 +4,7 @@ import { loadScript } from './scriptLoader.js';
 import { buildValuesToDisplay } from "./updateFieldsAndValues.js";
 import { validateFormInput } from "./validateUtils.js";
 import { shouldHideRegularPriceRow } from "./createForm.js";
+import { formatVatRateLabel } from "./vatLabel.js";
 import { getEnvVersion } from "../getEnv.js";
 
 let _isTestEnv = false;
@@ -133,7 +134,7 @@ export function applyVatToGrossValue(values, displayValues) {
         const existingVat = displayValues.get(vatKey) || {};
         displayValues.set(vatKey, {
             param_description: existingVat.param_description || t('form.vat_label'),
-            option_value: `${vatRate}%`,
+            option_value: formatVatRateLabel(vatRate),
             option_description: '',
             locked: false,
             sub: !isHklOrg,

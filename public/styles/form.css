@@ -278,9 +278,14 @@ input[type="number"]:focus {
 	z-index: 10;
 }
 
+/* Kept absolute (top-right, inside #buttons-space) for the compact layout,
+   but WITHOUT a negative top offset — that used to pull it up over the last
+   row of #dynamic-form's grid (the VAT fields), and since the attachment
+   icons are transparent (background: none, see .file-upload-icon), they
+   visually clashed with whatever sat underneath. */
 #attachment-space {
 	position: absolute;
-	top: -2vh !important;
+	top: 0;
 	right: 0;
 }
 

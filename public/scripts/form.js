@@ -37,6 +37,7 @@ import { stopSpin, startSpin } from "./components/hourglass.js";
 import { fillLocalPositionObject } from "./formTools/localStorageManager.js";
 import { getUid } from './formTools/getUid.js';
 import { generateShortJson } from './formTools/shortJsonGen.js';
+import { formatVatRateLabel } from './formTools/vatLabel.js';
 
 
 export async function generateForm(
@@ -66,6 +67,14 @@ export async function generateForm(
   window.subParams = [];
   window.manualParams = new Set();
   window.formDisplayValues = displayValues;
+  // TYPE='file' params render their real widget into #attachment-container
+  // (see createForm.js), but buildHtml still creates an empty
+  // `${param.NAME}-select-area` wrapper div for each one. Those are collected
+  // here instead of being appended in param.txt order, so buildVatFields()
+  // can append them to #dynamic-form AFTER the VAT fields — otherwise they'd
+  // land wherever the attachment param happens to sit in param.txt, ahead of
+  // the VAT block that's always built last.
+  window.__attachmentAreaDivs = [];
   if (editFlag && displayValues?.size) {
     restoreLockedParamsFromDisplayValues(displayValues);
   }
@@ -142,7 +151,11 @@ export async function generateForm(
       if (!window.subParams.includes(paramName)) window.subParams.push(paramName);
     }
 
-    const div = createElement('div', { class: [`${param.NAME}-select-area`] }, form);
+    const isAttachmentParam = param.TYPE === 'file';
+    const div = createElement('div', { class: [`${param.NAME}-select-area`] }, isAttachmentParam ? null : form);
+    if (isAttachmentParam) {
+      window.__attachmentAreaDivs.push(div);
+    }
 
     if (param.SOURCE == param.NAME) {
       param.modal = new SourceWindow(1, (sourceValues) => {
@@ -655,6 +668,17 @@ export function buildCommentSpace(destinationNode, comment = '') {
   return textarea;
 }
 
+/** Appends the `${param.NAME}-select-area` wrapper divs deferred by
+ * generateForm() for TYPE='file' (attachment) params — see that function's
+ * `window.__attachmentAreaDivs` comment. Called at the end of buildVatFields()
+ * so attachments always end up generated last, after the VAT block,
+ * regardless of their position in param.txt. */
+function appendDeferredAttachmentAreaDivs(destinationNode) {
+  const divs = window.__attachmentAreaDivs || [];
+  divs.forEach((div) => destinationNode.appendChild(div));
+  window.__attachmentAreaDivs = [];
+}
+
 /**
  * VAT field (read-only, percentage from services/vatCalculator.js via
  * window.vatRate) + VAT-amount field (read-only, the VAT rate applied in
@@ -662,10 +686,17 @@ export function buildCommentSpace(destinationNode, comment = '') {
  * pricesCalculator.js' applyVatToGrossValue() from SUB___SUMA_BRUTTO on every
  * recalculation. None is a param.txt-driven field — same pattern as
  * buildCommentSpace().
+ *
+ * Always built, even at vatRate === 0 (cross-border/export sale — a real,
+ * legitimate rate, not something to hide as if VAT weren't calculated at
+ * all). formatVatRateLabel() shows a reason suffix so 0% doesn't look broken.
+ *
+ * Attachment (TYPE='file') param wrapper divs are generated last, after this
+ * whole VAT block, via appendDeferredAttachmentAreaDivs() — see
+ * generateForm()'s `window.__attachmentAreaDivs` comment for why.
  */
 export function buildVatFields(destinationNode) {
   const vatRate = Number(window.vatRate) || 0;
-  if (vatRate === 0) return {};
 
   const vatDiv = createElement('div', { class: ['VAT-select-area'] }, destinationNode);
   createElement('label', {
@@ -678,7 +709,7 @@ export function buildVatFields(destinationNode) {
     id: 'VAT',
     class: ['input-form'],
     disabled: true,
-    value: `${vatRate}%`
+    value: formatVatRateLabel(vatRate)
   }, vatDiv);
 
   const vatValueDiv = createElement('div', { class: ['WARTOSC_VAT-select-area'] }, destinationNode);
@@ -708,6 +739,8 @@ export function buildVatFields(destinationNode) {
     disabled: true,
     value: '0'
   }, bruttoDiv);
+
+  appendDeferredAttachmentAreaDivs(destinationNode);
 
   return { vatInput, vatValueInput, bruttoInput };
 }
