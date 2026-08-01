@@ -90,16 +90,22 @@
                     <div class="overlay"></div>
                   {% endblock content %}
                   {% block scripts %}
+                    {# Whole VAT block only exists while features.vat is on (config.js).
+                       Off — production default — nothing below is emitted, so
+                       window.vatEnabled stays undefined and form.js builds no VAT fields. #}
+                    {% if vatEnabled %}
                     <script>
                       // Server-computed VAT rate (services/vatCalculator.js) — domestic sale
                       // (organization country == user country) uses that country's rate,
                       // cross-border sale is 0%. Read by pricesCalculator.js when computing
                       // WARTOSC_BRUTTO from SUB___SUMA_BRUTTO (net despite its "BRUTTO" name;
                       // falls back to SUB___WARTOSC_KONCOWA where SUB___SUMA_BRUTTO doesn't exist).
+                      window.vatEnabled = true;
                       window.vatRate = {{ vatRate | default(0) | dump | safe }};
                       window.vatReason = {{ vatReason | default("unknown") | dump | safe }};
                       window.isHklOrg = {{ isHklOrg | default(false) | dump | safe }};
                     </script>
+                    {% endif %}
                     <script type="module" src="/scripts/main.js"></script>
                     <script type="module" src="/scripts/tools/betterNumberValidator.js"></script>
                   {% endblock scripts %}

@@ -696,6 +696,15 @@ function appendDeferredAttachmentAreaDivs(destinationNode) {
  * generateForm()'s `window.__attachmentAreaDivs` comment for why.
  */
 export function buildVatFields(destinationNode) {
+  // Master switch: window.vatEnabled is injected by the templates only while
+  // config.js's `features.vat` is on (off on production). With the feature off
+  // no VAT field is created at all — but the deferred attachment divs still
+  // have to be appended, since this function owns that final step.
+  if (!window.vatEnabled) {
+    appendDeferredAttachmentAreaDivs(destinationNode);
+    return {};
+  }
+
   const vatRate = Number(window.vatRate) || 0;
 
   const vatDiv = createElement('div', { class: ['VAT-select-area'] }, destinationNode);

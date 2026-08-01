@@ -151,6 +151,15 @@ app.use((req, res, next) => {
 	next();
 });
 
+// ─── feature flags global middleware ────────────────────────────────────────
+// One place makes `features.vat` (config.js) visible to every template, so a
+// disabled feature leaves no trace in any rendered page.
+const { features } = require('./config');
+app.use((req, res, next) => {
+	res.locals.vatEnabled = !!features?.vat;
+	next();
+});
+
 const { applySubPriceLocals } = require('./services/subPriceContext');
 app.use((req, res, next) => {
 	applySubPriceLocals(req, res);

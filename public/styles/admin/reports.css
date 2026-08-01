@@ -500,6 +500,29 @@
 .date-today-option input[type="checkbox"] { cursor: pointer; }
 .date-today-option label { cursor: pointer; user-select: none; }
 
+/* ── Date presets + range hint ───────────────────────────────────── */
+.date-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+}
+
+.date-presets button { font-size: 0.72rem; }
+
+.date-range-hint {
+    margin-top: 0.45rem;
+    font-size: 0.72rem;
+    color: var(--text-muted, #6c757d);
+}
+
+/* Client with no orders in the selected range */
+.client-list-item.no-orders .client-ident,
+.client-list-item.no-orders .client-name-small,
+.client-list-item.no-orders .client-order-count {
+    opacity: 0.45;
+}
+
 /* ── Groups filter bar ───────────────────────────────────────────── */
 .groups-filter-bar {
     background: var(--card-bg, #fff);

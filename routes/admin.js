@@ -263,13 +263,18 @@ router.post('/api/reports/stats', requireReportsApiAccess, async (req, res) => {
     try {
         const { userIds, dateFrom, dateTo } = req.body;
         const ids = Array.isArray(userIds) ? userIds : (userIds ? JSON.parse(userIds) : null);
-        const [stats, trend, groups, deptClients] = await Promise.all([
-            reportsDb.getOrderStats(ids, dateFrom || null, dateTo || null),
-            reportsDb.getMonthlyTrend(ids, dateFrom || null, dateTo || null),
-            reportsDb.getGroupStats(ids, dateFrom || null, dateTo || null),
-            reportsDb.getDeptClientStats(ids, dateFrom || null, dateTo || null),
+        const from = dateFrom || null;
+        const to   = dateTo   || null;
+        const [stats, trend, groups, deptClients, clients] = await Promise.all([
+            reportsDb.getOrderStats(ids, from, to),
+            reportsDb.getMonthlyTrend(ids, from, to),
+            reportsDb.getGroupStats(ids, from, to),
+            reportsDb.getDeptClientStats(ids, from, to),
+            // Sidebar counters must follow the same range as the report itself.
+            reportsDb.getReportClients(from, to),
         ]);
-        res.json({ success: true, stats, trend, groups, deptClients });
+        const clientCounts = (clients || []).map(c => ({ id: c.id, order_count: c.order_count }));
+        res.json({ success: true, stats, trend, groups, deptClients, clientCounts });
     } catch (error) {
         log('Error fetching report stats:', error);
         res.status(500).json({ success: false, message: 'Błąd pobierania danych' });

@@ -21,7 +21,33 @@
         <!-- ── SIDEBAR ─────────────────────────────────────────── -->
         <div class="reports-sidebar">
 
-            <!-- Saved configs — na górze, zwijane -->
+            <!-- Date range — na samej górze, domyślnie rozwinięte -->
+            <div class="reports-card collapsible-card">
+                <button class="collapsible-header" data-key="dates" data-default="open" aria-expanded="true">
+                    <span><i class="bi bi-calendar-range me-1"></i>Zakres dat</span>
+                    <i class="bi bi-chevron-up collapsible-icon"></i>
+                </button>
+                <div class="collapsible-body">
+                    <div class="date-row">
+                        <input type="date" id="date-from" title="Od">
+                        <input type="date" id="date-to" title="Do">
+                    </div>
+                    <div class="date-today-option">
+                        <input type="checkbox" id="date-to-today" checked>
+                        <label for="date-to-today">Zakres „do" zawsze aktualny</label>
+                    </div>
+                    <div class="date-presets" id="date-presets">
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="month">Ten miesiąc</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="quarter">Kwartał</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="year">Ten rok</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="12m">12 mies.</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="all">Całość</button>
+                    </div>
+                    <div class="date-range-hint" id="date-range-hint"></div>
+                </div>
+            </div>
+
+            <!-- Saved configs — zwijane -->
             <div class="reports-card collapsible-card" id="saved-configs-card" {% if not savedConfigs or not savedConfigs.length %}style="display:none;"{% endif %}>
                 <button class="collapsible-header" id="saved-configs-toggle" data-key="saved-configs" aria-expanded="false">
                     <span><i class="bi bi-bookmark-star me-1"></i>Zapisane konfiguracje</span>
@@ -58,10 +84,6 @@
                             <i class="bi bi-bookmark-plus"></i>
                         </button>
                     </div>
-                    <div class="date-today-option">
-                        <input type="checkbox" id="date-to-today" checked>
-                        <label for="date-to-today">Zakres „do" zawsze aktualny</label>
-                    </div>
                 </div>
             </div>
 
@@ -93,20 +115,6 @@
                     </div>
                     <div class="client-selection-info" id="selection-info">
                         Zaznaczono: <strong id="selected-count">{{ clients | length }}</strong> / {{ clients | length }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Date range -->
-            <div class="reports-card collapsible-card">
-                <button class="collapsible-header" data-key="dates" aria-expanded="false">
-                    <span><i class="bi bi-calendar-range me-1"></i>Zakres dat</span>
-                    <i class="bi bi-chevron-up collapsible-icon"></i>
-                </button>
-                <div class="collapsible-body">
-                    <div class="date-row">
-                        <input type="date" id="date-from" title="Od">
-                        <input type="date" id="date-to" title="Do">
                     </div>
                 </div>
             </div>

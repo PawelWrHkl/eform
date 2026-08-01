@@ -300,3 +300,72 @@ tr {
         font-size: 0.85rem;
     }
 }
+
+/* ============================================
+   Unfreeze the first three columns
+   --------------------------------------------
+   `order_details.css` pins columns 1–3 of .order-table
+   (position: sticky + left offsets from
+   /scripts/stickyColumns.js + own backgrounds + a 2px
+   boundary border). On the sent-order view we don't want
+   that exception — those columns should scroll and look
+   exactly like every other column.
+
+   This file is loaded AFTER order_details.css (see
+   order_sent.njk / order_sent_prices.njk) and the selectors
+   below mirror the frozen-column ones one-for-one, so equal
+   specificity + later source order wins.
+
+   NOTE: `position: static` — NOT `position: none`, which is
+   not a valid value; the browser drops the whole declaration
+   and the sticky positioning survives.
+
+   With static positioning `left`, `z-index` and the tooltip
+   z-index hack from order_details.css all become no-ops, and
+   stickyColumns.js only writes the (now unused)
+   --sticky-left-* custom properties on the table, so neither
+   needs undoing. They are reset explicitly anyway, so the
+   columns stay unfrozen if anything re-positions them. */
+
+.order-table thead th:nth-child(1),
+.order-table thead th:nth-child(2),
+.order-table thead th:nth-child(3) {
+    position: static;
+    left: auto;
+    z-index: auto;
+    /* Let the <thead> background show through, like the other th cells. */
+    background: transparent;
+}
+
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row) > :nth-child(1),
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row) > :nth-child(2),
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row) > :nth-child(3) {
+    position: static;
+    left: auto;
+    z-index: auto;
+    /* Frozen cells needed an opaque fill so the scrolling columns could not
+       show through them; unfrozen they inherit the table/row background. */
+    background: transparent;
+}
+
+/* Drop the boundary between the (former) frozen block and the scrolling
+   columns — back to the regular 1px cell divider. `:not(:last-child)` so a
+   3-column table keeps its borderless last column. */
+.order-table thead th:nth-child(3):not(:last-child),
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row) > :nth-child(3):not(:last-child) {
+    border-right: 1px solid var(--border-default);
+}
+
+.order-table thead th:nth-child(3):last-child,
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row) > :nth-child(3):last-child {
+    border-right: none;
+}
+
+/* Row hover: order_details.css keeps the frozen cells opaque
+   (--bg-surface-sunken) while the row hover rule makes every other cell
+   transparent. Match the rest of the row instead. */
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row):hover > :nth-child(1),
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row):hover > :nth-child(2),
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row):hover > :nth-child(3) {
+    background: transparent;
+}

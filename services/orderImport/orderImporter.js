@@ -23,6 +23,7 @@ const formEngine = () => require('../formEngine');
 const translationRepo = () => require('../translationDict/dbRepository');
 const { translateParametersToCanonical } = require('./parameterTranslator');
 const { validateParameterValues } = require('./optionValidator');
+const { resolveTwinParameters } = require('./twinParamResolver');
 const {
   buildDisplayValuesFromDictionary,
   getProductGroupName,
@@ -251,6 +252,7 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
   const builder = deps.itemBuilder || itemBuilder();
   const translator = deps.translator || translateParametersToCanonical;
   const optionValidator = deps.optionValidator || validateParameterValues;
+  const twinResolver = deps.twinResolver || resolveTwinParameters;
   const engine = deps.formEngine || formEngine();
   const displayBuilder = deps.displayBuilder || buildDisplayValuesFromDictionary;
   const groupNameResolver = deps.groupNameResolver || getProductGroupName;
@@ -288,7 +290,16 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
   const preparedItems = [];
   for (const item of payload.items) {
     const groupNumber = item.product || item.asortment || '';
-    const canonicalParams = await translator(item.parameters || {}, groupNumber, lang);
+    const translatedParams = await translator(item.parameters || {}, groupNumber, lang);
+
+    // Select/input twin pairs (same description, e.g. DLUGOSC_STER vs DLUGSTER)
+    // are sent with the same value in both keys; route the value to the twin it
+    // is actually valid for before the option gate runs.
+    const twinFix = await twinResolver(groupNumber, translatedParams, lang);
+    const canonicalParams = twinFix.parameters;
+    for (const note of twinFix.notes || []) {
+      logger(`orderImport twin params (item ${item.posid != null ? item.posid : '?'}): ${note}`);
+    }
 
     const optionCheck = await optionValidator(groupNumber, canonicalParams, lang);
     if (!optionCheck.ok) {

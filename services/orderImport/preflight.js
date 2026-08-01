@@ -24,6 +24,7 @@ const { resolvePayloadAliases } = require('./aliasResolver');
 const { resolveOrderUser } = require('./userResolver');
 const { translateParametersToCanonical } = require('./parameterTranslator');
 const { validateParameterValues } = require('./optionValidator');
+const { resolveTwinParameters } = require('./twinParamResolver');
 
 const STAGES = ['structural', 'alias', 'user', 'options'];
 
@@ -51,6 +52,7 @@ async function preflightPayload(payload, { deps = {} } = {}) {
   const resolveUser = deps.resolveOrderUser || resolveOrderUser;
   const translate = deps.translator || translateParametersToCanonical;
   const validateOptions = deps.optionValidator || validateParameterValues;
+  const twinResolver = deps.twinResolver || resolveTwinParameters;
 
   const report = emptyReport(payload);
 
@@ -96,7 +98,9 @@ async function preflightPayload(payload, { deps = {} } = {}) {
     const groupNumber = item.product || item.asortment || '';
     try {
       const canonical = await translate(item.parameters || {}, groupNumber, lang);
-      const check = await validateOptions(groupNumber, canonical, lang);
+      // Mirror orderImporter: fix select/input twins before the option gate.
+      const { parameters: fixed } = await twinResolver(groupNumber, canonical, lang);
+      const check = await validateOptions(groupNumber, fixed, lang);
       if (!check.ok) {
         fail('options', check.errors.map((e) => `Item[${i}] (group=${groupNumber}): ${e}`));
       }

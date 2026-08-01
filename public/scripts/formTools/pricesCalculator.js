@@ -98,6 +98,10 @@ function formatSpecDisplay(raw) {
  * values/displayValues on those flows.
  */
 export function applyVatToGrossValue(values, displayValues) {
+    // Master switch (config.js `features.vat` → window.vatEnabled, injected by
+    // the templates). Off: no VAT keys in values/displayValues, nothing saved.
+    if (!window.vatEnabled) return;
+
     const bruttoInput = document.getElementById('WARTOSC_BRUTTO');
     if (!bruttoInput) return;
     const vatValueInput = document.getElementById('WARTOSC_VAT');

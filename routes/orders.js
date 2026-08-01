@@ -23,7 +23,7 @@ const { translateOrderItems } = require('../services/translationDict/itemTransla
 const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../services/productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../utils/productionSendGuard');
 const { getOrderMutationBlock, shouldRedirectFromActiveOrderView } = require('../utils/orderStatusGuard');
-const { resolveVatRateForUser } = require('../services/vatCalculator');
+const { resolveVatLocals, vatFeatureEnabled } = require('../services/vatCalculator');
 
 function sentOrderPath(orderId) {
     return `/orders/history/order/${orderId}`;
@@ -869,14 +869,11 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
     // country) uses that country's own rate; cross-border sale is VAT-exempt
     // (0%) — vatReason distinguishes intra-EU reverse-charge from export, for
     // invoice wording. See services/vatCalculator.js.
-    const currentUser = ownerService.getCurrentUser(req);
-    const { vatRate, reason: vatReason } = await resolveVatRateForUser(currentUser?.userId, currentUser?.orgId);
-    // HKL (org id 3) is "home" org — SUB___ prices don't apply to it (see
-    // services/subPriceContext.js's nonHklOrg check), so VAT there must be
-    // computed from the plain SUMA_BRUTTO, not SUB___SUMA_BRUTTO.
-    const isHklOrg = Number(currentUser?.orgId) === 3;
+    // Skipped entirely while the feature is off (config.js `features.vat`) —
+    // no locals, so form.njk renders no VAT markup at all.
+    const vatLocals = vatFeatureEnabled ? await resolveVatLocals(req) : {};
 
-    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, vatRate, vatReason, isHklOrg });
+    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, ...vatLocals });
 });
 
 

@@ -18,21 +18,10 @@ const { ordersManager } = require('../utils/saveOrdersOutput.js');
 const { file } = require('pdfkit');
 const { log } = require('../utils/logging');
 const { recalcAndSaveMaxProdDays } = require('../services/productionDays');
-const { resolveVatRateForUser } = require('../services/vatCalculator');
-
-/**
- * Same VAT resolution used by the new-position form (routes/orders.js) —
- * shared here so position edit (regular + admin-redit) shows/computes the
- * same VAT/WARTOSC_BRUTTO fields as position creation. isHklOrg mirrors
- * routes/orders.js: org id 3 (HKL) never has SUB___ prices, so its client
- * price lives in the plain (non-SUB___) price params instead.
- */
-async function resolveVatLocals(req) {
-  const currentUser = ownerService.getCurrentUser(req);
-  const { vatRate, reason: vatReason } = await resolveVatRateForUser(currentUser?.userId, currentUser?.orgId);
-  const isHklOrg = Number(currentUser?.orgId) === 3;
-  return { vatRate, vatReason, isHklOrg };
-}
+// Same VAT locals as the new-position form (routes/orders.js), so position
+// edit (regular + admin-redit) shows/computes exactly the same VAT block —
+// and hides it just as completely while the feature is off.
+const { resolveVatLocals } = require('../services/vatCalculator');
 
 async function isOrderSent(orderId) {
   const status = await db.getOrderStatus(orderId);
@@ -267,8 +256,8 @@ router.get('/:positionId/edit/', requireLogin, loadEmployeePermissions, filterPr
       return res.redirect(sentOrderPath(orderId));
     }
 
-    const { vatRate, vatReason, isHklOrg } = await resolveVatLocals(req);
-    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, vatRate, vatReason, isHklOrg })
+    const vatLocals = await resolveVatLocals(req);
+    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, ...vatLocals })
   }
   else {
     return res.status(400).json({
@@ -294,8 +283,8 @@ router.get('/:positionId/admin-redit/', requireLogin, async (req, res) => {
     }
     // Resolved AFTER setContextUserByIdent so it reflects the order owner
     // (client), not the admin's own org/country.
-    const { vatRate, vatReason, isHklOrg } = await resolveVatLocals(req);
-    return res.render('admin_edit_position.njk', { position: result, orderId: orderId, hidePrices: false, vatRate, vatReason, isHklOrg })
+    const vatLocals = await resolveVatLocals(req);
+    return res.render('admin_edit_position.njk', { position: result, orderId: orderId, hidePrices: false, ...vatLocals })
   }
   else {
     return res.status(400).json({ success: false })

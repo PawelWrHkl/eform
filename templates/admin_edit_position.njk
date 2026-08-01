@@ -107,10 +107,14 @@
                     <div class="overlay"></div>
                   {% endblock content %}
                   {% block scripts %}
+                    {# VAT block gated by features.vat (config.js) — see form.njk. #}
+                    {% if vatEnabled %}
                     <script>
+                      window.vatEnabled = true;
                       window.vatRate = {{ vatRate | default(0) | dump | safe }};
                       window.vatReason = {{ vatReason | default("unknown") | dump | safe }};
                       window.isHklOrg = {{ isHklOrg | default(false) | dump | safe }};
                     </script>
+                    {% endif %}
                     <script type='module' src="/scripts/admin/admin_edit_form.js"></script>
                   {% endblock scripts %}

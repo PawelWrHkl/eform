@@ -9,6 +9,11 @@
  */
 
 const db = require('../db/db_helper.js');
+const { features } = require('../config');
+
+/** THE switch for the whole feature — see `features.vat` in config.js.
+ *  Off on production unless VAT_ENABLED=true. */
+const vatFeatureEnabled = !!features?.vat;
 
 /** The 27 EU member states, by ISO 3166-1 alpha-2 code — used only to label
  *  *why* a cross-border sale is exempt (intra-EU reverse charge vs export),
@@ -127,6 +132,13 @@ async function getOrganizationCountry(orgId) {
  * @returns {Promise<{vatRate: number, reason: string, userCountry: string|null, organizationCountry: string|null}>}
  */
 async function resolveVatRateForUser(userId, orgId) {
+  // Feature off (production default): no DB lookups, no rate — callers must
+  // not render anything VAT-related. `reason: 'disabled'` is deliberately
+  // distinct from the real reasons so a stray usage is obvious.
+  if (!vatFeatureEnabled) {
+    return { vatRate: null, reason: 'disabled', userCountry: null, organizationCountry: null };
+  }
+
   const [userCountry, organizationCountry] = await Promise.all([
     getUserCountry(userId),
     getOrganizationCountry(orgId)
@@ -137,7 +149,31 @@ async function resolveVatRateForUser(userId, orgId) {
   return { vatRate, reason, userCountry, organizationCountry };
 }
 
+/**
+ * Template locals for every view that shows the VAT block (new position,
+ * position edit, admin-redit). Returns `{}` when the feature is off, so a
+ * caller spreading the result into res.render() leaves no VAT locals behind.
+ *
+ * isHklOrg: HKL (org id 3) is the "home" org — SUB___ prices don't apply to it
+ * (see services/subPriceContext.js's nonHklOrg check), so VAT there must be
+ * computed from the plain SUMA_BRUTTO, not SUB___SUMA_BRUTTO.
+ *
+ * @param {import('express').Request} req
+ * @returns {Promise<{vatEnabled?: boolean, vatRate?: number, vatReason?: string, isHklOrg?: boolean}>}
+ */
+async function resolveVatLocals(req) {
+  if (!vatFeatureEnabled) return {};
+
+  const ownerService = require('./owner.js');
+  const currentUser = ownerService.getCurrentUser(req);
+  const { vatRate, reason: vatReason } = await resolveVatRateForUser(currentUser?.userId, currentUser?.orgId);
+
+  return { vatEnabled: true, vatRate, vatReason, isHklOrg: Number(currentUser?.orgId) === 3 };
+}
+
 module.exports = {
+  vatFeatureEnabled,
+  resolveVatLocals,
   VAT_RATES_BY_COUNTRY,
   EU_VAT_RATES,
   EU_MEMBER_COUNTRIES,

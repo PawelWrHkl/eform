@@ -16,6 +16,7 @@ let _activeMetrics = { value: true, orders: true, positions: false };
 let _groupsMode = 'depts';        // 'depts' | 'groups'
 let _selectedDeptIds = new Set(); // empty = all depts shown
 let _activeDeptClientDeptId = null; // null = first dept
+let _runSeq = 0;                    // guards against out-of-order responses
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -109,17 +110,99 @@ function initClientList() {
     });
 }
 
+// ── Date range ────────────────────────────────────────────────────
+
+// Reads the range straight from the inputs and keeps it consistent:
+// „do zawsze aktualny" pins the upper bound to today, and a reversed
+// range is swapped instead of silently returning nothing.
+function currentRange() {
+    const fromEl = document.getElementById('date-from');
+    const toEl   = document.getElementById('date-to');
+
+    if (document.getElementById('date-to-today').checked) {
+        toEl.value = todayStr();
+    }
+
+    let dateFrom = fromEl.value || null;
+    let dateTo   = toEl.value   || null;
+
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+        [dateFrom, dateTo] = [dateTo, dateFrom];
+        fromEl.value = dateFrom;
+        toEl.value   = dateTo;
+    }
+
+    return { dateFrom, dateTo };
+}
+
+function updateRangeHint(dateFrom, dateTo) {
+    const hint = document.getElementById('date-range-hint');
+    if (!hint) return;
+    hint.textContent = (!dateFrom && !dateTo)
+        ? 'Bez ograniczenia — cała historia zamówień.'
+        : `Wszystkie widoki: ${dateFrom || 'początek'} → ${dateTo || 'dziś'}`;
+}
+
+function setRange(dateFrom, dateTo) {
+    document.getElementById('date-from').value = dateFrom || '';
+    document.getElementById('date-to').value   = dateTo   || '';
+    document.getElementById('date-to-today').checked = false;
+    runReport();
+}
+
+function initDateControls() {
+    const fromEl = document.getElementById('date-from');
+    const toEl   = document.getElementById('date-to');
+    const todayCb = document.getElementById('date-to-today');
+
+    // Any change to the range re-runs the whole report, so every view
+    // (tabela, wykresy, trend, grupy, dział → klienci, licznik klientów)
+    // always reflects the picked dates.
+    [fromEl, toEl].forEach(el => el.addEventListener('change', () => {
+        if (el === toEl) todayCb.checked = false;
+        runReport();
+    }));
+
+    todayCb.addEventListener('change', () => {
+        if (todayCb.checked) toEl.value = todayStr();
+        runReport();
+    });
+
+    document.getElementById('date-presets')?.addEventListener('click', e => {
+        const btn = e.target.closest('button[data-preset]');
+        if (!btn) return;
+        const now = new Date();
+        const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const today = todayStr();
+
+        switch (btn.dataset.preset) {
+            case 'month':   setRange(iso(new Date(now.getFullYear(), now.getMonth(), 1)), today); break;
+            case 'quarter': setRange(iso(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)), today); break;
+            case 'year':    setRange(`${now.getFullYear()}-01-01`, today); break;
+            case '12m': {
+                const past = new Date(now);
+                past.setFullYear(past.getFullYear() - 1);
+                setRange(iso(past), today);
+                break;
+            }
+            case 'all':     setRange(null, null); break;
+        }
+    });
+}
+
 // ── Run report ────────────────────────────────────────────────────
 
 async function runReport() {
     const ids = getSelectedIds();
-    const dateFrom = document.getElementById('date-from').value || null;
-    const dateTo   = document.getElementById('date-to').value   || null;
+    const { dateFrom, dateTo } = currentRange();
+    updateRangeHint(dateFrom, dateTo);
 
     setLoading(true);
 
     const totalClients = document.querySelectorAll('#client-list .client-list-item').length;
     const userIds = ids.length > 0 && ids.length < totalClients ? ids : null;
+
+    const runId = ++_runSeq;
 
     try {
         const res = await fetch('/admin/api/reports/stats', {
@@ -129,20 +212,37 @@ async function runReport() {
             body: JSON.stringify({ userIds, dateFrom, dateTo }),
         });
         const data = await parseJsonResponse(res);
+        if (runId !== _runSeq) return; // a newer range was requested meanwhile
         if (!data.success) throw new Error(data.message);
 
         _currentStats  = Array.isArray(data.stats)        ? data.stats        : [];
         _currentTrend  = Array.isArray(data.trend)        ? data.trend        : [];
         _currentGroups = Array.isArray(data.groups)       ? data.groups       : [];
         _currentDeptClients = Array.isArray(data.deptClients) ? data.deptClients : [];
+        updateClientCounts(data.clientCounts);
         updateSummary();
         renderActiveView();
         updateReportMeta(dateFrom, dateTo, ids.length);
     } catch (err) {
+        if (runId !== _runSeq) return;
         showArea(`<div class="reports-empty text-danger"><i class="bi bi-exclamation-triangle me-2"></i>${err.message}</div>`);
     } finally {
         setLoading(false);
     }
+}
+
+// Sidebar order counters follow the selected range too — a client with no
+// orders in the period is dimmed instead of showing its all-time total.
+function updateClientCounts(clientCounts) {
+    if (!Array.isArray(clientCounts)) return;
+    const byId = new Map(clientCounts.map(c => [String(c.id), Number(c.order_count) || 0]));
+    document.querySelectorAll('#client-list .client-list-item').forEach(item => {
+        const count = byId.get(item.dataset.id) ?? 0;
+        const badge = item.querySelector('.client-order-count');
+        if (badge) badge.textContent = count;
+        item.dataset.orderCount = count;
+        item.classList.toggle('no-orders', count === 0);
+    });
 }
 
 function setLoading(on) {
@@ -788,8 +888,7 @@ function initConfigControls() {
         const name = document.getElementById('config-name-input').value.trim();
         if (!name) { alert('Wpisz nazwę konfiguracji.'); return; }
         const ids = getSelectedIds();
-        const dateFrom = document.getElementById('date-from').value || null;
-        const dateTo   = document.getElementById('date-to').value   || null;
+        const { dateFrom, dateTo } = currentRange();
         const dateToToday = document.getElementById('date-to-today').checked;
 
         const res = await fetch('/admin/api/reports/configs', {
@@ -966,9 +1065,9 @@ function initCollapsible() {
         if (!body) return;
 
         const key = header.dataset.key;
-        // Read saved state; default = collapsed
+        // Read saved state; default from data-default (fallback = collapsed)
         const saved = key ? localStorage.getItem(LS_PREFIX + key) : null;
-        const startOpen = saved === 'open';
+        const startOpen = saved ? saved === 'open' : header.dataset.default === 'open';
 
         if (startOpen) {
             body.classList.remove('collapsed');
@@ -1014,14 +1113,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initCollapsible();
     initConfigControls();
 
+    initDateControls();
+
     document.getElementById('btn-run-report').addEventListener('click', runReport);
 
     // Default date range: last 12 months
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    document.getElementById('date-to').value = `${y}-${m}-${d}`;
+    document.getElementById('date-to').value = todayStr();
     const past = new Date(now);
     past.setFullYear(past.getFullYear() - 1);
     document.getElementById('date-from').value =

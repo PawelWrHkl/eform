@@ -1,22 +1,87 @@
 const { selectQuery, updateQuery } = require('../core');
 const { log } = require('../../utils/logging');
+const { convertToSQLDate } = require('../../utils/humanize_date');
+
+/**
+ * Normalize an incoming date filter to a plain `YYYY-MM-DD` string.
+ * Anything unparseable is dropped (treated as "no limit") so a malformed
+ * value can never silently widen or break the range.
+ */
+function normalizeDate(value) {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    return convertToSQLDate(raw.slice(0, 19).replace('T', ' '));
+}
+
+/**
+ * Build the shared WHERE clause used by every report aggregate so the
+ * selected date range constrains all views identically.
+ * Date comparisons run on DATE(o.created_date) — both ends inclusive.
+ * @param {number[]|null} userIds
+ * @param {string|null} dateFrom
+ * @param {string|null} dateTo
+ * @param {string} alias - table alias of `order`
+ */
+function buildOrderFilter(userIds, dateFrom, dateTo, alias = 'o') {
+    const conditions = [`${alias}.status = 'sent'`];
+    const params = [];
+
+    if (userIds && userIds.length > 0) {
+        conditions.push(`${alias}.user_id IN (${userIds.map(() => '?').join(',')})`);
+        params.push(...userIds);
+    }
+
+    const from = normalizeDate(dateFrom);
+    const to   = normalizeDate(dateTo);
+
+    if (from) {
+        conditions.push(`DATE(${alias}.created_date) >= ?`);
+        params.push(from);
+    }
+    if (to) {
+        conditions.push(`DATE(${alias}.created_date) <= ?`);
+        params.push(to);
+    }
+
+    return { where: 'WHERE ' + conditions.join(' AND '), params };
+}
 
 /**
  * Get all clients (users with role = null or 'client') for admin report filtering.
+ * The order counter respects the same date range as the report itself, so the
+ * sidebar never advertises orders that fall outside the selected period.
+ * @param {string|null} dateFrom
+ * @param {string|null} dateTo
  */
-async function getReportClients() {
+async function getReportClients(dateFrom = null, dateTo = null) {
+    const params = [];
+    let dateClause = '';
+
+    const from = normalizeDate(dateFrom);
+    const to   = normalizeDate(dateTo);
+
+    if (from) {
+        dateClause += ' AND DATE(ord.created_date) >= ?';
+        params.push(from);
+    }
+    if (to) {
+        dateClause += ' AND DATE(ord.created_date) <= ?';
+        params.push(to);
+    }
+
     const query = `
         SELECT u.id, u.ident, u.client_name, u.organization_id, o.ident AS org_ident,
                COUNT(DISTINCT ord.id) AS order_count
         FROM user u
         LEFT JOIN organization o ON o.id = u.organization_id
-        LEFT JOIN \`order\` ord ON ord.user_id = u.id AND ord.status = 'sent'
+        LEFT JOIN \`order\` ord ON ord.user_id = u.id AND ord.status = 'sent'${dateClause}
         WHERE (u.role IS NULL OR u.role NOT IN ('admin','owner','employee'))
           AND u.ident IS NOT NULL
         GROUP BY u.id, u.ident, u.client_name, u.organization_id, o.ident
         ORDER BY order_count DESC, u.ident ASC
     `;
-    return selectQuery(query, []);
+    return selectQuery(query, params);
 }
 
 /**
@@ -26,23 +91,7 @@ async function getReportClients() {
  * @param {string|null} dateTo    - ISO date string
  */
 async function getOrderStats(userIds, dateFrom, dateTo) {
-    const conditions = [`o.status = 'sent'`];
-    const params = [];
-
-    if (userIds && userIds.length > 0) {
-        conditions.push(`o.user_id IN (${userIds.map(() => '?').join(',')})`);
-        params.push(...userIds);
-    }
-    if (dateFrom) {
-        conditions.push('o.created_date >= ?');
-        params.push(dateFrom);
-    }
-    if (dateTo) {
-        conditions.push('o.created_date <= ?');
-        params.push(dateTo + ' 23:59:59');
-    }
-
-    const where = 'WHERE ' + conditions.join(' AND ');
+    const { where, params } = buildOrderFilter(userIds, dateFrom, dateTo);
 
     const query = `
         SELECT
@@ -75,23 +124,7 @@ async function getOrderStats(userIds, dateFrom, dateTo) {
  * Get monthly order trend for selected clients.
  */
 async function getMonthlyTrend(userIds, dateFrom, dateTo) {
-    const conditions = [`o.status = 'sent'`];
-    const params = [];
-
-    if (userIds && userIds.length > 0) {
-        conditions.push(`o.user_id IN (${userIds.map(() => '?').join(',')})`);
-        params.push(...userIds);
-    }
-    if (dateFrom) {
-        conditions.push('o.created_date >= ?');
-        params.push(dateFrom);
-    }
-    if (dateTo) {
-        conditions.push('o.created_date <= ?');
-        params.push(dateTo + ' 23:59:59');
-    }
-
-    const where = 'WHERE ' + conditions.join(' AND ');
+    const { where, params } = buildOrderFilter(userIds, dateFrom, dateTo);
 
     const query = `
         SELECT
@@ -145,23 +178,7 @@ async function getReportConfigs(adminUserId) {
  * Uses canonical names from product_group/department tables (PL).
  */
 async function getGroupStats(userIds, dateFrom, dateTo) {
-    const conditions = [`o.status = 'sent'`];
-    const params = [];
-
-    if (userIds && userIds.length > 0) {
-        conditions.push(`o.user_id IN (${userIds.map(() => '?').join(',')})`);
-        params.push(...userIds);
-    }
-    if (dateFrom) {
-        conditions.push('o.created_date >= ?');
-        params.push(dateFrom);
-    }
-    if (dateTo) {
-        conditions.push('o.created_date <= ?');
-        params.push(dateTo + ' 23:59:59');
-    }
-
-    const where = 'WHERE ' + conditions.join(' AND ');
+    const { where, params } = buildOrderFilter(userIds, dateFrom, dateTo);
 
     const query = `
         SELECT
@@ -193,23 +210,7 @@ async function getGroupStats(userIds, dateFrom, dateTo) {
  * Returns one row per (department, client) combination.
  */
 async function getDeptClientStats(userIds, dateFrom, dateTo) {
-    const conditions = [`o.status = 'sent'`];
-    const params = [];
-
-    if (userIds && userIds.length > 0) {
-        conditions.push(`o.user_id IN (${userIds.map(() => '?').join(',')})`);
-        params.push(...userIds);
-    }
-    if (dateFrom) {
-        conditions.push('o.created_date >= ?');
-        params.push(dateFrom);
-    }
-    if (dateTo) {
-        conditions.push('o.created_date <= ?');
-        params.push(dateTo + ' 23:59:59');
-    }
-
-    const where = 'WHERE ' + conditions.join(' AND ');
+    const { where, params } = buildOrderFilter(userIds, dateFrom, dateTo);
 
     const query = `
         SELECT
