@@ -10,7 +10,7 @@ const ownerService = require('../services/owner.js');
 const mailBot = require('../services/mailBot/mailBot');
 const path = require('path');
 const OrderSender = require("../services/sendOrderService");
-const { generatePdf, generateProductionPdf, uploadProductionPdf } = require('../services/mailBot/pdfGenerator');
+const { generatePdf, generateOrderDocuments, generateProductionPdf, uploadProductionPdf } = require('../services/mailBot/pdfGenerator');
 const { formatClientLabel } = require('../utils/formatClient');
 const { buildOrderItemStructure } = require('../services/itemBuilder.js');
 const { getPriceAfterDiscount } = require('../services/getDiscount.js');
@@ -1066,7 +1066,8 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             showGoldPrices
         }));
 
-        const pdf = await generatePdf(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail)
+        // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail)
         const orgData = await db.getOrgInfo(req.session.user.organization)
 
         // Główny odbiorca i BCC zależne od środowiska
@@ -1091,7 +1092,8 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
                 orderDetails: sendData,
                 organization: orgData
             },
-            bccList.join(', ')
+            bccList.join(', '),
+            { htmlContent: confirmationHtml }
         );
 
         // Generuj i wyślij PDF produkcyjny po polsku (fire-and-forget, nie blokuje odpowiedzi)

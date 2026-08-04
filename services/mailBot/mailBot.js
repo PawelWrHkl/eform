@@ -21,7 +21,7 @@ const transporter = nodemailer.createTransport({
 });
 
 
-function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject') {
+function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
   const i18n = confLang(lang);
   const __ = (key, opts) => i18n.__(key, { locale: lang, ...opts });
   const subject = `${__(subjectKey)} #${templateVars.orderNr} - ${templateVars.klient} `;
@@ -35,15 +35,32 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
     __
   });
 
+  const baseName = sanitizeFilename(`${__('history_order.title')}${templateVars.orderNr}.pdf`);
+
   const attachments = [
     {
       // Sanitized: iOS Mail can fail to open/save attachments whose filename
       // contains non-ASCII characters or spaces (e.g. "Zamówienie nr.2819.pdf").
-      filename: sanitizeFilename(`${__('history_order.title')}${templateVars.orderNr}.pdf`),
+      filename: baseName,
       content: pdfBuffer,
-      contentType: 'application/pdf'
+      contentType: 'application/pdf',
+      // 'inline' zamiast domyślnego 'attachment': klienci mobilni (iOS Mail,
+      // Gmail na Androidzie) otwierają wtedy PDF od razu w podglądzie zamiast
+      // próbować go zapisać na dysk — zgłaszany problem „nie da się pobrać".
+      contentDisposition: 'inline'
     }
   ];
+
+  // Drugie, identyczne potwierdzenie w formie HTML — gdy renderowanie/pobieranie
+  // PDF-a zawiedzie po stronie klienta poczty, ten sam dokument można otworzyć
+  // w przeglądarce. Treść pochodzi z tego samego renderu `order-pdf.njk`.
+  if (options.htmlContent) {
+    attachments.push({
+      filename: baseName.replace(/\.pdf$/i, '.html'),
+      content: options.htmlContent,
+      contentType: 'text/html; charset=utf-8'
+    });
+  }
 
   if (fs.existsSync(templateVars.logoPath)) {
     attachments.push({
@@ -82,8 +99,8 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
   return mailOptions;
 }
 
-function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject') {
-  const mailOptions = buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer, templateVars, cc, templateName, subjectKey);
+function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
+  const mailOptions = buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer, templateVars, cc, templateName, subjectKey, options);
   return new Promise((resolve, reject) => {
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
@@ -100,11 +117,21 @@ function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars
   });
 }
 
-function sendMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null) {
-  sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer, templateVars, cc).catch(() => {});
+function sendMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, options = {}) {
+  sendMailAsync(
+    to,
+    lang,
+    pdfBuffer,
+    attachmentsBuffer,
+    templateVars,
+    cc,
+    'mailTemplate.njk',
+    'mail.subject',
+    options
+  ).catch(() => {});
 }
 
-function sendCorrectionMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null) {
+function sendCorrectionMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, options = {}) {
   sendMailAsync(
     to,
     lang,
@@ -113,8 +140,9 @@ function sendCorrectionMail(to, lang, pdfBuffer, attachmentsBuffer = [], templat
     templateVars,
     cc,
     'correctionMailTemplate.njk',
-    'mail.correction_subject'
+    'mail.correction_subject',
+    options
   ).catch(() => {});
 }
 
-module.exports = { sendMail, sendMailAsync, sendCorrectionMail };
+module.exports = { sendMail, sendMailAsync, sendCorrectionMail, buildMailOptions };

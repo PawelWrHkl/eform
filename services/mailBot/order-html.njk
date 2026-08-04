@@ -1,0 +1,323 @@
+{#
+  Potwierdzenie zamówienia — wariant HTML (drugi załącznik maila).
+
+  Osobny szablon, NIE `order-pdf.njk`: tam układem rządzi tabela liczona pod A4
+  landscape i arkusz z `!important` na każdej deklaracji. Tutaj układ jest
+  mobile-first (pionowa lista kart, żadnej tabeli), z własnym `styles/order-html.css`
+  i bez ani jednej reguły z `order-pdf.css`.
+
+  Kontekst renderowania jest IDENTYCZNY jak dla `order-pdf.njk` (ten sam obiekt
+  przekazywany z `generateOrderDocuments`), a logika widoczności pól i cen jest
+  odwzorowana 1:1 — te same warunki `lockedParams` / `clientView` / `showBoth` /
+  `showGoldPrices` / `subParamValues`. Każda zmiana reguł widoczności w
+  `order-pdf.njk` musi trafić też tutaj.
+#}
+{% macro val(raw) -%}
+  {%- set parts = (raw or '-') | pdfValueParts -%}
+  <span class="v">{{ parts.val }}</span>{% if parts.desc %}<span class="v-desc">{{ parts.desc }}</span>{% endif %}
+{%- endmacro %}
+
+<div class="page">
+
+  <header class="doc-head">
+    <img class="brand" src="{{ logoPath }}" alt="logo">
+    <h1 class="doc-title">{{ __('history_order.title') }}{{ orderNr }}</h1>
+    {% if orderDetails.commision %}
+      <div class="doc-commission">{{ orderDetails.commision }}</div>
+    {% endif %}
+  </header>
+
+  {% if orderDetails.comment %}
+    <div class="note">
+      <span class="note-label">{{ __('order.comment') }}</span>
+      <span class="note-text">{{ orderDetails.comment }}</span>
+    </div>
+  {% endif %}
+
+  {% set globalIndex = 1 %}
+  {% for table in cleanOrderItems %}
+    {% for rowObj in table.rows %}
+      {#
+        Etykieta kolumny MODEL wyszukiwana po KANONICZNYM kluczu parametru:
+        `table.headerKeys1[i]` to `etykieta||KLUCZ` (patrz `orderService.jsonTextBackToMap`),
+        a `table.headers1[i]` to sama etykieta — przetłumaczona, więc porównywanie
+        z napisem „MODEL" byłoby zależne od języka. Porównanie z
+        `header + '||MODEL'` jest dokładne (nie łapie np. `||MODEL_SPEC`).
+      #}
+      {% set modelFound = [] %}
+      {% for header in table.headers1 %}
+        {% if table.headerKeys1[loop.index0] == header + '||MODEL' %}
+          {% set modelFound = (modelFound.push(header), modelFound) %}
+        {% endif %}
+      {% endfor %}
+      {% set modelHeader = modelFound[0] %}
+      {% set modelValue = rowObj.row.row1[modelHeader] if modelHeader else null %}
+
+      <article class="pos">
+
+        {#
+          Zwijane szczegóły na natywnym <details> — bez JS, bo czytniki poczty
+          blokują skrypty. Domyślnie ZAWSZE zwinięte (brak atrybutu `open`).
+          W <summary> (zawsze widocznym) siedzi pasek nagłówka ze strzałką ORAZ
+          przyklejone pola: grupa, MODEL i nazwa pozycji. Muszą być wewnątrz
+          <summary>, bo <details> wymaga go jako pierwszego dziecka — inaczej
+          przyklejony blok trafiłby POD rozwiniętą treść.
+          W środku <details>: pełna lista parametrów i wszystkie bloki cen.
+          Poza kartą zostaje tylko komentarz pozycji.
+        #}
+        <details class="pos-details">
+          <summary class="pos-summary">
+            <span class="pos-head">
+              <span class="pos-nr">{{ globalIndex }}</span>
+              <span class="pos-name">
+                {%- if rowObj.item.department %}{{ rowObj.item.department }}{% else %}{{ __('order.department') }}{% endif -%}
+              </span>
+              <span class="pos-chevron" aria-hidden="true"></span>
+            </span>
+          <span class="pos-key">
+            {% if rowObj.item.group_name %}
+              <span class="field">
+                <span class="fkey">{{ __('order.group_name') }}</span>
+                <span class="fval">{{ val(rowObj.item.group_name) }}</span>
+              </span>
+            {% endif %}
+            {% if modelHeader and modelValue %}
+              <span class="field">
+                <span class="fkey">{{ modelHeader }}</span>
+                <span class="fval">{{ val(modelValue) }}</span>
+              </span>
+            {% endif %}
+            {% if rowObj.item.commision %}
+              <span class="field">
+                <span class="fkey">{{ __('order.name') }}</span>
+                <span class="fval">{{ val(rowObj.item.commision) }}</span>
+              </span>
+            {% endif %}
+          </span>
+          </summary>
+
+          <dl class="fields">
+          {% for header in table.headers1 %}
+            {% if not (header in rowObj.item.lockedParams) and header != modelHeader %}
+              <div class="field">
+                <dt>{{ header }}</dt>
+                <dd>{{ val(rowObj.row.row1[header]) }}</dd>
+              </div>
+            {% endif %}
+          {% endfor %}
+          </dl>
+
+        {#
+          Ceny — bloki `.money` renderowane tylko wtedy, gdy dany wariant widoku
+          ma cokolwiek do pokazania. `{% set %}` na liście + `| length` zamiast
+          gołego `{% for %}` w markupie, żeby nie powstawały puste ramki.
+        #}
+        {% if not clientView %}
+          {% set regular = [] %}
+          {% for header in table.headers2 %}
+            {% if not (header in rowObj.item.lockedParams) %}
+              {% set regular = (regular.push({ label: header, value: rowObj.row.row2[header] }), regular) %}
+            {% endif %}
+          {% endfor %}
+          {% if regular | length %}
+            <div class="money">
+              {% for line in regular %}
+                <div class="money-line">
+                  <span class="money-label">{{ line.label }}</span>
+                  <span class="money-value">{{ val(line.value) }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endif %}
+
+        {% if clientView or showBoth %}
+          {% set subs = [] %}
+          {% for entry in rowObj.item.subParamValues %}
+            {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}
+              {% set subs = (subs.push({ label: entry.display, value: entry.value }), subs) %}
+            {% endif %}
+          {% endfor %}
+          {% if subs | length %}
+            <div class="money">
+              {% for line in subs %}
+                <div class="money-line">
+                  <span class="money-label">{{ line.label }}</span>
+                  <span class="money-value">{{ val(line.value) }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endif %}
+
+        {% if prices and showGoldPrices and not clientView %}
+          {% set gold = [] %}
+          {% for header in table.headers1 %}
+            {% if header in rowObj.item.lockedParams %}
+              {% set gold = (gold.push({ label: header, value: rowObj.row.row1[header] or rowObj.row.row2[header] }), gold) %}
+            {% endif %}
+          {% endfor %}
+          {% for header in table.headers2 %}
+            {% if header in rowObj.item.lockedParams %}
+              {% set gold = (gold.push({ label: header, value: rowObj.row.row1[header] or rowObj.row.row2[header] }), gold) %}
+            {% endif %}
+          {% endfor %}
+          {% if gold | length %}
+            <div class="money money-gold">
+              {% for line in gold %}
+                <div class="money-line">
+                  <span class="money-label">{{ line.label }}</span>
+                  <span class="money-value">{{ val(line.value) }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endif %}
+
+        {% if prices and (clientView or showBoth) %}
+          {% set goldSubs = [] %}
+          {% for entry in rowObj.item.subParamValues %}
+            {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+              {% set goldSubs = (goldSubs.push({ label: entry.display, value: entry.value }), goldSubs) %}
+            {% endif %}
+          {% endfor %}
+          {% if goldSubs | length %}
+            <div class="money money-gold">
+              {% for line in goldSubs %}
+                <div class="money-line">
+                  <span class="money-label">{{ line.label }}</span>
+                  <span class="money-value">{{ val(line.value) }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endif %}
+        </details>
+
+        {% if rowObj.item.comment %}
+          <div class="pos-comment">
+            <span class="note-label">{{ __('order.comment') }}</span>
+            <span class="note-text">{{ rowObj.item.comment }}</span>
+          </div>
+        {% endif %}
+
+      </article>
+      {% set globalIndex = globalIndex + 1 %}
+    {% endfor %}
+  {% endfor %}
+
+  {% if maxProdDays %}
+    <section class="prod-time">
+      <span class="prod-time-label">{{ __('order.production_time_label') }}</span>
+      <span class="prod-time-value">{{ maxProdDays }} {{ __('termin.days') }}</span>
+    </section>
+  {% endif %}
+
+  <section class="summary">
+    <div class="sum-line">
+      <span class="sum-label">{{ __('order.total_items') }}</span>
+      <span class="sum-value">{{ totalQuantity if totalQuantity is defined else (globalIndex - 1) }}</span>
+    </div>
+    {% if sendData.total %}
+      <div class="sum-line sum-total">
+        <span class="sum-label">{{ __('order.total') }}</span>
+        <span class="sum-value">{{ sendData.total | replace(__('order.total') + ': ', '') }}</span>
+      </div>
+    {% endif %}
+    {% if sendData.total_hidden %}
+      <div class="sum-line">
+        <span class="sum-label">{{ __('order.total_hidden') }}</span>
+        <span class="sum-value">{{ sendData.total_hidden | replace(__('order.total_hidden') + ': ', '') }}</span>
+      </div>
+    {% endif %}
+    {% if not prices and discountInfo and discountInfo.type != 'none' %}
+      <div class="sum-line sum-discount">
+        <span class="sum-label">{{ __('order.discount') }}</span>
+        <span class="sum-value">{{ discountInfo.discountValue }}{% if discountInfo.type == 'percentage' %}%{% else %} €{% endif %}</span>
+      </div>
+      <div class="sum-line sum-discount sum-total">
+        <span class="sum-label">{{ __('order.total_after_discount') }}</span>
+        <span class="sum-value">{{ discountInfo.result }} €</span>
+      </div>
+    {% endif %}
+  </section>
+
+  <div class="addresses">
+    <section class="addr">
+      <h2 class="addr-title">{{ __('order.client_data') }}</h2>
+      <div class="addr-line">
+        <span class="addr-label">{{ __('new-order.client_name') }}</span>
+        <span class="addr-value">{{ sendData.client or '-' }}</span>
+      </div>
+      <div class="addr-line">
+        <span class="addr-label">{{ __('base.nip') }}</span>
+        <span class="addr-value">{{ sendData.tax or '-' }}</span>
+      </div>
+      {% if sendData.userStreet or sendData.userCity or sendData.userZip %}
+        <div class="addr-line">
+          <span class="addr-label">{{ __('new-order.street') }}</span>
+          <span class="addr-value">{{ sendData.userStreet or '-' }}</span>
+        </div>
+        <div class="addr-line">
+          <span class="addr-label">{{ __('new-order.city') }}</span>
+          <span class="addr-value">{{ sendData.userZip }} {{ sendData.userCity }}</span>
+        </div>
+        {% if sendData.userCountry %}
+          <div class="addr-line">
+            <span class="addr-label">{{ __('new-order.country') }}</span>
+            <span class="addr-value">{{ sendData.userCountry }}</span>
+          </div>
+        {% endif %}
+        {% if sendData.userPhone %}
+          <div class="addr-line">
+            <span class="addr-label">{{ __('new-order.phone') }}</span>
+            <span class="addr-value"><a href="tel:{{ sendData.userPhone | replace(' ', '') }}">{{ sendData.userPhone }}</a></span>
+          </div>
+        {% endif %}
+      {% endif %}
+      <div class="addr-line">
+        <span class="addr-label">{{ __('orders.created_date') }}</span>
+        <span class="addr-value">{{ sendData.created_date }}</span>
+      </div>
+      <div class="addr-line">
+        <span class="addr-label">{{ __('orders.sent_date') }}</span>
+        <span class="addr-value">{{ sendData.sentDate }}</span>
+      </div>
+    </section>
+
+    <section class="addr">
+      <h2 class="addr-title">{{ __('order.send_data') }}</h2>
+      {% if sendData.name %}
+        <div class="addr-line">
+          <span class="addr-label">{{ __('order.address_name') }}</span>
+          <span class="addr-value">{{ sendData.name }}</span>
+        </div>
+      {% endif %}
+      <div class="addr-line">
+        <span class="addr-label">{{ __('new-order.street') }}</span>
+        <span class="addr-value">{{ sendData.address or '-' }}</span>
+      </div>
+      <div class="addr-line">
+        <span class="addr-label">{{ __('new-order.city') }}</span>
+        <span class="addr-value">{{ sendData.zip }} {{ sendData.city }}</span>
+      </div>
+      <div class="addr-line">
+        <span class="addr-label">{{ __('new-order.country') }}</span>
+        <span class="addr-value">{{ sendData.country or '-' }}</span>
+      </div>
+      {% if sendData.email %}
+        <div class="addr-line">
+          <span class="addr-label">{{ __('new-order.email_placeholder') }}</span>
+          <span class="addr-value"><a href="mailto:{{ sendData.email }}">{{ sendData.email }}</a></span>
+        </div>
+      {% endif %}
+      {% if sendData.phone %}
+        <div class="addr-line">
+          <span class="addr-label">{{ __('new-order.phone') }}</span>
+          <span class="addr-value"><a href="tel:{{ sendData.phone | replace(' ', '') }}">{{ sendData.phone }}</a></span>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+
+</div>

@@ -11,7 +11,7 @@ const db = require('../../db/db_helper');
 const orderService = require('../orderService');
 const mailBot = require('../mailBot/mailBot');
 const OrderSender = require('../sendOrderService');
-const { generatePdf, generateProductionPdf, uploadProductionPdf } = require('../mailBot/pdfGenerator');
+const { generateOrderDocuments, generateProductionPdf, uploadProductionPdf } = require('../mailBot/pdfGenerator');
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { log } = require('../../utils/logging');
@@ -93,7 +93,10 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
   const orderSvc = deps.orderService || orderService;
   const SenderClass = (deps.OrderSender || OrderSender).OrderSender;
   const extraAttachments = deps.getExtraAttachments || getExtraAttachments;
-  const pdfGenerate = deps.generatePdf || generatePdf;
+  // Zwraca { pdf, html } — testy mogą wstrzyknąć starsze `deps.generatePdf`
+  // (samo Buffer z PDF-em), wtedy załącznik HTML po prostu nie powstaje.
+  const docsGenerate = deps.generateOrderDocuments
+    || (deps.generatePdf ? async (...args) => ({ pdf: await deps.generatePdf(...args), html: null }) : generateOrderDocuments);
   const itemProductionDays = deps.buildItemProductionDays || buildItemProductionDays;
   const itemTranslator = deps.translateOrderItems || translateOrderItems;
   const prodPdfGenerate = deps.generateProductionPdf || generateProductionPdf;
@@ -154,7 +157,7 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
       || ((data) => formatSendTotals(data, lang, user.organization_id, ordersDb));
     await formatTotals(sendData);
 
-    const pdf = await pdfGenerate(
+    const { pdf, html: confirmationHtml } = await docsGenerate(
       orderDetails,
       cleanOrderItems,
       lang,
@@ -202,7 +205,10 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
         organization: orgData,
         isImport: true
       },
-      bccList.join(', ')
+      bccList.join(', '),
+      'mailTemplate.njk',
+      'mail.subject',
+      { htmlContent: confirmationHtml }
     );
 
     try {

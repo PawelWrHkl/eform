@@ -29,7 +29,61 @@ async function generateExcel(orderData) {
   return buffer;
 }
 
-async function generatePdf(orderData, cleanOrderItems, lang, logoPath, sendData, orderIdx, prices = true, maxProdDays = 0, showGoldPrices = true, clientView = false, showBoth = false, discountInfo = null) {
+// Dokument podawany Chromium do wydruku PDF: body z `order-pdf.njk` + `order-pdf.css`.
+function buildPdfHtmlDocument(bodyHtml) {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <style>
+      /* Import głównego CSS */
+      ${fs.readFileSync(path.join(__dirname, 'styles/order-pdf.css'), 'utf8')}
+    </style>
+  </head>
+  <body>${bodyHtml}</body>
+  </html>
+`;
+}
+
+// Dokument załącznika .html. Zawiera OBA warianty treści, przełączane w CSS:
+//   .d-view — dokładnie ten sam markup i arkusz co PDF (`order-pdf.njk` +
+//             `order-pdf.css`), pokazywany od 701 px, czyli na komputerze
+//             widok zostaje po staremu, bez żadnych zmian stylów;
+//   .m-view — karty pozycji z `order-html.njk` + `styles/order-html.css`,
+//             pokazywane do 700 px (i bazowo, gdyby czytnik nie obsługiwał
+//             media queries — czytelne karty to bezpieczniejszy domyślny wybór
+//             niż tabela A4 landscape).
+// Oba arkusze mogą stać obok siebie, bo `order-html.css` prefiksuje wszystkie
+// selektory `.m-view`, a reguły globalne trzyma w `@media (max-width: 700px)`.
+function buildScreenHtmlDocument(mobileBodyHtml, printBodyHtml, title = '') {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    ${title ? `<title>${title}</title>` : ''}
+    <style>
+      /* Widok desktopowy — arkusz PDF-a, niezmieniony */
+      ${fs.readFileSync(path.join(__dirname, 'styles/order-pdf.css'), 'utf8')}
+    </style>
+    <style>
+      /* Widok telefonowy — wyłącznie selektory .m-view */
+      ${fs.readFileSync(path.join(__dirname, 'styles/order-html.css'), 'utf8')}
+    </style>
+  </head>
+  <body>
+    <div class="m-view">${mobileBodyHtml}</div>
+    <div class="d-view">${printBodyHtml}</div>
+  </body>
+  </html>
+`;
+}
+
+// Generuje potwierdzenie zamówienia w obu formatach z jednego renderu szablonu:
+// { pdf: Buffer, html: string }. `generatePdf` to cienki wrapper zwracający tylko PDF.
+async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath, sendData, orderIdx, prices = true, maxProdDays = 0, showGoldPrices = true, clientView = false, showBoth = false, discountInfo = null) {
   log('zaczynam', logoPath)
   const logoBase64 = fs.readFileSync(logoPath, { encoding: 'base64' });
   const logoDataUri = `data:image/png;base64,${logoBase64}`;
@@ -76,7 +130,8 @@ async function generatePdf(orderData, cleanOrderItems, lang, logoPath, sendData,
     }
   }
 
-  const html = env.render('order-pdf.njk', {
+  // Wspólny kontekst dla obu wariantów — `order-pdf.njk` (druk) i `order-html.njk` (ekran)
+  const renderContext = {
     orderDetails: orderData,
     cleanOrderItems: cleanOrderItems,
     logoPath: logoDataUri,
@@ -89,7 +144,9 @@ async function generatePdf(orderData, cleanOrderItems, lang, logoPath, sendData,
     clientView: clientView,
     showBoth: showBoth,
     discountInfo: discountInfo
-  });
+  };
+
+  const html = env.render('order-pdf.njk', renderContext);
 
   // Prevent single-letter orphans: replace space after single-letter word with non-breaking space
   // e.g. "w Polsce" -> "w\u00a0Polsce", "i tak" -> "i\u00a0tak"
@@ -121,19 +178,7 @@ async function generatePdf(orderData, cleanOrderItems, lang, logoPath, sendData,
   });
 
   try {
-    await page.setContent(`
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="UTF-8">
-    <style>
-      /* Import głównego CSS */
-      ${fs.readFileSync(path.join(__dirname, 'styles/order-pdf.css'), 'utf8')}
-    </style>
-  </head>
-  <body>${htmlFixed}</body>
-  </html>
-`, {
+    await page.setContent(buildPdfHtmlDocument(htmlFixed), {
       waitUntil: 'domcontentloaded',
       timeout: 30000
     });
@@ -152,7 +197,20 @@ async function generatePdf(orderData, cleanOrderItems, lang, logoPath, sendData,
   });
 
   await browser.close();
-  return pdfBuffer;
+
+  return {
+    pdf: pdfBuffer,
+    html: buildScreenHtmlDocument(
+      env.render('order-html.njk', renderContext),
+      htmlFixed,
+      `${__('history_order.title')}${orderIdx}`
+    )
+  };
+}
+
+async function generatePdf(...args) {
+  const { pdf } = await generateOrderDocuments(...args);
+  return pdf;
 }
 
 function renderOrderPdfHtml({
@@ -193,7 +251,7 @@ function renderOrderPdfHtml({
   });
 }
 
-module.exports = { generateExcel, generatePdf, generateProductionPdf, uploadProductionPdf, renderOrderPdfHtml };
+module.exports = { generateExcel, generatePdf, generateOrderDocuments, generateProductionPdf, uploadProductionPdf, renderOrderPdfHtml };
 
 async function generateProductionPdf(orderData, cleanOrderItems, logoPath, orderIdx, clientName) {
   const lang = 'pl';

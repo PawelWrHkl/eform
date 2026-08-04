@@ -5,7 +5,7 @@ const ownerService = require('../owner.js');
 const orderService = require('../orderService.js');
 const mailBot = require('../mailBot/mailBot');
 const { OrderSender } = require('../sendOrderService');
-const { generatePdf } = require('../mailBot/pdfGenerator');
+const { generateOrderDocuments } = require('../mailBot/pdfGenerator');
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { buildItemProductionDays } = require('../productionDays');
@@ -129,7 +129,8 @@ async function submitCorrection(req, orderId, prices) {
         showGoldPrices
     }));
 
-    const pdf = await generatePdf(
+    // Potwierdzenie korekty w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
+    const { pdf, html: confirmationHtml } = await generateOrderDocuments(
         orderDetails,
         cleanOrderItems,
         lang,
@@ -166,7 +167,8 @@ async function submitCorrection(req, orderId, prices) {
             orderDetails: sendData,
             organization: orgData
         },
-        bccList.join(', ')
+        bccList.join(', '),
+        { htmlContent: confirmationHtml }
     );
 
     log(`Admin correction submitted for order ${orderId} (${orderIdx}) by ${req.session.user?.pin || '?'}`);

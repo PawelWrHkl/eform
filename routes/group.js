@@ -6,7 +6,7 @@ const db = require('../db/db_helper.js');
 const OrderSender = require('../services/sendOrderService');
 const mailBot = require('../services/mailBot/mailBot');
 const orderService = require('../services/orderService.js');
-const { generatePdf } = require('../services/mailBot/pdfGenerator');
+const { generatePdf, generateOrderDocuments } = require('../services/mailBot/pdfGenerator');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
 const { buildItemProductionDays } = require('../services/productionDays');
 const path = require('path');
@@ -314,7 +314,8 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
 
         const mainRecipient = mail.organization_email;
         let bccList = [confirmationEmail, mail.organization_email2, extraMail, 'pawel.woroniecki@hkl.eu'].filter(Boolean).flat();
-        const pdf = await generatePdf(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays);
+        // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays);
         const orgData = await db.getOrgInfo(req.session.user.organization);
 
         if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'dev') {
@@ -333,7 +334,8 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
                 orderDetails: sendData,
                 organization: orgData
             },
-            bccList.join(', ')
+            bccList.join(', '),
+            { htmlContent: confirmationHtml }
         );
 
         return res.json({ success: true, message: req.__('group.approve_sent_success'), redirect: '/group/panel?tab=pending' });
