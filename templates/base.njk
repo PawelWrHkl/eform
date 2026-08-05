@@ -114,6 +114,11 @@
                     <li class="nav-item d-none" id="mobile-employee-panel-item">
                         <a href="#" id="mobile-employee-panel-link" class="nav-link">{{ __('base.employee_panel') }}</a>
                     </li>
+                    {% if owner or admin %}
+                        <li class="nav-item">
+                            <a href="/invoices" class="nav-link">Faktury</a>
+                        </li>
+                    {% endif %}
                     {% if isGroup %}
                         <li class="nav-item">
                             <a href="/group/panel" class="nav-link">{{ __('group.panel_title') }}</a>
@@ -187,6 +192,14 @@
                     <img src="/img/employee.png" class='nav-icon' alt="orders-ico">
                     <span class="nav-text">{{ __('base.employee_panel') }}</span>
                 </a>
+                {# Panel faktur — tylko owner/admin. Etykieta na sztywno, bo globalne
+                   tłumaczenia idą z /mnt/eform/languages i nie mają jeszcze tego klucza. #}
+                {% if owner or admin %}
+                    <a href="/invoices" id='invoices-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="Faktury">
+                        <img src="/img/orders_history.png" class='nav-icon' alt="invoices-ico">
+                        <span class="nav-text">Faktury</span>
+                    </a>
+                {% endif %}
                 {% if isGroup %}
                     <a href="/group/panel" class="custom-nav-link has-tooltip" data-tooltip="{{ __('group.panel_title') }}">
                         <img src="/img/orders.png" class='nav-icon' alt="group-panel-icon">

@@ -172,8 +172,10 @@ async function processOneFile(fileName) {
         // engine computed at insert time and must be recalculated manually.
         const recalcResult = await recalculateOrderInBrowser(importResult.orderId);
         if (recalcResult.success) {
-          // Browser recalculate clears disabled params (WYSOKOSC/SZEROKOSC…) from
-          // json_parameters — restore them from the pre-recalc snapshot.
+          // Browser recalculate can leave params empty in json_parameters — bring
+          // back the imported ones from the pre-recalc snapshot, EXCEPT the fields
+          // the form disabled on purpose via param.txt ENABLE (those stay empty;
+          // see restoreParametersAfterRecalc).
           const restored = await restoreOrderParametersAfterRecalc(importResult.orderId, paramSnapshot);
           if (restored > 0) {
             log(`Import: restored import params on ${restored} position(s) for order ${importResult.orderId}`);
@@ -189,8 +191,10 @@ async function processOneFile(fileName) {
           );
         }
 
-        // Flag positions that still price to 0 despite the import — these need a
-        // manual price-group review before the order is sent to the client.
+        // Zero price = the price scripts matched no price-group block, which in
+        // practice means `json_parameters` lacks the "#N" tag (or the description
+        // key itself). Re-seed those from translation_dictionary/client_aliases and
+        // recalculate once more before giving up — see zeroPriceRepair.js.
         try {
           const { selectQuery } = require('../../db/core');
           const zeroRows = await selectQuery(
@@ -201,12 +205,26 @@ async function processOneFile(fileName) {
           );
           if (zeroRows && zeroRows.length > 0) {
             const positionsList = zeroRows.map((r) => `#${r.orderpos}`).join(', ');
-            const msg = `Pozycje z ceną 0 (do sprawdzenia grupy cenowej): ${positionsList}`;
-            result.warnings.push(msg);
-            log(`WARN: order ${importResult.orderId} has ${zeroRows.length} zero-price position(s): ${positionsList}`);
+            log(`WARN: order ${importResult.orderId} has ${zeroRows.length} zero-price position(s): ${positionsList}`
+              + ' — uruchamiam naprawę opisów i ponowne przeliczenie');
+
+            const { repairZeroPriceOrder } = require('./zeroPriceRepair');
+            const repair = await repairZeroPriceOrder(importResult.orderId);
+            if (repair.repaired) {
+              result.warnings.push(
+                `Pozycje ${positionsList} miały cenę 0 — uzupełniono grupy cenowe i przeliczono ponownie (OK).`
+              );
+            } else {
+              // Still zero: a real price-list problem, not missing metadata.
+              result.warnings.push(
+                `Pozycje z ceną 0 (do sprawdzenia grupy cenowej): ${repair.zeroAfter.map((p) => `#${p}`).join(', ')}`
+                + ` — ponowne przeliczenie nie pomogło (${repair.message}).`
+              );
+            }
           }
         } catch (zeroErr) {
-          log(`WARN: zero-price check failed for order ${importResult.orderId}: ${zeroErr.message}`);
+          log(`WARN: zero-price check/repair failed for order ${importResult.orderId}: ${zeroErr.message}`);
+          result.warnings.push(`Kontrola cen 0 nie powiodła się: ${zeroErr.message}`);
         }
       } catch (recalcErr) {
         log(`WARN: import OK but recalculate error for order ${importResult.orderId}: ${recalcErr.message}`);

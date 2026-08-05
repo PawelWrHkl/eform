@@ -25,6 +25,15 @@ const { translateParametersToCanonical } = require('./parameterTranslator');
 const { validateParameterValues } = require('./optionValidator');
 const { resolveTwinParameters } = require('./twinParamResolver');
 const {
+  readFormParamDefs,
+  clearHiddenParams,
+  isHiddenParam
+} = require('./paramVisibility');
+const {
+  loadClientDescriptions,
+  seedParamDescriptions
+} = require('./paramDescriptions');
+const {
   buildDisplayValuesFromDictionary,
   getProductGroupName,
   getDepartmentName
@@ -32,16 +41,12 @@ const {
 const log = (...args) => require('../../utils/logging').log(...args);
 
 /**
- * Seed `<PARAM>___DESCRIPTION` from our `translation_dictionary` (paramdict) for
- * every base param value that doesn't already carry one.
+ * Seed `<PARAM>___DESCRIPTION` from our `translation_dictionary` (paramdict) only.
  *
- * Why: per-client price scripts (param-CENA-*.js) pick the price group by reading
- * e.g. `KOLOR___DESCRIPTION` and matching a "#N" tag. When that description is
- * absent (e.g. a colour that isn't in the client's loaded option collection), the
- * price silently computes to 0 and the position shows "Według cennika". The import
- * JSON does carry a `___DESCRIPTION`, but the sender's price-group tag can differ
- * from ours, so we source it from our dictionary — the agreed source of truth — and
- * inject it into json_parameters so the post-import browser recalc prices correctly.
+ * Kept as the dictionary-only entry point; the import flow uses
+ * `paramDescriptions.seedParamDescriptions`, which adds `client_aliases` (the
+ * client's own price-group tags) and guarantees the description keys exist — see
+ * that module for why both matter for pricing.
  *
  * @param {object} values      Mutated in place; base-param descriptions added.
  * @param {object} paramdict   `{ paramName: { valueKey: description } }`.
@@ -49,23 +54,12 @@ const log = (...args) => require('../../utils/logging').log(...args);
  */
 function seedDictionaryDescriptions(values, paramdict) {
   if (!values || !paramdict) return values;
-  for (const [key, val] of Object.entries(values)) {
-    if (key.includes('___')) continue;      // skip meta keys (___DESCRIPTION/___DICT/…)
-    if (key.endsWith('_ALIAS')) continue;    // alias values are handled via base param
-    if (val === undefined || val === null || val === '') continue;
-    if (typeof val === 'object') continue;
-    const descKey = `${key}___DESCRIPTION`;
-    // Never clobber a description the engine already resolved.
-    if (values[descKey] !== undefined && values[descKey] !== '') continue;
-    const byValue = paramdict[key];
-    if (!byValue) continue;
-    const desc = byValue[String(val)];
-    if (desc !== undefined && desc !== null && desc !== '') {
-      values[descKey] = desc;
-    }
-  }
+  seedParamDescriptions(values, { paramdict, ensureKeys: false });
   return values;
 }
+
+/** The two interchangeable names for "control length" (see below). */
+const CONTROL_LENGTH_PARAMS = ['DLUGSTER', 'DLUGOSC_STER'];
 
 /**
  * DLUGSTER and DLUGOSC_STER are two names for the same concept ("control
@@ -76,14 +70,20 @@ function seedDictionaryDescriptions(values, paramdict) {
  * length), which fails form validation on save (whichever one applies is
  * required, MIN 100 / MAX 6000) and blocks the position from ever being
  * recalculated/saved. When that happens, approximate it from the blind
- * height: 2/3 of WYSOKOSC, rounded down to the nearest hundred. Set both
- * names since we don't know here which model-specific one will actually be
- * enabled — the inactive one is simply never read/validated.
+ * height: 2/3 of WYSOKOSC, rounded down to the nearest hundred.
  *
- * @param {object} values  Mutated in place.
+ * Only names the group's `param.txt` actually declares are seeded: group 71
+ * ships `DLUGOSC_STER` only, and a stray `DLUGSTER=800` there is a phantom
+ * param no form will ever show, validate or clear. Which of the declared ones
+ * is *enabled* for this MODEL is not decided here — the disabled one is blanked
+ * right after the engine run (see `clearHiddenParams` in `importResolvedOrder`).
+ *
+ * @param {object} values                        Mutated in place.
+ * @param {Map<string, object>|null} [paramDefs] `param.txt` definitions; when
+ *                                               absent both names are seeded.
  * @returns {object} the same `values` object.
  */
-function seedControlLengthDefault(values) {
+function seedControlLengthDefault(values, paramDefs = null) {
   if (!values) return values;
   const hasValue = (v) => v !== undefined && v !== null && v !== '';
   if (hasValue(values.DLUGSTER) || hasValue(values.DLUGOSC_STER)) return values;
@@ -91,9 +91,15 @@ function seedControlLengthDefault(values) {
   const wysokosc = parseFloat(values.WYSOKOSC);
   if (!Number.isFinite(wysokosc)) return values;
 
+  const targets = paramDefs
+    ? CONTROL_LENGTH_PARAMS.filter((name) => paramDefs.has(name))
+    : CONTROL_LENGTH_PARAMS;
+  if (!targets.length) return values;
+
   const controlLength = Math.floor((wysokosc * 2 / 3) / 100) * 100;
-  values.DLUGSTER = controlLength;
-  values.DLUGOSC_STER = controlLength;
+  for (const name of targets) {
+    values[name] = controlLength;
+  }
   return values;
 }
 
@@ -133,6 +139,11 @@ function extractImportParams(values) {
 /**
  * Build json_parameters for DB insert: import params are the base, engine overlays
  * computed prices and meta flags (___VISIBLE, ___TITLE, …).
+ *
+ * An empty engine value never overwrites an import value here — "the engine
+ * computed nothing" must not wipe what the customer ordered. Values the engine
+ * blanked *on purpose* (disabled by an ENABLE formula) are handled separately,
+ * from the `___VISIBLE` flags, by `paramVisibility.clearHiddenParams`.
  */
 function buildPersistedParameters(importValues, engineValues) {
   const out = {};
@@ -157,16 +168,61 @@ function mergeImportParameters(engineValues, importValues) {
   return buildPersistedParameters(importValues, engineValues);
 }
 
-/** Restore params cleared by browser recalculate (Playwright import step). */
-function restoreParametersAfterRecalc(before, after) {
+/**
+ * Restore params the browser recalculate (Playwright import step) left empty
+ * *by accident* — and keep the ones it emptied *on purpose*.
+ *
+ * The browser runs the real form: whatever it blanked while reporting
+ * `<PARAM>___VISIBLE:false` is a field param.txt disables for this
+ * configuration (e.g. DLUGOSC_STER on MODEL=BB24), exactly as a manual admin
+ * save would leave it. Restoring those from the pre-recalc snapshot is what used
+ * to resurrect values the engine had correctly cleared, so they are skipped —
+ * and any that slipped through earlier are blanked at the end.
+ *
+ * Params the form does not know at all (absent from `param.txt` *and* from the
+ * browser's own value set, e.g. `DLUGSTER` in group 71) are dropped too: no form
+ * will ever render, validate or clear them.
+ *
+ * @param {object} before                        pre-recalc json_parameters
+ * @param {object} after                         post-recalc json_parameters
+ * @param {object} [opts]
+ * @param {Map<string, object>|null} [opts.defs] `param.txt` definitions of the item's group
+ * @param {object} [opts.report]                 mutated with `{skipped, cleared}` for logging
+ * @returns {object} merged params
+ */
+function restoreParametersAfterRecalc(before, after, opts = {}) {
+  const { defs = null, report = null } = opts;
   const out = { ...(after || {}) };
+  const skipped = [];
+
   for (const [key, val] of Object.entries(before || {})) {
     if (isMetaParameterKey(key)) continue;
     if (val === undefined || val === null || val === '') continue;
     const current = out[key];
-    if (current === undefined || current === null || current === '') {
-      out[key] = val;
+    if (!(current === undefined || current === null || current === '')) continue;
+
+    // An alias follows the visibility of its base param (KOLOR_ALIAS → KOLOR).
+    const baseName = key.endsWith('_ALIAS') ? key.slice(0, -'_ALIAS'.length) : key;
+
+    if (isHiddenParam(out, baseName)) {
+      skipped.push(`${key} (wyłączone w param.txt)`);
+      continue;
     }
+    if (defs && !defs.has(baseName) && !Object.prototype.hasOwnProperty.call(out, baseName)) {
+      skipped.push(`${key} (brak w param.txt)`);
+      continue;
+    }
+
+    out[key] = val;
+  }
+
+  // `defs` is required, not optional: without param.txt we cannot tell an
+  // ENABLE-disabled field from a FORMROW=0 one, and nothing may be cleared.
+  const { cleared } = clearHiddenParams(out, { trustAll: true, defs });
+
+  if (report) {
+    report.skipped = skipped;
+    report.cleared = cleared;
   }
   return out;
 }
@@ -193,14 +249,16 @@ async function snapshotOrderParameters(orderId) {
   }
 }
 
-async function restoreOrderParametersAfterRecalc(orderId, snapshot) {
+async function restoreOrderParametersAfterRecalc(orderId, snapshot, deps = {}) {
   if (!snapshot || snapshot.size === 0) return 0;
+  const logger = deps.log || log;
+  const readDefs = deps.readFormParamDefs || readFormParamDefs;
   const { connetToDb } = require('../../db/core');
   const conn = await connetToDb();
   let updated = 0;
   try {
     const [rows] = await conn.query(
-      'SELECT id, json_parameters FROM order_item WHERE order_id = ?',
+      'SELECT id, asortment_group_number, lang, json_parameters FROM order_item WHERE order_id = ?',
       [orderId]
     );
     for (const row of rows || []) {
@@ -210,7 +268,17 @@ async function restoreOrderParametersAfterRecalc(orderId, snapshot) {
       if (typeof current === 'string') {
         try { current = JSON.parse(current); } catch { current = {}; }
       }
-      const merged = restoreParametersAfterRecalc(before, current);
+      const defs = row.asortment_group_number
+        ? await readDefs(String(row.asortment_group_number), row.lang || 'pl')
+        : null;
+      const report = {};
+      const merged = restoreParametersAfterRecalc(before, current, { defs, report });
+      if (report.skipped && report.skipped.length) {
+        logger(`Import visibility: position ${row.id} — nie przywrócono ${report.skipped.join(', ')}`);
+      }
+      if (report.cleared && report.cleared.length) {
+        logger(`Import visibility: position ${row.id} — wyczyszczono wyłączone pole(a) ${report.cleared.join(', ')}`);
+      }
       const wire = JSON.stringify(merged);
       if (wire !== JSON.stringify(current || {})) {
         await conn.query(
@@ -258,6 +326,8 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
   const groupNameResolver = deps.groupNameResolver || getProductGroupName;
   const departmentNameResolver = deps.departmentNameResolver || getDepartmentName;
   const dictRepo = deps.translationRepo || translationRepo();
+  const paramDefsReader = deps.readFormParamDefs || readFormParamDefs;
+  const clientDescriptionsLoader = deps.loadClientDescriptions || loadClientDescriptions;
   const logger = deps.log || log;
 
   // Per-group+lang paramdict cache so we hit translation_dictionary once per
@@ -275,6 +345,44 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     }
     paramdictCache.set(cacheKey, paramdict);
     return paramdict;
+  }
+
+  // Price-group tags from the client's own alias collection (client_aliases ∩
+  // paramdict_aliases_config). For many fabrics this is the ONLY place the "#N"
+  // price group exists — translation_dictionary has NULL there — so without it
+  // every price script matches no block and the position prices to 0.
+  const clientDescriptionsCache = new Map();
+  async function getClientDescriptions(groupNumber) {
+    if (clientDescriptionsCache.has(groupNumber)) return clientDescriptionsCache.get(groupNumber);
+    let descriptions = new Map();
+    try {
+      descriptions = await clientDescriptionsLoader(groupNumber, user.org_ident, user.ident);
+    } catch (err) {
+      logger(`loadClientDescriptions failed for group ${groupNumber} (${user.org_ident}/${user.ident}): ${err.message}`);
+    }
+    clientDescriptionsCache.set(groupNumber, descriptions);
+    return descriptions;
+  }
+
+  // `param.txt` definitions (NAME + ENABLE) per group+lang — the source of truth
+  // for which fields exist at all and which ENABLE formulas drive their
+  // visibility. Cached the same way as the paramdict above.
+  const paramDefsCache = new Map();
+  async function getParamDefs(groupNumber) {
+    const cacheKey = `${groupNumber}::${lang || 'pl'}`;
+    if (paramDefsCache.has(cacheKey)) return paramDefsCache.get(cacheKey);
+    let defs = null;
+    try {
+      defs = await paramDefsReader(groupNumber, lang || 'pl');
+    } catch (err) {
+      logger(`readFormParamDefs failed for group ${groupNumber}: ${err.message}`);
+    }
+    if (!defs) {
+      logger(`WARN: no readable param.txt for group ${groupNumber} (${lang || 'pl'}) — `
+        + 'pola wyłączone formułą ENABLE nie zostaną wyczyszczone przy zapisie');
+    }
+    paramDefsCache.set(cacheKey, defs);
+    return defs;
   }
 
   if (!payload || !user) {
@@ -360,8 +468,20 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     // Re-attach `<PARAM>___DESCRIPTION` price-group tags from our dictionary so
     // the price scripts can resolve the price group (see seedDictionaryDescriptions).
     const paramdict = await getParamdict(groupNumber);
-    seedDictionaryDescriptions(cleanValues, paramdict);
-    seedControlLengthDefault(cleanValues);
+    const paramDefs = await getParamDefs(groupNumber);
+    const clientDescriptions = await getClientDescriptions(groupNumber);
+    const descriptionSources = {
+      paramdict,
+      clientDescriptions,
+      paramDefs,
+      sourceValues: canonicalParams
+    };
+    const { seeded } = seedParamDescriptions(cleanValues, descriptionSources);
+    if (seeded.length) {
+      logger(`orderImport descriptions (item ${item.posid != null ? item.posid : '?'}, group ${groupNumber}): `
+        + `uzupełniono opisy (grupy cenowe) ${seeded.join(', ')}`);
+    }
+    seedControlLengthDefault(cleanValues, paramDefs);
 
     // Run the full server-side form engine (singlePass) to get authoritative
     // row/locked/sub/listsum and real prices. Falls back to lightweight
@@ -398,9 +518,31 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     }
 
     const persistedValues = buildPersistedParameters(cleanValues, priced.values);
+
+    // Honour the ENABLE formulas: blank every param the engine reported as
+    // disabled for this configuration (`<PARAM>___VISIBLE:false`), which
+    // buildPersistedParameters cannot do on its own — an empty engine value is
+    // indistinguishable there from "nothing computed". Only verdicts the engine
+    // could actually reach are trusted (see paramVisibility); the rest is decided
+    // by the browser recalc that runs right after the commit.
+    const visibilityOpts = {
+      visibility: priced.values,
+      defs: paramDefs,
+      inputValues: cleanValues
+    };
+    const { cleared } = clearHiddenParams(persistedValues, visibilityOpts);
+    if (cleared.length) {
+      logger(`orderImport visibility (item ${item.posid != null ? item.posid : '?'}, group ${groupNumber}): `
+        + `wyczyszczono pole(a) wyłączone w param.txt: ${cleared.join(', ')}`);
+    }
+    // The display builder treats import params as "the customer ordered this, keep
+    // it visible" — so it must see the cleaned set, not the raw payload.
+    const displayImportValues = clearHiddenParams({ ...cleanValues }, visibilityOpts).values;
+
     // Guarantee the price-group descriptions survive into json_parameters — the
-    // post-import browser recalc reads them to select the correct price group.
-    seedDictionaryDescriptions(persistedValues, paramdict);
+    // post-import browser recalc reads them to select the correct price group, and
+    // the empty `___DESCRIPTION` keys keep its formulas from hitting `#NAME?`.
+    seedParamDescriptions(persistedValues, descriptionSources);
 
     // Persist displayValues in the same wire format the browser sends:
     // JSON.stringify(Array.from(map.entries())). insertNewForm will JSON.stringify
@@ -419,7 +561,7 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
       displayValues: engineDisplayValues,
       shortJson: priced.shortJson || buildShortJson(persistedValues),
       formMeta: priced.formMeta,
-      importValues: cleanValues
+      importValues: displayImportValues
     });
     const displayValuesWire = engine.displayValuesToWireFormat(displayValues);
     const groupName = await groupNameResolver(groupNumber, lang)
@@ -477,5 +619,6 @@ module.exports = {
   restoreParametersAfterRecalc,
   snapshotOrderParameters,
   restoreOrderParametersAfterRecalc,
-  seedDictionaryDescriptions
+  seedDictionaryDescriptions,
+  seedControlLengthDefault
 };

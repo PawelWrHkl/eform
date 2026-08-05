@@ -1,0 +1,28 @@
+{# Stopka: uwagi, klauzule organizacji (KRS/CEIDG/RODO), miejsca na podpisy. #}
+<footer class="doc-footer">
+  {% if invoice.notes %}
+    <div class="doc-footer__notes">
+      <span class="label">{{ t('footer.notes') }}:</span> {{ invoice.notes }}
+    </div>
+  {% endif %}
+
+  {# Proforma nie jest dokumentem księgowym — informacja jest wymagana, nie ozdobna #}
+  {% if invoice.documentType == DocumentType.PROFORMA %}
+    <div class="doc-footer__proforma">{{ t('footer.proforma_note') }}</div>
+  {% endif %}
+
+  <div class="doc-footer__signatures">
+    <div class="signature">
+      <div class="signature__line"></div>
+      <div class="signature__caption">{{ t('footer.signature_seller') }}</div>
+    </div>
+    <div class="signature">
+      <div class="signature__line"></div>
+      <div class="signature__caption">{{ t('footer.signature_buyer') }}</div>
+    </div>
+  </div>
+
+  {% if footerNote %}
+    <div class="doc-footer__legal">{{ footerNote }}</div>
+  {% endif %}
+</footer>

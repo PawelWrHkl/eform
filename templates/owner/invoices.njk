@@ -1,0 +1,163 @@
+{#
+  Panel ownera — faktury.
+
+  Etykiety przychodzą w słowniku `L` z `services/invoices/i18n/panel.json`
+  (nie przez globalne `__()` — patrz komentarz w `services/invoices/http/panel.js`).
+  Akcje wołają REST API `/api/v1/invoices` przez `/scripts/owner/invoices.js`.
+#}
+{% extends "base.njk" %}
+
+{% block title %}{{ L.title }}{% endblock title %}
+
+{% block head %}
+  <link rel="stylesheet" href="/styles/orders.css">
+  <link rel="stylesheet" href="/styles/invoices.css">
+{% endblock head %}
+
+{% block key_nav %}window.location.href='/'{% endblock %}
+
+{% block back_link %}
+  <button class="modern-back-btn" onclick="window.location.href='/'">
+{% endblock %}
+
+{% block content %}
+  <div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card">
+
+      <div class="inv-topbar">
+        <div>
+          <h2 class="fw-bold header mb-1">{{ L.title }}</h2>
+          <div class="inv-subtitle">{{ L.subtitle }} · <span class="inv-badge-currency">{{ L.currency_note }}</span></div>
+        </div>
+        <a class="inv-btn inv-btn--ghost" href="/invoices/profile">{{ L.profile }}</a>
+      </div>
+
+      {# ---------- Nowy dokument z zamówienia ---------- #}
+      <section class="inv-card">
+        <h3 class="inv-card__title">{{ L.new_from_order }}</h3>
+
+        {% if orders | length %}
+          <form id="inv-create-form" class="inv-form">
+            <div class="inv-form__row">
+              <label class="inv-field inv-field--grow">
+                <span class="inv-label">{{ L.order }}</span>
+                <select name="orderId" id="inv-order-select" required>
+                  {% for o in orders %}
+                    <option value="{{ o.id }}"
+                            data-hint="{{ L[o.taxHint] }}"
+                            data-zero="{{ '1' if o.zeroRate else '0' }}">
+                      {{ o.order_idx }} · {{ o.client_name }}{% if o.commision %} · {{ o.commision }}{% endif %}
+                      {% if o.total_float %} · {{ o.total_float }} {{ currency }}{% endif %}
+                      ({{ o.seller_country }}→{{ o.buyer_country }})
+                      {# Zamówienie z zaliczką zostaje na liście — czeka na fakturę końcową #}
+                      {%- if o.advances_count %} · ⬤ {{ o.advances_gross }} {{ currency }}{% endif %}
+                    </option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="inv-field">
+                <span class="inv-label">{{ L.doc_type }}</span>
+                <select name="documentType" id="inv-doctype">
+                  {% for t in documentTypes %}
+                    <option value="{{ t }}"{% if t == 'invoice' %} selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              {# Widoczne tylko dla zaliczki — sterowane w invoices.js #}
+              <label class="inv-field inv-field--narrow" id="inv-advance-wrap" hidden>
+                <span class="inv-label">{{ L.advance_percent }}</span>
+                <input type="number" name="advancePercent" min="1" max="100" step="1" value="30">
+              </label>
+
+              <label class="inv-field inv-field--narrow">
+                <span class="inv-label">{{ L.lang }}</span>
+                <select name="lang">
+                  {% for l in docLangs %}
+                    <option value="{{ l }}"{% if l == panelLang %} selected{% endif %}>{{ l }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+
+            <div class="inv-form__row inv-form__row--tight">
+              <label class="inv-check">
+                <input type="checkbox" name="issue" id="inv-issue" checked>
+                <span>{{ L.issue_now }}</span>
+              </label>
+              <span class="inv-hint" id="inv-tax-hint"></span>
+              <button type="submit" class="inv-btn inv-btn--primary" id="inv-create-btn">{{ L.create }}</button>
+            </div>
+          </form>
+        {% else %}
+          <p class="inv-empty">{{ L.no_orders }}</p>
+        {% endif %}
+      </section>
+
+      {# ---------- Lista dokumentów ---------- #}
+      <section class="inv-card">
+        <h3 class="inv-card__title">{{ L.documents }}</h3>
+
+        {% if invoices | length %}
+          <div class="inv-table-wrap">
+            <table class="inv-table">
+              <thead>
+                <tr>
+                  <th>{{ L.number }}</th>
+                  <th>{{ L.type }}</th>
+                  <th>{{ L.buyer }}</th>
+                  <th>{{ L.issue_date }}</th>
+                  <th>{{ L.due_date }}</th>
+                  <th class="ta-r">{{ L.net }}</th>
+                  <th class="ta-r">{{ L.gross }}</th>
+                  <th class="ta-r">{{ L.due }}</th>
+                  <th>{{ L.status }}</th>
+                  <th>{{ L.actions }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for inv in invoices %}
+                  <tr data-id="{{ inv.id }}" data-status="{{ inv.status }}">
+                    <td class="inv-nowrap">{{ inv.number if inv.number else '—' }}</td>
+                    <td>{{ inv.document_type }}</td>
+                    <td>{{ inv.buyer_name }}</td>
+                    <td class="inv-nowrap">{{ inv.issueDateFmt }}</td>
+                    <td class="inv-nowrap">{{ inv.dueDateFmt }}</td>
+                    <td class="ta-r inv-nowrap">{{ inv.netFmt }}</td>
+                    <td class="ta-r inv-nowrap">{{ inv.grossFmt }}</td>
+                    <td class="ta-r inv-nowrap">{{ inv.dueFmt }}</td>
+                    <td><span class="inv-status inv-status--{{ inv.status }}">{{ inv.status }}</span></td>
+                    <td class="inv-actions">
+                      <a class="inv-link" href="/invoices/{{ inv.id }}/view" target="_blank" rel="noopener">{{ L.preview }}</a>
+                      <a class="inv-link" href="/api/v1/invoices/{{ inv.id }}/pdf?download=1">{{ L.pdf }}</a>
+                      {% if inv.status == 'draft' %}
+                        <button class="inv-link inv-link--action" data-action="issue" data-id="{{ inv.id }}">{{ L.issue }}</button>
+                      {% endif %}
+                      {% if inv.status == 'issued' or inv.status == 'overdue' %}
+                        <button class="inv-link inv-link--action" data-action="paid" data-id="{{ inv.id }}">{{ L.mark_paid }}</button>
+                      {% endif %}
+                      {% if inv.status == 'draft' or inv.status == 'issued' %}
+                        <button class="inv-link inv-link--danger" data-action="cancel" data-id="{{ inv.id }}">{{ L.cancel_doc }}</button>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="inv-empty">{{ L.no_documents }}</p>
+        {% endif %}
+      </section>
+
+    </div>
+  </div>
+
+  {# Słownik komunikatów dla skryptu — bez inline'owania tekstów w JS #}
+  <script type="application/json" id="inv-labels">{{ L | dump | safe }}</script>
+{% endblock content %}
+
+{% block scripts %}
+  <script type="module" src="/scripts/owner/invoices.js"></script>
+{% endblock scripts %}

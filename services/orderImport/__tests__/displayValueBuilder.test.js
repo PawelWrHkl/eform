@@ -752,3 +752,39 @@ test('preserves the dimensions and config the form emitted', async () => {
   assert.equal(out.CENA.option_value, '276');
   assert.equal(out.KOLOR, undefined);
 });
+
+test('an import value does not resurrect a field the form disabled (___VISIBLE:false)', async () => {
+  // Group 71 / MODEL=BB24: param.txt disables DLUGOSC_STER, so the payload value
+  // must not be shown, described or pulled back onto row 1 — while MODEL, an
+  // equally "imported" param, keeps all of those privileges.
+  const out = await buildDisplayValuesFromDictionary({
+    groupNumber: '71',
+    lang: 'pl',
+    values: {
+      MODEL: 'BB24',
+      MODEL___VISIBLE: true,
+      DLUGOSC_STER: '',
+      DLUGOSC_STER___VISIBLE: false
+    },
+    importValues: { MODEL: 'BB24', DLUGOSC_STER: 800 },
+    formMeta: {
+      params: [
+        { NAME: 'MODEL', LISTROW: '1', FORMROW: '1' },
+        { NAME: 'DLUGOSC_STER', LISTROW: '1', FORMROW: '1' }
+      ],
+      lockedParams: [],
+      subParams: [],
+      skipCountParams: []
+    },
+    repo: fakeRepo({
+      params: { MODEL: 'MODEL', DLUGOSC_STER: 'DŁUGOŚĆ STEROWANIA [MM]' },
+      paramdict: { MODEL: { BB24: 'BB 24' } }
+    })
+  });
+
+  assert.equal(out.DLUGOSC_STER.option_value, '');
+  assert.equal(out.DLUGOSC_STER.option_description, '');
+  assert.equal(out.DLUGOSC_STER.row, '0');
+  assert.equal(out.MODEL.option_value, 'BB24');
+  assert.equal(out.MODEL.row, '1');
+});

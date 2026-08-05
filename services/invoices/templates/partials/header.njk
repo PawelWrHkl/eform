@@ -1,0 +1,49 @@
+{# Nagłówek: logo, typ i numer dokumentu, daty, referencje (zamówienie/korekta). #}
+<header class="doc-header">
+  <div class="doc-header__brand">
+    {% if logoDataUri %}
+      <img class="doc-header__logo" src="{{ logoDataUri }}" alt="">
+    {% endif %}
+    <div class="doc-header__seller-name">{{ invoice.seller.name }}</div>
+  </div>
+
+  <div class="doc-header__meta">
+    <h1 class="doc-header__title">{{ t('doc.' ~ invoice.documentType) }}</h1>
+    {# Szkic nie ma jeszcze numeru — numer nadajemy przy wystawieniu #}
+    <div class="doc-header__number">{{ invoice.number if invoice.number else '—' }}</div>
+
+    <table class="doc-header__dates">
+      <tr>
+        <th>{{ t('header.issue_date') }}</th>
+        <td>{{ invoice.issueDate | date }}</td>
+      </tr>
+      <tr>
+        <th>{{ t('header.sale_date') }}</th>
+        <td>{{ invoice.saleDate | date }}</td>
+      </tr>
+      <tr>
+        <th>{{ t('header.due_date') }}</th>
+        <td>{{ invoice.dueDate | date }}</td>
+      </tr>
+      {% if invoice.orderId %}
+        <tr>
+          <th>{{ t('header.order_ref') }}</th>
+          <td>{{ invoice.orderRef if invoice.orderRef else invoice.orderId }}</td>
+        </tr>
+      {% endif %}
+      {% if invoice.correctedInvoiceNumber %}
+        <tr>
+          <th>{{ t('header.corrected_ref') }}</th>
+          <td>{{ invoice.correctedInvoiceNumber }}</td>
+        </tr>
+      {% endif %}
+    </table>
+  </div>
+</header>
+
+{% if invoice.documentType == DocumentType.CORRECTION and invoice.correctionReason %}
+  <div class="doc-correction-reason">
+    <span class="label">{{ t('header.correction_reason') }}:</span>
+    <span>{{ invoice.correctionReason }}</span>
+  </div>
+{% endif %}

@@ -1,0 +1,332 @@
+/*
+ * Panel faktur (owner). Arkusz dokłada się do `orders.css` i trzyma się
+ * konwencji reszty panelu: karty na jasnym tle, ciemny akcent nagłówków,
+ * tabela z poziomym scrollem na wąskim ekranie (te same założenia co
+ * `order_details.css`).
+ *
+ * Prefiks `inv-` na każdej klasie — panel dzieli stronę z arkuszami zamówień
+ * i nie może im nadpisywać stylów.
+ */
+
+.inv-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.inv-subtitle {
+    font-size: 0.9rem;
+    color: #626b7d;
+}
+
+.inv-badge-currency {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: #eef1f5;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+/* ---------- Karty sekcji ---------- */
+
+.inv-card {
+    background: #fff;
+    border: 1px solid #e3e6ec;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 2px rgba(20, 25, 35, 0.05);
+}
+
+.inv-card__title {
+    margin: 0 0 14px;
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #1f2937;
+}
+
+.inv-card__title:not(:first-child) {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid #eceef1;
+}
+
+.inv-empty {
+    margin: 0;
+    color: #626b7d;
+}
+
+/* ---------- Formularze ---------- */
+
+.inv-form__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    margin-bottom: 12px;
+}
+
+.inv-form__row--tight {
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.inv-form__actions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.inv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.inv-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.inv-field--grow {
+    flex: 1 1 320px;
+}
+
+.inv-field--narrow {
+    flex: 0 0 130px;
+}
+
+.inv-field--wide {
+    grid-column: span 2;
+}
+
+.inv-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #626b7d;
+}
+
+.inv-field input,
+.inv-field select,
+.inv-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d8dce3;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+    font-size: 0.95rem;
+    color: #171c26;
+}
+
+.inv-field input[type="color"] {
+    padding: 2px;
+    height: 38px;
+}
+
+.inv-field input:focus,
+.inv-field select:focus,
+.inv-field textarea:focus {
+    outline: 2px solid rgba(31, 41, 55, 0.25);
+    outline-offset: 1px;
+}
+
+.inv-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.inv-hint {
+    font-size: 0.85rem;
+    color: #626b7d;
+}
+
+/* Podpowiedź „wyjdzie 0% (WDT)" — wyróżniona, bo zmienia kwotę dokumentu */
+.inv-hint--zero {
+    color: #8a6d0b;
+    font-weight: 600;
+}
+
+/* ---------- Przyciski ---------- */
+
+.inv-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.inv-btn--primary {
+    background: #1f2937;
+    color: #fff;
+}
+
+.inv-btn--primary:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.inv-btn--ghost {
+    background: #fff;
+    border-color: #d8dce3;
+    color: #1f2937;
+}
+
+/* ---------- Tabela dokumentów ---------- */
+
+.inv-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.inv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.inv-table th,
+.inv-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #eceef1;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.inv-table thead th {
+    background: #f6f8fa;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #626b7d;
+    white-space: nowrap;
+}
+
+.inv-table .ta-r {
+    text-align: right;
+}
+
+.inv-nowrap {
+    white-space: nowrap;
+}
+
+/* ---------- Statusy ---------- */
+
+.inv-status {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.inv-status--draft {
+    background: #eef1f5;
+    color: #4b5563;
+}
+
+.inv-status--issued {
+    background: #e0edff;
+    color: #1e4b8f;
+}
+
+.inv-status--paid {
+    background: #e3f6e6;
+    color: #1d6b32;
+}
+
+.inv-status--overdue {
+    background: #fde8e8;
+    color: #9b1c1c;
+}
+
+.inv-status--cancelled {
+    background: #f1f2f4;
+    color: #6b7280;
+    text-decoration: line-through;
+}
+
+.inv-status--corrected {
+    background: #fdf3dc;
+    color: #8a6d0b;
+}
+
+/* ---------- Akcje w wierszu ---------- */
+
+.inv-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    white-space: nowrap;
+}
+
+.inv-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 0.85rem;
+    color: #1e4b8f;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.inv-link--danger {
+    color: #9b1c1c;
+}
+
+.inv-link:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* ---------- Telefon ---------- */
+
+@media (max-width: 700px) {
+    .inv-card {
+        padding: 14px;
+    }
+
+    .inv-field--grow,
+    .inv-field--narrow {
+        flex: 1 1 100%;
+    }
+
+    .inv-field--wide {
+        grid-column: span 1;
+    }
+
+    .inv-form__row--tight {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .inv-table {
+        font-size: 0.85rem;
+    }
+}

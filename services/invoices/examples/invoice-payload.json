@@ -1,0 +1,195 @@
+{
+  "_comment": [
+    "Przykładowy kontekst przekazywany do szablonu Nunjucks (`render/renderer.js`).",
+    "Faktura końcowa w EUR dla nabywcy z Niemiec ze zweryfikowanym VAT-UE: pozycje",
+    "towarowe rozliczone jako WDT 0%, usługa montażu w Polsce stawką obniżoną 8%,",
+    "wcześniej wystawiona zaliczka odliczona od kwoty do zapłaty.",
+    "WSZYSTKIE KWOTY SĄ W MINOR UNITS (centach) — formatuje je filtr `money`."
+  ],
+  "invoice": {
+    "id": 128,
+    "organizationId": 3,
+    "documentType": "final",
+    "status": "issued",
+    "number": "FV/2026/08/0042",
+    "issueDate": "2026-08-05",
+    "saleDate": "2026-08-04",
+    "dueDate": "2026-08-19",
+    "currency": "EUR",
+    "localCurrency": "PLN",
+    "exchangeRate": {
+      "from": "EUR",
+      "to": "PLN",
+      "rate": 4.2637,
+      "date": "2026-08-03",
+      "source": "NBP:149/A/NBP/2026"
+    },
+    "seller": {
+      "name": "HKL Dekoracja Okien Sp. z o.o.",
+      "taxId": "8981234567",
+      "vatEuId": "PL8981234567",
+      "street": "ul. Przemysłowa 12",
+      "zip": "55-100",
+      "city": "Trzebnica",
+      "country": "PL",
+      "email": "biuro@hkl.eu",
+      "phone": "+48 71 000 00 00"
+    },
+    "buyer": {
+      "name": "Fenster & Sonnenschutz GmbH",
+      "taxId": "DE123456789",
+      "vatEuId": "DE123456789",
+      "street": "Hauptstraße 45",
+      "zip": "10115",
+      "city": "Berlin",
+      "country": "DE",
+      "email": "einkauf@fenster-gmbh.de",
+      "phone": "+49 30 1234567"
+    },
+    "buyerUserId": 214,
+    "buyerGroupUserId": null,
+    "buyerVatEuVerified": true,
+    "paymentMethod": "transfer",
+    "items": [
+      {
+        "position": 1,
+        "name": "PLISY EOS",
+        "description": "1232×1232 mm · MODEL: AO30 · KOLOR: 2002-P20 · Salon okno 1",
+        "unit": "m2",
+        "quantity": 1,
+        "unitPriceNet": 58400,
+        "discountPercent": 0,
+        "netAmount": 58400,
+        "taxCategory": "intra_eu_goods",
+        "taxRate": 0,
+        "taxAmount": 0,
+        "grossAmount": 58400,
+        "orderItemId": 6945,
+        "meta": {
+          "displayQuantity": 1.52,
+          "displayUnit": "m2",
+          "pieces": 1,
+          "area": 1.52,
+          "widthMm": 1232,
+          "heightMm": 1232,
+          "asortmentGroup": "39",
+          "department": "PLISY",
+          "orderPosition": 1
+        }
+      },
+      {
+        "position": 2,
+        "name": "ŻALUZJE DREWNIANE 50 mm",
+        "description": "2400×1800 mm · MODEL: H50 · KOLOR: CZARNY · Sypialnia",
+        "unit": "m2",
+        "quantity": 1,
+        "unitPriceNet": 121500,
+        "discountPercent": 0,
+        "netAmount": 121500,
+        "taxCategory": "intra_eu_goods",
+        "taxRate": 0,
+        "taxAmount": 0,
+        "grossAmount": 121500,
+        "orderItemId": 6946,
+        "meta": {
+          "displayQuantity": 4.32,
+          "displayUnit": "m2",
+          "pieces": 1,
+          "area": 4.32,
+          "widthMm": 2400,
+          "heightMm": 1800,
+          "asortmentGroup": "12",
+          "department": "ZALUZJE",
+          "orderPosition": 2
+        }
+      },
+      {
+        "position": 3,
+        "name": "Usługa montażu",
+        "description": "Montaż u klienta · 2 punkty montażowe",
+        "unit": "usl",
+        "quantity": 1,
+        "unitPriceNet": 30000,
+        "discountPercent": 0,
+        "netAmount": 30000,
+        "taxCategory": "reduced",
+        "taxRate": 8,
+        "taxAmount": 2400,
+        "grossAmount": 32400,
+        "orderItemId": 6947,
+        "meta": {
+          "displayQuantity": 2,
+          "displayUnit": "usl",
+          "pieces": 2,
+          "isInstallation": true
+        }
+      }
+    ],
+    "taxLines": [
+      {
+        "taxCategory": "reduced",
+        "taxRate": 8,
+        "netAmount": 30000,
+        "taxAmount": 2400,
+        "grossAmount": 32400,
+        "legalNoteKey": null
+      },
+      {
+        "taxCategory": "intra_eu_goods",
+        "taxRate": 0,
+        "netAmount": 179900,
+        "taxAmount": 0,
+        "grossAmount": 179900,
+        "legalNoteKey": "legal.intra_eu_goods"
+      }
+    ],
+    "totalNet": 209900,
+    "totalTax": 2400,
+    "totalGross": 212300,
+    "totalTaxLocal": 10233,
+    "advanceSettled": 60000,
+    "amountDue": 152300,
+    "orderId": 2913,
+    "orderRef": "173",
+    "parentInvoiceId": 121,
+    "correctedInvoiceId": null,
+    "correctionReason": null,
+    "lang": "de",
+    "templateCode": "default",
+    "notes": "Dostawa transportem własnym sprzedawcy.",
+    "legalNotes": ["legal.intra_eu_goods"]
+  },
+  "profile": {
+    "organizationId": 3,
+    "orgCode": "HKL",
+    "localCurrency": "PLN",
+    "defaultCurrency": "EUR",
+    "defaultPaymentDays": 14,
+    "defaultLang": "pl",
+    "defaultPaymentMethod": "transfer",
+    "templateCode": "default",
+    "bankAccount": {
+      "bankName": "mBank S.A.",
+      "iban": "PL61 1090 1014 0000 0712 1981 2874",
+      "swift": "BREXPLPWMBK"
+    },
+    "themeVars": {
+      "accent": "#8a6d0b",
+      "accent-soft": "#fdf8e7"
+    },
+    "numberPatterns": {
+      "invoice": "FV/{YYYY}/{MM}/{NR:4}",
+      "advance": "ZAL/{YYYY}/{MM}/{NR:4}",
+      "final": "FV/{YYYY}/{MM}/{NR:4}",
+      "proforma": "PF/{YYYY}/{MM}/{NR:4}",
+      "correction": "KOR/{YYYY}/{MM}/{NR:4}"
+    },
+    "footerNotes": {
+      "pl": "HKL Dekoracja Okien Sp. z o.o., KRS 0000123456, Sąd Rejonowy dla Wrocławia-Fabrycznej, kapitał zakładowy 50 000 PLN. Administratorem danych osobowych jest sprzedawca — szczegóły w Polityce prywatności na e-orders.eu.",
+      "de": "HKL Dekoracja Okien Sp. z o.o., Handelsregister KRS 0000123456, Amtsgericht Wrocław-Fabryczna, Stammkapital 50.000 PLN. Verantwortlich für die Datenverarbeitung ist der Verkäufer — Details in der Datenschutzerklärung auf e-orders.eu."
+    }
+  },
+  "logoDataUri": "",
+  "footerNote": "HKL Dekoracja Okien Sp. z o.o., Handelsregister KRS 0000123456 …",
+  "lang": "de"
+}

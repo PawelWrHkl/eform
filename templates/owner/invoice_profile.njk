@@ -1,0 +1,123 @@
+{#
+  Panel ownera — dane organizacji do faktur (profil `invoice_organization_profile`).
+  Zapis idzie przez PUT /api/v1/invoices/profile/current.
+#}
+{% extends "base.njk" %}
+
+{% block title %}{{ L.profile }}{% endblock title %}
+
+{% block head %}
+  <link rel="stylesheet" href="/styles/orders.css">
+  <link rel="stylesheet" href="/styles/invoices.css">
+{% endblock head %}
+
+{% block key_nav %}window.location.href='/invoices'{% endblock %}
+
+{% block back_link %}
+  <button class="modern-back-btn" onclick="window.location.href='/invoices'">
+{% endblock %}
+
+{% block content %}
+  <div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card">
+
+      <div class="inv-topbar">
+        <div>
+          <h2 class="fw-bold header mb-1">{{ L.profile }}</h2>
+          <div class="inv-subtitle">{{ L.currency_note }}</div>
+        </div>
+        <a class="inv-btn inv-btn--ghost" href="/invoices">{{ L.back }}</a>
+      </div>
+
+      <form id="inv-profile-form" class="inv-card">
+
+        <h3 class="inv-card__title">{{ L.seller_data }}</h3>
+        <div class="inv-grid">
+          <label class="inv-field"><span class="inv-label">{{ L.name }}</span>
+            <input name="seller_name" value="{{ profile.seller.name }}"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.tax_id }}</span>
+            <input name="seller_tax_id" value="{{ profile.seller.taxId }}"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.vat_eu_id }}</span>
+            <input name="seller_vat_eu_id" value="{{ profile.seller.vatEuId }}" placeholder="PL1234567890"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.street }}</span>
+            <input name="seller_street" value="{{ profile.seller.street }}"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.zip }}</span>
+            <input name="seller_zip" value="{{ profile.seller.zip }}"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.city }}</span>
+            <input name="seller_city" value="{{ profile.seller.city }}"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.country }}</span>
+            <input name="seller_country" value="{{ profile.seller.country }}" maxlength="2" placeholder="PL"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.email }}</span>
+            <input name="seller_email" type="email" value="{{ profile.seller.email }}"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.phone }}</span>
+            <input name="seller_phone" value="{{ profile.seller.phone }}"></label>
+        </div>
+
+        <h3 class="inv-card__title">{{ L.bank_data }}</h3>
+        <div class="inv-grid">
+          <label class="inv-field"><span class="inv-label">{{ L.bank_name }}</span>
+            <input name="bank_name" value="{{ profile.bankAccount.bankName if profile.bankAccount else '' }}"></label>
+          <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.iban }}</span>
+            <input name="bank_iban" value="{{ profile.bankAccount.iban if profile.bankAccount else '' }}"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.swift }}</span>
+            <input name="bank_swift" value="{{ profile.bankAccount.swift if profile.bankAccount else '' }}"></label>
+        </div>
+
+        <h3 class="inv-card__title">{{ L.defaults }}</h3>
+        <div class="inv-grid">
+          <label class="inv-field"><span class="inv-label">{{ L.payment_days }}</span>
+            <input name="default_payment_days" type="number" min="0" max="180" value="{{ profile.defaultPaymentDays }}"></label>
+          <label class="inv-field"><span class="inv-label">{{ L.payment_method }}</span>
+            <select name="default_payment_method">
+              {% for m in paymentMethods %}
+                <option value="{{ m }}"{% if m == profile.defaultPaymentMethod %} selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select></label>
+          <label class="inv-field"><span class="inv-label">{{ L.lang }}</span>
+            <select name="default_lang">
+              {% for l in docLangs %}
+                <option value="{{ l }}"{% if l == profile.defaultLang %} selected{% endif %}>{{ l }}</option>
+              {% endfor %}
+            </select></label>
+          <label class="inv-field"><span class="inv-label">{{ L.template }}</span>
+            <select name="template_code">
+              {% for t in templates %}
+                <option value="{{ t.code }}"{% if t.code == profile.templateCode %} selected{% endif %}>{{ t.name }}</option>
+              {% endfor %}
+            </select></label>
+          <label class="inv-field"><span class="inv-label">{{ L.accent_color }}</span>
+            <input name="theme_accent" type="color" value="{{ profile.themeVars.accent if profile.themeVars.accent else '#1f2937' }}"></label>
+        </div>
+
+        <h3 class="inv-card__title">{{ L.numbering }}</h3>
+        <p class="inv-hint">{{ L.pattern_hint }}</p>
+        <div class="inv-grid">
+          {% for type, pattern in defaultPatterns %}
+            <label class="inv-field"><span class="inv-label">{{ type }}</span>
+              <input name="pattern_{{ type }}"
+                     value="{{ profile.numberPatterns[type] if profile.numberPatterns[type] else pattern }}"></label>
+          {% endfor %}
+        </div>
+
+        <h3 class="inv-card__title">{{ L.footer_notes }}</h3>
+        <div class="inv-grid">
+          {% for l in docLangs %}
+            <label class="inv-field inv-field--wide"><span class="inv-label">{{ l }}</span>
+              <textarea name="footer_{{ l }}" rows="3">{{ profile.footerNotes[l] if profile.footerNotes[l] else '' }}</textarea></label>
+          {% endfor %}
+        </div>
+
+        <div class="inv-form__actions">
+          <button type="submit" class="inv-btn inv-btn--primary">{{ L.save }}</button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <script type="application/json" id="inv-labels">{{ L | dump | safe }}</script>
+{% endblock content %}
+
+{% block scripts %}
+  <script type="module" src="/scripts/owner/invoices.js"></script>
+{% endblock scripts %}

@@ -1,0 +1,462 @@
+/*
+ * Arkusz faktury. Jeden plik obsługuje wydruk (Chromium → PDF) i podgląd HTML
+ * w przeglądarce — dlatego układ jest jednokolumnowy i responsywny, a rzeczy
+ * właściwe wyłącznie drukowi (podziały stron, powtarzanie nagłówka tabeli)
+ * siedzą w `@media print`.
+ *
+ * MOTYWY: kolory i font pochodzą z custom properties, które nadpisuje
+ * `render/renderer.js:buildThemeCss` na podstawie `theme_vars` szablonu i
+ * organizacji. Wartości poniżej to wyłącznie fallbacki.
+ */
+
+:root {
+    --accent: #1f2937;
+    --accent-soft: #eef1f5;
+    --ink: #171c26;
+    --ink-soft: #5b6473;
+    --line: #d8dce3;
+    --font: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    --font-size: 10.5pt;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: var(--font-size);
+    line-height: 1.4;
+    background: #fff;
+}
+
+.invoice {
+    max-width: 190mm;
+    margin: 0 auto;
+    padding: 4mm;
+}
+
+.section-title {
+    margin: 6mm 0 2mm;
+    font-size: 1.05em;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.label {
+    color: var(--ink-soft);
+}
+
+/* ---------- Nagłówek ---------- */
+
+.doc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8mm;
+    padding-bottom: 3mm;
+    border-bottom: 2px solid var(--accent);
+}
+
+.doc-header__logo {
+    display: block;
+    max-width: 34mm;
+    max-height: 18mm;
+    margin-bottom: 2mm;
+}
+
+.doc-header__seller-name {
+    font-weight: 700;
+    font-size: 1.1em;
+}
+
+.doc-header__meta {
+    text-align: right;
+    min-width: 70mm;
+}
+
+.doc-header__title {
+    margin: 0;
+    font-size: 1.5em;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.doc-header__number {
+    margin: 1mm 0 3mm;
+    font-size: 1.15em;
+    font-weight: 700;
+}
+
+.doc-header__dates {
+    margin-left: auto;
+    border-collapse: collapse;
+    font-size: 0.95em;
+}
+
+.doc-header__dates th {
+    padding: 0.6mm 3mm 0.6mm 0;
+    text-align: left;
+    font-weight: 400;
+    color: var(--ink-soft);
+    white-space: nowrap;
+}
+
+.doc-header__dates td {
+    padding: 0.6mm 0;
+    text-align: right;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.doc-correction-reason {
+    margin-top: 3mm;
+    padding: 2mm 3mm;
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+}
+
+/* ---------- Strony transakcji ---------- */
+
+.parties {
+    display: flex;
+    gap: 6mm;
+    margin: 5mm 0;
+}
+
+.party {
+    flex: 1 1 0;
+    padding: 3mm;
+    border: 1px solid var(--line);
+    border-radius: 1.5mm;
+}
+
+.party__title {
+    margin: 0 0 1.5mm;
+    font-size: 0.85em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-soft);
+}
+
+.party__name {
+    font-weight: 700;
+    margin-bottom: 1mm;
+}
+
+.party__line {
+    font-size: 0.95em;
+}
+
+/* ---------- Tabela pozycji ---------- */
+
+.items {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 3mm;
+    font-size: 0.9em;
+}
+
+.items thead th {
+    padding: 1.6mm 2mm;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.items thead th.col-nr,
+.items thead th.col-name,
+.items thead th.col-unit {
+    text-align: left;
+}
+
+.items tbody td {
+    padding: 1.6mm 2mm;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    vertical-align: top;
+}
+
+.items tbody td.col-nr,
+.items tbody td.col-name,
+.items tbody td.col-unit {
+    text-align: left;
+}
+
+.items tbody tr:nth-child(even) td {
+    background: #fafbfc;
+}
+
+.items__name {
+    display: block;
+    font-weight: 600;
+}
+
+.items__desc {
+    display: block;
+    margin-top: 0.6mm;
+    font-size: 0.9em;
+    color: var(--ink-soft);
+}
+
+.items tfoot td {
+    padding: 1.8mm 2mm;
+    border-top: 1.5px solid var(--accent);
+    font-weight: 700;
+    text-align: right;
+}
+
+.items__total-label {
+    text-align: right;
+    text-transform: uppercase;
+    font-size: 0.9em;
+    letter-spacing: 0.04em;
+}
+
+/* ---------- Podsumowanie VAT i sumy ---------- */
+
+.vat-summary {
+    margin-top: 5mm;
+    /* Podsumowanie nie może zostać rozerwane między stronami PDF */
+    break-inside: avoid;
+}
+
+.vat-table {
+    border-collapse: collapse;
+    font-size: 0.9em;
+    min-width: 90mm;
+}
+
+.vat-table th,
+.vat-table td {
+    padding: 1.4mm 3mm;
+    border: 1px solid var(--line);
+    text-align: right;
+}
+
+.vat-table thead th {
+    background: var(--accent-soft);
+    font-weight: 600;
+}
+
+.vat-table tfoot td {
+    font-weight: 700;
+    background: #fafbfc;
+}
+
+.vat-table__category {
+    text-align: left;
+    white-space: nowrap;
+}
+
+.vat-local {
+    margin-top: 2mm;
+    font-size: 0.9em;
+}
+
+.vat-local__rate {
+    color: var(--ink-soft);
+}
+
+.vat-local__warning {
+    padding: 1.5mm 2mm;
+    background: #fff4d6;
+    border-left: 3px solid #d8a200;
+}
+
+.legal-notes {
+    margin: 2.5mm 0 0;
+    padding-left: 5mm;
+    font-size: 0.9em;
+}
+
+.totals {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4mm;
+    break-inside: avoid;
+}
+
+.totals-table {
+    border-collapse: collapse;
+    min-width: 80mm;
+}
+
+.totals-table th {
+    padding: 1.2mm 3mm;
+    text-align: left;
+    font-weight: 400;
+    color: var(--ink-soft);
+}
+
+.totals-table td {
+    padding: 1.2mm 0;
+    text-align: right;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.totals-table__gross th,
+.totals-table__gross td {
+    border-top: 1px solid var(--line);
+}
+
+.totals-table__due th,
+.totals-table__due td {
+    padding-top: 1.8mm;
+    border-top: 1.5px solid var(--accent);
+    font-size: 1.15em;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+/* ---------- Płatność ---------- */
+
+.payment {
+    margin-top: 5mm;
+    break-inside: avoid;
+}
+
+.payment-table {
+    border-collapse: collapse;
+    font-size: 0.95em;
+}
+
+.payment-table th {
+    padding: 1mm 4mm 1mm 0;
+    text-align: left;
+    font-weight: 400;
+    color: var(--ink-soft);
+    white-space: nowrap;
+}
+
+.payment-table td {
+    padding: 1mm 0;
+    font-weight: 600;
+}
+
+.payment-table__iban {
+    font-family: "Courier New", monospace;
+    letter-spacing: 0.04em;
+}
+
+/* ---------- Stopka ---------- */
+
+.doc-footer {
+    margin-top: 8mm;
+    break-inside: avoid;
+}
+
+.doc-footer__notes,
+.doc-footer__proforma {
+    margin-bottom: 3mm;
+    font-size: 0.9em;
+}
+
+.doc-footer__proforma {
+    padding: 1.5mm 2mm;
+    background: var(--accent-soft);
+}
+
+.doc-footer__signatures {
+    display: flex;
+    gap: 12mm;
+    margin-top: 12mm;
+}
+
+.signature {
+    flex: 1 1 0;
+    text-align: center;
+}
+
+.signature__line {
+    border-top: 1px dotted var(--ink-soft);
+    margin-bottom: 1.5mm;
+}
+
+.signature__caption {
+    font-size: 0.8em;
+    color: var(--ink-soft);
+}
+
+.doc-footer__legal {
+    margin-top: 6mm;
+    padding-top: 2mm;
+    border-top: 1px solid var(--line);
+    font-size: 0.75em;
+    color: var(--ink-soft);
+}
+
+/* ---------- Podgląd na ekranie ---------- */
+
+@media screen {
+    body {
+        background: #eef0f4;
+        padding: 6mm 0;
+    }
+
+    .invoice {
+        background: #fff;
+        box-shadow: 0 2px 12px rgba(20, 25, 35, 0.12);
+        padding: 10mm;
+    }
+
+    /* Wąski ekran: kolumny obok siebie zjeżdżają pod siebie, tabela dostaje scroll */
+    @media (max-width: 700px) {
+        .doc-header,
+        .parties,
+        .doc-footer__signatures {
+            flex-direction: column;
+        }
+
+        .doc-header__meta {
+            text-align: left;
+            min-width: 0;
+        }
+
+        .doc-header__dates {
+            margin-left: 0;
+        }
+
+        .items {
+            display: block;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: nowrap;
+        }
+    }
+}
+
+/* ---------- Wydruk ---------- */
+
+@media print {
+    body {
+        background: #fff;
+    }
+
+    .invoice {
+        max-width: none;
+        padding: 0;
+    }
+
+    /* Nagłówek tabeli powtarzany na każdej stronie wielostronicowej faktury */
+    .items thead {
+        display: table-header-group;
+    }
+
+    .items tfoot {
+        display: table-row-group;
+    }
+
+    .items tbody tr {
+        break-inside: avoid;
+    }
+}

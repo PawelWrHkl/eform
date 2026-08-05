@@ -1,0 +1,24 @@
+{#
+  Główny szablon faktury.
+
+  Kontekst (patrz `examples/invoice-payload.json`):
+    invoice      — obiekt `Invoice` (kwoty w minor units, formatuje filtr `money`)
+    profile      — profil fakturowania organizacji (bank, stopki)
+    logoDataUri  — logo sprzedawcy jako data URI
+    footerNote   — klauzule prawne organizacji w języku dokumentu
+    t(key)       — tłumacz (globals w `render/renderer.js`)
+
+  PUNKT ROZSZERZENIA: własny szablon organizacji = kopia tego pliku pod nową
+  nazwą + wiersz w `invoice_template` + `template_code` w profilu organizacji.
+  Komponenty poniżej można wymieniać pojedynczo — każdy jest samodzielny.
+#}
+<div class="invoice">
+
+  {% include "partials/header.njk" %}
+  {% include "partials/seller_buyer.njk" %}
+  {% include "partials/items_table.njk" %}
+  {% include "partials/vat_summary.njk" %}
+  {% include "partials/payment.njk" %}
+  {% include "partials/footer.njk" %}
+
+</div>

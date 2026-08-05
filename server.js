@@ -11,6 +11,8 @@ const userRoutes = require('./routes/users');
 const mainRoutes = require('./routes/index');
 const adminRoutes = require('./routes/admin');
 const addressRoutes = require('./routes/address');
+const invoiceRoutes = require('./services/invoices/http/routes');
+const invoicePanelRoutes = require('./services/invoices/http/panel');
 const groupRoutes = require('./routes/group');
 const { addOrganizationsForAdmin } = require('./middleware/loginMixture.js');
 const usersDb = require('./db/users.js');
@@ -194,6 +196,11 @@ app.use('/', mainRoutes);
 app.use('/orders', ordersRoutes);
 app.use('/position', positionsRoutes);
 app.use('/address', addressRoutes);
+// Moduł fakturowania — REST API (patrz services/invoices/README.md).
+// Montowany na końcu, bo `app.all('*')` poniżej przechwytuje wszystko pozostałe.
+app.use('/api/v1/invoices', invoiceRoutes);
+// Panel ownera dla faktur (widoki HTML; dane bierze z API powyżej)
+app.use('/invoices', invoicePanelRoutes);
 
 
 app.all('*', (req, res) => {

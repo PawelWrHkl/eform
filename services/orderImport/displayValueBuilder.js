@@ -1,5 +1,7 @@
 'use strict';
 
+const { isHiddenParam, isPriceLikeName } = require('./paramVisibility');
+
 const SUPPORTED_LANGS = new Set(['pl', 'en', 'de', 'fr', 'nl']);
 
 function getDefaultTranslationRepo() {
@@ -84,6 +86,18 @@ function hasImportValue(importValues, paramName) {
     return Object.keys(value).length > 0;
   }
   return true;
+}
+
+/**
+ * An import value only earns its "keep me visible, the customer ordered this"
+ * privileges while the form still considers the field active. A param the real
+ * form disabled via its `param.txt` ENABLE formula (`___VISIBLE:false`) must not
+ * be shown, re-labelled or pulled back onto row 1 from the payload — e.g.
+ * DLUGOSC_STER on MODEL=BB24 (group 71).
+ */
+function hasActiveImportValue(importValues, paramName, values) {
+  if (isHiddenParam(values, paramName)) return false;
+  return hasImportValue(importValues, paramName);
 }
 
 function shouldSkipParam(paramName) {
@@ -210,9 +224,9 @@ function shouldHideZeroFromDisplayEntry(paramName, entry) {
 function isPriceLikeParam(paramName, paramMeta, existingEntry, formMeta) {
   if (!paramName) return false;
   if (isSkippedCountParam(paramName, formMeta)) return false;
-  if (paramName.startsWith('SUB___')) return true;
-  if (paramName.endsWith('_S')) return true;
-  if (/^(CENA|DOPLATA|SUMA_|WARTOSC_|POW|OPIS_CENY|OPIS_RABATU)/.test(paramName)) return true;
+  // Name-based rules live in paramVisibility so the importer's clearing pass and
+  // this builder can never disagree about what counts as a price field.
+  if (isPriceLikeName(paramName)) return true;
   if (paramMeta && (paramMeta.LISTROW === '2' || boolFromFormValue(paramMeta.LISTSUM))) return true;
   if (existingEntry && String(existingEntry.row) === '2') return true;
   return false;
@@ -272,7 +286,7 @@ function resolveRow(paramName, values, existingEntry, paramMeta, locked, importV
   const priceListRow = resolvePriceListRow(paramName, existingEntry, paramMeta, formMeta);
   if (priceListRow !== null) return priceListRow;
 
-  const importedConfig = hasImportValue(importValues, paramName)
+  const importedConfig = hasActiveImportValue(importValues, paramName, values)
     && !isPriceLikeParam(paramName, paramMeta, existingEntry, formMeta)
     && !locked;
 
@@ -450,7 +464,7 @@ function mergeEntry(baseEntry, existingEntry, paramName, importValues, paramMeta
     return baseEntry;
   }
 
-  const imported = hasImportValue(importValues, paramName);
+  const imported = hasActiveImportValue(importValues, paramName, safeValues);
   const priceLike = isPriceLikeParam(paramName, paramMeta, existingEntry, formMeta);
   const merged = { ...existingEntry };
 
@@ -578,7 +592,7 @@ async function buildDisplayValuesFromDictionary({
       // json_parameters_desc, leaving the order preview blank. Let import-only
       // configuration params (non-price, present in the source JSON) through so
       // they still appear in the config card.
-      const isImportConfig = hasImportValue(safeImportValues, paramName)
+      const isImportConfig = hasActiveImportValue(safeImportValues, paramName, safeValues)
         && !isPriceLikeParam(paramName, paramMeta, existingEntry, formMeta);
       if (!isImportConfig) continue;
     }
@@ -587,7 +601,7 @@ async function buildDisplayValuesFromDictionary({
     const priceLikeEarly = isPriceLikeParam(paramName, paramMeta, existingEntry, formMeta);
     const rawValue = priceLikeEarly
       ? safeValues[paramName]
-      : (hasImportValue(safeImportValues, paramName)
+      : (hasActiveImportValue(safeImportValues, paramName, safeValues)
         ? safeImportValues[paramName]
         : safeValues[paramName]);
     const priceLike = isPriceLikeParam(paramName, paramMeta, existingEntry, formMeta);
@@ -705,6 +719,9 @@ module.exports = {
     isEffectivelyZeroValue,
     mergeEntry,
     orderDisplayValues,
-    extractExistingKeyOrder
+    extractExistingKeyOrder,
+    hasImportValue,
+    hasActiveImportValue,
+    resolveRow
   }
 };

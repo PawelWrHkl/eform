@@ -1,0 +1,51 @@
+{#
+  Tabela pozycji.
+
+  ⚠️ Kolumna „ilość" pokazuje `meta.displayQuantity` w jednostce miary (m², mb, szt.),
+  natomiast wartość netto pochodzi z wyceny silnika formularzy — patrz komentarz
+  w `core/orderMapper.js`. Cenniki tej branży są progowe, więc iloczyn
+  „ilość × cena jednostkowa" NIE musi się równać wartości pozycji i świadomie
+  nie jest tu prezentowany jako działanie.
+#}
+<table class="items">
+  <thead>
+    <tr>
+      <th class="col-nr">{{ t('items.position') }}</th>
+      <th class="col-name">{{ t('items.name') }}</th>
+      <th class="col-qty">{{ t('items.quantity') }}</th>
+      <th class="col-unit">{{ t('items.unit') }}</th>
+      <th class="col-net">{{ t('items.net_amount') }}</th>
+      <th class="col-rate">{{ t('items.tax_rate') }}</th>
+      <th class="col-tax">{{ t('items.tax_amount') }}</th>
+      <th class="col-gross">{{ t('items.gross_amount') }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in invoice.items %}
+      <tr>
+        <td class="col-nr">{{ item.position }}</td>
+        <td class="col-name">
+          <span class="items__name">{{ item.name }}</span>
+          {% if item.description %}
+            <span class="items__desc">{{ item.description }}</span>
+          {% endif %}
+        </td>
+        <td class="col-qty">{{ (item.meta.displayQuantity if item.meta.displayQuantity else item.quantity) | qty }}</td>
+        <td class="col-unit">{{ item.unit | unitLabel }}</td>
+        <td class="col-net">{{ item.netAmount | money }}</td>
+        <td class="col-rate">{{ item.taxRate | rate }}</td>
+        <td class="col-tax">{{ item.taxAmount | money }}</td>
+        <td class="col-gross">{{ item.grossAmount | money }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="4" class="items__total-label">{{ t('vat.total') }}</td>
+      <td class="col-net">{{ invoice.totalNet | money }}</td>
+      <td></td>
+      <td class="col-tax">{{ invoice.totalTax | money }}</td>
+      <td class="col-gross">{{ invoice.totalGross | money }}</td>
+    </tr>
+  </tfoot>
+</table>

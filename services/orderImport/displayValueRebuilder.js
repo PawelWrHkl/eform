@@ -18,6 +18,7 @@ const {
   _internals: { finalizeDisplayEntry }
 } = require('./displayValueBuilder');
 const { buildPersistedParameters, extractImportParams } = require('./orderImporter');
+const { clearHiddenParams, readFormParamDefs } = require('./paramVisibility');
 const { log } = require('../../utils/logging');
 
 /**
@@ -124,11 +125,24 @@ async function rebuildDisplayValuesForOrder(orderId) {
           }
         }
 
-        const importParams = extractImportParams(values);
+        // Params the browser disabled (`___VISIBLE:false`) must not come back as
+        // "import values" here — that is exactly the privilege that used to make
+        // a disabled field (e.g. DLUGOSC_STER on MODEL=BB24) render as a config
+        // card. The browser's verdict is authoritative (trustAll), but only for
+        // params param.txt actually gates with an ENABLE formula — hence defs.
+        const visibilityDefs = await readFormParamDefs(
+          String(pos.asortment_group_number),
+          pos.lang || 'pl'
+        );
+        const visibleValues = clearHiddenParams(
+          { ...values },
+          { trustAll: true, defs: visibilityDefs }
+        ).values;
+        const importParams = extractImportParams(visibleValues);
         const rebuilt = await buildDisplayValuesFromDictionary({
           groupNumber: String(pos.asortment_group_number),
           lang: pos.lang || 'pl',
-          values: buildPersistedParameters(importParams, values),
+          values: buildPersistedParameters(importParams, visibleValues),
           displayValues: entries,
           shortJson,
           formMeta,

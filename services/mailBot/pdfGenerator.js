@@ -46,17 +46,14 @@ function buildPdfHtmlDocument(bodyHtml) {
 `;
 }
 
-// Dokument załącznika .html. Zawiera OBA warianty treści, przełączane w CSS:
-//   .d-view — dokładnie ten sam markup i arkusz co PDF (`order-pdf.njk` +
-//             `order-pdf.css`), pokazywany od 701 px, czyli na komputerze
-//             widok zostaje po staremu, bez żadnych zmian stylów;
-//   .m-view — karty pozycji z `order-html.njk` + `styles/order-html.css`,
-//             pokazywane do 700 px (i bazowo, gdyby czytnik nie obsługiwał
-//             media queries — czytelne karty to bezpieczniejszy domyślny wybór
-//             niż tabela A4 landscape).
-// Oba arkusze mogą stać obok siebie, bo `order-html.css` prefiksuje wszystkie
-// selektory `.m-view`, a reguły globalne trzyma w `@media (max-width: 700px)`.
-function buildScreenHtmlDocument(mobileBodyHtml, printBodyHtml, title = '') {
+// Dokument załącznika .html: ta sama treść i ten sam arkusz co PDF
+// (`order-pdf.njk` + `order-pdf.css`) — widok „jak zawsze", również na telefonie.
+// Jedyna różnica wobec dokumentu do druku: opakowanie w kontener z poziomym
+// przewijaniem. `order-pdf.css` liczy tabelę w procentach szerokości, więc na
+// telefonie bez `min-width` kolumny zgniotłyby się do nieczytelnej szerokości
+// zamiast wyjechać za ekran — dlatego stała szerokość treści + przesuwanie
+// palcem w lewo/prawo (`-webkit-overflow-scrolling: touch`).
+function buildScreenHtmlDocument(bodyHtml, title = '') {
   return `
   <!DOCTYPE html>
   <html>
@@ -65,18 +62,18 @@ function buildScreenHtmlDocument(mobileBodyHtml, printBodyHtml, title = '') {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     ${title ? `<title>${title}</title>` : ''}
     <style>
-      /* Widok desktopowy — arkusz PDF-a, niezmieniony */
+      /* Import głównego CSS */
       ${fs.readFileSync(path.join(__dirname, 'styles/order-pdf.css'), 'utf8')}
     </style>
     <style>
-      /* Widok telefonowy — wyłącznie selektory .m-view */
-      ${fs.readFileSync(path.join(__dirname, 'styles/order-html.css'), 'utf8')}
+      @media screen {
+        html, body { margin: 0; padding: 0; background: #fff; }
+        .h-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .h-inner { min-width: 1100px; }
+      }
     </style>
   </head>
-  <body>
-    <div class="m-view">${mobileBodyHtml}</div>
-    <div class="d-view">${printBodyHtml}</div>
-  </body>
+  <body><div class="h-scroll"><div class="h-inner">${bodyHtml}</div></div></body>
   </html>
 `;
 }
@@ -130,7 +127,7 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     }
   }
 
-  // Wspólny kontekst dla obu wariantów — `order-pdf.njk` (druk) i `order-html.njk` (ekran)
+  // Kontekst renderowania `order-pdf.njk` — wspólny dla PDF-a i załącznika .html
   const renderContext = {
     orderDetails: orderData,
     cleanOrderItems: cleanOrderItems,
@@ -200,11 +197,7 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
 
   return {
     pdf: pdfBuffer,
-    html: buildScreenHtmlDocument(
-      env.render('order-html.njk', renderContext),
-      htmlFixed,
-      `${__('history_order.title')}${orderIdx}`
-    )
+    html: buildScreenHtmlDocument(htmlFixed, `${__('history_order.title')}${orderIdx}`)
   };
 }
 
