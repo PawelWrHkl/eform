@@ -2,14 +2,21 @@
   Strony transakcji. Dane są zdenormalizowaną KOPIĄ z chwili wystawienia
   (patrz `db/schema.sql`) — szablon nigdy nie dociąga bieżących danych klienta.
 #}
-{% macro party(title, p) %}
+{% from "partials/tax_compliance.njk" import registryLines %}
+
+{% macro party(title, p, registry) %}
   <section class="party">
     <h2 class="party__title">{{ title }}</h2>
     <div class="party__name">{{ p.name }}</div>
     {% if p.street %}<div class="party__line">{{ p.street }}</div>{% endif %}
     {% if p.zip or p.city %}<div class="party__line">{{ p.zip }} {{ p.city }}</div>{% endif %}
     {% if p.country %}<div class="party__line">{{ p.country }}</div>{% endif %}
-    {% if p.vatEuId %}
+    {# Numery rejestrowe w formacie kraju strony (NIP/REGON, Steuernummer +
+       USt-IdNr., KVK + Btw-id, SIREN/SIRET/NAF/TVA) — z `invoice.compliance`.
+       Fallback na pola ogólne, gdy dokument powstał przed wdrożeniem v2. #}
+    {% if registry and registry | length %}
+      {{ registryLines(registry) }}
+    {% elif p.vatEuId %}
       <div class="party__line"><span class="label">{{ t('party.vat_eu_id') }}:</span> {{ p.vatEuId }}</div>
     {% elif p.taxId %}
       <div class="party__line"><span class="label">{{ t('party.tax_id') }}:</span> {{ p.taxId }}</div>
@@ -20,6 +27,6 @@
 {% endmacro %}
 
 <div class="parties">
-  {{ party(t('party.seller'), invoice.seller) }}
-  {{ party(t('party.buyer'), invoice.buyer) }}
+  {{ party(t('party.seller'), invoice.seller, invoice.compliance.sellerRegistry if invoice.compliance else null) }}
+  {{ party(t('party.buyer'), invoice.buyer, invoice.compliance.buyerRegistry if invoice.compliance else null) }}
 </div>

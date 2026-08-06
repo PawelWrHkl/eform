@@ -43,6 +43,13 @@ module.exports = {
   // production keeps its own .env without the var, hence the feature stays off
   // there until it's deliberately added.
   features: {
-    vat: process.env.VAT_ENABLED === 'true'
+    vat: process.env.VAT_ENABLED === 'true',
+    // Moduł fakturowania (`services/invoices`). Ta flaga steruje WYŁĄCZNIE
+    // widocznością wejścia w menu (`res.locals.invoicesEnabled` → `base.njk`);
+    // routery `/invoices` i `/api/v1/invoices` pozostają zamontowane, bo są
+    // chronione `requireOwner`. Ta sama konwencja co `vat`: brak zmiennej = off,
+    // więc środowisko, które nie ma jej w swoim `.env` (np. volumes/test),
+    // nie pokazuje ikonki bez żadnej zmiany w kodzie.
+    invoices: process.env.INVOICES_ENABLED === 'true'
   }
 };

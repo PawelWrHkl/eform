@@ -460,3 +460,42 @@ body {
         break-inside: avoid;
     }
 }
+
+/* ---------- v2: zgodność krajowa, odniesienie do zamówienia ---------- */
+
+.party__registry {
+    font-size: 0.95em;
+}
+
+.compliance-delivery {
+    margin: 3mm 0 0;
+    font-size: 0.95em;
+}
+
+.compliance {
+    margin-top: 4mm;
+    break-inside: avoid;
+}
+
+.compliance__clauses {
+    margin: 0;
+    padding-left: 5mm;
+    font-size: 0.9em;
+}
+
+.compliance__clauses li {
+    margin-bottom: 0.8mm;
+}
+
+/* Kolumny „Zamówienie" i „Wymiary" nie mogą się łamać — to identyfikatory */
+.items .col-order,
+.items .col-dim {
+    white-space: nowrap;
+    text-align: left;
+}
+
+/* Partia z częściowego fakturowania: „2 / 3" */
+.items__batch {
+    color: var(--ink-soft);
+    font-size: 0.9em;
+}

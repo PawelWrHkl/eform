@@ -131,3 +131,83 @@ test('calculator: ilość ułamkowa (m²) nie gubi groszy', () => {
   const item = calc.calculateItem({ name: 'plisa', unitPriceNet: 89.9, quantity: 2.35, taxRate: 23 }, 1);
   assert.equal(item.netAmount, 21127, '2,35 m² × 89,90 = 211,265 → 211,27');
 });
+
+test('serwis: zamówienie o zerowej wartości nie tworzy dokumentu', async () => {
+  const { InvoiceService } = require('../main');
+
+  // Atrapy zamiast bazy — sprawdzamy wyłącznie regułę „nie wystawiamy 0,00".
+  const repository = {
+    async getOrderInvoiceSource() {
+      return {
+        order: { id: 1, organization_id: 3, order_idx: '999', status: 'sent' },
+        // Realny przypadek z bazy: pozycje z zerową/NULL-ową ceną
+        orderItems: [{ id: 1, total_price: '0.00', json_parameters: {} }, { id: 2, total_price: null, json_parameters: {} }],
+        organization: { id: 3, name: 'HKL', country: 'PL' },
+        user: { id: 9, client_name: 'Klient', country: 'PL' },
+        groupShop: null
+      };
+    },
+    async getOrganizationProfile() {
+      return { organizationId: 3, orgCode: 'HKL', seller: { name: 'HKL', country: 'PL' }, localCurrency: 'PLN', defaultCurrency: 'EUR', defaultPaymentDays: 14, defaultLang: 'pl', templateCode: 'default', numberPatterns: {}, footerNotes: {} };
+    },
+    // v2: profil wystawcy dla poziomu (patrz `core/hierarchy.js`)
+    async getIssuerProfile() {
+      return {
+        issuerType: 'organization', issuerId: 3, level: 2, name: 'HKL', country: 'PL',
+        taxId: '955', registryNumbers: { NIP: '955' }, currency: 'EUR', localCurrency: 'PLN',
+        paymentDays: 14, defaultLang: 'pl', templateCode: 'default', themeVars: {},
+        numberPattern: '{YYYY}/{NR:5}', legalSettings: {}, footerNotes: {}
+      };
+    },
+    async getAllocatedQuantities() { return new Map(); },
+    async getEndClient() { return null; },
+    async getAdvanceInvoicesForOrder() { return []; },
+    async createInvoice() { throw new Error('createInvoice nie powinno zostać wywołane'); }
+  };
+
+  const service = new InvoiceService({ repository, log: () => {}, vies: { check: async () => ({ checked: false, valid: false }) } });
+
+  await assert.rejects(
+    () => service.createFromOrder({ orderId: 1 }),
+    /zerową wartość netto/,
+    'dokument na 0,00 musi zostać zablokowany'
+  );
+});
+
+test('serwis: allowZeroTotal pozwala wymusić dokument na zero', async () => {
+  const { InvoiceService } = require('../main');
+  let saved = null;
+  const repository = {
+    async getOrderInvoiceSource() {
+      return {
+        order: { id: 1, organization_id: 3, order_idx: '999' },
+        orderItems: [{ id: 1, total_price: '0.00', json_parameters: {} }],
+        organization: { id: 3, name: 'HKL', country: 'PL' },
+        user: { id: 9, client_name: 'Klient', country: 'PL' },
+        groupShop: null
+      };
+    },
+    async getOrganizationProfile() {
+      return { organizationId: 3, orgCode: 'HKL', seller: { name: 'HKL', country: 'PL' }, localCurrency: 'PLN', defaultCurrency: 'EUR', defaultPaymentDays: 14, defaultLang: 'pl', templateCode: 'default', numberPatterns: {}, footerNotes: {} };
+    },
+    // v2: profil wystawcy dla poziomu (patrz `core/hierarchy.js`)
+    async getIssuerProfile() {
+      return {
+        issuerType: 'organization', issuerId: 3, level: 2, name: 'HKL', country: 'PL',
+        taxId: '955', registryNumbers: { NIP: '955' }, currency: 'EUR', localCurrency: 'PLN',
+        paymentDays: 14, defaultLang: 'pl', templateCode: 'default', themeVars: {},
+        numberPattern: '{YYYY}/{NR:5}', legalSettings: {}, footerNotes: {}
+      };
+    },
+    async getAllocatedQuantities() { return new Map(); },
+    async getEndClient() { return null; },
+    async getAdvanceInvoicesForOrder() { return []; },
+    async createInvoice(invoice) { saved = invoice; return { id: 5, number: null }; }
+  };
+  const service = new InvoiceService({ repository, log: () => {}, vies: { check: async () => ({ checked: false, valid: false }) } });
+
+  const result = await service.createFromOrder({ orderId: 1, allowZeroTotal: true });
+  assert.equal(result.id, 5);
+  assert.equal(saved.totalGross, 0);
+  assert.equal(saved.currency, 'EUR', 'waluta zawsze EUR — patrz DOCUMENT_CURRENCY');
+});

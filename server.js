@@ -13,6 +13,9 @@ const adminRoutes = require('./routes/admin');
 const addressRoutes = require('./routes/address');
 const invoiceRoutes = require('./services/invoices/http/routes');
 const invoicePanelRoutes = require('./services/invoices/http/panel');
+// Znacznik wersji zasobów: zmienia się przy każdym starcie procesu, czyli po
+// każdym wdrożeniu (`update.sh` restartuje kontener, `--watch` proces hosta).
+const ASSET_VERSION = Date.now().toString(36);
 const groupRoutes = require('./routes/group');
 const { addOrganizationsForAdmin } = require('./middleware/loginMixture.js');
 const usersDb = require('./db/users.js');
@@ -159,6 +162,11 @@ app.use((req, res, next) => {
 const { features } = require('./config');
 app.use((req, res, next) => {
 	res.locals.vatEnabled = !!features?.vat;
+	res.locals.invoicesEnabled = !!features?.invoices;
+	// Wersja zasobów do cache-bustingu (`?v=`) — bez tego przeglądarka trzyma
+	// stary plik JS po wdrożeniu, co objawia się błędami z nieaktualnej wersji
+	// (np. panel salonu pytający o endpoint dla ownera).
+	res.locals.assetVersion = ASSET_VERSION;
 	next();
 });
 

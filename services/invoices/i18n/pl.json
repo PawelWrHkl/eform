@@ -75,5 +75,8 @@
   "taxcat.intra_eu_service": "Odwrotne obciążenie",
   "taxcat.export": "Eksport",
   "taxcat.np": "Nie podlega",
-  "taxcat.zw": "Zwolniona"
+  "taxcat.zw": "Zwolniona",
+  "items.order_ref": "Zamówienie",
+  "items.dimensions": "Wymiary",
+  "header.delivery_date": "Data dostawy"
 }

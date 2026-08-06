@@ -168,6 +168,9 @@
  * @property {(invoice: Invoice) => Promise<number>} createInvoice
  * @property {(id: number, patch: Partial<Invoice>) => Promise<boolean>} updateInvoice
  * @property {(organizationId: number) => Promise<OrganizationProfile|null>} getOrganizationProfile
+ * @property {(key: { issuerType: string, issuerId: number, level: number }) => Promise<Object|null>} getIssuerProfile
+ * @property {(orderId: number) => Promise<Map<number, number>>} getAllocatedQuantities
+ * @property {(params: { id: number, ownerUserId: number }) => Promise<Object|null>} getEndClient
  */
 
 module.exports = {};

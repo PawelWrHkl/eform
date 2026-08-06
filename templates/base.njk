@@ -114,7 +114,7 @@
                     <li class="nav-item d-none" id="mobile-employee-panel-item">
                         <a href="#" id="mobile-employee-panel-link" class="nav-link">{{ __('base.employee_panel') }}</a>
                     </li>
-                    {% if owner or admin %}
+                    {% if invoicesEnabled %}
                         <li class="nav-item">
                             <a href="/invoices" class="nav-link">Faktury</a>
                         </li>
@@ -192,9 +192,12 @@
                     <img src="/img/employee.png" class='nav-icon' alt="orders-ico">
                     <span class="nav-text">{{ __('base.employee_panel') }}</span>
                 </a>
-                {# Panel faktur — tylko owner/admin. Etykieta na sztywno, bo globalne
-                   tłumaczenia idą z /mnt/eform/languages i nie mają jeszcze tego klucza. #}
-                {% if owner or admin %}
+                {# Panel faktur — przy włączonej fladze `features.invoices`
+                   (INVOICES_ENABLED w .env). Widzą go owner/admin (poziom 2) ORAZ
+                   zwykły użytkownik/salon (poziom 3: faktury dla swoich odbiorców
+                   końcowych) — bez tego formularz odbiorców nie miałby zastosowania.
+                   Etykieta na sztywno, bo tłumaczenia idą z /mnt/eform/languages. #}
+                {% if invoicesEnabled %}
                     <a href="/invoices" id='invoices-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="Faktury">
                         <img src="/img/orders_history.png" class='nav-icon' alt="invoices-ico">
                         <span class="nav-text">Faktury</span>

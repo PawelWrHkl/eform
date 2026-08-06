@@ -23,7 +23,7 @@ const { requireLogin, requireOwner } = require('../../../middleware/loginMixture
 const { InvoiceService, DocumentType, InvoiceStatus, DOCUMENT_CURRENCY, money, taxRules } = require('../main');
 const repository = require('../db/repository');
 const { selectQuery } = require('../../../db/core');
-const { organizationIdFromSession } = require('./session');
+const { organizationIdFromSession, scopeFromSession, canAccessInvoice } = require('./session');
 const { log } = require('../../../utils/logging');
 
 const router = express.Router();
@@ -42,51 +42,96 @@ function labelsFor(req) {
 }
 
 /**
- * Zamówienia wysłane, do których nie ma jeszcze dokumentu — kandydaci do
- * zafakturowania. Podpowiedź o stawce liczona z pary krajów
- * (`organization.country` vs `user.country`), czyli tak samo jak reguła
- * podatkowa w `core/taxRules.js`.
+ * Dane wybranego klienta + skutek podatkowy dla pary krajów
+ * (sprzedawca z profilu organizacji, nabywca to ten klient).
  *
  * @param {number} organizationId
- * @param {number} [limit]
- * @returns {Promise<Array<Record<string, any>>>}
+ * @param {number} clientId
+ * @returns {Promise<Record<string, any>|null>}
  */
-async function listInvoiceableOrders(organizationId, limit = 40) {
-  // ⚠️ Z listy wypadają tylko zamówienia z dokumentem ROZLICZAJĄCYM
-  // (`invoice`/`final`). Zamówienie z samą proformą albo zaliczką MUSI zostać —
-  // inaczej nie da się do niego wystawić faktury końcowej, a bez niej zaliczka
-  // nigdy nie zostanie odliczona (wyłapane testem UI: końcowa lądowała na
-  // kolejnym zamówieniu z listy i pokazywała pełną kwotę do zapłaty).
-  // `advances_gross` niesie sumę zaliczek, żeby dropdown mógł to pokazać.
+async function loadClientContext(organizationId, clientId) {
   const rows = await selectQuery(
-    `SELECT o.id, o.order_idx, o.commision, o.sent_date, o.total_float, o.total_price,
-            u.client_name, u.country AS buyer_country, u.tax_id AS buyer_tax_id,
-            org.country AS seller_country,
-            (SELECT COUNT(*) FROM invoice a
-               WHERE a.order_id = o.id AND a.document_type = 'advance' AND a.status NOT IN ('cancelled', 'draft')) AS advances_count,
-            (SELECT COALESCE(SUM(a.total_gross), 0) FROM invoice a
-               WHERE a.order_id = o.id AND a.document_type = 'advance' AND a.status NOT IN ('cancelled', 'draft')) AS advances_gross
-       FROM \`order\` o
-       JOIN \`user\` u   ON u.id = o.user_id
-       JOIN organization org ON org.id = o.organization_id
-       LEFT JOIN invoice i ON i.order_id = o.id
-                          AND i.document_type IN ('invoice', 'final')
-                          AND i.status <> 'cancelled'
-      WHERE o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL
-      ORDER BY o.sent_date DESC, o.id DESC
-      LIMIT ?`,
-    [organizationId, Number(limit)]
+    `SELECT u.id, u.client_name, u.ident, u.country, u.tax_id, u.street, u.zip, u.city, u.email, u.phone,
+            org.country AS seller_country
+       FROM \`user\` u
+       JOIN organization org ON org.id = u.organization_id
+      WHERE u.id = ? AND u.organization_id = ?`,
+    [clientId, organizationId]
+  );
+  const client = rows && rows[0];
+  if (!client) return null;
+
+  // Liczniki policzone TYLKO dla wybranego klienta — przy tysiącach klientów
+  // liczenie ich dla całej listy byłoby N+1 w SQL-u.
+  const counts = await selectQuery(
+    `SELECT
+       (SELECT COUNT(*) FROM \`order\` o
+         LEFT JOIN invoice i ON i.order_id = o.id
+                            AND i.document_type IN ('invoice', 'final')
+                            AND i.status <> 'cancelled'
+         WHERE o.user_id = ? AND o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL) AS pending_orders,
+       (SELECT COUNT(*) FROM invoice v WHERE v.buyer_user_id = ? AND v.organization_id = ?) AS documents`,
+    [clientId, organizationId, clientId, organizationId]
   );
 
-  return (rows || []).map((r) => {
-    const zeroRate = taxRules.isIntraEuZeroRate(r.seller_country, r.buyer_country);
-    const sameCountry = taxRules.normalizeCountry(r.seller_country) === taxRules.normalizeCountry(r.buyer_country);
-    return {
-      ...r,
-      taxHint: zeroRate ? 'zero_rate_hint' : (sameCountry ? 'domestic_hint' : 'export_hint'),
-      zeroRate
-    };
-  });
+  const zeroRate = taxRules.isIntraEuZeroRate(client.seller_country, client.country);
+  const sameCountry = taxRules.normalizeCountry(client.seller_country) === taxRules.normalizeCountry(client.country);
+  return {
+    ...client,
+    pendingOrders: counts && counts[0] ? Number(counts[0].pending_orders) : 0,
+    documents: counts && counts[0] ? Number(counts[0].documents) : 0,
+    zeroRate,
+    taxHint: zeroRate ? 'zero_rate_hint' : (sameCountry ? 'domestic_hint' : 'export_hint'),
+    hasVatEuId: taxRules.looksLikeVatEuId(client.tax_id, client.country)
+  };
+}
+
+
+/**
+ * Kontekst wybranego ODBIORCY KOŃCOWEGO (tryb salonu, poziom 3).
+ *
+ * Sprzedawcą jest tu użytkownik, więc skutek podatkowy liczymy dla pary
+ * (kraj salonu, kraj odbiorcy) — nie kraju organizacji.
+ *
+ * @param {{ organizationId: number, endClientId: number, ownerUserId: number }} params
+ * @returns {Promise<Record<string, any>|null>}
+ */
+async function loadEndClientContext({ organizationId, endClientId, ownerUserId }) {
+  if (!ownerUserId) return null;
+  const client = await repository.getEndClient({ id: endClientId, ownerUserId });
+  if (!client) return null;
+
+  const sellerRows = await selectQuery('SELECT country FROM `user` WHERE id = ?', [ownerUserId]);
+  const sellerCountry = (sellerRows && sellerRows[0] && sellerRows[0].country) || '';
+
+  const counts = await selectQuery(
+    `SELECT
+       (SELECT COUNT(*) FROM \`order\` o
+         LEFT JOIN invoice i ON i.order_id = o.id AND i.level = 3 AND i.issuer_id = ?
+                            AND i.document_type IN ('invoice', 'final') AND i.status <> 'cancelled'
+         WHERE o.user_id = ? AND o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL) AS pending_orders,
+       (SELECT COUNT(*) FROM invoice v WHERE v.buyer_end_client_id = ? AND v.level = 3) AS documents`,
+    [ownerUserId, ownerUserId, organizationId, endClientId]
+  );
+
+  const zeroRate = taxRules.isIntraEuZeroRate(sellerCountry, client.country);
+  const sameCountry = taxRules.normalizeCountry(sellerCountry) === taxRules.normalizeCountry(client.country);
+  return {
+    id: client.id,
+    client_name: client.name,
+    country: client.country,
+    tax_id: client.tax_id,
+    street: client.street,
+    zip: client.zip,
+    city: client.city,
+    seller_country: sellerCountry,
+    pendingOrders: counts && counts[0] ? Number(counts[0].pending_orders) : 0,
+    documents: counts && counts[0] ? Number(counts[0].documents) : 0,
+    zeroRate,
+    taxHint: zeroRate ? 'zero_rate_hint' : (sameCountry ? 'domestic_hint' : 'export_hint'),
+    hasVatEuId: taxRules.looksLikeVatEuId(client.vat_eu_id || client.tax_id, client.country),
+    isEndClient: true
+  };
 }
 
 /** Lista dokumentów z kwotami sformatowanymi do wyświetlenia. */
@@ -105,7 +150,14 @@ function decorateInvoices(rows, lang) {
 // Widoki
 // ---------------------------------------------------------------------------
 
-router.get('/', requireLogin, requireOwner, async (req, res) => {
+// ⚠️ Bez `requireOwner`: panel ma DWA TRYBY.
+//   owner/admin  → poziom 2 (organizacja → użytkownik): nabywcą jest klient
+//                  organizacji, wybierany z `search/clients`,
+//   zwykły user  → poziom 3 (salon → odbiorca końcowy): nabywcą jest jego własny
+//                  odbiorca z `end-clients/search`, a zamówienia to jego zamówienia.
+// Bez trybu 3 salon nie mógłby wystawić faktury swojemu klientowi — czyli
+// formularz odbiorców końcowych nie miałby po co istnieć.
+router.get('/', requireLogin, async (req, res) => {
   const organizationId = organizationIdFromSession(req);
   if (!organizationId) return res.status(403).send('Brak kontekstu organizacji');
 
@@ -114,21 +166,54 @@ router.get('/', requireLogin, requireOwner, async (req, res) => {
   // routera `/user` — poza nim nawigacja nie wiedziałaby, że to owner.
   res.locals.owner = !!req.session.user?.isOwner;
   res.locals.admin = !!req.session.user?.isAdmin;
+
+  // Panel działa W KONTEKŚCIE KLIENTA: bez wybranego nabywcy pokazujemy tylko
+  // selektor. Faktura zawsze dotyczy konkretnego nabywcy, więc lista zamówień
+  // i lista dokumentów są zawężone do niego — bez tego łatwo wystawić dokument
+  // nie temu klientowi (przy 40 zamówieniach z różnych firm w jednym dropdownie).
+  const clientId = Number(req.query.clientId) || null;
+  const scope = scopeFromSession(req);
+  const level = scope.isOrgScope ? 2 : 3;
+
   try {
-    const [invoices, orders, profile] = await Promise.all([
-      repository.listInvoices({ organizationId, limit: 100 }),
-      listInvoiceableOrders(organizationId),
-      repository.getOrganizationProfile(organizationId)
-    ]);
+    // W trybie salonu „klientem" jest odbiorca końcowy z jego prywatnej bazy
+    const client = clientId
+      ? (level === 3
+        ? await loadEndClientContext({ organizationId, endClientId: clientId, ownerUserId: scope.userId })
+        : await loadClientContext(organizationId, clientId))
+      : null;
+
+    // Nieznany/obcy klient w query → traktujemy jak brak wyboru, nie jako błąd
+    if (clientId && !client) {
+      return res.redirect('/invoices');
+    }
+
+    // ⚠️ ŻADNYCH pełnych list w HTML-u: klientów i zamówień będzie bardzo dużo,
+    // więc comboboxy pytają endpointy wyszukiwania w miarę pisania.
+    const invoiceFilter = level === 3
+      ? { organizationId, issuerType: 'user', issuerId: scope.userId, limit: 100 }
+      : { organizationId, buyerUserId: client ? client.id : null, limit: 100 };
+
+    const [invoices, profile] = client
+      ? await Promise.all([
+        repository.listInvoices(invoiceFilter),
+        repository.getOrganizationProfile(organizationId)
+      ])
+      : [[], await repository.getOrganizationProfile(organizationId)];
 
     return res.render('owner/invoices.njk', {
       L,
       panelLang: lang,
+      level,
+      client,
       invoices: decorateInvoices(invoices, lang),
-      orders,
       profile,
       currency: DOCUMENT_CURRENCY,
-      documentTypes: [DocumentType.PROFORMA, DocumentType.ADVANCE, DocumentType.INVOICE, DocumentType.FINAL],
+      documentTypes: level === 3
+        // Salon fakturuje sprzedaż detaliczną: proforma i faktura. Zaliczki
+        // i faktury końcowe zostają narzędziem organizacji.
+        ? [DocumentType.PROFORMA, DocumentType.INVOICE]
+        : [DocumentType.PROFORMA, DocumentType.ADVANCE, DocumentType.INVOICE, DocumentType.FINAL],
       statuses: InvoiceStatus,
       docLangs: ['pl', 'en', 'de']
     });
@@ -166,17 +251,48 @@ router.get('/profile', requireLogin, requireOwner, async (req, res) => {
   }
 });
 
+
+/**
+ * Ekran CRUD odbiorców końcowych (poziom 3).
+ *
+ * ⚠️ Bez `requireOwner` — z definicji korzysta z niego zwykły użytkownik
+ * (salon), który prowadzi własną bazę klientów. Dane pobiera i zapisuje
+ * wyłącznie przez `/api/v1/invoices/end-clients`, więc kontrola właściciela
+ * jest po stronie API (`owner_user_id`), nie w widoku.
+ */
+router.get('/end-clients', requireLogin, async (req, res) => {
+  const { lang, L } = labelsFor(req);
+  res.locals.owner = !!req.session.user?.isOwner;
+  res.locals.admin = !!req.session.user?.isAdmin;
+  try {
+    return res.render('owner/end_clients.njk', {
+      L,
+      panelLang: lang,
+      // Te same definicje, których używa `core/compliance.js` przy budowaniu
+      // dokumentu — jedno źródło prawdy o numerach rejestrowych per kraj.
+      registryFields: require('../core/compliance').REGISTRY_FIELDS
+    });
+  } catch (err) {
+    log(`[invoices] panel GET /end-clients: ${err.message}`);
+    return res.status(500).send('Błąd wczytywania listy odbiorców');
+  }
+});
+
 /**
  * Podgląd dokumentu w nowej karcie. Renderuje HTML faktury bez layoutu aplikacji
  * (to ma być wierny obraz dokumentu, nie podstrona panelu).
  */
-router.get('/:id/view', requireLogin, requireOwner, async (req, res) => {
+// ⚠️ Bez `requireOwner`: salon musi móc podejrzeć WŁASNY dokument. Zakres
+// sprawdza `canAccessInvoice` (organizacja dla ownera, `issuer_type='user'`
+// + jego id dla salonu) — inaczej „Podgląd" w panelu salonu zwracał 403
+// „Access denied. Owner privileges required.".
+router.get('/:id/view', requireLogin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).send('Nieprawidłowy identyfikator');
   try {
     const invoice = await repository.getInvoice(id);
     if (!invoice) return res.status(404).send('Nie znaleziono faktury');
-    if (invoice.organizationId !== organizationIdFromSession(req)) return res.status(403).send('Brak dostępu');
+    if (!canAccessInvoice(req, invoice)) return res.status(403).send('Brak dostępu');
 
     const html = await service.renderHtml(id);
     res.set('Content-Type', 'text/html; charset=utf-8');

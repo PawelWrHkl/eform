@@ -12,6 +12,11 @@
     <tr>
       <th class="col-nr">{{ t('items.position') }}</th>
       <th class="col-name">{{ t('items.name') }}</th>
+      {# Wymóg specyfikacji: pozycja faktury MUSI wskazywać numer oryginalnego
+         zamówienia i wymiary — przy częściowym fakturowaniu to jedyny sposób,
+         żeby powiązać partię z konkretną pozycją zamówienia. #}
+      <th class="col-order">{{ t('items.order_ref') }}</th>
+      <th class="col-dim">{{ t('items.dimensions') }}</th>
       <th class="col-qty">{{ t('items.quantity') }}</th>
       <th class="col-unit">{{ t('items.unit') }}</th>
       <th class="col-net">{{ t('items.net_amount') }}</th>
@@ -30,7 +35,23 @@
             <span class="items__desc">{{ item.description }}</span>
           {% endif %}
         </td>
-        <td class="col-qty">{{ (item.meta.displayQuantity if item.meta.displayQuantity else item.quantity) | qty }}</td>
+        <td class="col-order">
+          {{ item.orderNumber if item.orderNumber else (invoice.orderRef if invoice.orderRef else '—') }}
+        </td>
+        <td class="col-dim">
+          {%- if item.meta.widthMm and item.meta.heightMm -%}
+            {{ item.meta.widthMm }}×{{ item.meta.heightMm }} mm
+          {%- elif item.meta.widthMm -%}
+            {{ item.meta.widthMm }} mm
+          {%- else -%}—{%- endif -%}
+        </td>
+        <td class="col-qty">
+          {{ (item.meta.displayQuantity if item.meta.displayQuantity else item.quantity) | qty }}
+          {# Partia z częściowego fakturowania: „2 / 3" czyni jawnym, że to część zamówienia #}
+          {% if item.meta.orderedQuantity and item.meta.invoicedQuantity %}
+            <span class="items__batch">/ {{ item.meta.orderedQuantity | qty }}</span>
+          {% endif %}
+        </td>
         <td class="col-unit">{{ item.unit | unitLabel }}</td>
         <td class="col-net">{{ item.netAmount | money }}</td>
         <td class="col-rate">{{ item.taxRate | rate }}</td>
@@ -41,7 +62,7 @@
   </tbody>
   <tfoot>
     <tr>
-      <td colspan="4" class="items__total-label">{{ t('vat.total') }}</td>
+      <td colspan="6" class="items__total-label">{{ t('vat.total') }}</td>
       <td class="col-net">{{ invoice.totalNet | money }}</td>
       <td></td>
       <td class="col-tax">{{ invoice.totalTax | money }}</td>

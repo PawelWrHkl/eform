@@ -11,7 +11,7 @@
 
 {% block head %}
   <link rel="stylesheet" href="/styles/orders.css">
-  <link rel="stylesheet" href="/styles/invoices.css">
+  <link rel="stylesheet" href="/styles/invoices.css?v={{ assetVersion }}">
 {% endblock head %}
 
 {% block key_nav %}window.location.href='/'{% endblock %}
@@ -29,75 +29,130 @@
           <h2 class="fw-bold header mb-1">{{ L.title }}</h2>
           <div class="inv-subtitle">{{ L.subtitle }} · <span class="inv-badge-currency">{{ L.currency_note }}</span></div>
         </div>
-        <a class="inv-btn inv-btn--ghost" href="/invoices/profile">{{ L.profile }}</a>
+        <div class="inv-topbar__actions">
+          <a class="inv-btn inv-btn--ghost" href="/invoices/end-clients">{{ L.end_clients }}</a>
+          {# Ustawienia fakturowania organizacji to narzędzie ownera #}
+          {% if level != 3 %}
+            <a class="inv-btn inv-btn--ghost" href="/invoices/profile">{{ L.profile }}</a>
+          {% endif %}
+        </div>
       </div>
 
-      {# ---------- Nowy dokument z zamówienia ---------- #}
-      <section class="inv-card">
-        <h3 class="inv-card__title">{{ L.new_from_order }}</h3>
+      {# ---------- KROK 1: wybór klienta ----------
+         Faktura zawsze dotyczy konkretnego nabywcy, więc dopóki klient nie jest
+         wybrany, nie pokazujemy ani formularza, ani listy dokumentów. #}
+      <section class="inv-card inv-client">
+        <h3 class="inv-card__title">
+          {%- if level == 3 %}{{ L.select_end_client }}{% else %}{{ L.select_client }}{% endif -%}
+        </h3>
 
-        {% if orders | length %}
-          <form id="inv-create-form" class="inv-form">
-            <div class="inv-form__row">
-              <label class="inv-field inv-field--grow">
-                <span class="inv-label">{{ L.order }}</span>
-                <select name="orderId" id="inv-order-select" required>
-                  {% for o in orders %}
-                    <option value="{{ o.id }}"
-                            data-hint="{{ L[o.taxHint] }}"
-                            data-zero="{{ '1' if o.zeroRate else '0' }}">
-                      {{ o.order_idx }} · {{ o.client_name }}{% if o.commision %} · {{ o.commision }}{% endif %}
-                      {% if o.total_float %} · {{ o.total_float }} {{ currency }}{% endif %}
-                      ({{ o.seller_country }}→{{ o.buyer_country }})
-                      {# Zamówienie z zaliczką zostaje na liście — czeka na fakturę końcową #}
-                      {%- if o.advances_count %} · ⬤ {{ o.advances_gross }} {{ currency }}{% endif %}
-                    </option>
-                  {% endfor %}
-                </select>
-              </label>
+        {# ⚠️ Pole wyszukiwania, NIE lista: klientów będzie bardzo dużo, więc
+           podpowiedzi lecą z `/api/v1/invoices/search/clients` w miarę pisania.
+           Ukryte pole trzyma ID — formularz musi wysłać identyfikator, nie tekst.
+           `noscript`-owy fallback: przycisk działa po wpisaniu samego ID. #}
+        {# `data-source` mówi skryptowi, którego endpointu pytać: klientów
+           organizacji (poziom 2) czy własnych odbiorców końcowych (poziom 3). #}
+        <form class="inv-form" method="get" action="/invoices" id="inv-client-form" autocomplete="off"
+              data-source="{{ 'end-clients' if level == 3 else 'clients' }}">
+          <div class="inv-form__row inv-form__row--tight">
+            <label class="inv-field inv-field--grow inv-combo">
+              <input type="text" id="inv-client-input" class="inv-combo__input"
+                     placeholder="{{ L.end_client_search_placeholder if level == 3 else L.client_search_placeholder }}"
+                     value="{{ client.client_name if client else '' }}"
+                     role="combobox" aria-expanded="false" aria-controls="inv-client-list" aria-autocomplete="list">
+              <input type="hidden" name="clientId" id="inv-client-id" value="{{ client.id if client else '' }}">
+              <div class="inv-combo__list" id="inv-client-list" role="listbox"></div>
+            </label>
+            <button type="submit" class="inv-btn inv-btn--primary">{{ L.select_client }}</button>
+          </div>
+        </form>
 
-              <label class="inv-field">
-                <span class="inv-label">{{ L.doc_type }}</span>
-                <select name="documentType" id="inv-doctype">
-                  {% for t in documentTypes %}
-                    <option value="{{ t }}"{% if t == 'invoice' %} selected{% endif %}>{{ t }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-
-              {# Widoczne tylko dla zaliczki — sterowane w invoices.js #}
-              <label class="inv-field inv-field--narrow" id="inv-advance-wrap" hidden>
-                <span class="inv-label">{{ L.advance_percent }}</span>
-                <input type="number" name="advancePercent" min="1" max="100" step="1" value="30">
-              </label>
-
-              <label class="inv-field inv-field--narrow">
-                <span class="inv-label">{{ L.lang }}</span>
-                <select name="lang">
-                  {% for l in docLangs %}
-                    <option value="{{ l }}"{% if l == panelLang %} selected{% endif %}>{{ l }}</option>
-                  {% endfor %}
-                </select>
-              </label>
+        {% if client %}
+          {# Karta wybranego nabywcy: dane rejestrowe + skutek podatkowy pary krajów #}
+          <div class="inv-client-card">
+            <div class="inv-client-card__name">{{ client.client_name }}</div>
+            <div class="inv-client-card__meta">
+              {% if client.street %}{{ client.street }}, {% endif %}{{ client.zip }} {{ client.city }} · {{ L.client_country }}: {{ client.country }}
+              {% if client.tax_id %} · {{ L.vat_eu_id }}: {{ client.tax_id }}{% endif %}
             </div>
-
-            <div class="inv-form__row inv-form__row--tight">
-              <label class="inv-check">
-                <input type="checkbox" name="issue" id="inv-issue" checked>
-                <span>{{ L.issue_now }}</span>
-              </label>
-              <span class="inv-hint" id="inv-tax-hint"></span>
-              <button type="submit" class="inv-btn inv-btn--primary" id="inv-create-btn">{{ L.create }}</button>
+            <div class="inv-client-card__tags">
+              <span class="inv-tag{% if client.zeroRate %} inv-tag--zero{% endif %}">{{ client.seller_country }}→{{ client.country }} · {{ L[client.taxHint] }}</span>
+              {% if client.zeroRate and not client.hasVatEuId %}
+                <span class="inv-tag inv-tag--warn">{{ L.no_vat_eu }}</span>
+              {% endif %}
+              <span class="inv-tag">{{ client.pendingOrders }} {{ L.client_pending }}</span>
+              <span class="inv-tag">{{ client.documents }} {{ L.client_docs }}</span>
             </div>
-          </form>
+          </div>
         {% else %}
-          <p class="inv-empty">{{ L.no_orders }}</p>
+          <p class="inv-empty">
+            {%- if level == 3 -%}
+              {{ L.end_client_required }}
+              <a class="inv-link" href="/invoices/end-clients">{{ L.end_client_new }}</a>
+            {%- else -%}
+              {{ L.client_required }}
+            {%- endif -%}
+          </p>
         {% endif %}
       </section>
 
-      {# ---------- Lista dokumentów ---------- #}
+      {% if client %}
+      {# ---------- KROK 2: nowy dokument dla wybranego klienta ---------- #}
       <section class="inv-card">
-        <h3 class="inv-card__title">{{ L.documents }}</h3>
+        <h3 class="inv-card__title">{{ L.new_from_order }} · {{ client.client_name }}</h3>
+
+        {# Podpowiedzi zamówień z `/api/v1/invoices/search/orders?clientId=…`,
+           dopasowanie po numerze ORAZ po nazwie zamówienia (`order.commision`). #}
+        <form id="inv-create-form" class="inv-form" data-client-id="{{ client.id }}" data-level="{{ level }}" autocomplete="off">
+          <div class="inv-form__row">
+            <label class="inv-field inv-field--grow inv-combo">
+              <span class="inv-label">{{ L.order }}</span>
+              <input type="text" id="inv-order-input" class="inv-combo__input"
+                     placeholder="{{ L.order_search_placeholder }}"
+                     role="combobox" aria-expanded="false" aria-controls="inv-order-list" aria-autocomplete="list">
+              <input type="hidden" name="orderId" id="inv-order-id">
+              <div class="inv-combo__list" id="inv-order-list" role="listbox"></div>
+            </label>
+
+            <label class="inv-field">
+              <span class="inv-label">{{ L.doc_type }}</span>
+              <select name="documentType" id="inv-doctype">
+                {% for t in documentTypes %}
+                  <option value="{{ t }}"{% if t == 'invoice' %} selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            {# Widoczne tylko dla zaliczki — sterowane w invoices.js #}
+            <label class="inv-field inv-field--narrow" id="inv-advance-wrap" hidden>
+              <span class="inv-label">{{ L.advance_percent }}</span>
+              <input type="number" name="advancePercent" min="1" max="100" step="1" value="30">
+            </label>
+
+            <label class="inv-field inv-field--narrow">
+              <span class="inv-label">{{ L.lang }}</span>
+              <select name="lang">
+                {% for l in docLangs %}
+                  <option value="{{ l }}"{% if l == panelLang %} selected{% endif %}>{{ l }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+
+          <div class="inv-form__row inv-form__row--tight">
+            <label class="inv-check">
+              <input type="checkbox" name="issue" id="inv-issue" checked>
+              <span>{{ L.issue_now }}</span>
+            </label>
+            <span class="inv-hint" id="inv-tax-hint"></span>
+            <button type="submit" class="inv-btn inv-btn--primary" id="inv-create-btn">{{ L.create }}</button>
+          </div>
+        </form>
+      </section>
+
+      {# ---------- Dokumenty wybranego klienta ---------- #}
+      <section class="inv-card">
+        <h3 class="inv-card__title">{{ L.documents }} · {{ client.client_name }}</h3>
 
         {% if invoices | length %}
           <div class="inv-table-wrap">
@@ -106,7 +161,6 @@
                 <tr>
                   <th>{{ L.number }}</th>
                   <th>{{ L.type }}</th>
-                  <th>{{ L.buyer }}</th>
                   <th>{{ L.issue_date }}</th>
                   <th>{{ L.due_date }}</th>
                   <th class="ta-r">{{ L.net }}</th>
@@ -121,7 +175,6 @@
                   <tr data-id="{{ inv.id }}" data-status="{{ inv.status }}">
                     <td class="inv-nowrap">{{ inv.number if inv.number else '—' }}</td>
                     <td>{{ inv.document_type }}</td>
-                    <td>{{ inv.buyer_name }}</td>
                     <td class="inv-nowrap">{{ inv.issueDateFmt }}</td>
                     <td class="inv-nowrap">{{ inv.dueDateFmt }}</td>
                     <td class="ta-r inv-nowrap">{{ inv.netFmt }}</td>
@@ -150,6 +203,7 @@
           <p class="inv-empty">{{ L.no_documents }}</p>
         {% endif %}
       </section>
+      {% endif %}{# client #}
 
     </div>
   </div>
@@ -159,5 +213,5 @@
 {% endblock content %}
 
 {% block scripts %}
-  <script type="module" src="/scripts/owner/invoices.js"></script>
+  <script type="module" src="/scripts/owner/invoices.js?v={{ assetVersion }}"></script>
 {% endblock scripts %}

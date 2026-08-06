@@ -35,6 +35,9 @@ const renderer = require('./render/renderer');
 const defaultRepository = require('./db/repository');
 const { toIsoDay, todayIso, addDays } = require('./core/dates');
 const { ViesClient } = require('./core/vies');
+const hierarchy = require('./core/hierarchy');
+const allocations = require('./core/allocations');
+const compliance = require('./core/compliance');
 const { log: defaultLog } = require('../../utils/logging');
 
 
@@ -88,6 +91,7 @@ class InvoiceService {
    *        usługi (`MONTAZ` to kod uchwytu, patrz `core/orderMapper.js`).
    *        `isInstallation: true` kwalifikuje usługę do stawki obniżonej w PL.
    * @param {string} [params.saleDate]               Domyślnie dziś (lub `sent_date` zamówienia).
+   * @param {boolean} [params.allowZeroTotal=false] Pozwala wystawić dokument na 0,00.
    * @param {string} [params.notes]
    * @param {string} [params.createdByPin]
    * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
@@ -108,26 +112,63 @@ class InvoiceService {
     if (!source) throw new Error(`Zamówienie ${orderId} nie istnieje`);
     if (!source.orderItems.length) throw new Error(`Zamówienie ${orderId} nie ma pozycji`);
 
+    // POZIOM HIERARCHII: 1 producent→organizacja, 2 organizacja→użytkownik,
+    // 3 użytkownik→odbiorca końcowy. Domyślnie 2 (zachowanie z v1).
+    const level = Number(params.level || hierarchy.InvoiceLevel.ORGANIZATION_TO_USER);
+    const levelDef = hierarchy.getLevel(level);
+
+    // Odbiorca końcowy: z parametru albo z powiązania zapisanego na zamówieniu
+    const endClientId = params.endClientId || source.order.end_client_id || null;
+    const endClient = level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT && endClientId
+      ? await this.repository.getEndClient({ id: endClientId, ownerUserId: source.user.id })
+      : null;
+    if (level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT && !endClient) {
+      throw new Error(
+        `Poziom 3 wymaga odbiorcy końcowego — zamówienie ${source.order.order_idx || orderId} nie ma przypisanego klienta `
+        + '(pole `end_client_id`), a parametr `endClientId` nie został podany.'
+      );
+    }
+
+    const issuerId = levelDef.issuerIdFrom({ organization: source.organization, user: source.user, endClient });
+    const issuerProfile = await this.repository.getIssuerProfile({
+      issuerType: levelDef.issuerType,
+      issuerId: issuerId || 0,
+      level
+    });
+    if (!issuerProfile) {
+      throw new Error(
+        `Brak profilu fakturowania dla wystawcy ${levelDef.issuerType}#${issuerId || 0} na poziomie ${level}. `
+        + 'Uzupełnij dane w ustawieniach faktur.'
+      );
+    }
+
     const profile = await this.repository.getOrganizationProfile(source.order.organization_id);
     if (!profile) throw new Error(`Brak organizacji ${source.order.organization_id}`);
 
-    const lang = params.lang || profile.defaultLang;
+    const lang = params.lang || issuerProfile.defaultLang || profile.defaultLang;
     // Waluta jest stała — patrz DOCUMENT_CURRENCY
     const currency = DOCUMENT_CURRENCY;
     const today = todayIso(this.now());
     // `sent_date` przychodzi z mysql2 jako obiekt Date — patrz `core/dates.js`
     const saleDate = toIsoDay(params.saleDate) || toIsoDay(source.order.sent_date) || today;
     const issueDate = today;
-    const dueDate = addDays(issueDate, profile.defaultPaymentDays);
+    const dueDate = addDays(issueDate, issuerProfile.paymentDays ?? profile.defaultPaymentDays);
+    // Data dostawy/usługi — wymagana na fakturze niemieckiej (Leistungsdatum)
+    const deliveryDate = toIsoDay(params.deliveryDate) || toIsoDay(source.order.delivery_date) || saleDate;
 
-    const { seller, buyer } = orderMapper.mapParties({
-      organization: source.organization,
-      user: source.user,
-      groupShop: source.groupShop
+    // Strony transakcji wynikają z POZIOMU — patrz `core/hierarchy.js`.
+    // Dane wystawcy pochodzą z jego profilu, nabywcy z właściwej tabeli.
+    const parties = hierarchy.resolveParties({
+      level,
+      issuerProfile,
+      context: {
+        organization: source.organization,
+        user: source.user,
+        groupShop: source.groupShop,
+        endClient
+      }
     });
-    // Profil organizacji ma priorytet nad tabelą `organization` (może zawierać
-    // inne dane rejestrowe niż te używane w mailach).
-    Object.assign(seller, profile.seller);
+    const { seller, buyer } = parties;
 
     // Weryfikacja numeru VAT-UE nabywcy. Stawki NIE warunkuje (o niej decyduje
     // para krajów — `core/taxRules.js`); zapisujemy ją na dokumencie jako dowód
@@ -154,6 +195,54 @@ class InvoiceService {
       currency,
       useSubPrices
     });
+
+    // CZĘŚCIOWE FAKTUROWANIE: gdy podano `allocations`, fakturujemy tylko
+    // wskazane partie ilości. Kwota partii to proporcja WARTOŚCI pozycji
+    // (cenniki są progowe — patrz `core/allocations.js`), a reszta groszowa
+    // trafia do ostatniej partii, żeby suma faktur zgadzała się z zamówieniem.
+    let requestedAllocations = null;
+    if (Array.isArray(params.allocations) && params.allocations.length) {
+      const orderItemsById = new Map(source.orderItems.map((it) => [Number(it.id), it]));
+      const allocatedByOrderItem = await this.repository.getAllocatedQuantities(orderId);
+
+      const check = allocations.validateAllocations({
+        requested: params.allocations,
+        orderItemsById,
+        allocatedByOrderItem
+      });
+      if (!check.valid) throw new Error(`Częściowe fakturowanie: ${check.errors.join(' ')}`);
+      requestedAllocations = check.lines;
+
+      const byOrderItem = new Map(rawItems.map((it) => [Number(it.orderItemId), it]));
+      rawItems = check.lines.map((line) => {
+        const base = byOrderItem.get(line.orderItemId);
+        if (!base) throw new Error(`Pozycja zamówienia ${line.orderItemId} nie ma odpowiednika na fakturze`);
+
+        // Kwoty już zafakturowane z tej pozycji — do domknięcia reszty groszowej
+        const alreadyMinor = money.roundHalfUp((base.unitPriceNetMinor * line.alreadyInvoiced) / (line.ordered || 1));
+        const netMinor = allocations.allocatedNetAmount({
+          itemNetMinor: base.unitPriceNetMinor,
+          quantity: line.quantity,
+          ordered: line.ordered,
+          alreadyInvoicedQty: line.alreadyInvoiced,
+          alreadyInvoicedMinor: alreadyMinor
+        });
+
+        return {
+          ...base,
+          unitPriceNetMinor: netMinor,
+          description: [base.description, `${line.quantity}/${line.ordered}`].filter(Boolean).join(' · '),
+          meta: {
+            ...base.meta,
+            displayQuantity: line.quantity,
+            invoicedQuantity: line.quantity,
+            orderedQuantity: line.ordered,
+            previouslyInvoiced: line.alreadyInvoiced,
+            remainingAfter: line.remainingAfter
+          }
+        };
+      });
+    }
 
     // Usługi dokładane jawnie — jedyna droga, żeby na fakturze pojawiła się
     // pozycja usługowa (i ewentualnie stawka obniżona za montaż).
@@ -202,17 +291,18 @@ class InvoiceService {
 
     // Kurs waluty potrzebny tylko, gdy dokument jest w innej walucie niż lokalna.
     let exchangeRate = null;
-    if (currency !== profile.localCurrency) {
+    const localCurrency = issuerProfile.localCurrency || profile.localCurrency;
+    if (currency !== localCurrency) {
       try {
-        exchangeRate = await this.currency.getRate(currency, profile.localCurrency, saleDate);
+        exchangeRate = await this.currency.getRate(currency, localCurrency, saleDate);
       } catch (err) {
         // Brak kursu nie może blokować wystawienia — dokument powstaje bez
         // przeliczenia, a szablon drukuje ostrzeżenie (patrz `vat_summary.njk`).
-        this.log(`[invoices] order ${orderId}: brak kursu ${currency}/${profile.localCurrency} na ${saleDate}: ${err.message}`);
+        this.log(`[invoices] order ${orderId}: brak kursu ${currency}/${localCurrency} na ${saleDate}: ${err.message}`);
       }
     }
 
-    const calculator = new InvoiceCalculator({ currency, localCurrency: profile.localCurrency, exchangeRate });
+    const calculator = new InvoiceCalculator({ currency, localCurrency, exchangeRate });
 
     let advanceSettled = 0;
     if (documentType === DocumentType.FINAL) {
@@ -222,25 +312,61 @@ class InvoiceService {
 
     const computed = calculator.calculate(rawItems, { advanceSettled });
 
+    // ⚠️ Zamówienie o zerowej wartości netto daje dokument na 0,00 — bezużyteczny
+    // księgowo i mylący dla klienta. W bazie takie zamówienia realnie istnieją
+    // (stare pozycje z `order_item.total_price = 0` albo `NULL`), więc blokujemy
+    // to jawnie zamiast wystawiać puste faktury. `allowZeroTotal: true` pozwala
+    // wymusić (np. dokument korygujący do zera).
+    if (!params.allowZeroTotal && computed.totalNet === 0) {
+      throw new Error(
+        `Zamówienie ${source.order.order_idx || orderId} ma zerową wartość netto — dokument nie został wystawiony. `
+        + 'Uzupełnij ceny pozycji zamówienia albo wymuś utworzenie parametrem allowZeroTotal.'
+      );
+    }
+
+    // Kontekst prawno-podatkowy kraju WYSTAWCY (numery rejestrowe, klauzule,
+    // wymóg daty dostawy, wymóg kwoty VAT w walucie krajowej)
+    const complianceContext = compliance.buildComplianceContext({
+      seller,
+      buyer,
+      taxLines: computed.taxLines,
+      legalSettings: issuerProfile.legalSettings,
+      currency,
+      localCurrency,
+      deliveryDate
+    });
+    complianceContext.warnings.forEach((w) => this.log(`[invoices] order ${orderId}: ${w}`));
+
     /** @type {Invoice & Record<string, any>} */
     const invoice = {
       organizationId: profile.organizationId,
+      level,
+      issuerType: parties.issuerType,
+      issuerId: parties.issuerId,
+      buyerType: parties.buyerType,
+      buyerEndClientId: parties.buyerType === hierarchy.BuyerType.END_CLIENT ? parties.buyerId : null,
+      deliveryDate,
+      compliance: complianceContext,
+      allocations: requestedAllocations
+        ? requestedAllocations.map((l) => ({ orderItemId: l.orderItemId, quantity: l.quantity }))
+        : null,
       documentType,
       status: issue ? InvoiceStatus.ISSUED : InvoiceStatus.DRAFT,
       issueDate,
       saleDate,
       dueDate,
       currency,
-      localCurrency: profile.localCurrency,
+      localCurrency,
       exchangeRate: exchangeRate || undefined,
       seller,
       buyer,
-      buyerUserId: source.user.id,
+      buyerUserId: parties.buyerType === hierarchy.BuyerType.USER ? source.user.id : null,
       buyerGroupUserId: source.groupShop ? source.groupShop.id : null,
       buyerVatEuVerified: vies.verified,
       viesCheckedAt: vies.checkedAt,
       viesValid: vies.checked ? vies.verified : null,
       paymentMethod: profile.defaultPaymentMethod,
+      numberPattern: issuerProfile.numberPattern || '{YYYY}/{NR:5}',
       items: computed.items,
       taxLines: computed.taxLines,
       totalNet: computed.totalNet,
@@ -252,11 +378,10 @@ class InvoiceService {
       orderId,
       orderRef: source.order.order_idx || String(orderId),
       lang,
-      templateCode: profile.templateCode,
+      templateCode: issuerProfile.templateCode || profile.templateCode,
       notes: notes || source.order.comment || '',
       legalNotes: [...new Set(computed.taxLines.map((l) => l.legalNoteKey).filter(Boolean))],
       orgCode: profile.orgCode,
-      numberPattern: profile.numberPatterns?.[documentType] || DEFAULT_PATTERNS[documentType],
       createdByPin
     };
 
@@ -507,6 +632,9 @@ module.exports = {
   CurrencyConverter,
   taxRules,
   statuses,
+  hierarchy,
+  allocations,
+  compliance,
   orderMapper,
   renderer,
   money,

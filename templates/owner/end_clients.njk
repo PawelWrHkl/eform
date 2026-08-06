@@ -1,0 +1,148 @@
+{#
+  Odbiorcy końcowi (poziom 3) — prywatna baza klientów Użytkownika/salonu.
+
+  ⚠️ To NIE są konta w aplikacji: brak pinu i hasła, istnieją wyłącznie jako
+  nabywcy na fakturach i adresaci dostaw (tabela `invoice_end_client`).
+  Cała komunikacja idzie przez `/api/v1/invoices/end-clients` — strona nie ma
+  własnej logiki biznesowej. Wyszukiwanie jest serwerowe (skala!).
+#}
+{% extends "base.njk" %}
+
+{% block title %}{{ L.end_clients }}{% endblock title %}
+
+{% block head %}
+  <link rel="stylesheet" href="/styles/orders.css">
+  <link rel="stylesheet" href="/styles/invoices.css?v={{ assetVersion }}">
+{% endblock head %}
+
+{% block key_nav %}window.location.href='/invoices'{% endblock %}
+
+{% block back_link %}
+  <button class="modern-back-btn" onclick="window.location.href='/invoices'">
+{% endblock %}
+
+{% block content %}
+  <div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card">
+
+      <div class="inv-topbar">
+        <div>
+          <h2 class="fw-bold header mb-1">{{ L.end_clients }}</h2>
+          <div class="inv-subtitle">{{ L.end_clients_hint }}</div>
+        </div>
+        <a class="inv-btn inv-btn--ghost" href="/invoices">{{ L.back }}</a>
+      </div>
+
+      {# ---------- Wyszukiwanie + lista ---------- #}
+      <section class="inv-card">
+        <h3 class="inv-card__title">{{ L.end_clients_list }}</h3>
+        <div class="inv-form__row inv-form__row--tight">
+          <label class="inv-field inv-field--grow">
+            <input type="text" id="ec-search" class="inv-combo__input"
+                   placeholder="{{ L.end_client_search_placeholder }}" autocomplete="off">
+          </label>
+          <button type="button" class="inv-btn inv-btn--primary" id="ec-new">{{ L.end_client_new }}</button>
+        </div>
+
+        <div class="inv-table-wrap">
+          <table class="inv-table" id="ec-table">
+            <thead>
+              <tr>
+                <th>{{ L.name }}</th>
+                <th>{{ L.type }}</th>
+                <th>{{ L.tax_id }}</th>
+                <th>{{ L.client_country }}</th>
+                <th>{{ L.city }}</th>
+                <th>{{ L.email }}</th>
+                <th>{{ L.actions }}</th>
+              </tr>
+            </thead>
+            <tbody id="ec-rows">
+              <tr><td colspan="7" class="inv-empty">{{ L.searching }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {# ---------- Formularz (dodawanie i edycja tym samym formularzem) ---------- #}
+      <section class="inv-card" id="ec-form-card" hidden>
+        <h3 class="inv-card__title" id="ec-form-title">{{ L.end_client_new }}</h3>
+
+        <form id="ec-form">
+          <input type="hidden" name="id" id="ec-id">
+
+          <div class="inv-grid">
+            <label class="inv-field"><span class="inv-label">{{ L.end_client_type }}</span>
+              <select name="client_type" id="ec-type">
+                <option value="company">{{ L.type_company }}</option>
+                <option value="person">{{ L.type_person }}</option>
+              </select></label>
+            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.name }} *</span>
+              <input name="name" required></label>
+            <label class="inv-field"><span class="inv-label">{{ L.tax_id }}</span>
+              <input name="tax_id" id="ec-tax-id"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.vat_eu_id }}</span>
+              <input name="vat_eu_id" placeholder="DE123456789"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.client_country }} *</span>
+              <input name="country" maxlength="2" placeholder="PL" required></label>
+            <label class="inv-field"><span class="inv-label">{{ L.default_currency }}</span>
+              <input name="default_currency" maxlength="3" value="EUR"></label>
+          </div>
+
+          <h3 class="inv-card__title">{{ L.registry_address }}</h3>
+          <div class="inv-grid">
+            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.street }}</span>
+              <input name="street"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.zip }}</span>
+              <input name="zip"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.city }}</span>
+              <input name="city"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.email }}</span>
+              <input name="email" type="email"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.phone }}</span>
+              <input name="phone"></label>
+          </div>
+
+          <h3 class="inv-card__title">{{ L.delivery_address }}</h3>
+          <div class="inv-grid">
+            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.name }}</span>
+              <input name="delivery_name"></label>
+            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.street }}</span>
+              <input name="delivery_street"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.zip }}</span>
+              <input name="delivery_zip"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.city }}</span>
+              <input name="delivery_city"></label>
+            <label class="inv-field"><span class="inv-label">{{ L.client_country }}</span>
+              <input name="delivery_country" maxlength="2"></label>
+          </div>
+
+          {# Numery rejestrowe zależne od kraju — etykiety podpowiadane w JS #}
+          <h3 class="inv-card__title">{{ L.registry_numbers }}</h3>
+          <p class="inv-hint" id="ec-registry-hint"></p>
+          <div class="inv-grid" id="ec-registry-fields"></div>
+
+          <h3 class="inv-card__title">{{ L.notes }}</h3>
+          <label class="inv-field inv-field--wide">
+            <textarea name="notes" rows="3"></textarea>
+          </label>
+
+          <div class="inv-form__actions">
+            <button type="button" class="inv-btn inv-btn--ghost" id="ec-cancel">{{ L.cancel_doc }}</button>
+            <button type="submit" class="inv-btn inv-btn--primary">{{ L.save }}</button>
+          </div>
+        </form>
+      </section>
+
+    </div>
+  </div>
+
+  <script type="application/json" id="inv-labels">{{ L | dump | safe }}</script>
+  {# Definicje numerów rejestrowych per kraj — te same, których używa
+     `core/compliance.js` przy budowaniu dokumentu (jedno źródło prawdy). #}
+  <script type="application/json" id="ec-registry-defs">{{ registryFields | dump | safe }}</script>
+{% endblock content %}
+
+{% block scripts %}
+  <script type="module" src="/scripts/owner/end_clients.js?v={{ assetVersion }}"></script>
+{% endblock scripts %}

@@ -1,0 +1,49 @@
+{#
+  Blok zgodności krajowej — numery rejestrowe i klauzule prawne.
+
+  ⚠️ Szablon NIE decyduje, co pokazać: dostaje gotowy `invoice.compliance`
+  z `core/compliance.js` (zbudowany wg kraju WYSTAWCY przy wystawieniu i
+  zapisany na dokumencie). Dzięki temu faktura wystawiona rok temu drukuje
+  klauzule obowiązujące wtedy, a nie dzisiejsze.
+
+  Teksty klauzul są w oryginalnym języku prawnym (niemieckie brzmienie na
+  fakturze niemieckiej, francuskie na francuskiej) — celowo bez i18n, bo
+  tłumaczenie zmieniłoby ich skutek prawny.
+
+  Makro `registryLines` renderuje numery rejestrowe strony; używa go
+  `seller_buyer.njk`.
+#}
+
+{% macro registryLines(rows) %}
+  {% for row in rows %}
+    {% if row.value %}
+      <div class="party__line party__registry">
+        <span class="label">{{ row.label }}:</span> {{ row.value }}
+      </div>
+    {% endif %}
+  {% endfor %}
+{% endmacro %}
+
+{% if invoice.compliance %}
+  {% set c = invoice.compliance %}
+
+  {# Data dostawy/usługi — obowiązkowa u wystawcy niemieckiego (§ 14 UStG) #}
+  {% if c.requiresDeliveryDate and c.deliveryDate %}
+    <div class="compliance-delivery">
+      <span class="label">
+        {%- if c.sellerCountry == 'DE' %}Leistungsdatum{% else %}{{ t('header.delivery_date') }}{% endif -%}
+      </span>:
+      <strong>{{ c.deliveryDate | date }}</strong>
+    </div>
+  {% endif %}
+
+  {% if c.clauses | length %}
+    <section class="compliance">
+      <ul class="compliance__clauses">
+        {% for clause in c.clauses %}
+          <li>{{ clause.text }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+{% endif %}

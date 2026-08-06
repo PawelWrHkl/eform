@@ -2945,3 +2945,64 @@ fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: 
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-08-05 10:35:01 - Start ===
 === 2026-08-05 10:35:01 - Dodawanie zmian do commita ===
+[main ae6bba4] Automatic commit 2026-08-05 10:35
+ 65 files changed, 18325 insertions(+), 1502 deletions(-)
+ create mode 100644 public/scripts/owner/invoices.js
+ create mode 100644 public/styles/invoices.css
+ create mode 100644 scripts/repairOrderPrices.js
+ create mode 100644 services/invoices/README.md
+ create mode 100644 services/invoices/__tests__/calculator.test.js
+ create mode 100644 services/invoices/__tests__/numbering.test.js
+ create mode 100644 services/invoices/__tests__/orderMapper.test.js
+ create mode 100644 services/invoices/__tests__/renderer.test.js
+ create mode 100644 services/invoices/__tests__/taxRules.test.js
+ create mode 100644 services/invoices/__tests__/vies.test.js
+ create mode 100644 services/invoices/core/calculator.js
+ create mode 100644 services/invoices/core/currency.js
+ create mode 100644 services/invoices/core/dates.js
+ create mode 100644 services/invoices/core/money.js
+ create mode 100644 services/invoices/core/numbering.js
+ create mode 100644 services/invoices/core/orderMapper.js
+ create mode 100644 services/invoices/core/statuses.js
+ create mode 100644 services/invoices/core/taxRules.js
+ create mode 100644 services/invoices/core/vies.js
+ create mode 100644 services/invoices/db/repository.js
+ create mode 100644 services/invoices/db/schema.sql
+ create mode 100644 services/invoices/domain/constants.js
+ create mode 100644 services/invoices/domain/types.js
+ create mode 100644 services/invoices/examples/invoice-payload.json
+ create mode 100644 services/invoices/http/panel.js
+ create mode 100644 services/invoices/http/routes.js
+ create mode 100644 services/invoices/http/session.js
+ create mode 100644 services/invoices/i18n/de.json
+ create mode 100644 services/invoices/i18n/en.json
+ create mode 100644 services/invoices/i18n/panel.json
+ create mode 100644 services/invoices/i18n/pl.json
+ create mode 100644 services/invoices/main.js
+ create mode 100644 services/invoices/render/renderer.js
+ create mode 100644 services/invoices/templates/invoice-main.njk
+ create mode 100644 services/invoices/templates/partials/footer.njk
+ create mode 100644 services/invoices/templates/partials/header.njk
+ create mode 100644 services/invoices/templates/partials/items_table.njk
+ create mode 100644 services/invoices/templates/partials/payment.njk
+ create mode 100644 services/invoices/templates/partials/seller_buyer.njk
+ create mode 100644 services/invoices/templates/partials/vat_summary.njk
+ create mode 100644 services/invoices/templates/styles/invoice.css
+ delete mode 100644 services/mailBot/order-html.njk
+ delete mode 100644 services/mailBot/styles/order-html.css
+ create mode 100644 services/orderImport/__tests__/paramDescriptions.test.js
+ create mode 100644 services/orderImport/__tests__/paramVisibility.test.js
+ create mode 100644 services/orderImport/__tests__/zeroPriceRepair.test.js
+ create mode 100644 services/orderImport/paramDescriptions.js
+ create mode 100644 services/orderImport/paramVisibility.js
+ create mode 100644 services/orderImport/zeroPriceRepair.js
+ create mode 100644 templates/owner/invoice_profile.njk
+ create mode 100644 templates/owner/invoices.njk
+=== 2026-08-05 10:35:02 - Wysyłanie do origin/main ===
+remote: Permission to PawelWoronieckiHkl/eform.git denied to PawelWrHkl.
+fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: The requested URL returned error: 403
+=== 2026-08-05 12:00:01 - Start ===
+=== 2026-08-05 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-08-06 10:35:01 - Start ===
+=== 2026-08-06 10:35:01 - Dodawanie zmian do commita ===

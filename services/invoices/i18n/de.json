@@ -75,5 +75,8 @@
   "taxcat.intra_eu_service": "Reverse Charge",
   "taxcat.export": "Ausfuhr",
   "taxcat.np": "Nicht steuerbar",
-  "taxcat.zw": "Steuerfrei"
+  "taxcat.zw": "Steuerfrei",
+  "items.order_ref": "Auftrag",
+  "items.dimensions": "Maße",
+  "header.delivery_date": "Leistungsdatum"
 }

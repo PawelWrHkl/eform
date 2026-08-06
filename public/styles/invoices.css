@@ -330,3 +330,125 @@
         font-size: 0.85rem;
     }
 }
+
+/* ---------- Krok 1: karta wybranego klienta ---------- */
+
+.inv-client-card {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: #f6f8fa;
+    border: 1px solid #e3e6ec;
+    border-radius: 10px;
+}
+
+.inv-client-card__name {
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.inv-client-card__meta {
+    margin-top: 3px;
+    font-size: 0.88rem;
+    color: #626b7d;
+}
+
+.inv-client-card__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 9px;
+}
+
+.inv-tag {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 10px;
+    background: #eef1f5;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #4b5563;
+}
+
+/* Stawka 0% zmienia kwotę dokumentu — musi być widoczna na pierwszy rzut oka */
+.inv-tag--zero {
+    background: #fdf3dc;
+    color: #8a6d0b;
+}
+
+.inv-tag--warn {
+    background: #fde8e8;
+    color: #9b1c1c;
+}
+
+/* ---------- Combobox z podpowiedziami z serwera ---------- */
+
+.inv-combo {
+    position: relative;
+}
+
+.inv-combo__list {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-top: 4px;
+    background: #fff;
+    border: 1px solid #d8dce3;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(20, 25, 35, 0.14);
+}
+
+.inv-combo__list.is-open {
+    display: block;
+}
+
+.inv-combo__item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f2f4;
+}
+
+.inv-combo__item:last-child {
+    border-bottom: 0;
+}
+
+/* Podświetlenie działa dla myszy i dla nawigacji klawiaturą (ArrowUp/Down) */
+.inv-combo__item:hover,
+.inv-combo__item.is-active {
+    background: #eef1f5;
+}
+
+.inv-combo__main {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #171c26;
+}
+
+.inv-combo__sub {
+    display: block;
+    margin-top: 1px;
+    font-size: 0.8rem;
+    color: #626b7d;
+}
+
+.inv-combo__state {
+    padding: 9px 12px;
+    font-size: 0.85rem;
+    color: #626b7d;
+}
+
+.inv-hint--warn {
+    color: #9b1c1c;
+    font-weight: 600;
+}
+
+.inv-topbar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}

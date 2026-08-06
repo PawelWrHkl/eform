@@ -75,5 +75,8 @@
   "taxcat.intra_eu_service": "Reverse charge",
   "taxcat.export": "Export",
   "taxcat.np": "Not subject",
-  "taxcat.zw": "Exempt"
+  "taxcat.zw": "Exempt",
+  "items.order_ref": "Order",
+  "items.dimensions": "Dimensions",
+  "header.delivery_date": "Delivery date"
 }
