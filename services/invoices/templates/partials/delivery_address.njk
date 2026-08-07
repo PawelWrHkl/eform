@@ -1,0 +1,20 @@
+{#
+  Adres dostawy — drukowany TYLKO gdy różni się od adresu rejestrowego nabywcy.
+  Decyzję podejmuje serwis przy wystawieniu (`main.js:buildDeliveryAddress`),
+  a wynik jest zapisany na dokumencie (`invoice.deliveryAddress`), więc szablon
+  niczego nie porównuje — drukuje albo pomija.
+
+  Po co to na fakturze: w tej branży towar jedzie pod inny adres niż faktura
+  (montaż u klienta końcowego), a przy WDT 0% adres w innym państwie UE jest
+  elementem dokumentacji uzasadniającej stawkę.
+#}
+{% if invoice.deliveryAddress %}
+  {% set d = invoice.deliveryAddress %}
+  <section class="delivery-address">
+    <h2 class="party__title">{{ t('party.delivery_address') }}</h2>
+    {% if d.name %}<div class="party__name">{{ d.name }}</div>{% endif %}
+    {% if d.street %}<div class="party__line">{{ d.street }}</div>{% endif %}
+    {% if d.zip or d.city %}<div class="party__line">{{ d.zip }} {{ d.city }}</div>{% endif %}
+    {% if d.country %}<div class="party__line">{{ d.country }}</div>{% endif %}
+  </section>
+{% endif %}

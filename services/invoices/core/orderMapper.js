@@ -72,37 +72,28 @@ function num(value) {
 }
 
 /**
- * Jednostka miary i ilość rozliczeniowa pozycji.
+ * Jednostka miary i ilość pozycji.
  *
- * Reguła (branża dekoracji okiennych):
- *  - pozycja z policzoną powierzchnią (`POW` > 0) → `m2`, ilość = POW × ILOSC,
- *  - pozycja z samą szerokością (karnisze, taśmy) → `mb`, ilość = SZEROKOSC[mm]/1000 × ILOSC,
- *  - w pozostałych przypadkach → `szt`, ilość = ILOSC (min. 1).
+ * ⚠️ ILOŚĆ POCHODZI WYŁĄCZNIE Z `json_parameters.ILOSC` — czyli z liczby sztuk.
+ * Żaden produkt w tym systemie nie jest rozliczany na m² ani na metry bieżące:
+ * powierzchnia (`POW`) i wymiary (`SZEROKOSC`/`WYSOKOSC`) są danymi
+ * technicznymi konfiguracji, a nie miarą sprzedaży.
  *
- * ⚠️ Ilość w `m2`/`mb` jest wyłącznie **informacją na dokumencie**. Wartość netto
- * pozycji bierzemy z ceny policzonej przez silnik formularzy (`total_price`),
- * a nie z ilość × cena jednostkowa — cenniki tej branży są progowe/tabelaryczne
- * i przemnożenie m² przez stawkę dałoby inną kwotę niż realna wycena.
+ * Wcześniejsza wersja wyliczała `m²` z `POW × ILOSC` i drukowała to jako ilość,
+ * przez co faktura pokazywała np. „1,76 m²" dla pozycji, którą częściowe
+ * fakturowanie rozliczało jako **1 sztukę** (`core/allocations.js` zawsze czyta
+ * `ILOSC`). Dokument przeczył więc własnym alokacjom. Teraz oba miejsca liczą
+ * to samo — sztuki.
+ *
+ * Wymiary trafiają do `meta` i mają na dokumencie osobną kolumnę „Wymiary".
  *
  * @param {Record<string, any>} params  `json_parameters`
- * @param {number} amount               `order_item.amount`
+ * @param {number} amount               `order_item.amount` (fallback)
  * @returns {{ unit: string, quantity: number, isInstallation: boolean }}
  */
 function resolveUnitAndQuantity(params, amount) {
   const pieces = Math.max(1, num(params.ILOSC) || num(amount) || 1);
   // `isInstallation` zawsze false — patrz GOODS_ONLY_NOTE na górze pliku.
-  const isInstallation = false;
-
-  const area = num(params.POW);
-  if (area > 0) {
-    return { unit: Unit.SQUARE_METER, quantity: Math.round(area * pieces * 100) / 100, isInstallation: false };
-  }
-
-  const widthMm = num(params.SZEROKOSC);
-  if (widthMm > 0 && num(params.WYSOKOSC) === 0) {
-    return { unit: Unit.RUNNING_METER, quantity: Math.round((widthMm / 1000) * pieces * 100) / 100, isInstallation: false };
-  }
-
   return { unit: Unit.PIECE, quantity: pieces, isInstallation: false };
 }
 
@@ -136,11 +127,10 @@ function buildItemName(item) {
  * @returns {string}
  */
 function buildItemDescription(item, params) {
+  // ⚠️ BEZ wymiarów: mają własną kolumnę na dokumencie (`items_table.njk`
+  // + `invoice_item.width_mm/height_mm`). Powtarzanie ich w opisie zawijało
+  // wiersz na dwie linie i wypychało dokument na kolejną stronę.
   const parts = [];
-  const w = num(params.SZEROKOSC);
-  const h = num(params.WYSOKOSC);
-  if (w > 0 && h > 0) parts.push(`${w}×${h} mm`);
-  else if (w > 0) parts.push(`${w} mm`);
 
   for (const key of DESCRIPTION_KEYS) {
     const value = params[key];
@@ -191,9 +181,9 @@ function mapOrderItemsToInvoiceItems({ orderItems, resolveTax, currency = 'EUR',
       name: buildItemName(item),
       description: buildItemDescription(item, params),
       unit,
-      // ⚠️ Świadomie: ilość rozliczeniowa = 1 × wartość pozycji; `meta.displayQuantity`
-      // niesie ilość w jednostce miary do wydruku. Inaczej faktura nie zgadzałaby
-      // się z wyceną zamówienia (cenniki progowe).
+      // ⚠️ Świadomie: kalkulator dostaje ilość 1 × pełną wartość pozycji, bo
+      // cenniki są progowe i `ILOSC × cena jednostkowa` nie odtworzyłoby wyceny.
+      // Na dokumencie drukujemy `meta.displayQuantity`, czyli liczbę SZTUK.
       quantity: 1,
       unitPriceNetMinor,
       discountPercent: 0,

@@ -174,7 +174,10 @@ ${themeCss}
  *
  * @param {string} html
  * @param {Object} [opts]
- * @param {boolean} [opts.landscape=false]  Faktura domyślnie portret A4.
+ * @param {boolean} [opts.landscape=true]  Faktura jest POZIOMA (A4 landscape) —
+ *        tak jak PDF zamówienia, bo tabela pozycji niesie dużo kolumn (numer
+ *        zamówienia, wymiary, ilość, netto, stawka, VAT, brutto). W pionie
+ *        kolumny robiły się nieczytelnie wąskie.
  * @param {string} [opts.format='A4']
  * @returns {Promise<Buffer>}
  */
@@ -190,7 +193,7 @@ async function renderPdfFromHtml(html, opts = {}) {
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
     return await page.pdf({
       format: opts.format || 'A4',
-      landscape: !!opts.landscape,
+      landscape: opts.landscape === undefined ? true : !!opts.landscape,
       printBackground: true,
       margin: { top: '12mm', right: '10mm', bottom: '14mm', left: '10mm' }
     });

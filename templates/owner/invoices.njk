@@ -38,12 +38,37 @@
         </div>
       </div>
 
+      {# ---------- KROK 0: relacja handlowa ----------
+         Ten sam ekran obsługuje kilka relacji: owner fakturuje swojego
+         użytkownika albo odbiorcę końcowego, admin inną organizację albo
+         bezpośredniego klienta HKL. Relacja decyduje NIE TYLKO o stronach
+         dokumentu, ale i o CENNIKU (bazowy vs SUB) — dlatego jest wyborem
+         świadomym, a nie domyślnym trybem. #}
+      {% if levelOptions.length > 1 %}
+        <section class="inv-card inv-levels">
+          <h3 class="inv-card__title">{{ L.choose_relation }}</h3>
+          <div class="inv-levels__row">
+            {% for opt in levelOptions %}
+              {# Zmiana relacji czyści wybranego klienta — kartoteki są różne #}
+              <a class="inv-level{% if opt.active %} inv-level--active{% endif %}"
+                 href="/invoices?level={{ opt.level }}">{{ opt.label }}</a>
+            {% endfor %}
+          </div>
+          <div class="inv-levels__basis">
+            {{ L.price_basis }}: <strong>{{ priceBasisLabels[priceBasis.basis] }}</strong>
+            <span class="inv-levels__reason">{{ priceBasis.reason }}</span>
+          </div>
+        </section>
+      {% endif %}
+
       {# ---------- KROK 1: wybór klienta ----------
          Faktura zawsze dotyczy konkretnego nabywcy, więc dopóki klient nie jest
          wybrany, nie pokazujemy ani formularza, ani listy dokumentów. #}
       <section class="inv-card inv-client">
         <h3 class="inv-card__title">
-          {%- if level == 3 %}{{ L.select_end_client }}{% else %}{{ L.select_client }}{% endif -%}
+          {%- if level == 1 -%}{{ L.select_organization }}
+          {%- elif level == 3 or level == 4 -%}{{ L.select_end_client }}
+          {%- else -%}{{ L.select_client }}{%- endif -%}
         </h3>
 
         {# ⚠️ Pole wyszukiwania, NIE lista: klientów będzie bardzo dużo, więc
@@ -52,12 +77,15 @@
            `noscript`-owy fallback: przycisk działa po wpisaniu samego ID. #}
         {# `data-source` mówi skryptowi, którego endpointu pytać: klientów
            organizacji (poziom 2) czy własnych odbiorców końcowych (poziom 3). #}
+        {# `data-level` steruje tym, KOGO szuka combobox — jeden endpoint
+           `/search/clients?level=…` obsługuje wszystkie cztery kartoteki. #}
         <form class="inv-form" method="get" action="/invoices" id="inv-client-form" autocomplete="off"
-              data-source="{{ 'end-clients' if level == 3 else 'clients' }}">
+              data-level="{{ level }}">
+          <input type="hidden" name="level" value="{{ level }}">
           <div class="inv-form__row inv-form__row--tight">
             <label class="inv-field inv-field--grow inv-combo">
               <input type="text" id="inv-client-input" class="inv-combo__input"
-                     placeholder="{{ L.end_client_search_placeholder if level == 3 else L.client_search_placeholder }}"
+                     placeholder="{% if level == 1 %}{{ L.organization_search_placeholder }}{% elif level == 3 or level == 4 %}{{ L.end_client_search_placeholder }}{% else %}{{ L.client_search_placeholder }}{% endif %}"
                      value="{{ client.client_name if client else '' }}"
                      role="combobox" aria-expanded="false" aria-controls="inv-client-list" aria-autocomplete="list">
               <input type="hidden" name="clientId" id="inv-client-id" value="{{ client.id if client else '' }}">
@@ -86,9 +114,11 @@
           </div>
         {% else %}
           <p class="inv-empty">
-            {%- if level == 3 -%}
+            {%- if level == 3 or level == 4 -%}
               {{ L.end_client_required }}
               <a class="inv-link" href="/invoices/end-clients">{{ L.end_client_new }}</a>
+            {%- elif level == 1 -%}
+              {{ L.organization_required }}
             {%- else -%}
               {{ L.client_required }}
             {%- endif -%}

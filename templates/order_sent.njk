@@ -25,7 +25,10 @@
                             {% block extra_rows %}
                                 {% set statusIdx = globalIndex - 1 %}
                                 {% if statuses[statusIdx] %}
-                                    <tr class="status-row" id='status-row-{{ statuses[statusIdx].order_pos }}'>
+                                    {# Identyfikator z POZYCJI, nie z `order_pos`: przełącznik
+                                       (`public/scripts/order_sent.js`) szuka wiersza po id pozycji,
+                                       a `order_pos` bywa teraz podpozycją `1-2` albo kodem produkcyjnym. #}
+                                    <tr class="status-row" id='status-row-{{ rowObj.item.id }}'>
                                         <td class="status-cell" colspan="100%">
                                             <div class="status-cards">
                                                 <div class="status-card status-card-main" data-status="{{ statuses[statusIdx].status }}">

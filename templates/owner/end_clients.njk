@@ -116,6 +116,12 @@
             <label class="inv-field"><span class="inv-label">{{ L.client_country }}</span>
               <input name="delivery_country" maxlength="2"></label>
           </div>
+          {# Domyślnie wyłączone — adres dostawy pojawia się na fakturze dopiero
+             po świadomym zaznaczeniu (patrz `main.js:buildDeliveryAddress`). #}
+          <label class="inv-check inv-check--spaced">
+            <input type="checkbox" name="print_delivery_address" id="ec-print-delivery" value="1">
+            <span>{{ L.print_delivery_address }}</span>
+          </label>
 
           {# Numery rejestrowe zależne od kraju — etykiety podpowiadane w JS #}
           <h3 class="inv-card__title">{{ L.registry_numbers }}</h3>

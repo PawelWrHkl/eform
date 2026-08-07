@@ -117,7 +117,13 @@ const registryHint = document.getElementById('ec-registry-hint');
  */
 function renderRegistryFields(country, values = {}) {
   const code = String(country || '').toUpperCase().slice(0, 2);
-  const fields = REGISTRY_DEFS[code] || [];
+
+  // ⚠️ Pomijamy numery, które moduł i tak bierze z pól ogólnych: `NIP` z
+  // `tax_id`, a numery VAT-UE (USt-IdNr., Btw-id, N° TVA) z `vat_eu_id`
+  // (patrz `core/compliance.js:buildRegistryRows`). Bez tego formularz pytał
+  // o ten sam numer dwa razy — raz jako „NIP", raz jako „NIP" w rejestrach.
+  const fields = (REGISTRY_DEFS[code] || []).filter((f) => !f.fromTaxId && !f.fromVatEu);
+
   registryHint.textContent = fields.length
     ? `${code}: ${fields.map((f) => f.label).join(', ')}`
     : (L.registry_none || '');
@@ -138,7 +144,9 @@ function openForm(client) {
   if (client) {
     for (const [key, value] of Object.entries(client)) {
       const field = form.elements.namedItem(key);
-      if (field && typeof value !== 'object') field.value = value == null ? '' : value;
+      if (!field || typeof value === 'object') continue;
+      if (field.type === 'checkbox') field.checked = !!Number(value);
+      else field.value = value == null ? '' : value;
     }
   }
   renderRegistryFields(client ? client.country : 'PL', client ? client.registry_numbers : {});
@@ -162,6 +170,9 @@ form.addEventListener('submit', async (event) => {
     }
   }
   payload.registry_numbers = registry;
+  // Niezaznaczony checkbox nie trafia do `FormData`, więc wartość ustawiamy
+  // jawnie — inaczej odznaczenie nigdy by się nie zapisało.
+  payload.print_delivery_address = form.elements.namedItem('print_delivery_address').checked ? 1 : 0;
 
   const id = document.getElementById('ec-id').value;
   try {

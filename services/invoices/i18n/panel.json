@@ -109,7 +109,19 @@
     "partial_invoicing": "Fakturowanie częściowe",
     "available_qty": "Do zafakturowania",
     "select_end_client": "Wybierz odbiorcę końcowego",
-    "end_client_required": "Zacznij od wybrania odbiorcy końcowego. Nie masz go jeszcze?"
+    "end_client_required": "Zacznij od wybrania odbiorcy końcowego. Nie masz go jeszcze?",
+    "print_delivery_address": "Drukuj adres dostawy na fakturze",
+    "choose_relation": "Rodzaj sprzedaży",
+    "level_1": "Do organizacji",
+    "level_2": "Do klienta (użytkownika)",
+    "level_3": "Do odbiorcy końcowego",
+    "level_4": "Do odbiorcy końcowego (bezpośrednio)",
+    "price_basis": "Cennik",
+    "price_basis_base": "ceny bazowe (HKL)",
+    "price_basis_sub": "ceny SUB (organizacji)",
+    "select_organization": "Wybierz organizację",
+    "organization_search_placeholder": "Nazwa organizacji, ident lub NIP…",
+    "organization_required": "Wskaż organizację, dla której wystawiasz fakturę."
   },
   "en": {
     "title": "Invoices",
@@ -214,7 +226,19 @@
     "partial_invoicing": "Partial invoicing",
     "available_qty": "Available to invoice",
     "select_end_client": "Select end client",
-    "end_client_required": "Start by selecting an end client. Don't have one yet?"
+    "end_client_required": "Start by selecting an end client. Don't have one yet?",
+    "print_delivery_address": "Print delivery address on the invoice",
+    "choose_relation": "Sales relation",
+    "level_1": "To organization",
+    "level_2": "To client (user)",
+    "level_3": "To end client",
+    "level_4": "To end client (direct)",
+    "price_basis": "Price list",
+    "price_basis_base": "base prices (HKL)",
+    "price_basis_sub": "SUB prices (organization)",
+    "select_organization": "Select organization",
+    "organization_search_placeholder": "Organization name, ident or VAT ID…",
+    "organization_required": "Choose the organization you are invoicing."
   },
   "de": {
     "title": "Rechnungen",
@@ -319,6 +343,18 @@
     "partial_invoicing": "Teilfakturierung",
     "available_qty": "Noch zu fakturieren",
     "select_end_client": "Endkunden wählen",
-    "end_client_required": "Zuerst einen Endkunden wählen. Noch keinen angelegt?"
+    "end_client_required": "Zuerst einen Endkunden wählen. Noch keinen angelegt?",
+    "print_delivery_address": "Lieferadresse auf der Rechnung drucken",
+    "choose_relation": "Verkaufsbeziehung",
+    "level_1": "An Organisation",
+    "level_2": "An Kunde (Benutzer)",
+    "level_3": "An Endkunde",
+    "level_4": "An Endkunde (direkt)",
+    "price_basis": "Preisliste",
+    "price_basis_base": "Basispreise (HKL)",
+    "price_basis_sub": "SUB-Preise (Organisation)",
+    "select_organization": "Organisation wählen",
+    "organization_search_placeholder": "Name, Ident oder USt-IdNr…",
+    "organization_required": "Wählen Sie die Organisation, für die Sie fakturieren."
   }
 }

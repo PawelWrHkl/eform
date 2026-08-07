@@ -112,13 +112,18 @@ router.post('/from-order/:orderId', requireLogin, async (req, res) => {
       // nigdy by się nie odpaliła.
       vatEuVerified: typeof req.body?.vatEuVerified === 'boolean' ? req.body.vatEuVerified : undefined,
       skipVies: req.body?.skipVies === true,
-      useSubPrices: req.body?.useSubPrices === true,
+      // ⚠️ ŻADNEGO `useSubPrices` z body: warstwa cenowa wynika z relacji
+      // handlowej (`core/pricing.js`), nie z tego, co przyśle przeglądarka.
+      // Wcześniej `=== true` przekazywało boolean przy KAŻDYM żądaniu, co dla
+      // organizacji ≠ HKL wymuszało ceny bazowe — czyli cennik HKL na fakturze
+      // wystawianej przez kogoś innego.
       advancePercent: req.body?.advancePercent,
       allowZeroTotal: req.body?.allowZeroTotal === true,
       // v2: odbiorca końcowy, partie ilości, data dostawy
       endClientId: req.body?.endClientId,
       allocations: req.body?.allocations,
       deliveryDate: req.body?.deliveryDate,
+      includeDeliveryAddress: typeof req.body?.includeDeliveryAddress === 'boolean' ? req.body.includeDeliveryAddress : undefined,
       saleDate: req.body?.saleDate,
       notes: req.body?.notes,
       createdByPin: req.session?.user?.pin
@@ -247,10 +252,15 @@ function sessionUserId(req) {
 
 router.get('/end-clients/search', requireLogin, async (req, res) => {
   const ownerUserId = sessionUserId(req);
-  if (!ownerUserId) return res.status(403).json({ success: false, message: 'Brak użytkownika w sesji' });
+  const scope = scopeFromSession(req);
+  if (!ownerUserId && !scope.isOrgScope) return res.status(403).json({ success: false, message: 'Brak użytkownika w sesji' });
   try {
+    // Owner szuka w kartotece CAŁEJ organizacji (poziom 4 — sprzedaż
+    // bezpośrednia), salon wyłącznie wśród swoich odbiorców.
+    const orgWide = scope.isOrgScope && req.query.scope === 'organization';
     const items = await repository.searchEndClients({
-      ownerUserId,
+      ownerUserId: orgWide ? null : ownerUserId,
+      organizationId: orgWide ? scope.organizationId : null,
       query: String(req.query.q || ''),
       limit: Math.min(Number(req.query.limit) || 20, 50),
       includeInactive: req.query.includeInactive === '1'
@@ -410,11 +420,36 @@ router.get('/search/clients', requireLogin, async (req, res) => {
     // Wcześniej było tu twarde `requireOwner`, przez co starsza (zacache'owana)
     // wersja `invoices.js` w przeglądarce salonu dostawała 403 „Owner privileges
     // required" przy samym wpisywaniu nazwy klienta.
-    const items = scope.isOrgScope
-      ? await repository.searchClients({ organizationId, query, limit })
-      : await repository.searchEndClients({ ownerUserId: scope.userId, query, limit });
+    // Kogo szukamy, zależy od POZIOMU wybranego w panelu — na tym samym ekranie
+    // owner raz szuka swojego użytkownika (poziom 2), raz odbiorcy końcowego
+    // (poziom 4), a admin organizacji-nabywcy (poziom 1).
+    const level = Number(req.query.level) || (scope.isOrgScope ? 2 : 3);
+    if (!canIssueAtLevel(req, level)) {
+      return res.status(403).json({ success: false, message: `Brak uprawnień do poziomu ${level}` });
+    }
 
-    return res.json({ success: true, items, scope: scope.isOrgScope ? 'organization' : 'end_clients' });
+    let items;
+    let resultScope;
+    if (level === 1) {
+      // Wykluczamy PRODUCENTA (HKL), nie bieżący kontekst admina: sprzedaż
+      // poziomu 1 wychodzi zawsze od HKL, niezależnie od tego, na którą
+      // organizację admin jest właśnie przełączony.
+      items = await repository.searchOrganizations({ query, limit, excludeId: require('../core/pricing').HKL_ORG_ID });
+      resultScope = 'organizations';
+    } else if (level === 4) {
+      items = (await repository.searchEndClients({ organizationId, query, limit }))
+        .map((c) => ({ ...c, client_name: c.name }));
+      resultScope = 'end_clients';
+    } else if (level === 3) {
+      items = (await repository.searchEndClients({ ownerUserId: scope.userId, query, limit }))
+        .map((c) => ({ ...c, client_name: c.name }));
+      resultScope = 'end_clients';
+    } else {
+      items = await repository.searchClients({ organizationId, query, limit });
+      resultScope = 'organization';
+    }
+
+    return res.json({ success: true, items, scope: resultScope, level });
   } catch (err) {
     return sendError(res, err, 'GET /search/clients');
   }
@@ -431,8 +466,30 @@ router.get('/search/orders', requireLogin, async (req, res) => {
   //   salon (poziom 3)       → WŁASNE zamówienia salonu; `clientId` z panelu jest
   //                            wtedy id ODBIORCY KOŃCOWEGO, nie właściciela zamówień.
   // Pomyłka w tym miejscu dawała pustą listę zamówień w trybie salonu.
-  const ownerOfOrders = scope.isOrgScope ? toId(req.query.clientId) : scope.userId;
-  if (!ownerOfOrders) {
+  const level = Number(req.query.level) || (scope.isOrgScope ? 2 : 3);
+  if (!canIssueAtLevel(req, level)) {
+    return res.status(403).json({ success: false, message: `Brak uprawnień do poziomu ${level}` });
+  }
+
+  // Czyje zamówienia, zależy od poziomu:
+  //   1 → wszystkie zamówienia WYBRANEJ ORGANIZACJI (to ona jest nabywcą),
+  //   2 → zamówienia wskazanego użytkownika (`clientId` = user.id),
+  //   3 → własne zamówienia salonu (`clientId` to id ODBIORCY, nie właściciela),
+  //   4 → zamówienia salonu, który obsługuje danego odbiorcę końcowego.
+  const buyerOrganizationId = level === 1 ? toId(req.query.clientId) : null;
+  const endClient = level === 4 && toId(req.query.clientId)
+    ? await repository.getEndClient({ id: toId(req.query.clientId), organizationId })
+    : null;
+  if (level === 4 && !endClient) {
+    return res.status(400).json({ success: false, message: 'Nieznany odbiorca końcowy' });
+  }
+
+  let ownerOfOrders = null;
+  if (level === 2) ownerOfOrders = toId(req.query.clientId);
+  else if (level === 3) ownerOfOrders = scope.userId;
+  else if (level === 4) ownerOfOrders = Number(endClient.owner_user_id) || null;
+
+  if (level === 1 ? !buyerOrganizationId : !ownerOfOrders) {
     return res.status(400).json({
       success: false,
       message: scope.isOrgScope ? 'Wymagany parametr clientId' : 'Brak użytkownika w sesji'
@@ -441,15 +498,18 @@ router.get('/search/orders', requireLogin, async (req, res) => {
 
   try {
     const items = await repository.searchInvoiceableOrders({
-      organizationId,
+      // Poziom 1: zamówienia należą do organizacji-NABYWCY, nie do HKL
+      organizationId: level === 1 ? buyerOrganizationId : organizationId,
       clientId: ownerOfOrders,
       query: String(req.query.q || ''),
       limit: Math.min(Number(req.query.limit) || 20, 50),
       // Wykluczamy tylko dokumenty TEJ SAMEJ relacji: zamówienie zafakturowane
       // przez organizację (poziom 2) nadal czeka na fakturę salonu (poziom 3).
-      issuerType: scope.isOrgScope ? 'organization' : 'user',
-      issuerId: scope.isOrgScope ? organizationId : scope.userId,
-      level: scope.isOrgScope ? 2 : 3
+      issuerType: level === 1 ? 'manufacturer' : (level === 3 ? 'user' : 'organization'),
+      issuerId: level === 1 ? 0 : (level === 3 ? scope.userId : organizationId),
+      level,
+      // Odbiorca końcowy: jego zamówienia na górze, cudze poza listą
+      endClientId: (level === 3 || level === 4) ? toId(req.query.clientId) : null
     });
     return res.json({ success: true, items });
   } catch (err) {

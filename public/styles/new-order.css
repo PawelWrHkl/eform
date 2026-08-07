@@ -34,3 +34,59 @@ small#charCount {
     visibility: visible;
     accent-color: var(--brand-primary);
 }
+/* --- Combobox odbiorcy końcowego --------------------------------------- */
+/* Lista podpowiedzi jest pozycjonowana absolutnie nad resztą formularza —
+   inaczej rozpychałaby wiersze adresu przy każdym wpisanym znaku. */
+.end-client-combo {
+  position: relative;
+}
+
+.end-client-combo__list {
+  display: none;
+  position: absolute;
+  z-index: 1080;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ced4da;
+  border-radius: .375rem;
+  box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15);
+}
+
+.end-client-combo__list.is-open {
+  display: block;
+}
+
+.end-client-combo__item {
+  display: block;
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.end-client-combo__item:hover,
+.end-client-combo__item:focus {
+  background: #f1f3f5;
+}
+
+.end-client-combo__main {
+  display: block;
+  font-weight: 500;
+}
+
+.end-client-combo__sub {
+  display: block;
+  font-size: .82rem;
+  color: #6c757d;
+}
+
+.end-client-combo__empty {
+  padding: .5rem .75rem;
+  color: #6c757d;
+  font-size: .9rem;
+}

@@ -40,6 +40,44 @@ async function prepareRestData() {
 }
 
 
+
+/**
+ * Spina zamówienie z odbiorcą końcowym (opcjonalna sekcja formularza).
+ *
+ * ⚠️ Osobne żądanie PO zapisie zamówienia, nie pole w `save-order`: walidacja
+ * (czy odbiorca należy do właściciela zamówienia) siedzi w module faktur
+ * i tam też jest jedyne miejsce zapisujące `order.end_client_id`. Moduł bywa
+ * wyłączony — wtedy sekcji nie ma w HTML-u i ta funkcja nic nie robi.
+ *
+ * @param {number|string} orderId
+ * @returns {Promise<void>}
+ */
+async function linkEndClient(orderId) {
+	const checkbox = document.getElementById('end-client-checkbox');
+	const hidden = document.getElementById('end-client-id');
+	if (!checkbox || !hidden) return;
+
+	// Odznaczony checkbox = ODPIĘCIE (null), nie „zostaw jak było" — inaczej
+	// nie dałoby się cofnąć błędnego powiązania z poziomu edycji zamówienia.
+	const endClientId = checkbox.checked && hidden.value ? Number(hidden.value) : null;
+	if (!checkbox.checked && !hidden.dataset.wasLinked) return;
+
+	try {
+		const response = await fetch(`/api/v1/invoices/orders/${orderId}/end-client`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ endClientId })
+		});
+		if (!response.ok) {
+			const body = await response.json().catch(() => null);
+			showToast('error', (body && body.message) || t('new-order.end_client_link_error'), 5);
+		}
+	} catch (error) {
+		console.error(error);
+		showToast('error', t('new-order.end_client_link_error'), 5);
+	}
+}
+
 async function createOrder() {
 	const requestBody = await prepareRestData();
 
@@ -56,6 +94,9 @@ async function createOrder() {
 
 		if (result.redirect) {
 			newOrderButton.disabled = true;
+			// Powiązanie dopiero teraz — wcześniej nie było id zamówienia
+			const newOrderId = String(result.redirect).split('/').pop();
+			await linkEndClient(newOrderId);
 			showToast('success', t('orders.saved_success_label'));
 			setTimeout(() => {
 				window.location.href = result.redirect;
@@ -81,6 +122,7 @@ async function updateOrder(orderId) {
 		const result = await response.json();
 
 		if (result.redirect) {
+			await linkEndClient(orderId);
 			showToast('success', t('orders.saved_success_label'));
 			window.location.href = result.redirect;
 		}

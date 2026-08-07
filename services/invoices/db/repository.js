@@ -246,6 +246,8 @@ async function createInvoice(invoice, opts = {}) {
       level: invoice.level || 2,
       issuer_type: invoice.issuerType || 'organization',
       issuer_id: invoice.issuerId || 0,
+      // Po którym cenniku wystawiono — `core/pricing.js`
+      price_basis: invoice.priceBasis || 'base',
       document_type: invoice.documentType,
       status: invoice.status,
       number,
@@ -277,6 +279,7 @@ async function createInvoice(invoice, opts = {}) {
       buyer_vat_eu_id: invoice.buyer.vatEuId || null,
       buyer_vat_eu_verified: invoice.buyerVatEuVerified ? 1 : 0,
       buyer_registry: invoice.buyer.registry ? JSON.stringify(invoice.buyer.registry) : null,
+      delivery_address: invoice.deliveryAddress ? JSON.stringify(invoice.deliveryAddress) : null,
       // Wynik VIES: NULL = nie sprawdzano, 0/1 = sprawdzono z tym rezultatem
       vies_checked_at: invoice.viesCheckedAt ? new Date(invoice.viesCheckedAt) : null,
       vies_valid: invoice.viesValid === null || invoice.viesValid === undefined ? null : (invoice.viesValid ? 1 : 0),
@@ -403,12 +406,14 @@ async function getInvoice(id) {
     level: h.level,
     issuerType: h.issuer_type,
     issuerId: h.issuer_id,
+    priceBasis: h.price_basis || 'base',
     buyerType: h.buyer_type,
     buyerEndClientId: h.buyer_end_client_id,
     deliveryDate: toIsoDay(h.delivery_date),
     // Kontekst prawny zapisany przy wystawieniu — bez tego ponowny render
     // (podgląd/PDF po latach) gubiłby klauzule i numery rejestrowe.
     compliance: parseJsonColumn(h.compliance) || null,
+    deliveryAddress: parseJsonColumn(h.delivery_address) || null,
     documentType: h.document_type,
     status: h.status,
     number: h.number,
@@ -526,7 +531,7 @@ async function updateStatus(id, patch) {
  * @param {number} [params.offset=0]
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function listInvoices({ organizationId, status, documentType, orderId, buyerUserId, issuerType, issuerId, level, limit = 50, offset = 0 }) {
+async function listInvoices({ organizationId, status, documentType, orderId, buyerUserId, buyerEndClientId, issuerType, issuerId, level, limit = 50, offset = 0 }) {
   const where = ['organization_id = ?'];
   const values = [organizationId];
   // Zakres wystawcy: salon widzi wyłącznie dokumenty, które sam wystawił
@@ -539,6 +544,7 @@ async function listInvoices({ organizationId, status, documentType, orderId, buy
   if (orderId) { where.push('order_id = ?'); values.push(orderId); }
   // Panel pracuje w kontekście wybranego klienta — patrz `http/panel.js`
   if (buyerUserId) { where.push('buyer_user_id = ?'); values.push(buyerUserId); }
+  if (buyerEndClientId) { where.push('buyer_end_client_id = ?'); values.push(Number(buyerEndClientId)); }
   values.push(Number(limit), Number(offset));
 
   const rows = await selectQuery(
@@ -590,7 +596,36 @@ async function searchClients({ organizationId, query, limit = 20 }) {
 }
 
 /**
+ * Organizacje jako NABYWCY poziomu 1 (HKL sprzedaje do innej organizacji).
+ *
+ * ⚠️ Organizacja wystawcy jest wykluczona — HKL nie sprzedaje sam sobie.
+ *
+ * @param {{ query?: string, limit?: number, excludeId?: number }} params
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function searchOrganizations({ query = '', limit = 20, excludeId = null }) {
+  const q = String(query || '').trim();
+  const prefix = `${q}%`;
+  const infix = `%${q}%`;
+  const rows = await selectQuery(
+    `SELECT id, ident, name, tax_id, country, city, street, zip
+       FROM organization
+      WHERE (? = 0 OR id <> ?)
+        AND (? = '' OR name LIKE ? OR ident LIKE ? OR tax_id LIKE ? OR city LIKE ?)
+      ORDER BY (name LIKE ?) DESC, name
+      LIMIT ?`,
+    [Number(excludeId) || 0, Number(excludeId) || 0, q, infix, prefix, prefix, prefix, prefix, Number(limit)]
+  );
+  // Ujednolicony kształt z `searchClients` — combobox panelu czyta te same pola
+  return (rows || []).map((r) => ({ ...r, client_name: r.name }));
+}
+
+/**
  * Wyszukiwanie zamówień danego klienta, które można jeszcze zafakturować.
+ *
+ * `endClientId` (poziomy 3 i 4): zamówienia SPIĘTE z tym odbiorcą idą na górę
+ * listy, a spięte z kimś innym w ogóle nie są pokazywane — powiązanie robi się
+ * na formularzu zamówienia (`templates/new-order.njk`).
  *
  * Te same zasady co wyżej (limit + prefiks/fragment). Dopasowanie po numerze
  * zamówienia (`order_idx`) i po NAZWIE zamówienia (`commision`) — tego szukał
@@ -604,7 +639,7 @@ async function searchClients({ organizationId, query, limit = 20 }) {
  * @param {number} [params.limit=20]
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function searchInvoiceableOrders({ organizationId, clientId, query, limit = 20, issuerType = null, issuerId = null, level = null }) {
+async function searchInvoiceableOrders({ organizationId, clientId = null, query, limit = 20, issuerType = null, issuerId = null, level = null, endClientId = null }) {
   const q = String(query || '').trim();
   const prefix = `${q}%`;
   const infix = `%${q}%`;
@@ -626,13 +661,18 @@ async function searchInvoiceableOrders({ organizationId, clientId, query, limit 
                           AND i.document_type IN ('invoice', 'final')
                           AND i.status <> 'cancelled'
                           AND (? = 0 OR (i.issuer_type = ? AND i.issuer_id = ? AND i.level = ?))
-      WHERE o.organization_id = ? AND o.user_id = ? AND o.status = 'sent' AND i.id IS NULL
+      WHERE o.organization_id = ? AND (? = 0 OR o.user_id = ?) AND o.status = 'sent' AND i.id IS NULL
         AND (? = '' OR o.order_idx LIKE ? OR o.commision LIKE ?)
-      ORDER BY (o.order_idx LIKE ?) DESC, o.sent_date DESC, o.id DESC
+        -- Zamówienie spięte z INNYM odbiorcą końcowym nie może trafić na jego
+        -- fakturę; zamówienia bez powiązania zostają dostępne dla wszystkich.
+        AND (? = 0 OR o.end_client_id IS NULL OR o.end_client_id = ?)
+      ORDER BY (o.end_client_id = ?) DESC, (o.order_idx LIKE ?) DESC, o.sent_date DESC, o.id DESC
       LIMIT ?`,
     [
       scoped ? 1 : 0, issuerType || '', Number(issuerId) || 0, Number(level) || 0,
-      organizationId, clientId, q, prefix, infix, prefix, Number(limit)
+      organizationId, Number(clientId) || 0, Number(clientId) || 0, q, prefix, infix,
+      Number(endClientId) || 0, Number(endClientId) || 0, Number(endClientId) || 0,
+      prefix, Number(limit)
     ]
   );
   return rows || [];
@@ -777,7 +817,15 @@ async function getIssuerProfile({ issuerType, issuerId, level }) {
     };
   }
 
-  // Producent nie ma tabeli źródłowej — bez wpisu w profilu nie da się wystawić
+  // Producentem jest HKL — organizacja matka. Nie ma osobnej tabeli, więc profil
+  // zastępczy budujemy z jej danych; inaczej admin nie mógłby wystawić NICZEGO
+  // na poziomie 1, dopóki ktoś ręcznie nie wypełni profilu producenta.
+  if (issuerType === 'manufacturer') {
+    const { HKL_ORG_ID } = require('../../subPrices');
+    const hkl = await getIssuerProfile({ issuerType: 'organization', issuerId: HKL_ORG_ID, level: Number(level) });
+    return hkl ? { ...hkl, issuerType, issuerId: Number(issuerId) || 0 } : null;
+  }
+
   return null;
 }
 
@@ -825,7 +873,7 @@ async function upsertIssuerProfile({ issuerType, issuerId, level }, patch) {
 const END_CLIENT_FIELDS = Object.freeze([
   'client_type', 'name', 'tax_id', 'vat_eu_id', 'registry_numbers', 'street', 'zip', 'city',
   'country', 'delivery_name', 'delivery_street', 'delivery_zip', 'delivery_city',
-  'delivery_country', 'email', 'phone', 'default_currency', 'notes', 'is_active'
+  'delivery_country', 'print_delivery_address', 'email', 'phone', 'default_currency', 'notes', 'is_active'
 ]);
 
 /**
@@ -905,14 +953,24 @@ async function deactivateEndClient({ id, ownerUserId }) {
 }
 
 /**
- * @param {{ id: number, ownerUserId: number }} params
+ * Odbiorca końcowy w zadanym zakresie widoczności.
+ *
+ * ⚠️ Zakres MUSI być podany — bez niego zapytanie po samym `id` pozwoliłoby
+ * czytać kartotekę cudzego salonu. Salon widzi swoich (`ownerUserId`), owner
+ * całą organizację (`organizationId`) — bo na poziomie 4 to organizacja jest
+ * sprzedawcą i fakturuje odbiorcę bez pośrednictwa salonu.
+ *
+ * @param {{ id: number, ownerUserId?: number, organizationId?: number }} params
  * @returns {Promise<Record<string, any>|null>}
  */
-async function getEndClient({ id, ownerUserId }) {
-  const rows = await selectQuery(
-    'SELECT * FROM invoice_end_client WHERE id = ? AND owner_user_id = ?',
-    [id, ownerUserId]
-  );
+async function getEndClient({ id, ownerUserId, organizationId }) {
+  const where = ['id = ?'];
+  const values = [id];
+  if (ownerUserId) { where.push('owner_user_id = ?'); values.push(Number(ownerUserId)); }
+  else if (organizationId) { where.push('organization_id = ?'); values.push(Number(organizationId)); }
+  else throw new Error('getEndClient wymaga zakresu: ownerUserId albo organizationId');
+
+  const rows = await selectQuery(`SELECT * FROM invoice_end_client WHERE ${where.join(' AND ')}`, values);
   return mapEndClient(rows && rows[0]);
 }
 
@@ -923,19 +981,26 @@ async function getEndClient({ id, ownerUserId }) {
  * @param {{ ownerUserId: number, query?: string, limit?: number, includeInactive?: boolean }} params
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function searchEndClients({ ownerUserId, query = '', limit = 20, includeInactive = false }) {
+async function searchEndClients({ ownerUserId, organizationId, query = '', limit = 20, includeInactive = false }) {
   const q = String(query || '').trim();
   const prefix = `${q}%`;
   const infix = `%${q}%`;
+  // Zakres: salon widzi swoich odbiorców, owner — wszystkich w organizacji
+  // (poziom 4: organizacja sprzedaje odbiorcy końcowemu bezpośrednio).
+  const byOwner = !!ownerUserId;
+  if (!byOwner && !organizationId) throw new Error('searchEndClients wymaga zakresu: ownerUserId albo organizationId');
   const rows = await selectQuery(
-    `SELECT id, client_type, name, tax_id, vat_eu_id, country, city, street, zip, email, phone, is_active
+    `SELECT id, owner_user_id, client_type, name, tax_id, vat_eu_id, country, city, street, zip, email, phone, is_active
        FROM invoice_end_client
-      WHERE owner_user_id = ?
+      WHERE (? = 1 AND owner_user_id = ? OR ? = 0 AND organization_id = ?)
         AND (? = 1 OR is_active = 1)
         AND (? = '' OR name LIKE ? OR tax_id LIKE ? OR city LIKE ? OR email LIKE ?)
       ORDER BY (name LIKE ?) DESC, name
       LIMIT ?`,
-    [ownerUserId, includeInactive ? 1 : 0, q, infix, prefix, prefix, prefix, prefix, Number(limit)]
+    [
+      byOwner ? 1 : 0, Number(ownerUserId) || 0, byOwner ? 1 : 0, Number(organizationId) || 0,
+      includeInactive ? 1 : 0, q, infix, prefix, prefix, prefix, prefix, Number(limit)
+    ]
   );
   return (rows || []).map(mapEndClient);
 }
@@ -1173,6 +1238,7 @@ module.exports = {
   assignEndClientToOrder,
   getOrderOwnership,
   searchClients,
+  searchOrganizations,
   searchInvoiceableOrders,
   allocateSequence,
   getOrganizationProfile,

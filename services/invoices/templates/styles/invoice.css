@@ -34,13 +34,18 @@ body {
 }
 
 .invoice {
-    max-width: 190mm;
+    /* A4 POZIOMO: 297 mm − marginesy 2 × 10 mm z `page.pdf()` = 277 mm treści.
+       Przy pionie (190 mm) kolumny tabeli pozycji — numer zamówienia, wymiary,
+       ilość, netto, stawka, VAT, brutto — robiły się nieczytelnie wąskie. */
+    max-width: 277mm;
     margin: 0 auto;
-    padding: 4mm;
+    /* Bez własnego paddingu: marginesy strony ustawia `page.pdf()`
+       (12/10/14/10 mm). Na ekranie padding dokłada `@media screen`. */
+    padding: 0;
 }
 
 .section-title {
-    margin: 6mm 0 2mm;
+    margin: 3mm 0 1.5mm;
     font-size: 1.05em;
     font-weight: 700;
     color: var(--accent);
@@ -59,15 +64,15 @@ body {
     justify-content: space-between;
     align-items: flex-start;
     gap: 8mm;
-    padding-bottom: 3mm;
+    padding-bottom: 2mm;
     border-bottom: 2px solid var(--accent);
 }
 
 .doc-header__logo {
     display: block;
     max-width: 34mm;
-    max-height: 18mm;
-    margin-bottom: 2mm;
+    max-height: 13mm;
+    margin-bottom: 1.5mm;
 }
 
 .doc-header__seller-name {
@@ -82,36 +87,38 @@ body {
 
 .doc-header__title {
     margin: 0;
-    font-size: 1.5em;
+    font-size: 1.35em;
     font-weight: 700;
     color: var(--accent);
 }
 
 .doc-header__number {
-    margin: 1mm 0 3mm;
+    margin: 0.5mm 0 1.5mm;
     font-size: 1.15em;
     font-weight: 700;
 }
 
 .doc-header__dates {
-    margin-left: auto;
-    border-collapse: collapse;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.8mm 6mm;
     font-size: 0.95em;
 }
 
-.doc-header__dates th {
-    padding: 0.6mm 3mm 0.6mm 0;
-    text-align: left;
-    font-weight: 400;
-    color: var(--ink-soft);
+.doc-date {
+    display: flex;
+    align-items: baseline;
+    gap: 2mm;
     white-space: nowrap;
 }
 
-.doc-header__dates td {
-    padding: 0.6mm 0;
-    text-align: right;
+.doc-date__label {
+    color: var(--ink-soft);
+}
+
+.doc-date__value {
     font-weight: 600;
-    white-space: nowrap;
 }
 
 .doc-correction-reason {
@@ -131,7 +138,8 @@ body {
 
 .party {
     flex: 1 1 0;
-    padding: 3mm;
+    max-width: 45%;
+    padding: 2.5mm;
     border: 1px solid var(--line);
     border-radius: 1.5mm;
 }
@@ -159,12 +167,13 @@ body {
 .items {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 3mm;
-    font-size: 0.9em;
+    margin-top: 2.5mm;
+    /* W poziomie jest miejsce na nieco większy tekst niż w pionie */
+    font-size: 0.95em;
 }
 
 .items thead th {
-    padding: 1.6mm 2mm;
+    padding: 1.2mm 2mm;
     background: var(--accent);
     color: #fff;
     font-weight: 600;
@@ -179,7 +188,7 @@ body {
 }
 
 .items tbody td {
-    padding: 1.6mm 2mm;
+    padding: 1.2mm 2mm;
     border-bottom: 1px solid var(--line);
     text-align: right;
     vertical-align: top;
@@ -237,7 +246,7 @@ body {
 
 .vat-table th,
 .vat-table td {
-    padding: 1.4mm 3mm;
+    padding: 1mm 2.5mm;
     border: 1px solid var(--line);
     text-align: right;
 }
@@ -258,7 +267,7 @@ body {
 }
 
 .vat-local {
-    margin-top: 2mm;
+    margin-top: 1.5mm;
     font-size: 0.9em;
 }
 
@@ -273,7 +282,7 @@ body {
 }
 
 .legal-notes {
-    margin: 2.5mm 0 0;
+    margin: 1.5mm 0 0;
     padding-left: 5mm;
     font-size: 0.9em;
 }
@@ -291,14 +300,14 @@ body {
 }
 
 .totals-table th {
-    padding: 1.2mm 3mm;
+    padding: 0.9mm 3mm;
     text-align: left;
     font-weight: 400;
     color: var(--ink-soft);
 }
 
 .totals-table td {
-    padding: 1.2mm 0;
+    padding: 0.9mm 0;
     text-align: right;
     font-weight: 600;
     white-space: nowrap;
@@ -331,7 +340,7 @@ body {
 }
 
 .payment-table th {
-    padding: 1mm 4mm 1mm 0;
+    padding: 0.7mm 4mm 0.7mm 0;
     text-align: left;
     font-weight: 400;
     color: var(--ink-soft);
@@ -339,7 +348,7 @@ body {
 }
 
 .payment-table td {
-    padding: 1mm 0;
+    padding: 0.7mm 0;
     font-weight: 600;
 }
 
@@ -388,8 +397,8 @@ body {
 }
 
 .doc-footer__legal {
-    margin-top: 6mm;
-    padding-top: 2mm;
+    margin-top: 3mm;
+    padding-top: 1.5mm;
     border-top: 1px solid var(--line);
     font-size: 0.75em;
     color: var(--ink-soft);
@@ -473,7 +482,7 @@ body {
 }
 
 .compliance {
-    margin-top: 4mm;
+    margin-top: 2.5mm;
     break-inside: avoid;
 }
 
@@ -498,4 +507,95 @@ body {
 .items__batch {
     color: var(--ink-soft);
     font-size: 0.9em;
+}
+
+/* Adres dostawy — węższy blok pod stronami transakcji, tylko gdy inny niż rejestrowy */
+.delivery-address {
+    margin: 0 0 4mm;
+    padding: 2.5mm;
+    border: 1px dashed var(--line);
+    border-radius: 1.5mm;
+    max-width: 48%;
+    break-inside: avoid;
+}
+
+
+/* ---------- Układ poziomy: bloki obok siebie ---------- */
+
+/*
+ * A4 landscape daje 277 × 184 mm treści — szerokości jest w nadmiarze,
+ * wysokości brakuje. Te trzy wiersze upychają w poziomie to, co w pionie
+ * stało jedno pod drugim, dzięki czemu typowa faktura mieści się na jednej
+ * stronie. Każdy wiersz ma `break-inside: avoid`, żeby nie pękał w połowie.
+ */
+
+.row {
+    display: flex;
+    gap: 6mm;
+    align-items: flex-start;
+    break-inside: avoid;
+}
+
+.row--parties {
+    margin: 3mm 0;
+}
+
+.row--parties .parties {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+.row--parties .delivery-address {
+    flex: 0 0 30%;
+    max-width: 30%;
+    margin: 0;
+    align-self: stretch;
+}
+
+/* Podsumowanie VAT po lewej, sumy po prawej — nie jedno pod drugim */
+.row--summary {
+    justify-content: space-between;
+    margin-top: 2.5mm;
+}
+
+.row--summary .vat-summary {
+    flex: 0 1 auto;
+    margin-top: 0;
+}
+
+.row--summary .totals {
+    flex: 0 0 auto;
+    margin-top: 0;
+}
+
+/* Płatność i stopka z podpisami w jednym pasie na dole */
+.row--closing {
+    margin-top: 3mm;
+    align-items: flex-end;
+}
+
+.row--closing .payment {
+    flex: 0 0 auto;
+    margin-top: 0;
+}
+
+.row--closing .doc-footer {
+    flex: 1 1 auto;
+    margin-top: 0;
+}
+
+.row--closing .doc-footer__signatures {
+    margin-top: 3mm;
+}
+
+@media screen and (max-width: 900px) {
+    /* Podgląd na wąskim ekranie wraca do układu jednokolumnowego */
+    .row {
+        flex-direction: column;
+    }
+
+    .row--parties .delivery-address {
+        flex-basis: auto;
+        max-width: none;
+    }
 }

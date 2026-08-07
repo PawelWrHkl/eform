@@ -14,7 +14,8 @@ const { generatePdf, generateOrderDocuments, generateProductionPdf, uploadProduc
 const { formatClientLabel } = require('../utils/formatClient');
 const { buildOrderItemStructure } = require('../services/itemBuilder.js');
 const { getPriceAfterDiscount } = require('../services/getDiscount.js');
-const { SyncProdStatus, setParcelHref, parseSpeditionNumbers } = require('../services/prodStatus.js');
+const { SyncProdStatus, setParcelHref, parseSpeditionNumbers, alignStatusesToItems } = require('../services/prodStatus.js');
+const invoiceRepository = require('../services/invoices/db/repository');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
 const { applySubPriceLocals } = require('../services/subPriceContext');
 const { log } = require('../utils/logging');
@@ -145,10 +146,28 @@ router.get('/edit/:orderId', requireLogin, async (req, res) => {
     }
 
     log('siemanko@@@@ ', orderData)
+    // Odbiorca końcowy spięty z zamówieniem — sekcja w formularzu ma się
+    // otworzyć z już wybranym klientem, inaczej zapis edycji wyglądałby jak
+    // odpięcie. Zakres celowo po WŁAŚCICIELU zamówienia (`invoice_end_client`
+    // jest kartoteką salonu), a nie po sesji: admin i owner otwierają cudze
+    // zamówienia i też muszą zobaczyć powiązanie.
+    let selectedEndClient = null;
+    if (orderData?.end_client_id) {
+        try {
+            selectedEndClient = await invoiceRepository.getEndClient({
+                id: orderData.end_client_id,
+                ownerUserId: orderData.user_id
+            });
+        } catch (err) {
+            log('Nie udało się wczytać odbiorcy końcowego zamówienia:', err.message);
+        }
+    }
+
     res.render('edit_order.njk', {
         orderData: orderData,
         addr: addr,
         emails: emails,
+        selectedEndClient,
         selectedAddrId: orderData?.delivery_address_id || null,
         selectedMailId: orderData?.contact_info_id || null
     })
@@ -449,6 +468,10 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
     const currentUser = ownerService.getCurrentUser(req);
     let statuses = await db.getUserStatuses(currentUser.ident, orderDetails.order_idx);
     statuses = setParcelHref(statuses);
+    // Statusy trzeba przypiąć do POZYCJI, nie do kolejnego wiersza tabeli —
+    // podpozycje `1-1`, `1-2` rozjeżdżają parowanie po indeksie (patrz
+    // `services/prodStatus.js:alignStatusesToItems`).
+    statuses = alignStatusesToItems(statuses, orderItems);
     const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
 
     if (orderItems) {

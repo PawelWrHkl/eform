@@ -93,6 +93,12 @@ async function getOrderDetails(orderId) {
     \`order\`.comment,
     \`order\`.delivery_address_id,
     \`order\`.contact_info_id,
+    -- Potrzebne w edycji zamówienia: end_client_id podstawia odbiorcę końcowego
+    -- w formularzu, user_id wyznacza zakres jego kartoteki (admin i owner
+    -- edytują cudze zamówienia) — patrz routes/orders.js.
+    -- UWAGA: bez backticków — to wnętrze template literal w JS.
+    \`order\`.user_id,
+    \`order\`.end_client_id,
     da.id as address_id,
     da.street,
     da.phone_number as phone,

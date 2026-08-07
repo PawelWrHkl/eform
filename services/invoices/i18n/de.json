@@ -78,5 +78,6 @@
   "taxcat.zw": "Steuerfrei",
   "items.order_ref": "Auftrag",
   "items.dimensions": "Maße",
-  "header.delivery_date": "Leistungsdatum"
+  "header.delivery_date": "Leistungsdatum",
+  "party.delivery_address": "Lieferadresse"
 }

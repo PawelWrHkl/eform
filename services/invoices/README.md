@@ -18,6 +18,7 @@ Moduł jest pisany w stacku, w którym realnie działa eForm, a nie w stacku
 | Kwoty | liczby całkowite (grosze/centy) | `0.1 + 0.2 !== 0.3` — faktura musi spinać się co do grosza (`core/money.js`) |
 | Stawki VAT | ponowne użycie `services/vatCalculator.js` | Tabela 27 państw UE + CH/NO już istnieje i jest utrzymywana; duplikat rozjechałby się przy pierwszej zmianie stawki |
 | PDF | Playwright/Chromium jak w `mailBot/pdfGenerator.js` | Ta sama instalacja przeglądarki, te same flagi — bez drugiej zależności w obrazie Dockera |
+| Orientacja | **A4 poziomo** (`landscape: true`) | Tabela pozycji niesie 9 kolumn (nr zamówienia, wymiary, ilość, j.m., netto, stawka, VAT, brutto) — w pionie robiły się nieczytelnie wąskie. Układ jest pod to zbudowany: strony transakcji i adres dostawy w jednym pasie, podsumowanie VAT obok sum, płatność obok podpisów |
 
 ## Architektura
 
@@ -149,9 +150,18 @@ i adresaci dostaw, dlatego mają własną tabelę, a nie wiersz w `user`.
 - API: `GET|POST /end-clients`, `GET|PUT|DELETE /end-clients/:id`, `GET /end-clients/search?q=`.
 - `DELETE` **dezaktywuje** (`is_active = 0`), nie usuwa — odbiorca bywa nabywcą
   wystawionych faktur, a te muszą zostać niezmienne.
-- Pola rejestrowe w formularzu zmieniają się wraz z krajem (SIREN/SIRET/NAF dla
-  FR, Steuernummer + USt-IdNr. dla DE…), a definicje pochodzą z
-  `core/compliance.js` — jedno źródło prawdy z dokumentem.
+- Pola rejestrowe w formularzu zmieniają się wraz z krajem, a definicje pochodzą
+  z `core/compliance.js` — jedno źródło prawdy z dokumentem. ⚠️ Formularz pokazuje
+  **tylko numery spoza pól ogólnych**: `NIP` i numery VAT-UE (USt-IdNr., Btw-id,
+  N° TVA) są uzupełniane automatycznie z `tax_id`/`vat_eu_id`, więc pytanie o nie
+  drugi raz było czystą duplikacją. Zostaje więc PL → REGON, DE → Steuernummer,
+  NL → KVK, FR → SIREN/SIRET/NAF.
+- **Adres dostawy** jest osobny od rejestrowego i **domyślnie NIE trafia na
+  fakturę** — drukuje się dopiero po zaznaczeniu `print_delivery_address` przy
+  odbiorcy (albo po przekazaniu `includeDeliveryAddress` w API dla jednego
+  dokumentu). Nawet wtedy pomijamy go, jeśli jest identyczny z rejestrowym.
+  Po co w ogóle: towar jedzie pod inny adres niż faktura (montaż u klienta),
+  a przy WDT 0% adres w innym państwie UE dokumentuje prawo do stawki.
 - Powiązanie z zamówieniem: `PUT /orders/:orderId/end-client` ustawia
   `order.end_client_id`; przy `level: 3` moduł bierze odbiorcę z zamówienia,
   jeśli nie podano `endClientId` jawnie.
@@ -337,9 +347,14 @@ logiki biznesowej.
   opodatkowanie z WDT (towar, 0%) na odwrotne obciążenie dla usług — czyli
   podawało na fakturze zły stan prawny. Usługi dokłada się teraz **jawnie**
   przez `serviceItems`.
-- **Ilość w m²/mb jest informacyjna.** Wartość netto pozycji pochodzi z wyceny
-  silnika formularzy (`order_item.total_price`), bo cenniki tej branży są
-  progowe — iloczyn „m² × cena jednostkowa" dałby inną kwotę niż realna wycena.
+- **Ilość to zawsze LICZBA SZTUK z `json_parameters.ILOSC`** — żaden produkt nie
+  jest rozliczany na m² ani mb. Powierzchnia (`POW`) i wymiary są danymi
+  technicznymi konfiguracji: idą do `meta` i do kolumny „Wymiary", nigdy do
+  kolumny „Ilość". ⚠️ To samo źródło czyta `core/allocations.js`, więc drukowana
+  ilość i partie częściowego fakturowania zawsze się zgadzają.
+- **Wartość netto pozycji pochodzi z wyceny silnika formularzy**
+  (`order_item.total_price`), bo cenniki tej branży są progowe — iloczyn
+  „ilość × cena jednostkowa" dałby inną kwotę niż realna wycena.
 - **`invoice_tax_rate` nie jest jeszcze czytana w runtime** — stawki biorą się z
   `services/vatCalculator.js`. Tabela jest przygotowana pod nadpisania per
   organizacja i wersjonowanie stawek w czasie.

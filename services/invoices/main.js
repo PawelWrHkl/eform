@@ -38,6 +38,7 @@ const { ViesClient } = require('./core/vies');
 const hierarchy = require('./core/hierarchy');
 const allocations = require('./core/allocations');
 const compliance = require('./core/compliance');
+const pricing = require('./core/pricing');
 const { log: defaultLog } = require('../../utils/logging');
 
 
@@ -51,6 +52,44 @@ const { log: defaultLog } = require('../../utils/logging');
  * jedyne miejsce do zmiany + odblokowanie parametru w `createFromOrder`.
  */
 const DOCUMENT_CURRENCY = 'EUR';
+
+
+/**
+ * Adres dostawy odbiorcy końcowego — zwraca `null`, gdy nie podano żadnego pola
+ * albo gdy adres jest identyczny z rejestrowym (wtedy drukowanie go drugi raz
+ * tylko zaśmieca dokument).
+ *
+ * @param {Record<string, any>} endClient wiersz `invoice_end_client`
+ * @returns {{ name: string, street: string, zip: string, city: string, country: string }|null}
+ */
+function buildDeliveryAddress(endClient, { force } = {}) {
+  if (!endClient) return null;
+
+  // ⚠️ Domyślnie NIE drukujemy: samo wpisanie adresu dostawy w kartotece nie
+  // może po cichu zmieniać wyglądu faktury. Decyduje checkbox przy odbiorcy
+  // (`print_delivery_address`), a `force` pozwala nadpisać to per dokument
+  // z API (`includeDeliveryAddress`).
+  const enabled = typeof force === 'boolean' ? force : !!Number(endClient.print_delivery_address);
+  if (!enabled) return null;
+  const address = {
+    name: (endClient.delivery_name || '').trim(),
+    street: (endClient.delivery_street || '').trim(),
+    zip: (endClient.delivery_zip || '').trim(),
+    city: (endClient.delivery_city || '').trim(),
+    country: String(endClient.delivery_country || '').toUpperCase().slice(0, 2)
+  };
+
+  const hasAny = Object.values(address).some(Boolean);
+  if (!hasAny) return null;
+
+  const sameAsRegistered =
+    address.street === (endClient.street || '').trim()
+    && address.zip === (endClient.zip || '').trim()
+    && address.city === (endClient.city || '').trim()
+    && (!address.country || address.country === String(endClient.country || '').toUpperCase().slice(0, 2))
+    && !address.name;
+  return sameAsRegistered ? null : address;
+}
 
 class InvoiceService {
   /**
@@ -83,7 +122,11 @@ class InvoiceService {
    * @param {string} [params.currency]               Domyślnie waluta profilu.
    * @param {boolean} [params.issue=false]           `true` → od razu nadaje numer i status `issued`.
    * @param {boolean} [params.vatEuVerified=false]   Numer VAT-UE nabywcy potwierdzony w VIES.
-   * @param {boolean} [params.useSubPrices=false]    Ceny klienta (`total_price_sub`).
+   * @param {boolean} [params.useSubPrices]          ⚠️ NADPISANIE warstwy cenowej.
+   *        Normalnie NIE podawaj — warstwa wynika z relacji handlowej
+   *        (`core/pricing.js`): HKL sprzedaje po cenach bazowych, każda inna
+   *        organizacja po cenach `SUB___`. Ręczne wymuszenie to faktura na
+   *        kwotę z cudzego cennika.
    * @param {number} [params.advancePercent]         Dla `advance`: % wartości zamówienia.
    * @param {Array<{ name: string, netAmount?: number, unitPriceNet?: number, quantity?: number, unit?: string, isInstallation?: boolean, description?: string }>} [params.serviceItems]
    *        Usługi dołożone jawnie (montaż, szycie, transport). ⚠️ Pozycje
@@ -92,6 +135,8 @@ class InvoiceService {
    *        `isInstallation: true` kwalifikuje usługę do stawki obniżonej w PL.
    * @param {string} [params.saleDate]               Domyślnie dziś (lub `sent_date` zamówienia).
    * @param {boolean} [params.allowZeroTotal=false] Pozwala wystawić dokument na 0,00.
+   * @param {boolean} [params.includeDeliveryAddress] Nadpisuje flagę odbiorcy
+   *        `print_delivery_address` dla tego jednego dokumentu.
    * @param {string} [params.notes]
    * @param {string} [params.createdByPin]
    * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
@@ -101,7 +146,6 @@ class InvoiceService {
       orderId,
       documentType = DocumentType.INVOICE,
       issue = false,
-      useSubPrices = false,
       advancePercent,
       serviceItems = [],
       notes,
@@ -117,15 +161,24 @@ class InvoiceService {
     const level = Number(params.level || hierarchy.InvoiceLevel.ORGANIZATION_TO_USER);
     const levelDef = hierarchy.getLevel(level);
 
-    // Odbiorca końcowy: z parametru albo z powiązania zapisanego na zamówieniu
+    // Odbiorca końcowy: z parametru albo z powiązania zapisanego na zamówieniu.
+    // Dotyczy dwóch poziomów — 3 (salon sprzedaje klientowi) i 4 (organizacja
+    // sprzedaje klientowi bezpośrednio). Różni je ZAKRES WIDOCZNOŚCI kartoteki:
+    // salon widzi tylko swoich odbiorców, organizacja wszystkich swoich salonów.
+    const needsEndClient = level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT
+      || level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT;
     const endClientId = params.endClientId || source.order.end_client_id || null;
-    const endClient = level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT && endClientId
-      ? await this.repository.getEndClient({ id: endClientId, ownerUserId: source.user.id })
+    const endClient = needsEndClient && endClientId
+      ? await this.repository.getEndClient(
+        level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT
+          ? { id: endClientId, organizationId: source.order.organization_id }
+          : { id: endClientId, ownerUserId: source.user.id }
+      )
       : null;
-    if (level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT && !endClient) {
+    if (needsEndClient && !endClient) {
       throw new Error(
-        `Poziom 3 wymaga odbiorcy końcowego — zamówienie ${source.order.order_idx || orderId} nie ma przypisanego klienta `
-        + '(pole `end_client_id`), a parametr `endClientId` nie został podany.'
+        `Poziom ${level} wymaga odbiorcy końcowego — zamówienie ${source.order.order_idx || orderId} nie ma przypisanego klienta `
+        + '(pole `end_client_id`), a parametr `endClientId` nie został podany albo odbiorca jest poza zakresem wystawcy.'
       );
     }
 
@@ -189,11 +242,24 @@ class InvoiceService {
       return treatment;
     };
 
+    // WARSTWA CENOWA wynika z relacji handlowej, nie z formularza:
+    // HKL sprzedaje po cenach bazowych (CENA/DOPLATA/RABAT), a każda inna
+    // organizacja rozlicza się ze swoim użytkownikiem po cenach SUB___.
+    // Szczegóły i ograniczenie poziomu 3 — `core/pricing.js`.
+    const priceBasis = pricing.resolvePriceBasis({
+      level,
+      issuerType: parties.issuerType,
+      issuerId: parties.issuerId,
+      organizationId: source.order.organization_id,
+      override: typeof params.useSubPrices === 'boolean' ? params.useSubPrices : undefined
+    });
+    this.log(`[invoices] order ${orderId}: cennik ${priceBasis.basis} — ${priceBasis.reason}`);
+
     let rawItems = orderMapper.mapOrderItemsToInvoiceItems({
       orderItems: source.orderItems,
       resolveTax,
       currency,
-      useSubPrices
+      useSubPrices: priceBasis.useSubPrices
     });
 
     // CZĘŚCIOWE FAKTUROWANIE: gdy podano `allocations`, fakturujemy tylko
@@ -337,12 +403,21 @@ class InvoiceService {
     });
     complianceContext.warnings.forEach((w) => this.log(`[invoices] order ${orderId}: ${w}`));
 
+    // Adres dostawy trafia na dokument TYLKO gdy realnie różni się od adresu
+    // rejestrowego nabywcy — powtarzanie tego samego adresu dwa razy to szum.
+    const deliveryAddress = endClient
+      ? buildDeliveryAddress(endClient, { force: params.includeDeliveryAddress })
+      : null;
+
     /** @type {Invoice & Record<string, any>} */
     const invoice = {
       organizationId: profile.organizationId,
+      deliveryAddress,
       level,
       issuerType: parties.issuerType,
       issuerId: parties.issuerId,
+      priceBasis: priceBasis.basis,
+      priceBasisReason: priceBasis.reason,
       buyerType: parties.buyerType,
       buyerEndClientId: parties.buyerType === hierarchy.BuyerType.END_CLIENT ? parties.buyerId : null,
       deliveryDate,
@@ -651,5 +726,6 @@ module.exports = {
   resolvePeriodKey,
   toIsoDay,
   todayIso,
+  buildDeliveryAddress,
   addDays
 };

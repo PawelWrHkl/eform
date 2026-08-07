@@ -1,11 +1,18 @@
 'use strict';
 
 /**
- * Hierarchia fakturowania — trzy niezależne relacje handlowe.
+ * Hierarchia fakturowania — cztery niezależne relacje handlowe.
  *
- *   Poziom 1: Producent            → Organizacja (dystrybutor/partner B2B)
+ *   Poziom 1: Producent/HKL        → Organizacja (dystrybutor/partner B2B)
  *   Poziom 2: Organizacja          → Użytkownik (salon dekoracji)
  *   Poziom 3: Użytkownik           → Odbiorca końcowy (klient detaliczny/firma)
+ *   Poziom 4: Organizacja          → Odbiorca końcowy (sprzedaż bezpośrednia)
+ *
+ * ⚠️ Poziom 4 istnieje, bo organizacja bywa sprzedawcą dla klienta detalicznego
+ * BEZ pośrednictwa salonu — a wtedy to ona, nie salon, jest stroną dokumentu
+ * i to jej seria numeracji obowiązuje. Wcześniej owner chcący zafakturować
+ * odbiorcę końcowego musiał użyć poziomu 3, gdzie sprzedawcą jest użytkownik —
+ * czyli wystawiał dokument w cudzym imieniu.
  *
  * Każdy poziom ma własny profil wystawcy (`invoice_issuer_profile`): waluta,
  * termin płatności, szablon, wzorzec numeracji, dane rejestrowe, klauzule.
@@ -25,7 +32,8 @@
 const InvoiceLevel = Object.freeze({
   MANUFACTURER_TO_ORGANIZATION: 1,
   ORGANIZATION_TO_USER: 2,
-  USER_TO_END_CLIENT: 3
+  USER_TO_END_CLIENT: 3,
+  ORGANIZATION_TO_END_CLIENT: 4
 });
 
 /** Typ podmiotu wystawiającego. */
@@ -72,6 +80,14 @@ const LEVELS = Object.freeze({
     buyerType: BuyerType.END_CLIENT,
     labelKey: 'level.user_to_end_client',
     issuerIdFrom: (ctx) => ctx.user?.id ?? null,
+    buyerIdFrom: (ctx) => ctx.endClient?.id ?? null
+  },
+  [InvoiceLevel.ORGANIZATION_TO_END_CLIENT]: {
+    level: InvoiceLevel.ORGANIZATION_TO_END_CLIENT,
+    issuerType: IssuerType.ORGANIZATION,
+    buyerType: BuyerType.END_CLIENT,
+    labelKey: 'level.organization_to_end_client',
+    issuerIdFrom: (ctx) => ctx.organization?.id ?? null,
     buyerIdFrom: (ctx) => ctx.endClient?.id ?? null
   }
 });
@@ -221,11 +237,16 @@ function resolveParties({ level, issuerProfile, context }) {
  */
 function allowedLevelsForSession(sessionUser) {
   if (!sessionUser) return [];
+  // Admin działa z poziomu HKL — organizacji matki: sprzedaje albo do innej
+  // organizacji (poziom 1), albo bezpośrednio swojemu klientowi (poziom 2,
+  // wystawcą jest wtedy HKL). W obu przypadkach obowiązują ceny BAZOWE.
   if (sessionUser.isAdmin) {
-    return [InvoiceLevel.ORGANIZATION_TO_USER, InvoiceLevel.MANUFACTURER_TO_ORGANIZATION, InvoiceLevel.USER_TO_END_CLIENT];
+    return [InvoiceLevel.MANUFACTURER_TO_ORGANIZATION, InvoiceLevel.ORGANIZATION_TO_USER];
   }
+  // Owner organizacji: swojemu użytkownikowi (poziom 2) albo bezpośrednio
+  // odbiorcy końcowemu (poziom 4). Dla organizacji ≠ HKL oba idą po cenach SUB.
   if (sessionUser.isOwner) {
-    return [InvoiceLevel.ORGANIZATION_TO_USER, InvoiceLevel.MANUFACTURER_TO_ORGANIZATION];
+    return [InvoiceLevel.ORGANIZATION_TO_USER, InvoiceLevel.ORGANIZATION_TO_END_CLIENT];
   }
   // Zwykły użytkownik (salon) fakturuje wyłącznie swoich odbiorców końcowych
   return [InvoiceLevel.USER_TO_END_CLIENT];

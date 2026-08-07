@@ -97,9 +97,14 @@ test('nieznany poziom odrzucony', () => {
 });
 
 test('poziomy dostępne dla roli z sesji', () => {
-  assert.deepEqual(allowedLevelsForSession({ isOwner: true }), [2, 1]);
+  // Każda rola ma DWIE relacje do wyboru — poza salonem, który ma tylko swoją.
+  // Owner: swojemu użytkownikowi (2) albo odbiorcy końcowemu bezpośrednio (4).
+  assert.deepEqual(allowedLevelsForSession({ isOwner: true }), [2, 4]);
+  // Admin działa z poziomu HKL: do innej organizacji (1) albo do klienta HKL (2).
+  assert.deepEqual(allowedLevelsForSession({ isAdmin: true }), [1, 2]);
   assert.deepEqual(allowedLevelsForSession({}), [3], 'salon fakturuje tylko odbiorców końcowych');
-  assert.equal(allowedLevelsForSession({ isAdmin: true }).length, 3);
+  // ⚠️ Owner NIE fakturuje poziomu 1 — sprzedaż do organizacji jest relacją HKL
+  assert.equal(allowedLevelsForSession({ isOwner: true }).includes(1), false);
 });
 
 /* ---------------------------------------------------------------- */
@@ -331,11 +336,43 @@ test('poziom 3 może wystawić ZWYKŁY użytkownik (salon)', () => {
   assert.equal(canIssueAtLevel(salon, 1), false);
 });
 
-test('poziomy 1 i 2 wymagają ownera/admina', () => {
+test('rola wyznacza dostępne relacje — owner i admin fakturują co innego', () => {
   const owner = req({ userId: 600, orgId: 3, isOwner: true });
-  assert.equal(canIssueAtLevel(owner, 1), true);
-  assert.equal(canIssueAtLevel(owner, 2), true);
-  assert.equal(canIssueAtLevel(owner, 3), true, 'owner może też wystawić w imieniu salonu');
+  assert.equal(canIssueAtLevel(owner, 2), true, 'owner → użytkownik organizacji');
+  assert.equal(canIssueAtLevel(owner, 4), true, 'owner → odbiorca końcowy bezpośrednio');
+  // ⚠️ Sprzedaż do organizacji to relacja HKL (admina), nie ownera; a poziom 3
+  // ma sprzedawcę-salon, więc owner nie może wystawiać w cudzym imieniu.
+  assert.equal(canIssueAtLevel(owner, 1), false);
+  assert.equal(canIssueAtLevel(owner, 3), false);
+
+  const admin = req({ userId: 1, orgId: 3, isAdmin: true });
+  assert.equal(canIssueAtLevel(admin, 1), true, 'HKL → inna organizacja');
+  assert.equal(canIssueAtLevel(admin, 2), true, 'HKL → własny klient');
+  assert.equal(canIssueAtLevel(admin, 4), false);
+});
+
+test('admin ma dostęp niezależnie od organizacji na dokumencie', () => {
+  // ⚠️ Admin PRZEŁĄCZA kontekst organizacji (`/set-organization/:id`). Gdyby
+  // dostęp zawężać do bieżącego kontekstu, przełączenie odcinałoby go od
+  // faktur, które sam wystawił — w tym od poziomu 1, zapisanego w kontekście
+  // organizacji-NABYWCY.
+  const admin = req({ userId: 1, orgId: 3, isAdmin: true });
+  assert.equal(canAccessInvoice(admin, { organizationId: 7, issuerType: 'manufacturer', issuerId: 0 }), true);
+  assert.equal(canAccessInvoice(admin, { organizationId: 7, issuerType: 'organization', issuerId: 7 }), true);
+});
+
+test('kontekst organizacji: admin bierze przełączoną, owner swoją macierzystą', () => {
+  const { organizationIdFromSession } = require('../http/session');
+  // Sesje dokładnie takie, jakie buduje `services/authService.js`
+  const adminHkl = req({ userId: 1, organization: 'HKL', orgId: 3, isAdmin: true, isOwner: true });
+  const adminSwitched = req({ userId: 1, organization: '5', orgId: 3, isAdmin: true, isOwner: true });
+  const owner = req({ userId: 600, organization: 'HKL', orgId: 3, isOwner: true });
+
+  assert.equal(organizationIdFromSession(adminHkl), 3);
+  // ⚠️ Sedno: po `/set-organization/5` admin fakturuje i wyszukuje w organizacji 5
+  assert.equal(organizationIdFromSession(adminSwitched), 5);
+  // Owner ma w `organization` IDENT tekstowy — musi ustąpić `orgId`
+  assert.equal(organizationIdFromSession(owner), 3);
 });
 
 test('salon widzi wyłącznie dokumenty, które sam wystawił', () => {
@@ -369,4 +406,47 @@ test('zakres sesji rozpoznaje kształt danych ownera i klienta', () => {
   // Zwykły użytkownik ma `organization` numeryczne
   assert.deepEqual(scopeFromSession(req({ userId: 931, organization: 3 })),
     { isOrgScope: false, organizationId: 3, userId: 931 });
+});
+
+/* ---------------------------------------------------------------- */
+/* Adres dostawy na fakturze                                         */
+/* ---------------------------------------------------------------- */
+
+const { buildDeliveryAddress } = require('../main');
+
+const clientWithDelivery = {
+  street: 'Hauptstr. 5', zip: '10115', city: 'Berlin', country: 'DE',
+  delivery_name: 'Budowa Zehlendorf', delivery_street: 'Clayallee 100',
+  delivery_zip: '14195', delivery_city: 'Berlin', delivery_country: 'DE'
+};
+
+test('adres dostawy domyślnie NIE trafia na fakturę', () => {
+  // Samo wpisanie adresu w kartotece nie może zmieniać wyglądu dokumentu —
+  // decyduje checkbox `print_delivery_address` przy odbiorcy.
+  assert.equal(buildDeliveryAddress({ ...clientWithDelivery, print_delivery_address: 0 }), null);
+});
+
+test('zaznaczony checkbox drukuje adres dostawy', () => {
+  const address = buildDeliveryAddress({ ...clientWithDelivery, print_delivery_address: 1 });
+  assert.equal(address.street, 'Clayallee 100');
+  assert.equal(address.name, 'Budowa Zehlendorf');
+  assert.equal(address.country, 'DE');
+});
+
+test('parametr API nadpisuje flagę odbiorcy w obie strony', () => {
+  assert.ok(buildDeliveryAddress({ ...clientWithDelivery, print_delivery_address: 0 }, { force: true }));
+  assert.equal(buildDeliveryAddress({ ...clientWithDelivery, print_delivery_address: 1 }, { force: false }), null);
+});
+
+test('adres identyczny z rejestrowym nie jest drukowany drugi raz', () => {
+  const same = {
+    street: 'Rynek 1', zip: '61-772', city: 'Poznań', country: 'PL',
+    delivery_street: 'Rynek 1', delivery_zip: '61-772', delivery_city: 'Poznań', delivery_country: 'PL',
+    print_delivery_address: 1
+  };
+  assert.equal(buildDeliveryAddress(same), null);
+});
+
+test('pusty adres dostawy nie tworzy pustej sekcji', () => {
+  assert.equal(buildDeliveryAddress({ street: 'Rynek 1', print_delivery_address: 1 }), null);
 });

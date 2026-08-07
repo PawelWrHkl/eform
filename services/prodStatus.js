@@ -177,4 +177,80 @@ function parseSpeditionNumbers(speditionNumbersJson) {
     }
 }
 
-module.exports = { SyncProdStatus, setParcelHref, parseSpeditionNumbers };
+
+/**
+ * Numer pozycji zamówienia wyciągnięty z ORDERPOS.
+ *
+ * ⚠️ ORDERPOS z pliku produkcji NIE jest liczbą. Występują:
+ *   `7`        — zwykła pozycja,
+ *   `1-1`,`1-2`— PODPOZYCJE jednej pozycji zamówienia (np. rozbicie na paczki
+ *                albo na elementy zestawu),
+ *   `B793638`  — kod produkcyjny bez odniesienia do numeru pozycji.
+ * Dlatego bierzemy wiodącą liczbę, a gdy jej nie ma — `null` (taki status nie
+ * przypina się do żadnego wiersza, ale nadal zostaje zapisany w bazie).
+ *
+ * @param {string|number} orderPos
+ * @returns {number|null}
+ */
+function positionNumber(orderPos) {
+    const match = String(orderPos ?? '').trim().match(/^(\d+)/);
+    return match ? Number(match[1]) : null;
+}
+
+/** Im wyżej na liście, tym bardziej „blokujący" status dla całej pozycji. */
+const BLOCKING_ORDER = ['!backorder!', '!preparation!', '!production!'];
+
+/**
+ * Statusy ustawione w kolejności POZYCJI zamówienia.
+ *
+ * ⚠️ Widok parował dotąd statusy z wierszami po ZWYKŁYM INDEKSIE
+ * (`statuses[globalIndex - 1]`). Przy schemacie `1-1`, `1-2` jedna pozycja ma
+ * kilka statusów, więc liczba statusów przestaje się zgadzać z liczbą wierszy —
+ * i od pierwszej podpozycji każdy kolejny wiersz pokazywałby CUDZY status.
+ *
+ * Gdy pozycja ma kilka podpozycji, pokazujemy tę, która realnie wstrzymuje
+ * wysyłkę: dowolny status inny niż `!sent!` wygrywa (od najbardziej
+ * blokującego), a jeśli wszystkie wyszły — ten z NAJPÓŹNIEJSZĄ datą wysyłki,
+ * bo pozycja jest kompletna dopiero z ostatnią paczką.
+ *
+ * @param {Array<Record<string, any>>} statuses  wiersze `position_statuses`
+ * @param {Array<Record<string, any>>} orderItems pozycje zamówienia (z `orderpos`)
+ * @returns {Array<Record<string, any>|null>} tablica równoległa do `orderItems`
+ */
+function alignStatusesToItems(statuses, orderItems) {
+    if (!Array.isArray(statuses) || statuses.length === 0) return [];
+    if (!Array.isArray(orderItems) || orderItems.length === 0) return statuses;
+
+    const byPosition = new Map();
+    let matched = 0;
+    for (const status of statuses) {
+        const pos = positionNumber(status.order_pos);
+        if (pos === null) continue;
+        if (!byPosition.has(pos)) byPosition.set(pos, []);
+        byPosition.get(pos).push(status);
+        matched++;
+    }
+
+    // Żaden status nie ma numeru pozycji (same kody produkcyjne) — zostawiamy
+    // dotychczasowe parowanie po indeksie, żeby nic nie zniknęło z widoku.
+    if (matched === 0) return statuses;
+
+    return orderItems.map((item, index) => {
+        const pos = Number(item.orderpos) || (index + 1);
+        const group = byPosition.get(pos);
+        if (!group || group.length === 0) return null;
+        if (group.length === 1) return group[0];
+
+        const blocking = BLOCKING_ORDER
+            .map((code) => group.find((s) => s.status === code))
+            .find(Boolean);
+        if (blocking) return { ...blocking, subPositions: group.length };
+
+        const latest = group.reduce((acc, s) => (
+            String(s.shipping_date || '') > String(acc.shipping_date || '') ? s : acc
+        ), group[0]);
+        return { ...latest, subPositions: group.length };
+    });
+}
+
+module.exports = { SyncProdStatus, setParcelHref, parseSpeditionNumbers, positionNumber, alignStatusesToItems };

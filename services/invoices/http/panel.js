@@ -24,6 +24,8 @@ const { InvoiceService, DocumentType, InvoiceStatus, DOCUMENT_CURRENCY, money, t
 const repository = require('../db/repository');
 const { selectQuery } = require('../../../db/core');
 const { organizationIdFromSession, scopeFromSession, canAccessInvoice } = require('./session');
+const hierarchy = require('../core/hierarchy');
+const { resolvePriceBasis, PriceBasis, HKL_ORG_ID } = require('../core/pricing');
 const { log } = require('../../../utils/logging');
 
 const router = express.Router();
@@ -96,22 +98,31 @@ async function loadClientContext(organizationId, clientId) {
  * @param {{ organizationId: number, endClientId: number, ownerUserId: number }} params
  * @returns {Promise<Record<string, any>|null>}
  */
-async function loadEndClientContext({ organizationId, endClientId, ownerUserId }) {
-  if (!ownerUserId) return null;
-  const client = await repository.getEndClient({ id: endClientId, ownerUserId });
+async function loadEndClientContext({ organizationId, endClientId, ownerUserId, level = 3 }) {
+  const orgScope = level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT;
+  if (!ownerUserId && !orgScope) return null;
+  const client = await repository.getEndClient(
+    orgScope ? { id: endClientId, organizationId } : { id: endClientId, ownerUserId }
+  );
   if (!client) return null;
 
-  const sellerRows = await selectQuery('SELECT country FROM `user` WHERE id = ?', [ownerUserId]);
+  // Sprzedawcą jest salon (poziom 3) albo organizacja (poziom 4) — od tego
+  // zależy para krajów, a więc i skutek podatkowy pokazywany na karcie klienta.
+  const sellerRows = orgScope
+    ? await selectQuery('SELECT country FROM organization WHERE id = ?', [organizationId])
+    : await selectQuery('SELECT country FROM `user` WHERE id = ?', [ownerUserId]);
   const sellerCountry = (sellerRows && sellerRows[0] && sellerRows[0].country) || '';
 
+  // Zamówienia do zafakturowania: te salonu, który obsługuje tego odbiorcę
+  const ordersOwner = orgScope ? Number(client.owner_user_id) || 0 : ownerUserId;
   const counts = await selectQuery(
     `SELECT
        (SELECT COUNT(*) FROM \`order\` o
-         LEFT JOIN invoice i ON i.order_id = o.id AND i.level = 3 AND i.issuer_id = ?
+         LEFT JOIN invoice i ON i.order_id = o.id AND i.level = ? AND i.issuer_id = ?
                             AND i.document_type IN ('invoice', 'final') AND i.status <> 'cancelled'
          WHERE o.user_id = ? AND o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL) AS pending_orders,
-       (SELECT COUNT(*) FROM invoice v WHERE v.buyer_end_client_id = ? AND v.level = 3) AS documents`,
-    [ownerUserId, ownerUserId, organizationId, endClientId]
+       (SELECT COUNT(*) FROM invoice v WHERE v.buyer_end_client_id = ? AND v.level = ?) AS documents`,
+    [level, orgScope ? organizationId : ownerUserId, ordersOwner, organizationId, endClientId, level]
   );
 
   const zeroRate = taxRules.isIntraEuZeroRate(sellerCountry, client.country);
@@ -130,7 +141,48 @@ async function loadEndClientContext({ organizationId, endClientId, ownerUserId }
     zeroRate,
     taxHint: zeroRate ? 'zero_rate_hint' : (sameCountry ? 'domestic_hint' : 'export_hint'),
     hasVatEuId: taxRules.looksLikeVatEuId(client.vat_eu_id || client.tax_id, client.country),
-    isEndClient: true
+    isEndClient: true,
+    ownerUserId: Number(client.owner_user_id) || null
+  };
+}
+
+/**
+ * Kontekst ORGANIZACJI jako nabywcy (poziom 1: HKL → inna organizacja).
+ *
+ * @param {{ sellerOrganizationId: number, buyerOrganizationId: number }} params
+ * @returns {Promise<Record<string, any>|null>}
+ */
+async function loadOrganizationContext({ sellerOrganizationId, buyerOrganizationId }) {
+  const rows = await selectQuery(
+    `SELECT o.id, o.name AS client_name, o.ident, o.country, o.tax_id, o.street, o.zip, o.city,
+            (SELECT country FROM organization WHERE id = ?) AS seller_country
+       FROM organization o
+      WHERE o.id = ? AND o.id <> ?`,
+    [sellerOrganizationId, buyerOrganizationId, sellerOrganizationId]
+  );
+  const client = rows && rows[0];
+  if (!client) return null;
+
+  const counts = await selectQuery(
+    `SELECT
+       (SELECT COUNT(*) FROM \`order\` o
+         LEFT JOIN invoice i ON i.order_id = o.id AND i.level = 1
+                            AND i.document_type IN ('invoice', 'final') AND i.status <> 'cancelled'
+         WHERE o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL) AS pending_orders,
+       (SELECT COUNT(*) FROM invoice v WHERE v.organization_id = ? AND v.level = 1) AS documents`,
+    [buyerOrganizationId, buyerOrganizationId]
+  );
+
+  const zeroRate = taxRules.isIntraEuZeroRate(client.seller_country, client.country);
+  const sameCountry = taxRules.normalizeCountry(client.seller_country) === taxRules.normalizeCountry(client.country);
+  return {
+    ...client,
+    pendingOrders: counts && counts[0] ? Number(counts[0].pending_orders) : 0,
+    documents: counts && counts[0] ? Number(counts[0].documents) : 0,
+    zeroRate,
+    taxHint: zeroRate ? 'zero_rate_hint' : (sameCountry ? 'domestic_hint' : 'export_hint'),
+    hasVatEuId: taxRules.looksLikeVatEuId(client.tax_id, client.country),
+    isOrganization: true
   };
 }
 
@@ -173,15 +225,32 @@ router.get('/', requireLogin, async (req, res) => {
   // nie temu klientowi (przy 40 zamówieniach z różnych firm w jednym dropdownie).
   const clientId = Number(req.query.clientId) || null;
   const scope = scopeFromSession(req);
-  const level = scope.isOrgScope ? 2 : 3;
+
+  // KROK 0: relacja handlowa. Owner wybiera między swoim użytkownikiem (2)
+  // a odbiorcą końcowym (4); admin między inną organizacją (1) a klientem
+  // bezpośrednim HKL (2); salon ma tylko poziom 3. Lista dozwolonych poziomów
+  // jest jedna dla UI i API — `core/hierarchy.js`.
+  const allowedLevels = hierarchy.allowedLevelsForSession(req.session.user);
+  const requestedLevel = Number(req.query.level);
+  const level = allowedLevels.includes(requestedLevel) ? requestedLevel : (allowedLevels[0] || 3);
+  const buyerIsEndClient = level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT
+    || level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT;
 
   try {
-    // W trybie salonu „klientem" jest odbiorca końcowy z jego prywatnej bazy
-    const client = clientId
-      ? (level === 3
-        ? await loadEndClientContext({ organizationId, endClientId: clientId, ownerUserId: scope.userId })
-        : await loadClientContext(organizationId, clientId))
-      : null;
+    let client = null;
+    if (clientId) {
+      if (level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) {
+        // ⚠️ Sprzedawcą poziomu 1 jest PRODUCENT (HKL), a nie organizacja, na
+        // którą admin jest przełączony — od kraju sprzedawcy zależy podpowiedź
+        // podatkowa (WDT 0% vs stawka krajowa), więc pomyłka jest widoczna
+        // wprost na karcie nabywcy.
+        client = await loadOrganizationContext({ sellerOrganizationId: HKL_ORG_ID, buyerOrganizationId: clientId });
+      } else if (buyerIsEndClient) {
+        client = await loadEndClientContext({ organizationId, endClientId: clientId, ownerUserId: scope.userId, level });
+      } else {
+        client = await loadClientContext(organizationId, clientId);
+      }
+    }
 
     // Nieznany/obcy klient w query → traktujemy jak brak wyboru, nie jako błąd
     if (clientId && !client) {
@@ -190,9 +259,20 @@ router.get('/', requireLogin, async (req, res) => {
 
     // ⚠️ ŻADNYCH pełnych list w HTML-u: klientów i zamówień będzie bardzo dużo,
     // więc comboboxy pytają endpointy wyszukiwania w miarę pisania.
-    const invoiceFilter = level === 3
-      ? { organizationId, issuerType: 'user', issuerId: scope.userId, limit: 100 }
-      : { organizationId, buyerUserId: client ? client.id : null, limit: 100 };
+    // Lista dokumentów zawężona do TEJ relacji — poziom 2 i 4 dotyczą tego
+    // samego ownera, ale to dwa różne zbiory faktur i dwie serie numeracji.
+    let invoiceFilter;
+    if (level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) {
+      invoiceFilter = { organizationId: client ? client.id : organizationId, level, limit: 100 };
+    } else if (level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT) {
+      invoiceFilter = { organizationId, issuerType: 'user', issuerId: scope.userId, level, buyerEndClientId: client ? client.id : null, limit: 100 };
+    } else if (level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT) {
+      invoiceFilter = { organizationId, issuerType: 'organization', issuerId: organizationId, level, buyerEndClientId: client ? client.id : null, limit: 100 };
+    } else {
+      // Poziom 2 bez filtra `level`: dokumenty z v1 mają kolumnę domyślną,
+      // a wykluczenie ich z listy wyglądałoby jak utrata faktur.
+      invoiceFilter = { organizationId, buyerUserId: client ? client.id : null, limit: 100 };
+    }
 
     const [invoices, profile] = client
       ? await Promise.all([
@@ -205,11 +285,26 @@ router.get('/', requireLogin, async (req, res) => {
       L,
       panelLang: lang,
       level,
+      // Segmentowany przełącznik relacji nad wyborem klienta
+      levelOptions: allowedLevels.map((lv) => ({
+        level: lv,
+        label: L[`level_${lv}`] || `#${lv}`,
+        active: lv === level
+      })),
+      // Który cennik obowiązuje w tej relacji — pokazywane wprost w panelu,
+      // żeby nie trzeba było zgadywać, skąd wzięła się kwota na fakturze.
+      priceBasis: resolvePriceBasis({
+        level,
+        issuerType: level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? 'manufacturer' : (level === 3 ? 'user' : 'organization'),
+        issuerId: level === 3 ? scope.userId : organizationId,
+        organizationId
+      }),
+      priceBasisLabels: { [PriceBasis.BASE]: L.price_basis_base, [PriceBasis.SUB]: L.price_basis_sub },
       client,
       invoices: decorateInvoices(invoices, lang),
       profile,
       currency: DOCUMENT_CURRENCY,
-      documentTypes: level === 3
+      documentTypes: buyerIsEndClient
         // Salon fakturuje sprzedaż detaliczną: proforma i faktura. Zaliczki
         // i faktury końcowe zostają narzędziem organizacji.
         ? [DocumentType.PROFORMA, DocumentType.INVOICE]

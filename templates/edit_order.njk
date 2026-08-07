@@ -71,4 +71,8 @@
   <script type="module" src="/scripts/new-order.js"></script>
     <script type="module" src="/scripts/edit-order.js"></script>
   <script type="module" src="/scripts/createNewAddress.js"></script>
+  {# ⚠️ Ten blok NADPISUJE `scripts` z `new-order.njk`, więc każdy moduł
+     formularza trzeba tu wymienić osobno — inaczej sekcja odbiorcy końcowego
+     renderuje się, ale jest martwa (bez wyszukiwarki i przycisku „+"). #}
+  <script type="module" src="/scripts/orderEndClient.js"></script>
 {% endblock scripts %}

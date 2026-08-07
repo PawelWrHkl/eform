@@ -205,6 +205,15 @@ SELECT COUNT(*) INTO @c FROM information_schema.COLUMNS
 SET @q = IF(@c=0, 'ALTER TABLE `invoice` ADD COLUMN `delivery_date` DATE NULL AFTER `sale_date`', 'SELECT 1');
 PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
 
+-- Warstwa cenowa dokumentu: 'base' (ceny HKL: CENA/DOPLATA/RABAT) albo 'sub'
+-- (ceny SUB___ w relacji organizacja≠HKL → jej użytkownik). Zapisywana dla
+-- audytu — patrz `core/pricing.js`. Bez tej kolumny nie da się po fakcie
+-- sprawdzić, po którym cenniku poszedł dokument.
+SELECT COUNT(*) INTO @c FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice' AND COLUMN_NAME='price_basis';
+SET @q = IF(@c=0, 'ALTER TABLE `invoice` ADD COLUMN `price_basis` VARCHAR(8) NOT NULL DEFAULT ''base'' AFTER `issuer_id`', 'SELECT 1');
+PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
+
 -- Indeks pod listowanie per wystawca/poziom
 SELECT COUNT(*) INTO @c FROM information_schema.STATISTICS
  WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice' AND INDEX_NAME='idx_issuer_level';
@@ -262,5 +271,28 @@ SELECT COUNT(*) INTO @c FROM information_schema.STATISTICS
  WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice' AND INDEX_NAME='uq_issuer_number';
 SET @q = IF(@c=0,
   'ALTER TABLE `invoice` ADD UNIQUE KEY `uq_issuer_number` (`issuer_type`, `issuer_id`, `level`, `number`)',
+  'SELECT 1');
+PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- ---------------------------------------------------------------------
+-- Adres dostawy skopiowany na dokument (jak dane stron). Drukowany tylko
+-- wtedy, gdy różni się od adresu rejestrowego nabywcy — w tej branży towar
+-- często jedzie pod inny adres niż faktura (montaż u klienta końcowego),
+-- a przy WDT 0% adres w innym państwie UE jest elementem dokumentacji.
+-- ---------------------------------------------------------------------
+SELECT COUNT(*) INTO @c FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice' AND COLUMN_NAME='delivery_address';
+SET @q = IF(@c=0, 'ALTER TABLE `invoice` ADD COLUMN `delivery_address` JSON NULL AFTER `buyer_registry`', 'SELECT 1');
+PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- ---------------------------------------------------------------------
+-- Czy adres dostawy ma być DRUKOWANY na fakturze tego odbiorcy.
+-- Domyślnie 0: sam fakt wpisania adresu nie powinien zmieniać wyglądu
+-- dokumentu — decyzja musi być świadoma (checkbox w formularzu odbiorcy).
+-- ---------------------------------------------------------------------
+SELECT COUNT(*) INTO @c FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice_end_client' AND COLUMN_NAME='print_delivery_address';
+SET @q = IF(@c=0,
+  'ALTER TABLE `invoice_end_client` ADD COLUMN `print_delivery_address` TINYINT(1) NOT NULL DEFAULT 0 AFTER `delivery_country`',
   'SELECT 1');
 PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;

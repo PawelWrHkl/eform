@@ -78,5 +78,6 @@
   "taxcat.zw": "Zwolniona",
   "items.order_ref": "Zamówienie",
   "items.dimensions": "Wymiary",
-  "header.delivery_date": "Data dostawy"
+  "header.delivery_date": "Data dostawy",
+  "party.delivery_address": "Adres dostawy"
 }

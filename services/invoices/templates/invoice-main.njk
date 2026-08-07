@@ -15,12 +15,27 @@
 <div class="invoice">
 
   {% include "partials/header.njk" %}
-  {% include "partials/seller_buyer.njk" %}
+
+  {# ⚠️ UKŁAD POZIOMY (A4 landscape): wysokość jest zasobem deficytowym
+     (184 mm treści), więc bloki, które w pionie stały jeden pod drugim, idą
+     tu obok siebie. Bez tego jednopozycyjna faktura zajmowała dwie strony. #}
+  <div class="row row--parties">
+    {% include "partials/seller_buyer.njk" %}
+    {# Adres dostawy, jeśli inny niż rejestrowy nabywcy i włączony przy odbiorcy #}
+    {% include "partials/delivery_address.njk" %}
+  </div>
+
   {# Numery rejestrowe i klauzule krajowe (PL/DE/NL/FR) — patrz core/compliance.js #}
   {% include "partials/tax_compliance.njk" %}
   {% include "partials/items_table.njk" %}
-  {% include "partials/vat_summary.njk" %}
-  {% include "partials/payment.njk" %}
-  {% include "partials/footer.njk" %}
+
+  <div class="row row--summary">
+    {% include "partials/vat_summary.njk" %}
+  </div>
+
+  <div class="row row--closing">
+    {% include "partials/payment.njk" %}
+    {% include "partials/footer.njk" %}
+  </div>
 
 </div>

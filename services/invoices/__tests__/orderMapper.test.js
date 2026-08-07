@@ -20,23 +20,25 @@ const { Unit, TaxCategory } = require('../domain/constants');
 
 const standardTax = () => ({ taxCategory: TaxCategory.STANDARD, taxRate: 23 });
 
-test('jednostka: powierzchnia → m², ilość mnożona przez liczbę sztuk', () => {
+test('ilość to LICZBA SZTUK z ILOSC — nigdy m² ani mb', () => {
+  // ⚠️ Żaden produkt nie jest rozliczany na metry: `POW` i wymiary to dane
+  // techniczne konfiguracji. Wcześniej mapper drukował `POW × ILOSC` jako ilość,
+  // przez co dokument przeczył alokacjom częściowego fakturowania (te zawsze
+  // liczą `ILOSC`).
   const r = resolveUnitAndQuantity({ POW: 1.52, ILOSC: 2, SZEROKOSC: 1232, WYSOKOSC: 1232 }, 2);
-  assert.equal(r.unit, Unit.SQUARE_METER);
-  assert.equal(r.quantity, 3.04);
-  assert.equal(r.isInstallation, false);
-});
-
-test('jednostka: sama szerokość bez wysokości → metry bieżące (karnisze)', () => {
-  const r = resolveUnitAndQuantity({ SZEROKOSC: 2400, ILOSC: 1 }, 1);
-  assert.equal(r.unit, Unit.RUNNING_METER);
-  assert.equal(r.quantity, 2.4, '2400 mm = 2,4 mb');
-});
-
-test('jednostka: brak wymiarów → sztuki', () => {
-  const r = resolveUnitAndQuantity({ ILOSC: 5 }, 5);
   assert.equal(r.unit, Unit.PIECE);
-  assert.equal(r.quantity, 5);
+  assert.equal(r.quantity, 2, 'dwie sztuki, nie 3,04 m²');
+});
+
+test('sama szerokość bez wysokości też daje sztuki (karnisze)', () => {
+  const r = resolveUnitAndQuantity({ SZEROKOSC: 2400, ILOSC: 3 }, 3);
+  assert.equal(r.unit, Unit.PIECE);
+  assert.equal(r.quantity, 3, 'nie 7,2 mb');
+});
+
+test('brak ILOSC → fallback na amount, potem 1', () => {
+  assert.equal(resolveUnitAndQuantity({}, 5).quantity, 5);
+  assert.equal(resolveUnitAndQuantity({}, 0).quantity, 1);
 });
 
 test('parametr MONTAZ to kod uchwytu, NIE usługa montażu', () => {
@@ -45,7 +47,7 @@ test('parametr MONTAZ to kod uchwytu, NIE usługa montażu', () => {
   for (const code of ['297800', 'SPSCH', 'PCV', 'VS2SL', 'MP', '2', '307', '']) {
     const r = resolveUnitAndQuantity({ MONTAZ: code, POW: 3, ILOSC: 1 }, 1);
     assert.equal(r.isInstallation, false, `MONTAZ=${code} nie może oznaczać usługi`);
-    assert.equal(r.unit, Unit.SQUARE_METER, 'pozycja zostaje towarem rozliczanym w m²');
+    assert.equal(r.unit, Unit.PIECE, 'pozycja zostaje towarem liczonym w sztukach');
   }
 });
 
@@ -78,7 +80,8 @@ test('opis pozycji: wymiary, wybrane parametry, referencja i komentarz', () => {
     { commision: 'Salon okno 1', comment: 'montaż od wewnątrz' },
     { SZEROKOSC: 1232, WYSOKOSC: 1500, MODEL: 'AO30', KOLOR: '2002-P20', DODATKI: '-' }
   );
-  assert.match(desc, /1232×1500 mm/);
+  // Wymiary celowo NIE w opisie — mają własną kolumnę na dokumencie
+  assert.doesNotMatch(desc, /1232×1500/);
   assert.match(desc, /MODEL: AO30/);
   assert.match(desc, /KOLOR: 2002-P20/);
   assert.match(desc, /Salon okno 1/);
@@ -106,8 +109,9 @@ test('mapowanie: wartość netto pochodzi z wyceny pozycji, ilość jest informa
   assert.equal(items.length, 1);
   assert.equal(items[0].unitPriceNetMinor, 58400, 'kwota z `total_price`, nie iloczyn m² × stawka');
   assert.equal(items[0].quantity, 1, 'kalkulator dostaje ilość 1 — cenniki progowe nie znoszą mnożenia');
-  assert.equal(items[0].unit, Unit.SQUARE_METER);
-  assert.equal(items[0].meta.displayQuantity, 1.52, 'na wydruku pokazujemy realne m²');
+  assert.equal(items[0].unit, Unit.PIECE);
+  assert.equal(items[0].meta.displayQuantity, 1, 'na wydruku liczba sztuk z ILOSC');
+  assert.equal(items[0].meta.area, 1.52, 'powierzchnia zostaje w meta jako dana techniczna');
   assert.equal(items[0].meta.asortmentGroup, '39');
   assert.equal(items[0].taxRate, 23);
   assert.equal(items[0].orderItemId, 6945);

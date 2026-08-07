@@ -41,6 +41,51 @@
                                                 {% endblock commision_input %}
                                             </div>
                                         </div>
+                                        {# ---------- Odbiorca końcowy (opcjonalnie) ----------
+                                           Spięcie zamówienia z odbiorcą z kartoteki fakturowej: dzięki
+                                           temu fakturę dla niego wystawia się potem wprost z panelu
+                                           faktur, bez szukania zamówienia po numerze. Sekcja jest
+                                           zwinięta pod checkboxem, bo dotyczy mniejszości zamówień. #}
+                                        {% block end_client_section %}
+                                          {% if invoicesEnabled %}
+                                            <div class="row mb-3 align-items-start mt-3" id="end-client-row">
+                                                <div class="col-md-3 text-start fw-semibold pt-2 mobile-d-none">
+                                                    <label class="mb-0" for="end-client-input">{{ __('new-order.end_client') }}</label>
+                                                </div>
+                                                <div class="col-md-9">
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <input type="checkbox" class="form-check-input m-0" id="end-client-checkbox"
+                                                               {% if selectedEndClient %}checked{% endif %}/>
+                                                        <label class="form-check-label m-0" for="end-client-checkbox">
+                                                            {{ __('new-order.end_client_checkbox') }}
+                                                        </label>
+                                                    </div>
+                                                    {# Pole wyszukiwania, NIE lista <select>: odbiorców salonu może
+                                                       być bardzo dużo, więc podpowiedzi lecą z endpointu. #}
+                                                    <div id="end-client-container" class="d-flex align-items-center gap-2 mt-2 {% if not selectedEndClient %}d-none{% endif %}">
+                                                        <div class="end-client-combo flex-grow-1">
+                                                            <input type="text" class="form-control" id="end-client-input"
+                                                                   placeholder="{{ __('new-order.end_client_placeholder') }}"
+                                                                   value="{{ selectedEndClient.name if selectedEndClient else '' }}"
+                                                                   role="combobox" aria-expanded="false" aria-controls="end-client-list" aria-autocomplete="list"
+                                                                   autocomplete="off"/>
+                                                            {# `data-was-linked` mówi skryptowi, że zamówienie MA już odbiorcę — dzięki
+                                                               temu odznaczenie checkboxa wysyła odpięcie, a nie milczy. #}
+                                                            <input type="hidden" id="end-client-id" value="{{ selectedEndClient.id if selectedEndClient else '' }}"
+                                                                   {% if selectedEndClient %}data-was-linked="1"{% endif %}/>
+                                                            <div class="end-client-combo__list" id="end-client-list" role="listbox"></div>
+                                                        </div>
+                                                        <button type="button" id="add-end-client-btn" class="btn btn-outline-success"
+                                                                title="{{ __('new-order.end_client_add') }}">+</button>
+                                                    </div>
+                                                    <small class="text-muted d-block mt-1 {% if not selectedEndClient %}d-none{% endif %}" id="end-client-hint">
+                                                        {{ __('new-order.end_client_hint') }}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                          {% endif %}
+                                        {% endblock end_client_section %}
+
                                         <div class="row mb-3 align-items-start mt-3 ">
                                             <div class="col-md-3 text-start fw-semibold pt-2 mobile-d-none">
                                                 <label for="address-select" class="mb-0" id='address-label'>{{ __('new_order.address') }}</label>
@@ -290,4 +335,5 @@
                                 <script type="module" src="/scripts/orders.js"></script>
                                 <script type="module" src="/scripts/new-order.js"></script>
                                 <script type="module" src="/scripts/createNewAddress.js"></script>
+                                <script type="module" src="/scripts/orderEndClient.js"></script>
                             {% endblock scripts %}

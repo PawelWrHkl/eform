@@ -452,3 +452,48 @@
     flex-wrap: wrap;
     gap: 8px;
 }
+
+.inv-check--spaced {
+    margin-top: 10px;
+}
+
+/* --- Przełącznik relacji handlowej (krok 0) ------------------------------ */
+/* Wybór relacji zmienia strony dokumentu ORAZ cennik (bazowy/SUB), dlatego
+   jest widoczny jako pierwszy element panelu, a nie ukryty w formularzu. */
+.inv-levels__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inv-level {
+  display: inline-block;
+  padding: 8px 16px;
+  border: 1px solid var(--inv-border, #d8dbe0);
+  border-radius: 999px;
+  background: #fff;
+  color: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background .15s, border-color .15s;
+}
+
+.inv-level:hover { border-color: var(--accent, #8a6d0b); }
+
+.inv-level--active {
+  background: var(--accent, #8a6d0b);
+  border-color: var(--accent, #8a6d0b);
+  color: #fff;
+}
+
+.inv-levels__basis {
+  margin-top: 12px;
+  font-size: .9rem;
+}
+
+.inv-levels__reason {
+  display: block;
+  margin-top: 2px;
+  color: #6c757d;
+  font-size: .82rem;
+}

@@ -100,11 +100,14 @@ test('render: brak kursu drukuje ostrzeżenie, nie kwotę 0,00', () => {
   assert.doesNotMatch(html, /NBP:/, 'bez kursu nie ma źródła kursu');
 });
 
-test('render: ilość w jednostce miary pochodzi z meta.displayQuantity', () => {
-  const html = renderInvoiceHtml(ctx());
-  assert.match(html, /1,52/, 'm² pozycji 1');
-  assert.match(html, /4,32/, 'm² pozycji 2');
-  assert.match(html, /m²/);
+test('render: ilość to liczba SZTUK, wymiary idą do własnej kolumny', () => {
+  const html = renderInvoiceHtml(ctx({ invoice: { lang: 'pl' } }));
+  // ⚠️ Żaden produkt nie jest rozliczany na m² — ilość pochodzi z ILOSC.
+  assert.match(html, /szt\./, 'jednostka to sztuki');
+  assert.doesNotMatch(html, /m²/, 'metry kwadratowe nie mogą trafić na dokument');
+  // Powierzchnia zostaje w danych technicznych, ale nie jako ilość
+  assert.match(html, /1232×1232 mm/, 'wymiary w kolumnie „Wymiary"');
+  assert.match(html, /<th class="col-dim">Wymiary<\/th>/);
 });
 
 test('render: proforma dostaje klauzulę o braku skutków podatkowych', () => {

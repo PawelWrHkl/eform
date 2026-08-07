@@ -78,5 +78,6 @@
   "taxcat.zw": "Exempt",
   "items.order_ref": "Order",
   "items.dimensions": "Dimensions",
-  "header.delivery_date": "Delivery date"
+  "header.delivery_date": "Delivery date",
+  "party.delivery_address": "Delivery address"
 }

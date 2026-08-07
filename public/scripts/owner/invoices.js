@@ -230,18 +230,18 @@ function initClientSelect() {
 
   // Wybór klienta przeładowuje panel w jego kontekście (GET ?clientId=…),
   // więc adres jest linkowalny i odświeżenie strony nie gubi wyboru.
-  // Tryb salonu (poziom 3) pyta o WŁASNYCH odbiorców końcowych, tryb organizacji
-  // o klientów organizacji — patrz `data-source` w szablonie.
-  const endClientsMode = form.dataset.source === 'end-clients';
-  const searchUrl = endClientsMode
-    ? '/api/v1/invoices/end-clients/search'
-    : '/api/v1/invoices/search/clients';
+  // ⚠️ JEDEN endpoint dla wszystkich relacji: to `level` decyduje, czy szukamy
+  // organizacji (1), użytkownika organizacji (2) czy odbiorcy końcowego (3/4).
+  // Wcześniejsze rozgałęzienie po `data-source` trzeba by rozbudowywać przy
+  // każdym nowym poziomie — i łatwo było trafić w cudzą kartotekę.
+  const level = Number(form.dataset.level) || 2;
+  const searchUrl = `/api/v1/invoices/search/clients?level=${level}`;
 
   initCombobox({
     inputId: 'inv-client-input',
     listId: 'inv-client-list',
     hiddenId: 'inv-client-id',
-    fetchItems: (query, signal) => fetchSearch(`${searchUrl}?q=${encodeURIComponent(query)}`, signal),
+    fetchItems: (query, signal) => fetchSearch(`${searchUrl}&q=${encodeURIComponent(query)}`, signal),
     renderItem: (c) => ({
       value: String(c.id),
       // Odbiorca końcowy ma `name`, klient organizacji `client_name`
@@ -295,12 +295,13 @@ function initCreateForm() {
   };
 
   const clientId = form.dataset.clientId;
+  const formLevel = Number(form.dataset.level) || 2;
   initCombobox({
     inputId: 'inv-order-input',
     listId: 'inv-order-list',
     hiddenId: 'inv-order-id',
     fetchItems: (query, signal) => fetchSearch(
-      `/api/v1/invoices/search/orders?clientId=${encodeURIComponent(clientId)}&q=${encodeURIComponent(query)}`,
+      `/api/v1/invoices/search/orders?clientId=${encodeURIComponent(clientId)}&level=${formLevel}&q=${encodeURIComponent(query)}`,
       signal
     ),
     renderItem: (o) => {
@@ -338,7 +339,8 @@ function initCreateForm() {
       // Poziom hierarchii: 3 dla salonu (nabywcą jest odbiorca końcowy)
       level: Number(form.dataset.level) || 2
     };
-    if (payload.level === 3) {
+    // Odbiorca końcowy jest nabywcą na poziomie 3 (salon) i 4 (organizacja)
+    if (payload.level === 3 || payload.level === 4) {
       // Odbiorcę bierzemy z kontekstu panelu (?clientId=…)
       const clientId = new URLSearchParams(window.location.search).get('clientId');
       if (clientId) payload.endClientId = Number(clientId);

@@ -12,32 +12,35 @@
     {# Szkic nie ma jeszcze numeru — numer nadajemy przy wystawieniu #}
     <div class="doc-header__number">{{ invoice.number if invoice.number else '—' }}</div>
 
-    <table class="doc-header__dates">
-      <tr>
-        <th>{{ t('header.issue_date') }}</th>
-        <td>{{ invoice.issueDate | date }}</td>
-      </tr>
-      <tr>
-        <th>{{ t('header.sale_date') }}</th>
-        <td>{{ invoice.saleDate | date }}</td>
-      </tr>
-      <tr>
-        <th>{{ t('header.due_date') }}</th>
-        <td>{{ invoice.dueDate | date }}</td>
-      </tr>
+    {# Daty jako zawijany pasek, nie tabela jeden-pod-drugim: w układzie
+       poziomym wysokość jest zasobem deficytowym, a nagłówek był jej
+       największym pojedynczym konsumentem. #}
+    <div class="doc-header__dates">
+      <div class="doc-date">
+        <span class="doc-date__label">{{ t('header.issue_date') }}</span>
+        <strong class="doc-date__value">{{ invoice.issueDate | date }}</strong>
+      </div>
+      <div class="doc-date">
+        <span class="doc-date__label">{{ t('header.sale_date') }}</span>
+        <strong class="doc-date__value">{{ invoice.saleDate | date }}</strong>
+      </div>
+      <div class="doc-date">
+        <span class="doc-date__label">{{ t('header.due_date') }}</span>
+        <strong class="doc-date__value">{{ invoice.dueDate | date }}</strong>
+      </div>
       {% if invoice.orderId %}
-        <tr>
-          <th>{{ t('header.order_ref') }}</th>
-          <td>{{ invoice.orderRef if invoice.orderRef else invoice.orderId }}</td>
-        </tr>
+        <div class="doc-date">
+          <span class="doc-date__label">{{ t('header.order_ref') }}</span>
+          <strong class="doc-date__value">{{ invoice.orderRef if invoice.orderRef else invoice.orderId }}</strong>
+        </div>
       {% endif %}
       {% if invoice.correctedInvoiceNumber %}
-        <tr>
-          <th>{{ t('header.corrected_ref') }}</th>
-          <td>{{ invoice.correctedInvoiceNumber }}</td>
-        </tr>
+        <div class="doc-date">
+          <span class="doc-date__label">{{ t('header.corrected_ref') }}</span>
+          <strong class="doc-date__value">{{ invoice.correctedInvoiceNumber }}</strong>
+        </div>
       {% endif %}
-    </table>
+    </div>
   </div>
 </header>
 
