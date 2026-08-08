@@ -1,5 +1,7 @@
 'use strict';
 
+const { OrderParam } = require('../domain/orderParams');
+
 /**
  * Częściowe fakturowanie (partial invoicing) — czysta logika ilości.
  *
@@ -27,7 +29,7 @@ const QTY_EPSILON = 0.0005;
  * Ilość zamówiona z pozycji `order_item`.
  *
  * ⚠️ Ta sama reguła co w `mailBot/pdfGenerator.js:readQty` — źródłem prawdy jest
- * `json_parameters.ILOSC` (klucze są zawsze polskie i kanoniczne), a kolumna
+ * `OrderParam.QUANTITY` (`json_parameters.ILOSC`), a kolumna
  * `amount` to fallback. Rozjechanie się tych dwóch miejsc oznaczałoby, że PDF
  * zamówienia i faktura pokazują inne ilości.
  *
@@ -41,7 +43,8 @@ function orderedQuantity(item) {
     try { params = JSON.parse(params); } catch { params = null; }
   }
   if (params && typeof params === 'object') {
-    const raw = params.ILOSC ?? params['ILOŚĆ'] ?? params.ilosc;
+    // Warianty zapisu klucza zostają — dane historyczne bywają niespójne
+    const raw = params[OrderParam.QUANTITY] ?? params['ILOŚĆ'] ?? params.ilosc;
     const qty = Number(raw);
     if (Number.isFinite(qty) && qty > 0) return qty;
   }

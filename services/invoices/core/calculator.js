@@ -37,6 +37,7 @@ const { TaxCategory, LEGAL_NOTE_KEYS, Unit } = require('../domain/constants');
  * @property {number} [unitPriceNet]
  * @property {number} [unitPriceNetMinor]
  * @property {number} [discountPercent]
+ * @property {number} [discountAmountMinor] Kwota rabatu w groszach — ma pierwszeństwo przed procentem.
  * @property {number} [taxRate]
  * @property {string} [taxCategory]
  * @property {number} [orderItemId]
@@ -70,7 +71,12 @@ class InvoiceCalculator {
 
     const grossOfDiscount = money.multiply(unitPriceNet, quantity);
     const discountPercent = Number(raw.discountPercent) || 0;
-    const discountAmount = money.percentOf(grossOfDiscount, discountPercent);
+    // ⚠️ Kwota rabatu ma pierwszeństwo przed procentem: rabat całego zamówienia
+    // jest rozkładany na pozycje co do grosza (`core/clientDiscount.js`),
+    // a przeliczanie go z powrotem przez procent gubiłoby reszty z dzielenia.
+    const discountAmount = Number.isFinite(Number(raw.discountAmountMinor))
+      ? Math.min(Math.max(Math.trunc(Number(raw.discountAmountMinor)), 0), grossOfDiscount)
+      : money.percentOf(grossOfDiscount, discountPercent);
     const netAmount = grossOfDiscount - discountAmount;
 
     const taxRate = Number.isFinite(Number(raw.taxRate)) ? Number(raw.taxRate) : 0;

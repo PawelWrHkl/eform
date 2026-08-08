@@ -84,20 +84,23 @@ test('render: podsumowanie VAT rozróżnia kategorie o tej samej stawce', () => 
   assert.match(html, /<th>Rodzaj<\/th>/);
 });
 
-test('render: faktura w obcej walucie pokazuje VAT w walucie lokalnej i kurs', () => {
+test('render: dokument NIE pokazuje przeliczenia VAT na walutę krajową', () => {
+  // ⚠️ Blok „VAT w PLN + kurs NBP" został świadomie usunięty z wydruku.
+  // Kwoty są nadal liczone i zapisywane (`totalTaxLocal`, `exchangeRate`),
+  // więc test pilnuje, że nie wracają na dokument przypadkiem — np. przy
+  // przywracaniu innego fragmentu szablonu.
   const html = renderInvoiceHtml(ctx());
-  assert.match(html, /102,33/, 'VAT przeliczony na PLN');
-  assert.match(html, /4\.2637|4,2637/, 'kurs NBP na dokumencie');
-  assert.match(html, /NBP:149\/A\/NBP\/2026/, 'źródło kursu');
+  assert.doesNotMatch(html, /<div class="vat-local">/, 'sekcja przeliczenia nie jest renderowana');
+  assert.doesNotMatch(html, /NBP:149\/A\/NBP\/2026/, 'źródło kursu nie trafia na wydruk');
+  assert.doesNotMatch(html, /102,33/, 'kwota VAT w PLN nie trafia na wydruk');
+  // Kwoty w walucie dokumentu zostają nietknięte
+  assert.match(html, /2\.099,00|2 099,00/, 'suma netto w EUR nadal na dokumencie');
 });
 
-test('render: brak kursu drukuje ostrzeżenie, nie kwotę 0,00', () => {
+test('render: brak kursu nie drukuje już ostrzeżenia (sekcji nie ma wcale)', () => {
   const html = renderInvoiceHtml(ctx({ invoice: { totalTaxLocal: null, exchangeRate: null } }));
-  assert.match(html, /Wechselkurs nicht verfügbar/, 'ostrzeżenie w języku dokumentu');
-  // Uwaga: sam selektor `.vat-local__rate` występuje w arkuszu wstrzykniętym
-  // w <style>, więc sprawdzamy brak WYRENDEROWANEGO elementu, nie brak napisu.
-  assert.doesNotMatch(html, /<div class="vat-local__rate">/, 'sekcja kursu nie jest renderowana');
-  assert.doesNotMatch(html, /NBP:/, 'bez kursu nie ma źródła kursu');
+  assert.doesNotMatch(html, /Wechselkurs nicht verfügbar/, 'ostrzeżenie o kursie zniknęło razem z sekcją');
+  assert.doesNotMatch(html, /NBP:/, 'bez sekcji nie ma źródła kursu');
 });
 
 test('render: ilość to liczba SZTUK, wymiary idą do własnej kolumny', () => {

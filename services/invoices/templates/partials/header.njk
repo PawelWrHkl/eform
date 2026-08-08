@@ -1,16 +1,24 @@
 {# Nagłówek: logo, typ i numer dokumentu, daty, referencje (zamówienie/korekta). #}
 <header class="doc-header">
-  <div class="doc-header__brand">
-    {% if logoDataUri %}
-      <img class="doc-header__logo" src="{{ logoDataUri }}" alt="">
-    {% endif %}
-    <div class="doc-header__seller-name">{{ invoice.seller.name }}</div>
-  </div>
-
-  <div class="doc-header__meta">
+  {# ⚠️ Tytuł i numer w JEDNEJ linii, wyśrodkowane na całej szerokości strony.
+     Wcześniej siedziały jeden pod drugim w prawej kolumnie nagłówka, przez co
+     najważniejsza informacja dokumentu („Faktura VAT 2026/00001") była
+     rozbita na dwa wiersze i zepchnięta do rogu. #}
+  <div class="doc-header__titlebar">
     <h1 class="doc-header__title">{{ t('doc.' ~ invoice.documentType) }}</h1>
     {# Szkic nie ma jeszcze numeru — numer nadajemy przy wystawieniu #}
-    <div class="doc-header__number">{{ invoice.number if invoice.number else '—' }}</div>
+    <span class="doc-header__number">{{ invoice.number if invoice.number else '—' }}</span>
+  </div>
+
+  <div class="doc-header__row">
+    <div class="doc-header__brand">
+      {% if logoDataUri %}
+        <img class="doc-header__logo" src="{{ logoDataUri }}" alt="">
+      {% endif %}
+      <div class="doc-header__seller-name">{{ invoice.seller.name }}</div>
+    </div>
+
+    <div class="doc-header__meta">
 
     {# Daty jako zawijany pasek, nie tabela jeden-pod-drugim: w układzie
        poziomym wysokość jest zasobem deficytowym, a nagłówek był jej
@@ -34,12 +42,19 @@
           <strong class="doc-date__value">{{ invoice.orderRef if invoice.orderRef else invoice.orderId }}</strong>
         </div>
       {% endif %}
+      {% if invoice.orderName %}
+        <div class="doc-date doc-date--wide">
+          <span class="doc-date__label">{{ t('header.order_name') }}</span>
+          <strong class="doc-date__value">{{ invoice.orderName }}</strong>
+        </div>
+      {% endif %}
       {% if invoice.correctedInvoiceNumber %}
         <div class="doc-date">
           <span class="doc-date__label">{{ t('header.corrected_ref') }}</span>
           <strong class="doc-date__value">{{ invoice.correctedInvoiceNumber }}</strong>
         </div>
       {% endif %}
+      </div>
     </div>
   </div>
 </header>

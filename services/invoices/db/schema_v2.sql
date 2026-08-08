@@ -214,6 +214,29 @@ SELECT COUNT(*) INTO @c FROM information_schema.COLUMNS
 SET @q = IF(@c=0, 'ALTER TABLE `invoice` ADD COLUMN `price_basis` VARCHAR(8) NOT NULL DEFAULT ''base'' AFTER `issuer_id`', 'SELECT 1');
 PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
 
+-- Numer i nazwa zamówienia skopiowane na dokument.
+-- ⚠️ Tabela trzymała wyłącznie `order_id`, więc po ponownym otwarciu faktury
+-- (podgląd/PDF) w nagłówku lądowało techniczne ID z bazy zamiast numeru
+-- zamówienia — `orderRef` istniało tylko w pamięci, w kontekście renderu.
+-- Snapshot, nie referencja: późniejsza zmiana nazwy zamówienia nie może
+-- zmieniać treści wystawionego dokumentu (ta sama zasada co dane stron).
+SELECT COUNT(*) INTO @c FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice' AND COLUMN_NAME='order_ref';
+SET @q = IF(@c=0, 'ALTER TABLE `invoice` ADD COLUMN `order_ref` VARCHAR(64) NULL AFTER `order_id`', 'SELECT 1');
+PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
+
+SELECT COUNT(*) INTO @c FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice' AND COLUMN_NAME='order_name';
+SET @q = IF(@c=0, 'ALTER TABLE `invoice` ADD COLUMN `order_name` VARCHAR(255) NULL AFTER `order_ref`', 'SELECT 1');
+PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- Rabat, który salon dał swojemu odbiorcy końcowemu (poziom 3). Snapshot:
+-- kwoty pozycji są już po rabacie, a to pole opisuje, skąd wzięła się różnica.
+SELECT COUNT(*) INTO @c FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice' AND COLUMN_NAME='client_discount';
+SET @q = IF(@c=0, 'ALTER TABLE `invoice` ADD COLUMN `client_discount` JSON NULL AFTER `order_name`', 'SELECT 1');
+PREPARE s FROM @q; EXECUTE s; DEALLOCATE PREPARE s;
+
 -- Indeks pod listowanie per wystawca/poziom
 SELECT COUNT(*) INTO @c FROM information_schema.STATISTICS
  WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='invoice' AND INDEX_NAME='idx_issuer_level';

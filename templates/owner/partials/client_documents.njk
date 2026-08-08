@@ -1,0 +1,148 @@
+{#
+  Nowy dokument dla wybranego nabywcy + jego lista faktur.
+  Wydzielone z `owner/invoices.njk`, bo od teraz żyje we WŁASNYM widoku
+  (`/invoices/client/:id`) — ekran wyboru klienta ma zostać ekranem wyboru.
+#}
+      {# ---------- KROK 2: nowy dokument dla wybranego klienta ---------- #}
+      <section class="inv-card">
+        <h3 class="inv-card__title">{{ L.new_from_order }} · {{ client.client_name }}</h3>
+
+        {# Podpowiedzi zamówień z `/api/v1/invoices/search/orders?clientId=…`,
+           dopasowanie po numerze ORAZ po nazwie zamówienia (`order.commision`). #}
+        <form id="inv-create-form" class="inv-form" data-client-id="{{ client.id }}"
+              data-client-name="{{ client.client_name }}" data-level="{{ level }}" autocomplete="off">
+          {# Poziom 1: zamówienia całej organizacji bywają nie do przejrzenia,
+             więc można je zawęzić do jednego jej użytkownika. To TYLKO FILTR —
+             nabywcą faktury pozostaje organizacja. #}
+          {% if level == 1 %}
+            <div class="inv-form__row inv-form__row--tight">
+              <label class="inv-field inv-field--grow inv-combo">
+                <span class="inv-label">{{ L.org_user_filter }}</span>
+                <input type="text" id="inv-orguser-input" class="inv-combo__input"
+                       placeholder="{{ L.org_user_placeholder }}"
+                       role="combobox" aria-expanded="false" aria-controls="inv-orguser-list" aria-autocomplete="list">
+                <input type="hidden" name="orgUserId" id="inv-orguser-id">
+                <div class="inv-combo__list" id="inv-orguser-list" role="listbox"></div>
+              </label>
+              <button type="button" class="inv-btn inv-btn--ghost" id="inv-orguser-clear">{{ L.org_user_all }}</button>
+            </div>
+            <p class="inv-hint">{{ L.org_user_hint }}</p>
+          {% endif %}
+          <div class="inv-form__row">
+            <label class="inv-field inv-field--grow inv-combo">
+              <span class="inv-label">{{ L.order }}</span>
+              <input type="text" id="inv-order-input" class="inv-combo__input"
+                     placeholder="{{ L.order_search_placeholder }}"
+                     role="combobox" aria-expanded="false" aria-controls="inv-order-list" aria-autocomplete="list">
+              <input type="hidden" name="orderId" id="inv-order-id">
+              <div class="inv-combo__list" id="inv-order-list" role="listbox"></div>
+            </label>
+
+            <label class="inv-field">
+              <span class="inv-label">{{ L.doc_type }}</span>
+              <select name="documentType" id="inv-doctype">
+                {% for t in documentTypes %}
+                  <option value="{{ t }}"{% if t == 'invoice' %} selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            {# Widoczne tylko dla zaliczki — sterowane w invoices.js #}
+            <label class="inv-field inv-field--narrow" id="inv-advance-wrap" hidden>
+              <span class="inv-label">{{ L.advance_percent }}</span>
+              <input type="number" name="advancePercent" min="1" max="100" step="1" value="30">
+            </label>
+
+            <label class="inv-field inv-field--narrow">
+              <span class="inv-label">{{ L.lang }}</span>
+              <select name="lang">
+                {% for l in docLangs %}
+                  <option value="{{ l }}"{% if l == panelLang %} selected{% endif %}>{{ l }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+
+          <div class="inv-form__row inv-form__row--tight">
+            <label class="inv-check">
+              <input type="checkbox" name="issue" id="inv-issue" checked>
+              <span>{{ L.issue_now }}</span>
+            </label>
+            <span class="inv-hint" id="inv-tax-hint"></span>
+            <button type="submit" class="inv-btn inv-btn--primary" id="inv-create-btn">{{ L.create }}</button>
+          </div>
+        </form>
+      </section>
+
+      {# ---------- Dokumenty wybranego klienta ---------- #}
+      <section class="inv-card">
+        <h3 class="inv-card__title">{{ L.documents }} · {{ client.client_name }}</h3>
+
+        {% if invoices | length %}
+          <div class="inv-table-wrap">
+            <table class="inv-table">
+              <thead>
+                <tr>
+                  <th>{{ L.number }}</th>
+                  <th>{{ L.type }}</th>
+                  {# Nazwa zamówienia — po niej rozpoznaje się dokument szybciej
+                     niż po numerze faktury (klient mówi „to za Kowalskiego") #}
+                  <th>{{ L.order_name }}</th>
+                  {# Kto stoi po drugiej stronie dokumentu: przy fakturach salonu
+                     dla klienta detalicznego to ODBIORCA, przy pozostałych
+                     użytkownik, z którego zamówienia dokument powstał. #}
+                  <th>{{ L.buyer_column }}</th>
+                  <th>{{ L.issue_date }}</th>
+                  <th>{{ L.due_date }}</th>
+                  <th class="ta-r">{{ L.net }}</th>
+                  <th class="ta-r">{{ L.gross }}</th>
+                  <th class="ta-r">{{ L.due }}</th>
+                  <th>{{ L.status }}</th>
+                  <th>{{ L.actions }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for inv in invoices %}
+                  <tr data-id="{{ inv.id }}" data-status="{{ inv.status }}">
+                    <td class="inv-nowrap">{{ inv.number if inv.number else '—' }}</td>
+                    <td>{{ inv.document_type }}</td>
+                    <td class="inv-order-name" title="{{ inv.order_name }}">
+                      {{- inv.order_name if inv.order_name else '—' -}}
+                      {% if inv.order_ref %}<span class="inv-order-ref">{{ inv.order_ref }}</span>{% endif %}
+                    </td>
+                    <td class="inv-order-name" title="{{ inv.buyer_name if inv.level == 3 or inv.level == 4 else inv.order_user_name }}">
+                      {%- if inv.level == 3 or inv.level == 4 -%}
+                        {{ inv.buyer_name if inv.buyer_name else '—' }}
+                      {%- else -%}
+                        {{ inv.order_user_name if inv.order_user_name else (inv.buyer_name if inv.buyer_name else '—') }}
+                        {% if inv.order_user_ident %}<span class="inv-order-ref">{{ inv.order_user_ident }}</span>{% endif %}
+                      {%- endif -%}
+                    </td>
+                    <td class="inv-nowrap">{{ inv.issueDateFmt }}</td>
+                    <td class="inv-nowrap">{{ inv.dueDateFmt }}</td>
+                    <td class="ta-r inv-nowrap">{{ inv.netFmt }}</td>
+                    <td class="ta-r inv-nowrap">{{ inv.grossFmt }}</td>
+                    <td class="ta-r inv-nowrap">{{ inv.dueFmt }}</td>
+                    <td><span class="inv-status inv-status--{{ inv.status }}">{{ inv.status }}</span></td>
+                    <td class="inv-actions">
+                      <a class="inv-link" href="/invoices/{{ inv.id }}/view" target="_blank" rel="noopener">{{ L.preview }}</a>
+                      <a class="inv-link" href="/api/v1/invoices/{{ inv.id }}/pdf?download=1">{{ L.pdf }}</a>
+                      {% if inv.status == 'draft' %}
+                        <button class="inv-link inv-link--action" data-action="issue" data-id="{{ inv.id }}">{{ L.issue }}</button>
+                      {% endif %}
+                      {% if inv.status == 'issued' or inv.status == 'overdue' %}
+                        <button class="inv-link inv-link--action" data-action="paid" data-id="{{ inv.id }}">{{ L.mark_paid }}</button>
+                      {% endif %}
+                      {% if inv.status == 'draft' or inv.status == 'issued' %}
+                        <button class="inv-link inv-link--danger" data-action="cancel" data-id="{{ inv.id }}">{{ L.cancel_doc }}</button>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="inv-empty">{{ L.no_documents }}</p>
+        {% endif %}
+      </section>

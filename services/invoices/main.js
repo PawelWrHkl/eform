@@ -39,6 +39,8 @@ const hierarchy = require('./core/hierarchy');
 const allocations = require('./core/allocations');
 const compliance = require('./core/compliance');
 const pricing = require('./core/pricing');
+const clientDiscount = require('./core/clientDiscount');
+const { calcSubTotals, HKL_ORG_ID } = require('../subPrices');
 const { log: defaultLog } = require('../../utils/logging');
 
 
@@ -255,11 +257,29 @@ class InvoiceService {
     });
     this.log(`[invoices] order ${orderId}: cennik ${priceBasis.basis} — ${priceBasis.reason}`);
 
+    // WARSTWA DETALICZNA (poziom 3): wartość widoczna dla odbiorcy końcowego.
+    // ⚠️ Liczona TĄ SAMĄ drogą co podgląd zamówienia (`db.getTotal().visible`
+    // i `subPrices.calcSubTotals().subVisible`), żeby faktura zgadzała się co
+    // do grosza z kwotą, którą klient widział przy zamawianiu. Dla organizacji
+    // HKL jest to `unit_price`, dla pozostałych widoczna wartość `SUB___`.
+    let retailValueByItemId = null;
+    if (priceBasis.useRetailPrices) {
+      const isHkl = Number(source.order.organization_id) === Number(HKL_ORG_ID);
+      retailValueByItemId = new Map(source.orderItems.map((it) => {
+        const visible = isHkl ? Number(it.unit_price) : Number(calcSubTotals([it]).subVisible);
+        // Bez wartości detalicznej zostaje zachowanie sprzed zmiany (cena zakupu),
+        // bo dokument bez kwoty jest gorszy niż dokument po cenie kosztowej.
+        return [it.id, Number.isFinite(visible) && visible > 0 ? visible : 0];
+      }));
+    }
+
     let rawItems = orderMapper.mapOrderItemsToInvoiceItems({
       orderItems: source.orderItems,
       resolveTax,
       currency,
-      useSubPrices: priceBasis.useSubPrices
+      useSubPrices: priceBasis.useSubPrices,
+      useListPrices: priceBasis.useListPrices === true,
+      retailValueByItemId
     });
 
     // CZĘŚCIOWE FAKTUROWANIE: gdy podano `allocations`, fakturujemy tylko
@@ -269,7 +289,12 @@ class InvoiceService {
     let requestedAllocations = null;
     if (Array.isArray(params.allocations) && params.allocations.length) {
       const orderItemsById = new Map(source.orderItems.map((it) => [Number(it.id), it]));
-      const allocatedByOrderItem = await this.repository.getAllocatedQuantities(orderId);
+      // Zajętość liczona TYLKO w tej relacji — patrz `getAllocatedQuantities`
+      const allocatedByOrderItem = await this.repository.getAllocatedQuantities(orderId, undefined, {
+        issuerType: parties.issuerType,
+        issuerId: parties.issuerId,
+        level
+      });
 
       const check = allocations.validateAllocations({
         requested: params.allocations,
@@ -353,6 +378,24 @@ class InvoiceService {
         taxCategory: first.taxCategory,
         meta: { advancePercent: percent, orderId }
       }];
+    }
+
+    // RABAT DLA ODBIORCY KOŃCOWEGO — nadawany na zamówieniu przez salon
+    // (`order.client_discount_*`). Dotyczy wyłącznie relacji salon → odbiorca,
+    // więc na innych poziomach jest ignorowany: producent i organizacja nie
+    // rozliczają rabatu, który salon dał swojemu klientowi.
+    let discountInfo = { type: 'none', percent: 0, valueMajor: 0 };
+    let discountMinor = 0;
+    let discountBaseMinor = 0;
+    if (level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT) {
+      discountInfo = clientDiscount.resolveClientDiscount(source.order);
+      const applied = clientDiscount.applyClientDiscount(rawItems, discountInfo, currency);
+      rawItems = applied.items;
+      discountMinor = applied.discountMinor;
+      discountBaseMinor = applied.baseMinor;
+      if (discountMinor > 0) {
+        this.log(`[invoices] order ${orderId}: rabat odbiorcy ${discountInfo.type === 'percentage' ? `${discountInfo.percent}%` : `${discountInfo.valueMajor} ${currency}`} → -${(discountMinor / 100).toFixed(2)} ${currency}`);
+      }
     }
 
     // Kurs waluty potrzebny tylko, gdy dokument jest w innej walucie niż lokalna.
@@ -450,8 +493,21 @@ class InvoiceService {
       totalTaxLocal: computed.totalTaxLocal,
       advanceSettled: computed.advanceSettled,
       amountDue: computed.amountDue,
+      // Rabat odbiorcy — snapshot na dokumencie (kwoty pozycji są już po nim)
+      clientDiscount: discountMinor > 0
+        ? {
+          type: discountInfo.type,
+          percent: discountInfo.percent,
+          amount: discountMinor,
+          baseNet: discountBaseMinor
+        }
+        : null,
       orderId,
       orderRef: source.order.order_idx || String(orderId),
+      // Nazwa zamówienia (`order.commision`) — po niej klient rozpoznaje, czego
+      // faktura dotyczy; sam numer zamówienia nic mu nie mówi. Kopiowana na
+      // dokument, nie doczytywana z zamówienia przy każdym renderze.
+      orderName: source.order.commision || '',
       lang,
       templateCode: issuerProfile.templateCode || profile.templateCode,
       notes: notes || source.order.comment || '',

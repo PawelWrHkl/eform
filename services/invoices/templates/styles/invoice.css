@@ -60,12 +60,25 @@ body {
 /* ---------- Nagłówek ---------- */
 
 .doc-header {
+    padding-bottom: 2mm;
+    border-bottom: 2px solid var(--accent);
+}
+
+/* Tytuł + numer: jedna wyśrodkowana linia nad resztą nagłówka */
+.doc-header__titlebar {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 4mm;
+    margin-bottom: 2mm;
+}
+
+/* Sprzedawca po lewej, daty po prawej — pod paskiem tytułu */
+.doc-header__row {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 8mm;
-    padding-bottom: 2mm;
-    border-bottom: 2px solid var(--accent);
 }
 
 .doc-header__logo {
@@ -93,9 +106,10 @@ body {
 }
 
 .doc-header__number {
-    margin: 0.5mm 0 1.5mm;
     font-size: 1.15em;
     font-weight: 700;
+    /* Numer nie może się łamać po ukośniku — „2026/00001" to jedna całość */
+    white-space: nowrap;
 }
 
 .doc-header__dates {
@@ -420,7 +434,7 @@ body {
 
     /* Wąski ekran: kolumny obok siebie zjeżdżają pod siebie, tabela dostaje scroll */
     @media (max-width: 700px) {
-        .doc-header,
+        .doc-header__row,
         .parties,
         .doc-footer__signatures {
             flex-direction: column;
@@ -598,4 +612,20 @@ body {
         flex-basis: auto;
         max-width: none;
     }
+}
+
+/* Nazwa zamówienia bywa długa (np. „Kowalski — dom, parter") — nie może
+   rozpychać paska dat ani łamać się w połowie wyrazu. */
+.doc-date--wide .doc-date__value {
+    max-width: 70mm;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Rabat odbiorcy w podsumowaniu kwot — wyróżniony, bo to korzyść dla klienta */
+.totals-table__discount th,
+.totals-table__discount td {
+    color: #14532d;
+    font-weight: 600;
 }

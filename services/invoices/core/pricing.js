@@ -15,17 +15,19 @@
  * realny przykład z bazy: pozycja 7017 ma cenę bazową 181,33 i SUB 887,00.
  *
  * Reguła:
- *   poziom 1  producent/HKL → organizacja        → ceny BAZOWE
+ *   poziom 1  producent/HKL → organizacja        → wartości KATALOGOWE (SUMA_BRUTTO)
  *   poziom 2  organizacja = HKL → użytkownik     → ceny BAZOWE (HKL sprzedaje bezpośrednio)
  *   poziom 2  organizacja ≠ HKL → użytkownik     → ceny SUB
  *   poziom 4  organizacja = HKL → odb. końcowy   → ceny BAZOWE
  *   poziom 4  organizacja ≠ HKL → odb. końcowy   → ceny SUB
- *   poziom 3  użytkownik → odbiorca końcowy      → patrz ograniczenie niżej
+ *   poziom 3  użytkownik → odbiorca końcowy      → ceny DETALICZNE + rabat klienta
  *
- * ⚠️ OGRANICZENIE poziomu 3: system nie przechowuje ceny detalicznej salonu.
- * Dokument dla odbiorcy końcowego wychodzi więc po cenie, po której salon sam
- * kupuje (SUB, gdy jego organizacja ≠ HKL; bazowa, gdy kupuje wprost od HKL).
- * Marża salonu wymagałaby osobnej warstwy cenowej, której w danych nie ma.
+ * ⚠️ SPROSTOWANIE wcześniejszego założenia: warstwa detaliczna JEST w danych.
+ * To wartości „widoczne" zamówienia (`unit_price`/`SUMA_BRUTTO`, a przy cenach
+ * SUB widoczne `SUB___` z `json_parameters_desc`) — te same, które sumuje
+ * `db.getTotal().visible` i od których `services/getDiscount.js` liczy rabat
+ * dla odbiorcy. Wcześniej poziom 3 wystawiał cenę ZAKUPU salonu, czyli jego
+ * koszt zamiast ceny sprzedaży.
  */
 
 const { HKL_ORG_ID } = require('../../subPrices');
@@ -34,7 +36,34 @@ const { InvoiceLevel, IssuerType } = require('./hierarchy');
 /** Nazwy warstw cenowych — trafiają na dokument i do kolumny `invoice.price_basis`. */
 const PriceBasis = Object.freeze({
   BASE: 'base',
-  SUB: 'sub'
+  SUB: 'sub',
+  /**
+   * Wartość pozycji z parametru `SUMA_BRUTTO`.
+   *
+   * ⚠️ NAZWA PARAMETRU JEST MYLĄCA — potwierdzone przez właściciela systemu:
+   * mimo słowa „BRUTTO" jest to kwota **NETTO**, bez podatku. Nie wolno od niej
+   * odejmować ani do niej doliczać VAT-u; VAT liczy dopiero `core/calculator.js`
+   * według stawki z `core/taxRules.js`, tak samo jak dla pozostałych warstw.
+   *
+   * Merytorycznie to wartość pozycji sprzed rabatu handlowego
+   * (`SUMA_BRUTTO = CENA + DOPLATA`), podczas gdy `order_item.total_price` jest
+   * już po rabacie. Obowiązuje w relacji producent → organizacja: rabat należy
+   * do relacji organizacja ↔ jej klient i nie wpływa na rozliczenie z producentem.
+   */
+  LIST: 'list',
+
+  /**
+   * Cena widoczna dla odbiorcy końcowego (detaliczna) — warstwa, po której
+   * salon sprzedaje swojemu klientowi.
+   *
+   * ⚠️ Do niedawna moduł twierdził, że tej warstwy w danych NIE MA i wystawiał
+   * poziom 3 po cenie zakupu salonu. Istnieje: to `order_item.unit_price`
+   * (= `SUMA_BRUTTO`) dla organizacji HKL, a dla pozostałych widoczna wartość
+   * `SUB___` z `json_parameters_desc` — dokładnie ta, którą sumuje
+   * `db.getTotal().visible` / `subPrices.calcSubTotals().subVisible` i od
+   * której liczony jest rabat dla odbiorcy w podglądzie zamówienia.
+   */
+  RETAIL: 'retail'
 });
 
 /**
@@ -54,7 +83,7 @@ function isHklOrganization(organizationId) {
  * @param {number} params.issuerId      id organizacji albo użytkownika-wystawcy
  * @param {number} params.organizationId Organizacja, w której kontekście działa zamówienie.
  * @param {boolean} [params.override]   Jawne wymuszenie (`true` = SUB, `false` = bazowe).
- * @returns {{ basis: string, useSubPrices: boolean, reason: string }}
+ * @returns {{ basis: string, useSubPrices: boolean, useListPrices?: boolean, useRetailPrices?: boolean, reason: string }}
  */
 function resolvePriceBasis({ level, issuerType, issuerId, organizationId, override }) {
   if (typeof override === 'boolean') {
@@ -69,9 +98,10 @@ function resolvePriceBasis({ level, issuerType, issuerId, organizationId, overri
 
   if (lvl === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION || issuerType === IssuerType.MANUFACTURER) {
     return {
-      basis: PriceBasis.BASE,
+      basis: PriceBasis.LIST,
       useSubPrices: false,
-      reason: 'Sprzedaż producenta/HKL do organizacji — ceny bazowe (CENA/DOPLATA/RABAT)'
+      useListPrices: true,
+      reason: 'Sprzedaż producenta/HKL do organizacji — wartości katalogowe z SUMA_BRUTTO (bez rabatu klienta)'
     };
   }
 
@@ -86,6 +116,7 @@ function resolvePriceBasis({ level, issuerType, issuerId, organizationId, overri
     return {
       basis: PriceBasis.SUB,
       useSubPrices: true,
+      useListPrices: false,
       reason: 'Organizacja inna niż HKL sprzedaje swojemu użytkownikowi — ceny SUB___'
     };
   }
@@ -103,22 +134,19 @@ function resolvePriceBasis({ level, issuerType, issuerId, organizationId, overri
     return {
       basis: PriceBasis.SUB,
       useSubPrices: true,
+      useListPrices: false,
       reason: 'Organizacja inna niż HKL sprzedaje bezpośrednio odbiorcy końcowemu — ceny SUB___'
     };
   }
 
-  // Poziom 3: brak warstwy detalicznej — bierzemy cenę zakupu salonu
-  if (isHklOrganization(organizationId)) {
-    return {
-      basis: PriceBasis.BASE,
-      useSubPrices: false,
-      reason: 'Salon kupuje wprost od HKL — dokument dla odbiorcy końcowego po cenach bazowych (brak warstwy detalicznej w danych)'
-    };
-  }
+  // Poziom 3: salon sprzedaje swojemu klientowi po cenie DETALICZNEJ — tej
+  // samej, którą klient widzi na zamówieniu i od której liczony jest jego rabat.
   return {
-    basis: PriceBasis.SUB,
-    useSubPrices: true,
-    reason: 'Salon kupuje po cenach SUB___ — dokument dla odbiorcy końcowego po tych samych cenach (brak warstwy detalicznej w danych)'
+    basis: PriceBasis.RETAIL,
+    useSubPrices: false,
+    useListPrices: false,
+    useRetailPrices: true,
+    reason: 'Salon sprzedaje odbiorcy końcowemu po cenach detalicznych (wartości widoczne na zamówieniu), pomniejszonych o rabat klienta'
   };
 }
 

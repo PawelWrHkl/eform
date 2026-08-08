@@ -71,9 +71,15 @@ async function loadClientContext(organizationId, clientId) {
          LEFT JOIN invoice i ON i.order_id = o.id
                             AND i.document_type IN ('invoice', 'final')
                             AND i.status <> 'cancelled'
+                            -- ⚠️ TYLKO dokumenty TEJ relacji: faktura salonu dla
+                            -- jego klienta nie zamyka sprzedaży organizacji do
+                            -- salonu. Bez tego licznik pokazywał „0 do
+                            -- zafakturowania", choć zamówienie czekało.
+                            AND i.issuer_type = 'organization' AND i.issuer_id = ? AND i.level = 2
          WHERE o.user_id = ? AND o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL) AS pending_orders,
-       (SELECT COUNT(*) FROM invoice v WHERE v.buyer_user_id = ? AND v.organization_id = ?) AS documents`,
-    [clientId, organizationId, clientId, organizationId]
+       (SELECT COUNT(*) FROM invoice v
+         WHERE v.buyer_user_id = ? AND v.organization_id = ? AND v.level = 2) AS documents`,
+    [organizationId, clientId, organizationId, clientId, organizationId]
   );
 
   const zeroRate = taxRules.isIntraEuZeroRate(client.seller_country, client.country);
@@ -209,6 +215,60 @@ function decorateInvoices(rows, lang) {
 //                  odbiorca z `end-clients/search`, a zamówienia to jego zamówienia.
 // Bez trybu 3 salon nie mógłby wystawić faktury swojemu klientowi — czyli
 // formularz odbiorców końcowych nie miałby po co istnieć.
+/**
+ * Kontekst wspólny dla ekranu wyboru i widoku pojedynczego nabywcy.
+ *
+ * Jedno miejsce, w którym poziom, klient, filtr dokumentów i warstwa cenowa
+ * są wyliczane — dwa widoki muszą pokazywać dokładnie to samo, inaczej
+ * „faktury klienta" różniłyby się od tego, co widać po jego wybraniu.
+ *
+ * @param {import('express').Request} req
+ * @param {number|null} clientId
+ * @returns {Promise<Object>}
+ */
+async function buildPanelContext(req, clientId) {
+  const organizationId = organizationIdFromSession(req);
+  const scope = scopeFromSession(req);
+  const allowedLevels = hierarchy.allowedLevelsForSession(req.session.user);
+  const requestedLevel = Number(req.query.level);
+  const level = allowedLevels.includes(requestedLevel) ? requestedLevel : (allowedLevels[0] || 3);
+  const buyerIsEndClient = level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT
+    || level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT;
+
+  let client = null;
+  if (clientId) {
+    if (level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) {
+      client = await loadOrganizationContext({ sellerOrganizationId: HKL_ORG_ID, buyerOrganizationId: clientId });
+    } else if (buyerIsEndClient) {
+      client = await loadEndClientContext({ organizationId, endClientId: clientId, ownerUserId: scope.userId, level });
+    } else {
+      client = await loadClientContext(organizationId, clientId);
+    }
+  }
+
+  let invoiceFilter;
+  if (level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) {
+    invoiceFilter = { organizationId: client ? client.id : organizationId, level, limit: 100 };
+  } else if (level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT) {
+    invoiceFilter = { organizationId, issuerType: 'user', issuerId: scope.userId, level, buyerEndClientId: client ? client.id : null, limit: 100 };
+  } else if (level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT) {
+    invoiceFilter = { organizationId, issuerType: 'organization', issuerId: organizationId, level, buyerEndClientId: client ? client.id : null, limit: 100 };
+  } else {
+    // Poziom 2 bez filtra `level`: dokumenty z v1 mają kolumnę domyślną,
+    // a wykluczenie ich z listy wyglądałoby jak utrata faktur.
+    invoiceFilter = { organizationId, buyerUserId: client ? client.id : null, limit: 100 };
+  }
+
+  const priceBasis = resolvePriceBasis({
+    level,
+    issuerType: level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? 'manufacturer' : (level === 3 ? 'user' : 'organization'),
+    issuerId: level === 3 ? scope.userId : organizationId,
+    organizationId
+  });
+
+  return { organizationId, scope, allowedLevels, level, buyerIsEndClient, client, invoiceFilter, priceBasis };
+}
+
 router.get('/', requireLogin, async (req, res) => {
   const organizationId = organizationIdFromSession(req);
   if (!organizationId) return res.status(403).send('Brak kontekstu organizacji');
@@ -219,92 +279,71 @@ router.get('/', requireLogin, async (req, res) => {
   res.locals.owner = !!req.session.user?.isOwner;
   res.locals.admin = !!req.session.user?.isAdmin;
 
-  // Panel działa W KONTEKŚCIE KLIENTA: bez wybranego nabywcy pokazujemy tylko
-  // selektor. Faktura zawsze dotyczy konkretnego nabywcy, więc lista zamówień
-  // i lista dokumentów są zawężone do niego — bez tego łatwo wystawić dokument
-  // nie temu klientowi (przy 40 zamówieniach z różnych firm w jednym dropdownie).
-  const clientId = Number(req.query.clientId) || null;
-  const scope = scopeFromSession(req);
-
-  // KROK 0: relacja handlowa. Owner wybiera między swoim użytkownikiem (2)
-  // a odbiorcą końcowym (4); admin między inną organizacją (1) a klientem
-  // bezpośrednim HKL (2); salon ma tylko poziom 3. Lista dozwolonych poziomów
-  // jest jedna dla UI i API — `core/hierarchy.js`.
-  const allowedLevels = hierarchy.allowedLevelsForSession(req.session.user);
-  const requestedLevel = Number(req.query.level);
-  const level = allowedLevels.includes(requestedLevel) ? requestedLevel : (allowedLevels[0] || 3);
-  const buyerIsEndClient = level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT
-    || level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT;
-
   try {
-    let client = null;
+    // ⚠️ Zgodność wstecz i wygoda: `?clientId=` (tak wysyła formularz wyboru)
+    // PRZENOSI na własny ekran klienta, zamiast doklejać jego faktury tutaj.
+    const clientId = Number(req.query.clientId) || null;
     if (clientId) {
-      if (level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) {
-        // ⚠️ Sprzedawcą poziomu 1 jest PRODUCENT (HKL), a nie organizacja, na
-        // którą admin jest przełączony — od kraju sprzedawcy zależy podpowiedź
-        // podatkowa (WDT 0% vs stawka krajowa), więc pomyłka jest widoczna
-        // wprost na karcie nabywcy.
-        client = await loadOrganizationContext({ sellerOrganizationId: HKL_ORG_ID, buyerOrganizationId: clientId });
-      } else if (buyerIsEndClient) {
-        client = await loadEndClientContext({ organizationId, endClientId: clientId, ownerUserId: scope.userId, level });
-      } else {
-        client = await loadClientContext(organizationId, clientId);
-      }
+      return res.redirect(`/invoices/client/${clientId}?level=${Number(req.query.level) || ''}`);
     }
 
-    // Nieznany/obcy klient w query → traktujemy jak brak wyboru, nie jako błąd
-    if (clientId && !client) {
-      return res.redirect('/invoices');
-    }
-
-    // ⚠️ ŻADNYCH pełnych list w HTML-u: klientów i zamówień będzie bardzo dużo,
-    // więc comboboxy pytają endpointy wyszukiwania w miarę pisania.
-    // Lista dokumentów zawężona do TEJ relacji — poziom 2 i 4 dotyczą tego
-    // samego ownera, ale to dwa różne zbiory faktur i dwie serie numeracji.
-    let invoiceFilter;
-    if (level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) {
-      invoiceFilter = { organizationId: client ? client.id : organizationId, level, limit: 100 };
-    } else if (level === hierarchy.InvoiceLevel.USER_TO_END_CLIENT) {
-      invoiceFilter = { organizationId, issuerType: 'user', issuerId: scope.userId, level, buyerEndClientId: client ? client.id : null, limit: 100 };
-    } else if (level === hierarchy.InvoiceLevel.ORGANIZATION_TO_END_CLIENT) {
-      invoiceFilter = { organizationId, issuerType: 'organization', issuerId: organizationId, level, buyerEndClientId: client ? client.id : null, limit: 100 };
-    } else {
-      // Poziom 2 bez filtra `level`: dokumenty z v1 mają kolumnę domyślną,
-      // a wykluczenie ich z listy wyglądałoby jak utrata faktur.
-      invoiceFilter = { organizationId, buyerUserId: client ? client.id : null, limit: 100 };
-    }
-
-    const [invoices, profile] = client
-      ? await Promise.all([
-        repository.listInvoices(invoiceFilter),
-        repository.getOrganizationProfile(organizationId)
-      ])
-      : [[], await repository.getOrganizationProfile(organizationId)];
-
+    const ctx = await buildPanelContext(req, null);
     return res.render('owner/invoices.njk', {
       L,
       panelLang: lang,
-      level,
-      // Segmentowany przełącznik relacji nad wyborem klienta
-      levelOptions: allowedLevels.map((lv) => ({
-        level: lv,
-        label: L[`level_${lv}`] || `#${lv}`,
-        active: lv === level
-      })),
-      // Który cennik obowiązuje w tej relacji — pokazywane wprost w panelu,
-      // żeby nie trzeba było zgadywać, skąd wzięła się kwota na fakturze.
-      priceBasis: resolvePriceBasis({
-        level,
-        issuerType: level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? 'manufacturer' : (level === 3 ? 'user' : 'organization'),
-        issuerId: level === 3 ? scope.userId : organizationId,
-        organizationId
-      }),
-      priceBasisLabels: { [PriceBasis.BASE]: L.price_basis_base, [PriceBasis.SUB]: L.price_basis_sub },
-      client,
+      level: ctx.level,
+      levelOptions: ctx.allowedLevels.map((lv) => ({ level: lv, label: L[`level_${lv}`] || `#${lv}`, active: lv === ctx.level })),
+      priceBasis: ctx.priceBasis,
+      priceBasisLabels: { [PriceBasis.BASE]: L.price_basis_base, [PriceBasis.SUB]: L.price_basis_sub, [PriceBasis.LIST]: L.price_basis_list },
+      client: null,
+      invoices: [],
+      profile: await repository.getOrganizationProfile(organizationId),
+      currency: DOCUMENT_CURRENCY,
+      documentTypes: [],
+      statuses: InvoiceStatus,
+      docLangs: ['pl', 'en', 'de']
+    });
+  } catch (err) {
+    log(`[invoices] panel GET /: ${err.message}`);
+    return res.status(500).send('Błąd wczytywania panelu faktur');
+  }
+});
+
+// Widok JEDNEGO nabywcy: jego dane, wystawianie dokumentów i jego faktury.
+router.get('/client/:clientId', requireLogin, async (req, res) => {
+  const organizationId = organizationIdFromSession(req);
+  if (!organizationId) return res.status(403).send('Brak kontekstu organizacji');
+
+  const { lang, L } = labelsFor(req);
+  res.locals.owner = !!req.session.user?.isOwner;
+  res.locals.admin = !!req.session.user?.isAdmin;
+
+  const clientId = Number(req.params.clientId) || null;
+  if (!clientId) return res.redirect('/invoices');
+
+  try {
+    const ctx = await buildPanelContext(req, clientId);
+    // Nieznany/obcy nabywca → wracamy do wyboru, a nie 404: adres mógł zostać
+    // zapamiętany w zakładkach po zmianie poziomu albo kontekstu organizacji.
+    if (!ctx.client) return res.redirect(`/invoices?level=${ctx.level}`);
+
+    const [invoices, profile] = await Promise.all([
+      repository.listInvoices(ctx.invoiceFilter),
+      repository.getOrganizationProfile(organizationId)
+    ]);
+
+    return res.render('owner/invoice_client.njk', {
+      L,
+      panelLang: lang,
+      level: ctx.level,
+      levelLabel: L[`level_${ctx.level}`] || `#${ctx.level}`,
+      priceBasis: ctx.priceBasis,
+      priceBasisLabels: { [PriceBasis.BASE]: L.price_basis_base, [PriceBasis.SUB]: L.price_basis_sub, [PriceBasis.LIST]: L.price_basis_list },
+      client: ctx.client,
       invoices: decorateInvoices(invoices, lang),
       profile,
       currency: DOCUMENT_CURRENCY,
-      documentTypes: buyerIsEndClient
+      documentTypes: ctx.buyerIsEndClient
         // Salon fakturuje sprzedaż detaliczną: proforma i faktura. Zaliczki
         // i faktury końcowe zostają narzędziem organizacji.
         ? [DocumentType.PROFORMA, DocumentType.INVOICE]
@@ -313,8 +352,8 @@ router.get('/', requireLogin, async (req, res) => {
       docLangs: ['pl', 'en', 'de']
     });
   } catch (err) {
-    log(`[invoices] panel GET /: ${err.message}`);
-    return res.status(500).send('Błąd wczytywania panelu faktur');
+    log(`[invoices] panel GET /client/${clientId}: ${err.message}`);
+    return res.status(500).send('Błąd wczytywania danych klienta');
   }
 });
 

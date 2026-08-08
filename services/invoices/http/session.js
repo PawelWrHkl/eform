@@ -126,10 +126,37 @@ function canIssueAtLevel(req, level) {
   return lvl === 3 ? !!scope.userId : scope.isOrgScope;
 }
 
+/**
+ * Czy sesja może operować na tym zamówieniu.
+ *
+ * ⚠️ ADMIN MUSI PRZEJŚĆ ZAWSZE. Na poziomie 1 (HKL → organizacja) zamówienie
+ * należy do organizacji-NABYWCY, a `scope.organizationId` to bieżący kontekst
+ * admina (np. HKL) — porównanie organizacji odrzucało więc dokładnie tę
+ * operację, dla której poziom 1 istnieje: „brak dostępu do zamówienia" przy
+ * fakturze dla innej organizacji. Admin i tak przełącza kontekst dowolnie
+ * i widzi wszystkie zamówienia, więc to była bariera pozorna.
+ *
+ * @param {import('express').Request} req
+ * @param {{ user_id: number, organization_id: number }} order wiersz z `getOrderOwnership`
+ * @returns {boolean}
+ */
+function canAccessOrder(req, order) {
+  if (!order) return false;
+  const user = req.session && req.session.user;
+  if (user && user.isAdmin) return true;
+
+  const scope = scopeFromSession(req);
+  if (scope.isOrgScope) {
+    return !!scope.organizationId && Number(order.organization_id) === scope.organizationId;
+  }
+  return !!scope.userId && Number(order.user_id) === scope.userId;
+}
+
 module.exports = {
   organizationIdFromSession,
   belongsToSessionOrganization,
   scopeFromSession,
   canAccessInvoice,
+  canAccessOrder,
   canIssueAtLevel
 };

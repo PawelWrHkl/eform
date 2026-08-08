@@ -145,9 +145,16 @@
                         </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a href="#" id="mobile-logout-link" data-action="logout" class="nav-link" style="text-decoration: none;">
-                            {{ __('base.logout') }}
-                        </a>
+                        {# ⚠️ Prawdziwy formularz, nie link z `data-action`: wylogowanie
+                           działało wyłącznie dzięki JS-owi (`base.js` podpinał handler
+                           i sam budował POST). Gdy skrypt nie zdążył się wykonać albo
+                           wysypał się wcześniej na danej stronie, kliknięcie nie robiło
+                           NIC — bez żadnego komunikatu. Teraz to zwykły POST. #}
+                        <form method="POST" action="/user/logout" class="nav-logout-form">
+                            <button type="submit" id="mobile-logout-link" class="nav-link nav-logout-btn">
+                                {{ __('base.logout') }}
+                            </button>
+                        </form>
                     </li>
                 </ul>
             </div>
@@ -209,10 +216,13 @@
                         <span class="nav-text">{{ __('group.panel_title') }}</span>
                     </a>
                 {% endif %}
-                <a href="#" data-action="logout" id='logout-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="{{ __('base.logout') }}" style="text-decoration: none;">
-                    <img src="/img/logout.png" class='nav-icon' alt="orders-ico">
-                    <span class="nav-text">{{ __('base.logout') }}</span>
-                </a>
+                {# Jak wyżej: POST bez pośrednictwa JS-u #}
+                <form method="POST" action="/user/logout" class="nav-logout-form">
+                    <button type="submit" id='logout-nav-btn' class="custom-nav-link has-tooltip nav-logout-btn" data-tooltip="{{ __('base.logout') }}">
+                        <img src="/img/logout.png" class='nav-icon' alt="orders-ico">
+                        <span class="nav-text">{{ __('base.logout') }}</span>
+                    </button>
+                </form>
                 <!-- <a href="#" id='intro-tour-btn' class="custom-nav-link has-tooltip" data-tooltip="{{ __('base.tour') or 'Tour' }}" style="text-decoration: none; margin-top: auto;"> -->
                     <!-- <i class="fas fa-question-circle nav-icon" style="font-size: 1.4rem; display: flex; align-items: center; justify-content: center;"></i> -->
                     <!-- <span class="nav-text">{{ __('base.tour') or 'Tour' }}</span> -->

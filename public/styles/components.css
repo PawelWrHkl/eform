@@ -59,3 +59,19 @@
 		transform: rotate(360deg);
 	}
 }
+/* --- Wylogowanie jako formularz ------------------------------------------
+   Element opakowujący nie może zaburzyć układu nawigacji, dlatego znika
+   z drzewa layoutu (`display: contents`), a przycisk przejmuje wygląd linku. */
+.nav-logout-form {
+    display: contents;
+}
+
+.nav-logout-btn {
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: none;
+}

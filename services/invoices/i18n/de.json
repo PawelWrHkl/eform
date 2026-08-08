@@ -79,5 +79,8 @@
   "items.order_ref": "Auftrag",
   "items.dimensions": "Maße",
   "header.delivery_date": "Leistungsdatum",
-  "party.delivery_address": "Lieferadresse"
+  "party.delivery_address": "Lieferadresse",
+  "header.order_name": "Auftragsname",
+  "totals.net_before_discount": "Netto vor Rabatt",
+  "totals.client_discount": "Kundenrabatt"
 }

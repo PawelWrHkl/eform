@@ -175,3 +175,53 @@ test('strony transakcji: sklep bez danych rejestrowych nie przesłania klienta',
   });
   assert.equal(buyer.name, 'Centrala');
 });
+
+/* ---------------------------------------------------------------- */
+/* Warstwa cenowa: katalog (SUMA_BRUTTO) vs po rabacie vs SUB        */
+/* ---------------------------------------------------------------- */
+
+const taxStub = () => ({ taxCategory: 'standard', taxRate: 23 });
+
+/** @param {Record<string, any>} params */
+const itemWith = (params, extra = {}) => ({
+  id: 1, name: 'PLISY', total_price: 42.6, total_price_sub: 165.6, amount: 1,
+  json_parameters: JSON.stringify({ ILOSC: '1', ...params }), ...extra
+});
+
+// ⚠️ `SUMA_BRUTTO` to mimo nazwy kwota NETTO (potwierdzone przez właściciela
+// systemu) — dlatego trafia wprost do `unitPriceNetMinor`, bez korekty o VAT.
+test('poziom katalogowy bierze wartość z SUMA_BRUTTO, nie z ceny po rabacie', () => {
+  const [item] = mapOrderItemsToInvoiceItems({
+    orderItems: [itemWith({ SUMA_BRUTTO: '71' })], resolveTax: taxStub, useListPrices: true
+  });
+  assert.equal(item.unitPriceNetMinor, 7100, '71,00 EUR z SUMA_BRUTTO, nie 42,60 z total_price');
+  assert.equal(item.meta.priceSource, 'list');
+});
+
+test('brak lub PUSTE SUMA_BRUTTO nie może dać pozycji za 0,00', () => {
+  // ⚠️ W bazie są 2101 pozycje bez tego klucza i 193 z pustą wartością —
+  // bez fallbacku faktura poziomu 1 wyszłaby na zero.
+  for (const params of [{}, { SUMA_BRUTTO: '' }, { SUMA_BRUTTO: '0' }]) {
+    const [item] = mapOrderItemsToInvoiceItems({
+      orderItems: [itemWith(params)], resolveTax: taxStub, useListPrices: true
+    });
+    assert.equal(item.unitPriceNetMinor, 4260, `fallback na total_price dla ${JSON.stringify(params)}`);
+    assert.equal(item.meta.priceSource, 'base');
+  }
+});
+
+test('ceny SUB mają pierwszeństwo przed katalogiem', () => {
+  const [item] = mapOrderItemsToInvoiceItems({
+    orderItems: [itemWith({ SUMA_BRUTTO: '71' })], resolveTax: taxStub, useSubPrices: true, useListPrices: true
+  });
+  assert.equal(item.unitPriceNetMinor, 16560, 'relacja organizacja → user rozlicza się po SUB');
+  assert.equal(item.meta.priceSource, 'sub');
+});
+
+test('bez flagi katalogowej SUMA_BRUTTO jest ignorowana', () => {
+  const [item] = mapOrderItemsToInvoiceItems({
+    orderItems: [itemWith({ SUMA_BRUTTO: '71' })], resolveTax: taxStub
+  });
+  assert.equal(item.unitPriceNetMinor, 4260);
+  assert.equal(item.meta.priceSource, 'base');
+});

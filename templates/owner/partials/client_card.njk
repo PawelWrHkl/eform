@@ -1,0 +1,20 @@
+{#
+  Karta wybranego nabywcy: dane rejestrowe + skutek podatkowy pary krajów.
+  Używana w ekranie wyboru (podgląd) i w widoku klienta (nagłówek).
+#}
+        {# Karta wybranego nabywcy: dane rejestrowe + skutek podatkowy pary krajów #}
+        <div class="inv-client-card">
+          <div class="inv-client-card__name">{{ client.client_name }}</div>
+          <div class="inv-client-card__meta">
+            {% if client.street %}{{ client.street }}, {% endif %}{{ client.zip }} {{ client.city }} · {{ L.client_country }}: {{ client.country }}
+            {% if client.tax_id %} · {{ L.vat_eu_id }}: {{ client.tax_id }}{% endif %}
+          </div>
+          <div class="inv-client-card__tags">
+            <span class="inv-tag{% if client.zeroRate %} inv-tag--zero{% endif %}">{{ client.seller_country }}→{{ client.country }} · {{ L[client.taxHint] }}</span>
+            {% if client.zeroRate and not client.hasVatEuId %}
+              <span class="inv-tag inv-tag--warn">{{ L.no_vat_eu }}</span>
+            {% endif %}
+            <span class="inv-tag">{{ client.pendingOrders }} {{ L.client_pending }}</span>
+            <span class="inv-tag">{{ client.documents }} {{ L.client_docs }}</span>
+          </div>
+        </div>

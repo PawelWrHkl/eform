@@ -12,6 +12,7 @@
  */
 
 import { showToast } from '/scripts/components/toast.js';
+import { confirmPrompt } from '/scripts/components/confirmPrompt.js';
 
 /** @returns {Record<string, string>} */
 function labels() {
@@ -148,6 +149,17 @@ function initCombobox({ inputId, listId, hiddenId, fetchItems, renderItem, onPic
         return { el, value: view.value, label: view.label, data: view.data || {} };
       });
 
+      // Lista jest ucięta — mówimy o tym wprost i podpowiadamy, co zrobić
+      const total = typeof items.totalMatches === 'number' ? items.totalMatches : items.length;
+      if (total > items.length) {
+        const more = document.createElement('div');
+        more.className = 'inv-combo__more';
+        more.textContent = (L.results_truncated || 'Pokazano {shown} z {total} — wpisz więcej znaków')
+          .replace('{shown}', String(items.length))
+          .replace('{total}', String(total));
+        list.appendChild(more);
+      }
+
       list.classList.add('is-open');
       input.setAttribute('aria-expanded', 'true');
       setActive(0);
@@ -208,7 +220,12 @@ async function fetchSearch(url, signal) {
   const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
   const body = await res.json();
   if (!res.ok || body.success === false) throw new Error(body.message || `HTTP ${res.status}`);
-  return body.items || [];
+  const items = body.items || [];
+  // Ile pasuje ŁĄCZNIE — dropdown pokazuje tylko część, a bez tej liczby
+  // wygląda to jak gubienie wyników. Doklejone do tablicy, żeby nie zmieniać
+  // kontraktu `fetchItems` we wszystkich comboboxach.
+  items.totalMatches = typeof body.total === 'number' ? body.total : items.length;
+  return items;
 }
 
 /** Escapowanie tekstu wstawianego przez innerHTML (nazwy klientów z bazy). */
@@ -249,8 +266,13 @@ function initClientSelect() {
       html: `<span class="inv-combo__main">${escapeHtml(c.name || c.client_name || c.ident)}</span>`
         + `<span class="inv-combo__sub">${escapeHtml([c.country, c.city, c.tax_id].filter(Boolean).join(' · '))}</span>`
     }),
-    // Wybór klienta przeładowuje panel w jego kontekście (GET ?clientId=…)
-    onPick: (value) => { if (value) form.submit(); }
+    // Wybór klienta PRZENOSI na jego własny ekran (`/invoices/client/:id`).
+    // Formularz nadal działa bez JS — trasa `/invoices?clientId=` przekierowuje
+    // w to samo miejsce, więc obie drogi kończą się tam samo.
+    onPick: (value) => {
+      if (!value) return;
+      window.location.href = `/invoices/client/${encodeURIComponent(value)}?level=${level}`;
+    }
   });
 }
 
@@ -296,14 +318,64 @@ function initCreateForm() {
 
   const clientId = form.dataset.clientId;
   const formLevel = Number(form.dataset.level) || 2;
+  /** Dane ostatnio wybranego zamówienia (przypisanie odbiorcy) */
+  let pickedOrder = {};
+
+  // Poziom 1: opcjonalny filtr „użytkownik organizacji". Trzyma tylko id do
+  // zapytania o zamówienia — nabywcą faktury pozostaje organizacja, więc do
+  // payloadu tworzenia dokumentu ta wartość NIE trafia.
+  const orgUserHidden = document.getElementById('inv-orguser-id');
+  const orgUserInput = document.getElementById('inv-orguser-input');
+  const orderInput = document.getElementById('inv-order-input');
+
+  /** Zmiana filtru unieważnia wybrane wcześniej zamówienie — mogło należeć do innego salonu. */
+  const resetOrderPick = () => {
+    // `orderHidden` jest już zadeklarowane wyżej w tej funkcji
+    if (orderHidden) orderHidden.value = '';
+    if (orderInput) orderInput.value = '';
+    syncHint(null);
+  };
+
+  if (orgUserHidden) {
+    initCombobox({
+      inputId: 'inv-orguser-input',
+      listId: 'inv-orguser-list',
+      hiddenId: 'inv-orguser-id',
+      fetchItems: (query, signal) => fetchSearch(
+        `/api/v1/invoices/search/clients?level=1&orgId=${encodeURIComponent(clientId)}&q=${encodeURIComponent(query)}`,
+        signal
+      ),
+      renderItem: (u) => ({
+        value: String(u.id),
+        label: u.client_name || u.ident || String(u.id),
+        html: `<span class="inv-combo__main">${escapeHtml(u.client_name || u.ident)}</span>`
+          + `<span class="inv-combo__sub">${escapeHtml([u.ident, u.country, u.city].filter(Boolean).join(' · '))}</span>`
+      }),
+      onPick: resetOrderPick
+    });
+
+    const clearBtn = document.getElementById('inv-orguser-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        orgUserHidden.value = '';
+        if (orgUserInput) orgUserInput.value = '';
+        resetOrderPick();
+      });
+    }
+  }
   initCombobox({
     inputId: 'inv-order-input',
     listId: 'inv-order-list',
     hiddenId: 'inv-order-id',
-    fetchItems: (query, signal) => fetchSearch(
-      `/api/v1/invoices/search/orders?clientId=${encodeURIComponent(clientId)}&level=${formLevel}&q=${encodeURIComponent(query)}`,
-      signal
-    ),
+    fetchItems: (query, signal) => {
+      // Filtr użytkownika doklejany dopiero tutaj, przy każdym zapytaniu —
+      // dzięki temu zmiana filtru działa od razu, bez przeładowania panelu.
+      const orgUser = orgUserHidden && orgUserHidden.value ? `&userId=${encodeURIComponent(orgUserHidden.value)}` : '';
+      return fetchSearch(
+        `/api/v1/invoices/search/orders?clientId=${encodeURIComponent(clientId)}&level=${formLevel}${orgUser}&q=${encodeURIComponent(query)}`,
+        signal
+      );
+    },
     renderItem: (o) => {
       const zeroValue = Number(o.items_net) === 0;
       const advance = Number(o.advances_gross) > 0 ? `⬤ ${o.advances_gross}` : '';
@@ -313,10 +385,16 @@ function initCreateForm() {
         label: `${o.order_idx}${o.commision ? ` · ${o.commision}` : ''}`,
         html: `<span class="inv-combo__main">${escapeHtml(o.order_idx)}${o.commision ? ` · ${escapeHtml(o.commision)}` : ''}</span>`
           + `<span class="inv-combo__sub">${escapeHtml(parts.filter(Boolean).join(' · '))}</span>`,
-        data: { zerovalue: zeroValue ? '1' : '0' }
+        data: {
+          zerovalue: zeroValue ? '1' : '0',
+          // Aktualne przypisanie zamówienia — na jego podstawie panel pyta
+          // przed przypisaniem albo przepięciem odbiorcy
+          endclientid: o.end_client_id ? String(o.end_client_id) : '',
+          endclientname: o.end_client_name || ''
+        }
       };
     },
-    onPick: (_value, data) => syncHint(data)
+    onPick: (_value, data) => { pickedOrder = data || {}; syncHint(data); }
   });
 
   docType.addEventListener('change', syncAdvance);
@@ -339,11 +417,48 @@ function initCreateForm() {
       // Poziom hierarchii: 3 dla salonu (nabywcą jest odbiorca końcowy)
       level: Number(form.dataset.level) || 2
     };
-    // Odbiorca końcowy jest nabywcą na poziomie 3 (salon) i 4 (organizacja)
+    // Odbiorca końcowy jest nabywcą na poziomie 3 (salon) i 4 (organizacja).
+    // ⚠️ Bierzemy go z KONTEKSTU FORMULARZA, nie z adresu: po przeniesieniu
+    // panelu na `/invoices/client/:id` w URL nie ma już `?clientId=`, przez co
+    // pole nie było wysyłane i serwer odrzucał dokument komunikatem
+    // „Poziom 3 wymaga odbiorcy końcowego".
     if (payload.level === 3 || payload.level === 4) {
-      // Odbiorcę bierzemy z kontekstu panelu (?clientId=…)
-      const clientId = new URLSearchParams(window.location.search).get('clientId');
-      if (clientId) payload.endClientId = Number(clientId);
+      payload.endClientId = Number(clientId);
+
+      // Zamówienie musi być spięte z tym odbiorcą — pytamy, zanim to zrobimy
+      const linked = pickedOrder.endclientid ? Number(pickedOrder.endclientid) : null;
+      const target = Number(clientId);
+      if (linked !== target) {
+        const nazwaKlienta = form.dataset.clientName || '';
+        const ok = await confirmPrompt(linked
+          ? {
+            title: L.reassign_title || 'Przepiąć zamówienie?',
+            message: (L.reassign_message || 'Zamówienie jest przypisane do „{from}". Czy na pewno przypisać je do „{to}"?')
+              .replace('{from}', pickedOrder.endclientname || `#${linked}`)
+              .replace('{to}', nazwaKlienta),
+            confirmLabel: L.reassign_confirm || 'Przepnij i wystaw',
+            confirmClass: 'btn btn-warning'
+          }
+          : {
+            title: L.assign_title || 'Przypisać zamówienie?',
+            message: (L.assign_message || 'Zamówienie zostanie przypisane do odbiorcy „{to}". Kontynuować?')
+              .replace('{to}', nazwaKlienta),
+            confirmLabel: L.assign_confirm || 'Przypisz i wystaw'
+          });
+        if (!ok) return;
+
+        const link = await fetch(`/api/v1/invoices/orders/${orderId}/end-client`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endClientId: target })
+        });
+        if (!link.ok) {
+          const body = await link.json().catch(() => null);
+          showToast('error', (body && body.message) || L.error || 'Error', 5);
+          return;
+        }
+        pickedOrder.endclientid = String(target);
+      }
     }
     if (payload.documentType === 'advance') {
       payload.advancePercent = Number(data.get('advancePercent'));

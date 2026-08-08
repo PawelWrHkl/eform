@@ -220,7 +220,11 @@ async function createInvoice(invoice, opts = {}) {
     if (Array.isArray(invoice.allocations) && invoice.allocations.length) {
       const { validateAllocations } = require('../core/allocations');
       await lockOrderItems(invoice.orderId, conn);
-      const allocated = await getAllocatedQuantities(invoice.orderId, conn);
+      const allocated = await getAllocatedQuantities(invoice.orderId, conn, {
+        issuerType: invoice.issuerType,
+        issuerId: invoice.issuerId,
+        level: invoice.level
+      });
       const [orderItemRows] = await conn.query('SELECT * FROM order_item WHERE order_id = ?', [invoice.orderId]);
       const orderItemsById = new Map((orderItemRows || []).map((r) => [Number(r.id), r]));
 
@@ -298,6 +302,11 @@ async function createInvoice(invoice, opts = {}) {
 
       payment_method: invoice.paymentMethod || null,
       order_id: invoice.orderId ?? null,
+      // Numer i nazwa zamówienia jako snapshot — patrz `db/schema_v2.sql`
+      // Rabat odbiorcy (JSON): typ, procent, kwota i podstawa — patrz `core/clientDiscount.js`
+      client_discount: invoice.clientDiscount ? JSON.stringify(invoice.clientDiscount) : null,
+      order_ref: invoice.orderRef || null,
+      order_name: invoice.orderName || null,
       parent_invoice_id: invoice.parentInvoiceId ?? null,
       corrected_invoice_id: invoice.correctedInvoiceId ?? null,
       correction_reason: invoice.correctionReason || null,
@@ -481,6 +490,9 @@ async function getInvoice(id) {
     amountDue: money.toMinor(h.amount_due, cur),
     paymentMethod: h.payment_method,
     orderId: h.order_id,
+    clientDiscount: parseJsonColumn(h.client_discount) || null,
+    orderRef: h.order_ref || (h.order_id == null ? '' : String(h.order_id)),
+    orderName: h.order_name || '',
     parentInvoiceId: h.parent_invoice_id,
     correctedInvoiceId: h.corrected_invoice_id,
     correctionReason: h.correction_reason,
@@ -548,11 +560,26 @@ async function listInvoices({ organizationId, status, documentType, orderId, buy
   values.push(Number(limit), Number(offset));
 
   const rows = await selectQuery(
-    `SELECT id, number, document_type, status, issue_date, due_date, currency,
-            total_net, total_tax, total_gross, amount_due, buyer_name, order_id, level, issuer_type, issuer_id
-       FROM invoice
-      WHERE ${where.join(' AND ')}
-      ORDER BY issue_date DESC, id DESC
+    `SELECT i.id, i.number, i.document_type, i.status, i.issue_date, i.due_date, i.currency,
+            i.total_net, i.total_tax, i.total_gross, i.amount_due, i.buyer_name, i.order_id,
+            i.level, i.issuer_type, i.issuer_id,
+            -- Numer i nazwa zamówienia do rozeznania na liście.
+            -- ⚠️ COALESCE ze złączeniem: dokumenty sprzed dodania kolumn
+            -- (snapshot) mają je puste, więc dla nich bierzemy dane wprost
+            -- z zamówienia — inaczej starsze faktury miałyby pustą kolumnę.
+            COALESCE(i.order_ref, o.order_idx) AS order_ref,
+            COALESCE(NULLIF(i.order_name, ''), o.commision) AS order_name,
+            -- Użytkownik (salon), z którego zamówienia powstał dokument.
+            -- ⚠️ To NIE to samo co nabywca: na poziomie 1 nabywcą jest
+            -- organizacja, a zamówienie i tak złożył konkretny salon — i to on
+            -- pozwala rozpoznać, czego dokument dotyczy.
+            u.client_name AS order_user_name,
+            u.ident AS order_user_ident
+       FROM invoice i
+       LEFT JOIN \`order\` o ON o.id = i.order_id
+       LEFT JOIN \`user\` u ON u.id = o.user_id
+      WHERE ${where.map((w) => `i.${w}`).join(' AND ')}
+      ORDER BY i.issue_date DESC, i.id DESC
       LIMIT ? OFFSET ?`,
     values
   );
@@ -593,6 +620,54 @@ async function searchClients({ organizationId, query, limit = 20 }) {
     [organizationId, q, infix, prefix, prefix, infix, prefix, Number(limit)]
   );
   return rows || [];
+}
+
+/**
+ * Ile podmiotów pasuje do frazy — do komunikatu „pokazano X z Y".
+ *
+ * ⚠️ Combobox z natury pokazuje TYLKO kilkanaście pozycji (przy 200
+ * użytkownikach organizacji nie da się inaczej), ale bez tej liczby wygląda to
+ * jak błąd wyszukiwania: „czemu tylko kilku, a nie wszyscy". Liczymy tym samym
+ * warunkiem WHERE co wyszukiwanie, żeby obie liczby zawsze się zgadzały.
+ *
+ * @param {{ source: 'clients'|'end_clients'|'organizations', organizationId?: number, ownerUserId?: number, query?: string, excludeId?: number }} params
+ * @returns {Promise<number>}
+ */
+async function countSearchMatches({ source, organizationId, ownerUserId, query = '', excludeId = null }) {
+  const q = String(query || '').trim();
+  const prefix = `${q}%`;
+  const infix = `%${q}%`;
+
+  if (source === 'organizations') {
+    const rows = await selectQuery(
+      `SELECT COUNT(*) AS c FROM organization
+        WHERE (? = 0 OR id <> ?)
+          AND (? = '' OR name LIKE ? OR ident LIKE ? OR tax_id LIKE ? OR city LIKE ?)`,
+      [Number(excludeId) || 0, Number(excludeId) || 0, q, infix, prefix, prefix, prefix]
+    );
+    return rows && rows[0] ? Number(rows[0].c) : 0;
+  }
+
+  if (source === 'end_clients') {
+    const byOwner = !!ownerUserId;
+    const rows = await selectQuery(
+      `SELECT COUNT(*) AS c FROM invoice_end_client
+        WHERE (? = 1 AND owner_user_id = ? OR ? = 0 AND organization_id = ?)
+          AND is_active = 1
+          AND (? = '' OR name LIKE ? OR tax_id LIKE ? OR city LIKE ? OR email LIKE ?)`,
+      [byOwner ? 1 : 0, Number(ownerUserId) || 0, byOwner ? 1 : 0, Number(organizationId) || 0,
+        q, infix, prefix, prefix, prefix]
+    );
+    return rows && rows[0] ? Number(rows[0].c) : 0;
+  }
+
+  const rows = await selectQuery(
+    `SELECT COUNT(*) AS c FROM \`user\` u
+      WHERE u.organization_id = ?
+        AND (? = '' OR u.client_name LIKE ? OR u.ident LIKE ? OR u.tax_id LIKE ? OR u.city LIKE ?)`,
+    [organizationId, q, infix, prefix, prefix, infix]
+  );
+  return rows && rows[0] ? Number(rows[0].c) : 0;
 }
 
 /**
@@ -651,21 +726,27 @@ async function searchInvoiceableOrders({ organizationId, clientId = null, query,
 
   const rows = await selectQuery(
     `SELECT o.id, o.order_idx, o.commision, o.sent_date, o.total_float,
+            -- Aktualne przypisanie zamówienia do odbiorcy końcowego: panel
+            -- musi ostrzec, zanim przepnie zamówienie na kogoś innego.
+            o.end_client_id, ec.name AS end_client_name,
             (SELECT COALESCE(SUM(a.total_gross), 0) FROM invoice a
               WHERE a.order_id = o.id AND a.document_type = 'advance'
                 AND a.status NOT IN ('cancelled', 'draft')) AS advances_gross,
             (SELECT COALESCE(SUM(it.total_price), 0) FROM order_item it
               WHERE it.order_id = o.id) AS items_net
        FROM \`order\` o
+       LEFT JOIN invoice_end_client ec ON ec.id = o.end_client_id
        LEFT JOIN invoice i ON i.order_id = o.id
                           AND i.document_type IN ('invoice', 'final')
                           AND i.status <> 'cancelled'
                           AND (? = 0 OR (i.issuer_type = ? AND i.issuer_id = ? AND i.level = ?))
       WHERE o.organization_id = ? AND (? = 0 OR o.user_id = ?) AND o.status = 'sent' AND i.id IS NULL
         AND (? = '' OR o.order_idx LIKE ? OR o.commision LIKE ?)
-        -- Zamówienie spięte z INNYM odbiorcą końcowym nie może trafić na jego
-        -- fakturę; zamówienia bez powiązania zostają dostępne dla wszystkich.
-        AND (? = 0 OR o.end_client_id IS NULL OR o.end_client_id = ?)
+        -- ⚠️ Zamówienia spięte z INNYM odbiorcą są POKAZYWANE, nie ukrywane:
+        -- panel pyta wtedy „zamówienie jest odbiorcy X, przypisać do Y?".
+        -- Ukrywanie ich uniemożliwiało poprawienie błędnego przypisania, a
+        -- samo przepięcie i tak wymaga świadomego potwierdzenia.
+        AND (? = 0 OR 1 = 1)
       ORDER BY (o.end_client_id = ?) DESC, (o.order_idx LIKE ?) DESC, o.sent_date DESC, o.id DESC
       LIMIT ?`,
     [
@@ -1018,15 +1099,29 @@ async function searchEndClients({ ownerUserId, organizationId, query = '', limit
  * @param {import('mysql2/promise').PoolConnection} [conn]
  * @returns {Promise<Map<number, number>>} `order_item_id` → suma ilości
  */
-async function getAllocatedQuantities(orderId, conn) {
+async function getAllocatedQuantities(orderId, conn, relation = null) {
+  // ⚠️ ZAJĘTOŚĆ ILOŚCI JEST WŁASNOŚCIĄ RELACJI, nie zamówienia. Producent
+  // sprzedaje organizacji, organizacja użytkownikowi, użytkownik odbiorcy —
+  // to trzy niezależne sprzedaże tego samego towaru. Wspólny licznik oznaczał,
+  // że faktura organizacji „zjadała" ilości salonowi i przy częściowym
+  // fakturowaniu blokowała mu wystawienie własnego dokumentu.
+  const scoped = !!(relation && relation.issuerType && relation.level);
   const sql = `
     SELECT a.order_item_id, COALESCE(SUM(a.invoiced_quantity), 0) AS invoiced
       FROM invoice_item_allocation a
       JOIN invoice i ON i.id = a.invoice_id
      WHERE a.order_id = ? AND i.status <> 'cancelled'
+       AND (? = 0 OR (i.issuer_type = ? AND i.issuer_id = ? AND i.level = ?))
      GROUP BY a.order_item_id`;
+  const values = [
+    orderId,
+    scoped ? 1 : 0,
+    scoped ? relation.issuerType : '',
+    scoped ? Number(relation.issuerId) || 0 : 0,
+    scoped ? Number(relation.level) : 0
+  ];
 
-  const rows = conn ? (await conn.query(sql, [orderId]))[0] : (await selectQuery(sql, [orderId]) || []);
+  const rows = conn ? (await conn.query(sql, values))[0] : (await selectQuery(sql, values) || []);
   const map = new Map();
   for (const row of rows || []) map.set(Number(row.order_item_id), Number(row.invoiced));
   return map;
@@ -1050,7 +1145,10 @@ async function lockOrderItems(orderId, conn) {
  * @param {number} orderId
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function getOrderInvoicingStatus(orderId) {
+async function getOrderInvoicingStatus(orderId, relation = null) {
+  // Zakres jak w `getAllocatedQuantities`: „ile jeszcze zostało" ma sens
+  // wyłącznie w obrębie jednej relacji handlowej.
+  const scoped = !!(relation && relation.issuerType && relation.level);
   const rows = await selectQuery(
     `SELECT oi.id AS order_item_id, oi.name, oi.commision, oi.amount, oi.json_parameters,
             COALESCE(SUM(CASE WHEN i.status <> 'cancelled' THEN a.invoiced_quantity END), 0) AS invoiced,
@@ -1058,10 +1156,17 @@ async function getOrderInvoicingStatus(orderId) {
        FROM order_item oi
        LEFT JOIN invoice_item_allocation a ON a.order_item_id = oi.id
        LEFT JOIN invoice i ON i.id = a.invoice_id
+                          AND (? = 0 OR (i.issuer_type = ? AND i.issuer_id = ? AND i.level = ?))
       WHERE oi.order_id = ?
       GROUP BY oi.id
       ORDER BY oi.orderpos, oi.id`,
-    [orderId]
+    [
+      scoped ? 1 : 0,
+      scoped ? relation.issuerType : '',
+      scoped ? Number(relation.issuerId) || 0 : 0,
+      scoped ? Number(relation.level) : 0,
+      orderId
+    ]
   );
   return rows || [];
 }
@@ -1140,14 +1245,18 @@ async function getOrderOwnership(orderId) {
  * @param {{ orderId: number, endClientId: number|null, sessionUserId: number|null, organizationId: number|null }} params
  * @returns {Promise<{ ok: boolean, status?: number, message?: string }>}
  */
-async function assignEndClientToOrder({ orderId, endClientId, sessionUserId, organizationId }) {
+async function assignEndClientToOrder({ orderId, endClientId, sessionUserId, organizationId, isAdmin = false }) {
   const rows = await selectQuery('SELECT id, user_id, organization_id FROM `order` WHERE id = ?', [orderId]);
   const order = rows && rows[0];
   if (!order) return { ok: false, status: 404, message: 'Nie znaleziono zamówienia' };
 
   const ownsOrder = sessionUserId && Number(order.user_id) === Number(sessionUserId);
   const sameOrganization = organizationId && Number(order.organization_id) === Number(organizationId);
-  if (!ownsOrder && !sameOrganization) {
+  // Admin pracuje w przełączanym kontekście organizacji, więc porównanie
+  // organizacji blokowałoby mu cudze zamówienia bez powodu (ta sama reguła
+  // co `http/session.js:canAccessOrder`). Powiązanie odbiorcy z WŁAŚCICIELEM
+  // zamówienia jest sprawdzane niżej i obowiązuje także admina.
+  if (!isAdmin && !ownsOrder && !sameOrganization) {
     return { ok: false, status: 403, message: 'Brak dostępu do zamówienia' };
   }
 
@@ -1239,6 +1348,7 @@ module.exports = {
   getOrderOwnership,
   searchClients,
   searchOrganizations,
+  countSearchMatches,
   searchInvoiceableOrders,
   allocateSequence,
   getOrganizationProfile,

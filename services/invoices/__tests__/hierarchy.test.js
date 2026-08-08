@@ -351,6 +351,28 @@ test('rola wyznacza dostępne relacje — owner i admin fakturują co innego', (
   assert.equal(canIssueAtLevel(admin, 4), false);
 });
 
+test('admin wystawia poziom 1 dla CUDZEGO zamówienia — bez „brak dostępu"', () => {
+  // Odtworzenie zgłoszenia: admin w kontekście HKL (org 3) robi fakturę
+  // HKL → LUXANGMBH. Zamówienie należy do organizacji-NABYWCY (5), więc
+  // porównanie z organizacją sesji dawało 403 i blokowało dokładnie tę
+  // operację, dla której poziom 1 istnieje.
+  const { canAccessOrder } = require('../http/session');
+  const admin = req({ userId: 1, organization: 'HKL', orgId: 3, isAdmin: true, isOwner: true });
+  const obceZamowienie = { user_id: 3527, organization_id: 5 };
+
+  assert.equal(canAccessOrder(admin, obceZamowienie), true);
+  assert.equal(canIssueAtLevel(admin, 1), true, 'poziom 1 nadal dozwolony dla admina');
+
+  // Owner i salon zostają przy swoim zakresie — admin to wyjątek, nie luka
+  const owner = req({ userId: 600, organization: 'HKL', orgId: 3, isOwner: true });
+  const salon = req({ userId: 931, organization: 3 });
+  assert.equal(canAccessOrder(owner, obceZamowienie), false, 'owner nie sięga do cudzej organizacji');
+  assert.equal(canAccessOrder(owner, { user_id: 77, organization_id: 3 }), true, 'ale swoją widzi');
+  assert.equal(canAccessOrder(salon, { user_id: 931, organization_id: 3 }), true, 'salon: własne zamówienie');
+  assert.equal(canAccessOrder(salon, { user_id: 77, organization_id: 3 }), false, 'salon: cudze zamówienie nie');
+  assert.equal(canAccessOrder(salon, null), false);
+});
+
 test('admin ma dostęp niezależnie od organizacji na dokumencie', () => {
   // ⚠️ Admin PRZEŁĄCZA kontekst organizacji (`/set-organization/:id`). Gdyby
   // dostęp zawężać do bieżącego kontekstu, przełączenie odcinałoby go od

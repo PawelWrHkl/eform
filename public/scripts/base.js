@@ -452,6 +452,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
 document.addEventListener('DOMContentLoaded', function () {
 
+    // ⚠️ Nawigacja NIE polega już na tym handlerze — przyciski wylogowania
+    // w `base.njk` są zwykłymi formularzami POST i działają bez JS-u.
+    // Handler zostaje dla ewentualnych innych elementów z `data-action="logout"`.
     const logoutLinks = document.querySelectorAll('[data-action="logout"]');
 
     function handleLogout(event) {

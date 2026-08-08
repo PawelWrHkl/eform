@@ -39,26 +39,17 @@
     </tfoot>
   </table>
 
-  {# Faktura w walucie obcej: kwota podatku musi być podana także w walucie krajowej sprzedawcy #}
-  {% if invoice.currency != invoice.localCurrency %}
-    <div class="vat-local">
-      {% if invoice.totalTaxLocal is not none %}
-        <div>
-          <span class="label">{{ t('vat.local_note') }}:</span>
-          <strong>{{ invoice.totalTaxLocal | moneyLocal }} {{ invoice.localCurrency }}</strong>
-        </div>
-        {% if invoice.exchangeRate %}
-          <div class="vat-local__rate">
-            {{ t('vat.exchange_rate') }}: 1 {{ invoice.currency }} = {{ invoice.exchangeRate.rate }} {{ invoice.localCurrency }}
-            ({{ invoice.exchangeRate.date | date }}{% if invoice.exchangeRate.source %}, {{ invoice.exchangeRate.source }}{% endif %})
-          </div>
-        {% endif %}
-      {% else %}
-        {# Brak kursu drukujemy jawnie — lepiej ostrzeżenie niż fałszywe 0,00 #}
-        <div class="vat-local__warning">{{ t('vat.exchange_rate_missing') }}</div>
-      {% endif %}
-    </div>
-  {% endif %}
+  {# ⚠️ USUNIĘTE NA ŻYCZENIE: przeliczenie kwoty VAT na walutę krajową
+     sprzedawcy wraz z kursem NBP. Kwoty nadal są LICZONE i zapisywane
+     (`invoice.total_tax_local`, `exchange_rate*` — patrz `core/calculator.js`),
+     więc przywrócenie tego bloku to sama edycja szablonu.
+
+     Uwaga na przyszłość: dla polskiego sprzedawcy wystawiającego fakturę w EUR
+     z NIEZEROWĄ stawką krajową kwota podatku w PLN jest wymogiem ustawowym
+     (art. 106e ust. 11 ustawy o VAT). Dziś taki przypadek tu nie występuje —
+     sprzedaż zagraniczna idzie jako WDT/eksport ze stawką 0% — ale gdyby się
+     pojawił, ten blok trzeba przywrócić. Flaga `compliance.requiresLocalVatAmount`
+     nadal to wykrywa. #}
 
   {# Adnotacje prawne: WDT / reverse charge / eksport — klucze z `taxLines` #}
   {% set notes = [] %}
@@ -78,6 +69,22 @@
 
 <section class="totals">
   <table class="totals-table">
+    {# Rabat odbiorcy: kwoty pozycji są już PO nim, więc pokazujemy wartość
+       sprzed rabatu i samo obniżenie — inaczej klient nie zobaczyłby, że
+       przyznany mu rabat faktycznie zadziałał. #}
+    {% if invoice.clientDiscount and invoice.clientDiscount.amount %}
+      <tr>
+        <th>{{ t('totals.net_before_discount') }}</th>
+        <td>{{ invoice.clientDiscount.baseNet | money }} {{ invoice.currency }}</td>
+      </tr>
+      <tr class="totals-table__discount">
+        <th>
+          {{ t('totals.client_discount') }}
+          {%- if invoice.clientDiscount.type == 'percentage' %} ({{ invoice.clientDiscount.percent | rate }}){% endif -%}
+        </th>
+        <td>− {{ invoice.clientDiscount.amount | money }} {{ invoice.currency }}</td>
+      </tr>
+    {% endif %}
     <tr>
       <th>{{ t('totals.total_net') }}</th>
       <td>{{ invoice.totalNet | money }} {{ invoice.currency }}</td>

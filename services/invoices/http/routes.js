@@ -42,7 +42,7 @@ const express = require('express');
 const { requireLogin, requireOwner } = require('../../../middleware/loginMixture');
 const { InvoiceService, DocumentType, InvoiceStatus } = require('../main');
 const repository = require('../db/repository');
-const { organizationIdFromSession, belongsToSessionOrganization, scopeFromSession, canAccessInvoice, canIssueAtLevel } = require('./session');
+const { organizationIdFromSession, belongsToSessionOrganization, scopeFromSession, canAccessInvoice, canAccessOrder, canIssueAtLevel } = require('./session');
 const { log } = require('../../../utils/logging');
 
 const router = express.Router();
@@ -81,12 +81,10 @@ router.post('/from-order/:orderId', requireLogin, async (req, res) => {
     return res.status(403).json({ success: false, message: `Brak uprawnień do wystawiania dokumentów na poziomie ${level}` });
   }
 
-  const scope = scopeFromSession(req);
   const orderRows = await repository.getOrderOwnership(orderId);
   if (!orderRows) return res.status(404).json({ success: false, message: 'Nie znaleziono zamówienia' });
-  const ownsOrder = scope.userId && Number(orderRows.user_id) === scope.userId;
-  const sameOrg = scope.organizationId && Number(orderRows.organization_id) === scope.organizationId;
-  if (!(scope.isOrgScope ? sameOrg : ownsOrder)) {
+  // Jedna reguła dostępu do zamówienia dla całego modułu — patrz `http/session.js`
+  if (!canAccessOrder(req, orderRows)) {
     return res.status(403).json({ success: false, message: 'Brak dostępu do zamówienia' });
   }
 
@@ -359,7 +357,9 @@ router.put('/orders/:orderId/end-client', requireLogin, async (req, res) => {
       orderId,
       endClientId,
       sessionUserId: sessionUserId(req),
-      organizationId: organizationIdFromSession(req)
+      organizationId: organizationIdFromSession(req),
+      // Admin obsługuje zamówienia wszystkich organizacji — patrz `canAccessOrder`
+      isAdmin: req.session?.user?.isAdmin === true
     });
     if (!result.ok) return res.status(result.status || 400).json({ success: false, message: result.message });
     return res.json({ success: true, orderId, endClientId });
@@ -377,7 +377,16 @@ router.get('/orders/:orderId/invoiceable', requireLogin, async (req, res) => {
   if (!orderId) return res.status(400).json({ success: false, message: 'Nieprawidłowy identyfikator zamówienia' });
   try {
     const { availableQuantity } = require('../core/allocations');
-    const rows = await repository.getOrderInvoicingStatus(orderId);
+    // „Co zostało do zafakturowania" zależy od RELACJI: to samo zamówienie może
+    // być w całości rozliczone przez organizację i wciąż czekać na fakturę salonu.
+    const scope = scopeFromSession(req);
+    const level = Number(req.query.level) || (scope.isOrgScope ? 2 : 3);
+    const relation = {
+      level,
+      issuerType: level === 1 ? 'manufacturer' : (level === 3 ? 'user' : 'organization'),
+      issuerId: level === 1 ? 0 : (level === 3 ? scope.userId : organizationIdFromSession(req))
+    };
+    const rows = await repository.getOrderInvoicingStatus(orderId, relation);
     const items = rows.map((row) => {
       const state = availableQuantity({ orderItem: row, alreadyInvoiced: Number(row.invoiced) });
       return {
@@ -412,7 +421,11 @@ router.get('/search/clients', requireLogin, async (req, res) => {
 
   const scope = scopeFromSession(req);
   const query = String(req.query.q || '');
-  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  // ⚠️ 20 pozycji było wartością, przy której lista wyglądała na „uciętą bez
+  // powodu" — przy organizacji z 200 użytkownikami widać było garstkę. Wyżej
+  // podnosić się nie opłaca (dropdown i tak trzeba przewijać), dlatego razem
+  // z wynikami zwracamy `total` i UI mówi wprost, ile jeszcze zostało.
+  const limit = Math.min(Number(req.query.limit) || 40, 100);
 
   try {
     // ⚠️ Endpoint zwraca „klientów, których wolno fakturować TEMU, kto pyta":
@@ -428,28 +441,59 @@ router.get('/search/clients', requireLogin, async (req, res) => {
       return res.status(403).json({ success: false, message: `Brak uprawnień do poziomu ${level}` });
     }
 
+    // Poziom 1 z parametrem `orgId`: szukamy UŻYTKOWNIKÓW wskazanej organizacji
+    // (opcjonalne zawężenie listy zamówień do jednego salonu). Dostępne tylko
+    // dla admina, bo pozwala zajrzeć poza własną organizację.
+    const orgScopeId = toId(req.query.orgId);
+    if (level === 1 && orgScopeId) {
+      if (!req.session?.user?.isAdmin) {
+        return res.status(403).json({ success: false, message: 'Brak uprawnień do użytkowników innej organizacji' });
+      }
+      const [users, total] = await Promise.all([
+        repository.searchClients({ organizationId: orgScopeId, query, limit }),
+        repository.countSearchMatches({ source: 'clients', organizationId: orgScopeId, query })
+      ]);
+      return res.json({ success: true, items: users, total, scope: 'organization_users', level });
+    }
+
     let items;
+    let total;
     let resultScope;
     if (level === 1) {
       // Wykluczamy PRODUCENTA (HKL), nie bieżący kontekst admina: sprzedaż
       // poziomu 1 wychodzi zawsze od HKL, niezależnie od tego, na którą
       // organizację admin jest właśnie przełączony.
-      items = await repository.searchOrganizations({ query, limit, excludeId: require('../core/pricing').HKL_ORG_ID });
+      const excludeId = require('../core/pricing').HKL_ORG_ID;
+      [items, total] = await Promise.all([
+        repository.searchOrganizations({ query, limit, excludeId }),
+        repository.countSearchMatches({ source: 'organizations', query, excludeId })
+      ]);
       resultScope = 'organizations';
     } else if (level === 4) {
-      items = (await repository.searchEndClients({ organizationId, query, limit }))
-        .map((c) => ({ ...c, client_name: c.name }));
+      const [rows, count] = await Promise.all([
+        repository.searchEndClients({ organizationId, query, limit }),
+        repository.countSearchMatches({ source: 'end_clients', organizationId, query })
+      ]);
+      items = rows.map((c) => ({ ...c, client_name: c.name }));
+      total = count;
       resultScope = 'end_clients';
     } else if (level === 3) {
-      items = (await repository.searchEndClients({ ownerUserId: scope.userId, query, limit }))
-        .map((c) => ({ ...c, client_name: c.name }));
+      const [rows, count] = await Promise.all([
+        repository.searchEndClients({ ownerUserId: scope.userId, query, limit }),
+        repository.countSearchMatches({ source: 'end_clients', ownerUserId: scope.userId, query })
+      ]);
+      items = rows.map((c) => ({ ...c, client_name: c.name }));
+      total = count;
       resultScope = 'end_clients';
     } else {
-      items = await repository.searchClients({ organizationId, query, limit });
+      [items, total] = await Promise.all([
+        repository.searchClients({ organizationId, query, limit }),
+        repository.countSearchMatches({ source: 'clients', organizationId, query })
+      ]);
       resultScope = 'organization';
     }
 
-    return res.json({ success: true, items, scope: resultScope, level });
+    return res.json({ success: true, items, total, scope: resultScope, level });
   } catch (err) {
     return sendError(res, err, 'GET /search/clients');
   }
@@ -485,10 +529,15 @@ router.get('/search/orders', requireLogin, async (req, res) => {
   }
 
   let ownerOfOrders = null;
-  if (level === 2) ownerOfOrders = toId(req.query.clientId);
+  // Poziom 1: domyślnie WSZYSTKIE zamówienia organizacji-nabywcy, ale można
+  // zawęzić do jednego jej użytkownika (`userId`) — przy dużej organizacji
+  // lista zamówień jest inaczej nie do przejrzenia.
+  if (level === 1) ownerOfOrders = toId(req.query.userId);
+  else if (level === 2) ownerOfOrders = toId(req.query.clientId);
   else if (level === 3) ownerOfOrders = scope.userId;
   else if (level === 4) ownerOfOrders = Number(endClient.owner_user_id) || null;
 
+  // Dla poziomu 1 wymagana jest organizacja; użytkownik pozostaje opcjonalny
   if (level === 1 ? !buyerOrganizationId : !ownerOfOrders) {
     return res.status(400).json({
       success: false,

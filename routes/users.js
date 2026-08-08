@@ -225,9 +225,13 @@ router.get('/logo', requireLogin, async (req, res) => {
 router.post("/logout", requireLogin, (req, res) => {
     req.session.destroy((err) => {
         if (err) return res.redirect("/");
-        if (process.env.NODE_ENV === 'dev' || process.env.NODE_ENV === 'archive' || process.env.NODE_ENV === 'test') {
-            return res.redirect("http://192.168.0.8")
-        }
+        // ⚠️ Wcześniej dev/test/archive przekierowywały na SZTYWNY adres
+        // `http://192.168.0.8` — czyli na PORT 80, gdzie odpowiada inna
+        // instancja aplikacji. Sesja na :8000/:8081 była niszczona poprawnie,
+        // ale przeglądarka lądowała pod innym adresem (często z własną, wciąż
+        // ważną sesją), więc wylogowanie wyglądało na niedziałające.
+        // Zostajemy na TYM SAMYM origin — użytkownik widzi ekran logowania
+        // instancji, z której faktycznie się wylogował.
         res.redirect("/user/login");
     });
 });

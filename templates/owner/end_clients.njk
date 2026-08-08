@@ -30,7 +30,15 @@
           <h2 class="fw-bold header mb-1">{{ L.end_clients }}</h2>
           <div class="inv-subtitle">{{ L.end_clients_hint }}</div>
         </div>
-        <a class="inv-btn inv-btn--ghost" href="/invoices">{{ L.back }}</a>
+        {# ⚠️ „Nowy odbiorca" to GŁÓWNY powód wejścia na ten ekran, więc jest
+           akcją strony (u góry, wyróżniona kolorem), a nie przyciskiem
+           doklejonym do pola wyszukiwania, gdzie ginął obok szarego „Wróć". #}
+        <div class="inv-topbar__actions">
+          <a class="inv-btn inv-btn--ghost" href="/invoices">{{ L.back }}</a>
+          <button type="button" class="inv-btn inv-btn--accent" id="ec-new">
+            <span class="inv-btn__plus" aria-hidden="true">+</span> {{ L.end_client_new }}
+          </button>
+        </div>
       </div>
 
       {# ---------- Wyszukiwanie + lista ---------- #}
@@ -41,7 +49,7 @@
             <input type="text" id="ec-search" class="inv-combo__input"
                    placeholder="{{ L.end_client_search_placeholder }}" autocomplete="off">
           </label>
-          <button type="button" class="inv-btn inv-btn--primary" id="ec-new">{{ L.end_client_new }}</button>
+          <span class="inv-count" id="ec-count"></span>
         </div>
 
         <div class="inv-table-wrap">
@@ -64,81 +72,117 @@
         </div>
       </section>
 
-      {# ---------- Formularz (dodawanie i edycja tym samym formularzem) ---------- #}
-      <section class="inv-card" id="ec-form-card" hidden>
-        <h3 class="inv-card__title" id="ec-form-title">{{ L.end_client_new }}</h3>
+      {# ---------- Formularz w oknie modalnym ----------
+         ⚠️ Wcześniej formularz był kolejną KARTĄ POD LISTĄ, przez co ekran
+         „nowy odbiorca" i ekran „lista odbiorców" były tym samym widokiem —
+         po kliknięciu „Nowy odbiorca" nadal widać było tabelę, a formularz
+         trzeba było doskrolować. Teraz to `<dialog>`: przykrywa listę, ma
+         własny nagłówek i zamyka się Esc / „Anuluj" / po zapisie.
+         Świadomie modal, nie osobny endpoint — po zapisie wracasz dokładnie
+         tam, gdzie byłeś (ta sama fraza wyszukiwania, ta sama pozycja listy),
+         bez przeładowania strony. #}
+      <dialog class="inv-dialog" id="ec-form-card" aria-labelledby="ec-form-title">
+        <div class="inv-dialog__head">
+          <h3 class="inv-dialog__title" id="ec-form-title">{{ L.end_client_new }}</h3>
+          <button type="button" class="inv-dialog__close" id="ec-close" aria-label="{{ L.cancel_doc }}">&times;</button>
+        </div>
 
         <form id="ec-form">
           <input type="hidden" name="id" id="ec-id">
+          <p class="inv-hint inv-hint--form">{{ L.form_required_hint }}</p>
 
-          <div class="inv-grid">
-            <label class="inv-field"><span class="inv-label">{{ L.end_client_type }}</span>
-              <select name="client_type" id="ec-type">
-                <option value="company">{{ L.type_company }}</option>
-                <option value="person">{{ L.type_person }}</option>
-              </select></label>
-            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.name }} *</span>
-              <input name="name" required></label>
-            <label class="inv-field"><span class="inv-label">{{ L.tax_id }}</span>
-              <input name="tax_id" id="ec-tax-id"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.vat_eu_id }}</span>
-              <input name="vat_eu_id" placeholder="DE123456789"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.client_country }} *</span>
-              <input name="country" maxlength="2" placeholder="PL" required></label>
-            <label class="inv-field"><span class="inv-label">{{ L.default_currency }}</span>
-              <input name="default_currency" maxlength="3" value="EUR"></label>
-          </div>
+          {# ⚠️ Sekcje jako GRUPY (fieldset + legenda), nie kolejne `inv-card__title`:
+             wcześniej pięć nagłówków w tym samym stylu co tytuł karty wyglądało
+             jak pięć osobnych, poprzerywanych ekranów. #}
+          <fieldset class="inv-section">
+            <legend class="inv-section__title">{{ L.section_identity }}</legend>
+            <p class="inv-section__hint">{{ L.section_identity_hint }}</p>
+            <div class="inv-grid">
+              <label class="inv-field"><span class="inv-label">{{ L.end_client_type }}</span>
+                <select name="client_type" id="ec-type">
+                  <option value="company">{{ L.type_company }}</option>
+                  <option value="person">{{ L.type_person }}</option>
+                </select></label>
+              <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.name }} *</span>
+                <input name="name" required></label>
+              <label class="inv-field"><span class="inv-label">{{ L.client_country }} *</span>
+                <input name="country" maxlength="2" placeholder="PL" required></label>
+              <label class="inv-field"><span class="inv-label">{{ L.tax_id }}</span>
+                <input name="tax_id" id="ec-tax-id"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.vat_eu_id }}</span>
+                <input name="vat_eu_id" placeholder="DE123456789"></label>
+            </div>
 
-          <h3 class="inv-card__title">{{ L.registry_address }}</h3>
-          <div class="inv-grid">
-            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.street }}</span>
-              <input name="street"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.zip }}</span>
-              <input name="zip"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.city }}</span>
-              <input name="city"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.email }}</span>
-              <input name="email" type="email"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.phone }}</span>
-              <input name="phone"></label>
-          </div>
+            {# REGON / KVK / SIREN to dalej NUMERY TEGO SAMEGO ODBIORCY — stoją
+               przy NIP-ie i VAT-UE, a nie w osobnej sekcji na końcu formularza.
+               Zestaw pól zależy od kraju, więc dokłada je JS. #}
+            {# Bez osobnego nagłówka — pola rejestrowe to dalszy ciąg danych
+               identyfikacyjnych, a same etykiety (REGON, KVK, SIREN…) mówią,
+               czym są. Zostaje tylko dyskretna podpowiedź o kraju. #}
+            <div class="inv-subsection" id="ec-registry-block">
+              <span class="inv-hint" id="ec-registry-hint"></span>
+              <div class="inv-grid" id="ec-registry-fields"></div>
+            </div>
+          </fieldset>
 
-          <h3 class="inv-card__title">{{ L.delivery_address }}</h3>
-          <div class="inv-grid">
-            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.name }}</span>
-              <input name="delivery_name"></label>
-            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.street }}</span>
-              <input name="delivery_street"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.zip }}</span>
-              <input name="delivery_zip"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.city }}</span>
-              <input name="delivery_city"></label>
-            <label class="inv-field"><span class="inv-label">{{ L.client_country }}</span>
-              <input name="delivery_country" maxlength="2"></label>
-          </div>
-          {# Domyślnie wyłączone — adres dostawy pojawia się na fakturze dopiero
-             po świadomym zaznaczeniu (patrz `main.js:buildDeliveryAddress`). #}
-          <label class="inv-check inv-check--spaced">
-            <input type="checkbox" name="print_delivery_address" id="ec-print-delivery" value="1">
-            <span>{{ L.print_delivery_address }}</span>
-          </label>
+          <fieldset class="inv-section">
+            <legend class="inv-section__title">{{ L.section_contact }}</legend>
+            <p class="inv-section__hint">{{ L.section_contact_hint }}</p>
+            <div class="inv-grid">
+              <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.street }}</span>
+                <input name="street"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.zip }}</span>
+                <input name="zip"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.city }}</span>
+                <input name="city"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.email }}</span>
+                <input name="email" type="email"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.phone }}</span>
+                <input name="phone"></label>
+            </div>
+          </fieldset>
 
-          {# Numery rejestrowe zależne od kraju — etykiety podpowiadane w JS #}
-          <h3 class="inv-card__title">{{ L.registry_numbers }}</h3>
-          <p class="inv-hint" id="ec-registry-hint"></p>
-          <div class="inv-grid" id="ec-registry-fields"></div>
+          {# Adres dostawy dotyczy mniejszości odbiorców i tak samo działa na
+             fakturze (drukowany dopiero po zaznaczeniu — `main.js:buildDeliveryAddress`),
+             więc checkbox STERUJE sekcją zamiast wisieć pod nią. #}
+          <fieldset class="inv-section inv-section--optional">
+            <legend class="inv-section__title">
+              <label class="inv-check inv-check--legend">
+                <input type="checkbox" name="print_delivery_address" id="ec-print-delivery" value="1">
+                <span>{{ L.delivery_address }}</span>
+              </label>
+            </legend>
+            <p class="inv-section__hint">{{ L.section_delivery_hint }}</p>
+            <div class="inv-grid" id="ec-delivery-fields" hidden>
+              <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.name }}</span>
+                <input name="delivery_name"></label>
+              <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.street }}</span>
+                <input name="delivery_street"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.zip }}</span>
+                <input name="delivery_zip"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.city }}</span>
+                <input name="delivery_city"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.client_country }}</span>
+                <input name="delivery_country" maxlength="2"></label>
+            </div>
+          </fieldset>
 
-          <h3 class="inv-card__title">{{ L.notes }}</h3>
-          <label class="inv-field inv-field--wide">
-            <textarea name="notes" rows="3"></textarea>
-          </label>
+          <fieldset class="inv-section">
+            <legend class="inv-section__title">{{ L.notes }}</legend>
+            <p class="inv-section__hint">{{ L.section_notes_hint }}</p>
+            <label class="inv-field inv-field--wide">
+              <textarea name="notes" rows="3"></textarea>
+            </label>
+          </fieldset>
 
-          <div class="inv-form__actions">
+          {# Akcje przyklejone do dołu: formularz jest długi, a bez tego przy
+             dłuższej kartotece „Zapisz" uciekało poza ekran. #}
+          <div class="inv-form__actions inv-form__actions--sticky">
             <button type="button" class="inv-btn inv-btn--ghost" id="ec-cancel">{{ L.cancel_doc }}</button>
-            <button type="submit" class="inv-btn inv-btn--primary">{{ L.save }}</button>
+            <button type="submit" class="inv-btn inv-btn--accent">{{ L.save }}</button>
           </div>
         </form>
-      </section>
+      </dialog>
 
     </div>
   </div>

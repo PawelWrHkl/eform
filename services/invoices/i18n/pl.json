@@ -79,5 +79,8 @@
   "items.order_ref": "Zamówienie",
   "items.dimensions": "Wymiary",
   "header.delivery_date": "Data dostawy",
-  "party.delivery_address": "Adres dostawy"
+  "party.delivery_address": "Adres dostawy",
+  "header.order_name": "Nazwa zamówienia",
+  "totals.net_before_discount": "Wartość przed rabatem",
+  "totals.client_discount": "Rabat dla odbiorcy"
 }

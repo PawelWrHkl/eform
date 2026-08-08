@@ -1,3 +1,37 @@
+/* ============================================================
+   Tokeny kolorów modułu faktur
+   ============================================================
+   ⚠️ Arkusz miał kolory zaszyte na sztywno (białe karty, grafitowy tekst),
+   a aplikacja ma TRYB CIEMNY (`[data-theme="dark"]` w `theme.css`). W ciemnym
+   motywie `theme.css` nadaje każdemu `<dialog>` ciemne szkło, więc modal
+   odbiorcy wychodził ciemny, a etykiety i podpowiedzi w nim zostawały
+   grafitowe — praktycznie nieczytelne. Powierzchnie, obramowania i teksty idą
+   teraz przez zmienne, więc oba motywy działają z jednego zestawu reguł.
+   Akcenty (zieleń akcji, czerwień ostrzeżeń, złoto marki) zostają stałe —
+   są czytelne na obu tłach i niosą znaczenie. */
+:root {
+    --inv-surface: #fff;
+    --inv-surface-muted: #fcfcfd;
+    --inv-surface-alt: #f5f7fa;
+    /* Dwa poziomy obramowania: delikatne dla ramek sekcji i wyraźniejsze dla
+       PÓL — input musi być widoczny jako pole do wpisania zawsze, nie dopiero
+       po kliknięciu. Jeden wspólny token spłaszczał cały formularz. */
+    --inv-border: #dfe3ea;
+    --inv-border-strong: #b9c1d0;
+    --inv-text: #1f2937;
+    --inv-text-muted: #6b7280;
+}
+
+[data-theme="dark"] {
+    --inv-surface: #2b2f42;
+    --inv-surface-muted: #242838;
+    --inv-surface-alt: #202432;
+    --inv-border: #3d4256;
+    --inv-border-strong: #626b85;
+    --inv-text: #e9edf5;
+    --inv-text-muted: #a8b0c2;
+}
+
 /*
  * Panel faktur (owner). Arkusz dokłada się do `orders.css` i trzyma się
  * konwencji reszty panelu: karty na jasnym tle, ciemny akcent nagłówków,
@@ -19,24 +53,24 @@
 
 .inv-subtitle {
     font-size: 0.9rem;
-    color: #626b7d;
+    color: var(--inv-text-muted);
 }
 
 .inv-badge-currency {
     display: inline-block;
     padding: 1px 8px;
     border-radius: 10px;
-    background: #eef1f5;
+    background: var(--inv-surface-alt);
     font-size: 0.8rem;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--inv-text);
 }
 
 /* ---------- Karty sekcji ---------- */
 
 .inv-card {
-    background: #fff;
-    border: 1px solid #e3e6ec;
+    background: var(--inv-surface);
+    border: 1px solid var(--inv-border);
     border-radius: 12px;
     padding: 18px;
     margin-bottom: 18px;
@@ -49,18 +83,18 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #1f2937;
+    color: var(--inv-text);
 }
 
 .inv-card__title:not(:first-child) {
     margin-top: 22px;
     padding-top: 16px;
-    border-top: 1px solid #eceef1;
+    border-top: 1px solid var(--inv-border);
 }
 
 .inv-empty {
     margin: 0;
-    color: #626b7d;
+    color: var(--inv-text-muted);
 }
 
 /* ---------- Formularze ---------- */
@@ -114,7 +148,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: #626b7d;
+    color: var(--inv-text-muted);
 }
 
 .inv-field input,
@@ -122,12 +156,12 @@
 .inv-field textarea {
     width: 100%;
     padding: 8px 10px;
-    border: 1px solid #d8dce3;
+    border: 1px solid var(--inv-border-strong);
     border-radius: 8px;
-    background: #fff;
+    background: var(--inv-surface);
     font: inherit;
     font-size: 0.95rem;
-    color: #171c26;
+    color: var(--inv-text);
 }
 
 .inv-field input[type="color"] {
@@ -151,7 +185,7 @@
 
 .inv-hint {
     font-size: 0.85rem;
-    color: #626b7d;
+    color: var(--inv-text-muted);
 }
 
 /* Podpowiedź „wyjdzie 0% (WDT)" — wyróżniona, bo zmienia kwotę dokumentu */
@@ -187,9 +221,9 @@
 }
 
 .inv-btn--ghost {
-    background: #fff;
-    border-color: #d8dce3;
-    color: #1f2937;
+    background: var(--inv-surface);
+    border-color: var(--inv-border);
+    color: var(--inv-text);
 }
 
 /* ---------- Tabela dokumentów ---------- */
@@ -209,18 +243,18 @@
 .inv-table th,
 .inv-table td {
     padding: 9px 10px;
-    border-bottom: 1px solid #eceef1;
+    border-bottom: 1px solid var(--inv-border);
     text-align: left;
     vertical-align: middle;
 }
 
 .inv-table thead th {
-    background: #f6f8fa;
+    background: var(--inv-surface-alt);
     font-size: 0.78rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: #626b7d;
+    color: var(--inv-text-muted);
     white-space: nowrap;
 }
 
@@ -246,8 +280,8 @@
 }
 
 .inv-status--draft {
-    background: #eef1f5;
-    color: #4b5563;
+    background: var(--inv-surface-alt);
+    color: var(--inv-text-muted);
 }
 
 .inv-status--issued {
@@ -266,8 +300,8 @@
 }
 
 .inv-status--cancelled {
-    background: #f1f2f4;
-    color: #6b7280;
+    background: var(--inv-surface-alt);
+    color: var(--inv-text-muted);
     text-decoration: line-through;
 }
 
@@ -336,8 +370,8 @@
 .inv-client-card {
     margin-top: 14px;
     padding: 12px 14px;
-    background: #f6f8fa;
-    border: 1px solid #e3e6ec;
+    background: var(--inv-surface-alt);
+    border: 1px solid var(--inv-border);
     border-radius: 10px;
 }
 
@@ -349,7 +383,7 @@
 .inv-client-card__meta {
     margin-top: 3px;
     font-size: 0.88rem;
-    color: #626b7d;
+    color: var(--inv-text-muted);
 }
 
 .inv-client-card__tags {
@@ -363,10 +397,10 @@
     display: inline-block;
     padding: 2px 9px;
     border-radius: 10px;
-    background: #eef1f5;
+    background: var(--inv-surface-alt);
     font-size: 0.78rem;
     font-weight: 700;
-    color: #4b5563;
+    color: var(--inv-text-muted);
 }
 
 /* Stawka 0% zmienia kwotę dokumentu — musi być widoczna na pierwszy rzut oka */
@@ -396,8 +430,8 @@
     max-height: 320px;
     overflow-y: auto;
     margin-top: 4px;
-    background: #fff;
-    border: 1px solid #d8dce3;
+    background: var(--inv-surface);
+    border: 1px solid var(--inv-border);
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(20, 25, 35, 0.14);
 }
@@ -419,27 +453,27 @@
 /* Podświetlenie działa dla myszy i dla nawigacji klawiaturą (ArrowUp/Down) */
 .inv-combo__item:hover,
 .inv-combo__item.is-active {
-    background: #eef1f5;
+    background: var(--inv-surface-alt);
 }
 
 .inv-combo__main {
     display: block;
     font-size: 0.92rem;
     font-weight: 600;
-    color: #171c26;
+    color: var(--inv-text);
 }
 
 .inv-combo__sub {
     display: block;
     margin-top: 1px;
     font-size: 0.8rem;
-    color: #626b7d;
+    color: var(--inv-text-muted);
 }
 
 .inv-combo__state {
     padding: 9px 12px;
     font-size: 0.85rem;
-    color: #626b7d;
+    color: var(--inv-text-muted);
 }
 
 .inv-hint--warn {
@@ -471,7 +505,7 @@
   padding: 8px 16px;
   border: 1px solid var(--inv-border, #d8dbe0);
   border-radius: 999px;
-  background: #fff;
+  background: var(--inv-surface);
   color: inherit;
   font-weight: 500;
   text-decoration: none;
@@ -494,6 +528,267 @@
 .inv-levels__reason {
   display: block;
   margin-top: 2px;
-  color: #6c757d;
+  color: var(--inv-text-muted);
   font-size: .82rem;
+}
+
+/* --- Kartoteka odbiorców: sekcje formularza ------------------------------ */
+/* ⚠️ Formularz odbiorcy ma kilkanaście pól. Wcześniej rozdzielały je nagłówki
+   w stylu `inv-card__title` — czyli w tym samym stylu co tytuł całej karty —
+   przez co jedna karta wyglądała jak kilka poprzerywanych ekranów i nie było
+   widać, co z czym się łączy. Teraz każda grupa to wyraźny blok. */
+.inv-section {
+    margin: 0 0 18px;
+    padding: 16px 18px 4px;
+    border: 1px solid var(--inv-border);
+    border-radius: 10px;
+    background: var(--inv-surface-alt);
+}
+
+.inv-section--optional {
+    background: var(--inv-surface);
+    border-style: dashed;
+}
+
+.inv-section__title {
+    float: none;
+    width: auto;
+    padding: 0 8px;
+    margin-left: -8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--inv-text);
+}
+
+.inv-section__hint {
+    margin: 2px 0 12px;
+    font-size: 0.83rem;
+    color: var(--inv-text-muted);
+}
+
+/* Numery rejestrowe: podgrupa WEWNĄTRZ danych identyfikacyjnych, nie osobna
+   sekcja — REGON/KVK/SIREN to dalej numery tego samego odbiorcy. */
+.inv-subsection {
+    margin: 14px 0 6px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--inv-border);
+}
+
+.inv-subsection__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.inv-subsection__title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--inv-text-muted);
+}
+
+.inv-check--legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.inv-hint--form {
+    margin: 0 0 14px;
+    font-size: 0.82rem;
+    color: var(--inv-text-muted);
+}
+
+/* Główna akcja ekranu — musi być widoczna od razu, stąd zieleń zamiast
+   grafitu używanego przez akcje drugorzędne. */
+.inv-btn--accent {
+    background: #15803d;
+    border-color: #15803d;
+    color: #fff;
+}
+
+.inv-btn--accent:hover {
+    background: #166534;
+    border-color: #166534;
+}
+
+.inv-btn__plus {
+    font-size: 1.15rem;
+    line-height: 1;
+    font-weight: 700;
+}
+
+.inv-count {
+    align-self: center;
+    font-size: 0.85rem;
+    color: var(--inv-text-muted);
+    white-space: nowrap;
+}
+
+/* ⚠️ Bez `position: sticky`: przyklejony pasek akcji nachodził na pola
+   formularza (sprawdzone na zrzucie strony), a zasłonięty input to gorszy
+   problem niż przewinięcie do przycisku. Zamiast tego wyraźna belka na końcu. */
+.inv-form__actions--sticky {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--inv-border);
+}
+
+/* ⚠️ Panel siedzi w `.content.center-content`, które centruje CAŁY tekst —
+   przez to etykiety, nagłówki sekcji i podpowiedzi lądowały na środku, a
+   formularz był nie do przeczytania (oko nie ma gdzie wrócić po każdej linii).
+   Moduł faktur wyrównuje swoje treści do lewej u siebie, bez ruszania
+   globalnego stylu, na którym opierają się inne ekrany. */
+.inv-topbar,
+.inv-card,
+.inv-section,
+.inv-subsection,
+.inv-field,
+.inv-label,
+.inv-hint,
+.inv-empty,
+.inv-table th,
+.inv-table td {
+    text-align: left;
+}
+
+@media (max-width: 640px) {
+    .inv-section {
+        padding: 14px 12px 4px;
+    }
+}
+
+/* --- Modal formularza odbiorcy ------------------------------------------ */
+/* Formularz jest osobnym KROKIEM, nie kolejną sekcją listy — dlatego przykrywa
+   ekran zamiast doklejać się pod tabelą. */
+.inv-dialog {
+    /* ⚠️ `theme.css` nadaje KAŻDEMU `<dialog>` półprzezroczyste „szkło"
+       (`--bg-glass-strong`) i rozmycie tła. Dla długiego formularza to znaczyło
+       prześwitującą listę pod polami, a w trybie ciemnym ciemne tło pod jasnymi
+       sekcjami. Modal faktur ma być zwykłą, nieprzezroczystą kartą. */
+    background: var(--inv-surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: var(--inv-text);
+    /* ⚠️ `inset: 0` + `margin: auto` jawnie: inne arkusze aplikacji ustawiają
+       marginesy dla `dialog` (modal adresów w `new-address-modal.css`), przez co
+       okno lądowało przyklejone do lewej krawędzi zamiast na środku ekranu. */
+    inset: 0;
+    margin: auto;
+    width: min(900px, calc(100vw - 32px));
+    max-height: calc(100vh - 64px);
+    padding: 0 22px 18px;
+    border: 0;
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(15, 20, 30, 0.25);
+    overflow-y: auto;
+    color: var(--inv-text);
+}
+
+.inv-dialog::backdrop {
+    background: rgba(15, 20, 30, 0.45);
+}
+
+/* Nagłówek zostaje widoczny przy przewijaniu długiego formularza */
+.inv-dialog__head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 0 12px;
+    margin-bottom: 6px;
+    background: var(--inv-surface);
+    border-bottom: 1px solid var(--inv-border);
+}
+
+.inv-dialog__title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-align: left;
+}
+
+.inv-dialog__close {
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 1.6rem;
+    line-height: 1;
+    color: var(--inv-text-muted);
+    cursor: pointer;
+}
+
+.inv-dialog__close:hover {
+    background: var(--inv-surface-alt);
+    color: var(--inv-text);
+}
+
+.inv-dialog .inv-section:last-of-type {
+    margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+    .inv-dialog {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 100vh;
+        border-radius: 0;
+        padding: 0 14px 14px;
+    }
+}
+
+/* Informacja o obciętej liście podpowiedzi (combobox pokazuje tylko część) */
+.inv-combo__more {
+    padding: 8px 12px;
+    border-top: 1px dashed var(--inv-border);
+    background: var(--inv-surface-alt);
+    color: var(--inv-text-muted);
+    font-size: 0.82rem;
+}
+
+/* Ścieżka powrotu w widoku klienta */
+.inv-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 0.82rem;
+    color: var(--inv-text-muted);
+}
+
+.inv-breadcrumb a {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dotted currentColor;
+}
+
+.inv-client__open {
+    margin-top: 14px;
+}
+
+/* Nazwa zamówienia w liście dokumentów: numer pod nazwą, bez rozpychania kolumny */
+.inv-order-name {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.inv-order-ref {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--inv-text-muted);
 }

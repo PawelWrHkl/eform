@@ -22,6 +22,7 @@
  */
 
 const { Unit } = require('../domain/constants');
+const { OrderParam } = require('../domain/orderParams');
 const money = require('./money');
 
 /**
@@ -74,7 +75,8 @@ function num(value) {
 /**
  * Jednostka miary i ilość pozycji.
  *
- * ⚠️ ILOŚĆ POCHODZI WYŁĄCZNIE Z `json_parameters.ILOSC` — czyli z liczby sztuk.
+ * ⚠️ ILOŚĆ POCHODZI WYŁĄCZNIE Z `OrderParam.QUANTITY` (`ILOSC`) — czyli z liczby
+ * sztuk. Nazwy parametrów konfiguratora trzyma `domain/orderParams.js`.
  * Żaden produkt w tym systemie nie jest rozliczany na m² ani na metry bieżące:
  * powierzchnia (`POW`) i wymiary (`SZEROKOSC`/`WYSOKOSC`) są danymi
  * technicznymi konfiguracji, a nie miarą sprzedaży.
@@ -92,7 +94,7 @@ function num(value) {
  * @returns {{ unit: string, quantity: number, isInstallation: boolean }}
  */
 function resolveUnitAndQuantity(params, amount) {
-  const pieces = Math.max(1, num(params.ILOSC) || num(amount) || 1);
+  const pieces = Math.max(1, num(params[OrderParam.QUANTITY]) || num(amount) || 1);
   // `isInstallation` zawsze false — patrz GOODS_ONLY_NOTE na górze pliku.
   return { unit: Unit.PIECE, quantity: pieces, isInstallation: false };
 }
@@ -158,16 +160,37 @@ function buildItemDescription(item, params) {
  *        `true` → wartości z `total_price_sub` (ceny klienta, patrz `services/subPrices.js`).
  * @returns {RawItem[]}
  */
-function mapOrderItemsToInvoiceItems({ orderItems, resolveTax, currency = 'EUR', useSubPrices = false }) {
+function mapOrderItemsToInvoiceItems({ orderItems, resolveTax, currency = 'EUR', useSubPrices = false, useListPrices = false, retailValueByItemId = null }) {
   return (orderItems || []).map((item) => {
     const params = parseJson(item.json_parameters);
     const { unit, quantity, isInstallation } = resolveUnitAndQuantity(params, item.amount);
 
     // Wartość netto pozycji — źródło prawdy o cenie (patrz komentarz wyżej).
-    const totalNetMinor = money.toMinor(
-      useSubPrices && item.total_price_sub != null ? item.total_price_sub : item.total_price,
-      currency
-    );
+    //
+    // ⚠️ TRZY warstwy, wybierane przez `core/pricing.js`:
+    //   SUB  → `total_price_sub`      (organizacja ≠ HKL → jej użytkownik)
+    //   LIST → `SUMA_BRUTTO`          (producent → organizacja: wartość PRZED
+    //          rabatem klienta). ⚠️ Mimo nazwy to kwota NETTO — potwierdzone
+    //          przez właściciela systemu. Trafia do kalkulatora tak samo jak
+    //          pozostałe warstwy, czyli VAT jest doliczany OSOBNO.
+    //   BASE → `total_price`          (wartość po rabacie klienta)
+    //
+    // `SUMA_BRUTTO` bywa nieobecna albo PUSTA (starsze zamówienia — w bazie
+    // 2101 pozycji bez klucza i 193 z pustą wartością). Pusty parametr dałby
+    // pozycję za 0,00, dlatego jest jawny fallback na `total_price`.
+    const listValue = useListPrices ? num(params[OrderParam.LIST_VALUE]) : 0;
+    // RETAIL: wartości widoczne dla odbiorcy końcowego wylicza `main.js`
+    // (zależą od organizacji: `unit_price` albo widoczne `SUB___`), bo mapper
+    // nie zna kontekstu organizacji ani reguł warstwy SUB.
+    const retailValue = retailValueByItemId ? num(retailValueByItemId.get(item.id)) : 0;
+
+    let priceSource = 'base';
+    let sourceValue = item.total_price;
+    if (retailValue > 0) { sourceValue = retailValue; priceSource = 'retail'; }
+    else if (useSubPrices && item.total_price_sub != null) { sourceValue = item.total_price_sub; priceSource = 'sub'; }
+    else if (listValue > 0) { sourceValue = listValue; priceSource = 'list'; }
+
+    const totalNetMinor = money.toMinor(sourceValue, currency);
 
     // Cena jednostkowa liczona wstecz z wartości, żeby ilość × cena = wartość.
     // Reszta z dzielenia trafia do ostatniego grosza wartości — dlatego
@@ -193,10 +216,11 @@ function mapOrderItemsToInvoiceItems({ orderItems, resolveTax, currency = 'EUR',
       meta: {
         displayQuantity: quantity,
         displayUnit: unit,
-        pieces: num(params.ILOSC) || num(item.amount) || 1,
-        area: num(params.POW) || null,
-        widthMm: num(params.SZEROKOSC) || null,
-        heightMm: num(params.WYSOKOSC) || null,
+        pieces: num(params[OrderParam.QUANTITY]) || num(item.amount) || 1,
+        area: num(params[OrderParam.AREA]) || null,
+        widthMm: num(params[OrderParam.WIDTH_MM]) || null,
+        heightMm: num(params[OrderParam.HEIGHT_MM]) || null,
+        priceSource,
         asortmentGroup: item.asortment_group_number || null,
         department: item.department || null,
         orderPosition: item.orderpos || null,

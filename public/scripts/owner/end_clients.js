@@ -56,6 +56,7 @@ function escapeHtml(value) {
 
 const rowsEl = document.getElementById('ec-rows');
 const searchEl = document.getElementById('ec-search');
+const countEl = document.getElementById('ec-count');
 let controller = null;
 let timer = null;
 
@@ -73,8 +74,14 @@ async function refreshList() {
     const body = await res.json();
     const items = body.items || [];
 
+    if (countEl) countEl.textContent = items.length ? `${items.length} ${L.end_client_count || ''}` : '';
+
     if (!items.length) {
-      rowsEl.innerHTML = `<tr><td colspan="7" class="inv-empty">${escapeHtml(L.no_results || '—')}</td></tr>`;
+      // Pusta kartoteka to nie to samo co brak wyników wyszukiwania — w
+      // pierwszym przypadku podpowiadamy, co zrobić dalej.
+      const searching = searchEl && searchEl.value.trim();
+      const message = searching ? (L.no_results || '—') : (L.end_client_add_first || L.no_results || '—');
+      rowsEl.innerHTML = `<tr><td colspan="7" class="inv-empty">${escapeHtml(message)}</td></tr>`;
       return;
     }
 
@@ -124,6 +131,11 @@ function renderRegistryFields(country, values = {}) {
   // o ten sam numer dwa razy — raz jako „NIP", raz jako „NIP" w rejestrach.
   const fields = (REGISTRY_DEFS[code] || []).filter((f) => !f.fromTaxId && !f.fromVatEu);
 
+  // Kraj bez dodatkowych numerów (poza NIP-em i VAT-UE) nie potrzebuje tej
+  // podgrupy — pusty nagłówek „Numery rejestrowe" tylko myli.
+  const block = document.getElementById('ec-registry-block');
+  if (block) block.hidden = !fields.length;
+
   registryHint.textContent = fields.length
     ? `${code}: ${fields.map((f) => f.label).join(', ')}`
     : (L.registry_none || '');
@@ -135,9 +147,30 @@ function renderRegistryFields(country, values = {}) {
     </label>`).join('');
 }
 
+const deliveryToggle = document.getElementById('ec-print-delivery');
+const deliveryFields = document.getElementById('ec-delivery-fields');
+
+/**
+ * Pola adresu dostawy widoczne tylko przy zaznaczonym checkboxie.
+ *
+ * ⚠️ Pola zostają w DOM (`hidden`, nie usuwane), więc `FormData` nadal je
+ * wysyła — wpisany wcześniej adres nie znika po odznaczeniu, a serwer i tak
+ * decyduje o druku na podstawie `print_delivery_address`.
+ */
+function syncDeliverySection() {
+  if (!deliveryToggle || !deliveryFields) return;
+  deliveryFields.hidden = !deliveryToggle.checked;
+}
+
+/** Zamknięcie modala — jedno miejsce, bo wołają je: Anuluj, „×", Esc i zapis. */
+function closeForm() {
+  if (formCard.open) formCard.close();
+}
+
 function openForm(client) {
   form.reset();
-  formCard.hidden = false;
+  // `showModal` (a nie `show`) — blokuje tło i daje obsługę Esc za darmo
+  if (!formCard.open) formCard.showModal();
   formTitle.textContent = client ? (L.end_client_edit || '') : (L.end_client_new || '');
   document.getElementById('ec-id').value = client ? client.id : '';
 
@@ -150,7 +183,15 @@ function openForm(client) {
     }
   }
   renderRegistryFields(client ? client.country : 'PL', client ? client.registry_numbers : {});
-  formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Odbiorca z zapisanym adresem dostawy ma sekcję otwartą także wtedy, gdy
+  // druk jest wyłączony — inaczej wpisany adres wyglądałby na skasowany.
+  if (deliveryToggle && deliveryFields) {
+    const hasDeliveryData = !!(client && (client.delivery_street || client.delivery_city || client.delivery_name));
+    deliveryFields.hidden = !(deliveryToggle.checked || hasDeliveryData);
+  }
+  // Długi formularz zawsze od góry — przy edycji drugiego odbiorca z rzędu
+  // modal pamiętałby przewinięcie poprzedniego.
+  formCard.scrollTop = 0;
 }
 
 form.addEventListener('submit', async (event) => {
@@ -182,7 +223,7 @@ form.addEventListener('submit', async (event) => {
       await api('/api/v1/invoices/end-clients', { method: 'POST', body: JSON.stringify(payload) });
     }
     showToast('success', L.saved || 'OK');
-    formCard.hidden = true;
+    closeForm();
     refreshList();
   } catch (err) {
     showToast('error', `${L.error || 'Error'}: ${err.message}`, 5);
@@ -194,7 +235,13 @@ form.addEventListener('submit', async (event) => {
 /* ---------------------------------------------------------------- */
 
 document.getElementById('ec-new').addEventListener('click', () => openForm(null));
-document.getElementById('ec-cancel').addEventListener('click', () => { formCard.hidden = true; });
+if (deliveryToggle) deliveryToggle.addEventListener('change', syncDeliverySection);
+document.getElementById('ec-cancel').addEventListener('click', closeForm);
+document.getElementById('ec-close').addEventListener('click', closeForm);
+// Kliknięcie w tło (poza kartą formularza) też zamyka — typowe dla modali
+formCard.addEventListener('click', (event) => {
+  if (event.target === formCard) closeForm();
+});
 
 form.elements.namedItem('country').addEventListener('change', (event) => {
   // Zmiana kraju przebudowuje pola rejestrowe, zachowując już wpisane wartości
