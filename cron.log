@@ -3044,3 +3044,19 @@ fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: 
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-08-08 10:35:01 - Start ===
 === 2026-08-08 10:35:01 - Dodawanie zmian do commita ===
+[main 4446e80] Automatic commit 2026-08-08 10:35
+ 39 files changed, 10630 insertions(+), 480 deletions(-)
+ create mode 100644 services/invoices/__tests__/clientDiscount.test.js
+ create mode 100644 services/invoices/core/clientDiscount.js
+ create mode 100644 services/invoices/domain/orderParams.js
+ create mode 100644 templates/owner/invoice_client.njk
+ create mode 100644 templates/owner/partials/client_card.njk
+ create mode 100644 templates/owner/partials/client_documents.njk
+=== 2026-08-08 10:35:02 - Wysyłanie do origin/main ===
+remote: Permission to PawelWoronieckiHkl/eform.git denied to PawelWrHkl.
+fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: The requested URL returned error: 403
+=== 2026-08-08 12:00:01 - Start ===
+=== 2026-08-08 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-08-09 10:35:01 - Start ===
+=== 2026-08-09 10:35:01 - Dodawanie zmian do commita ===
