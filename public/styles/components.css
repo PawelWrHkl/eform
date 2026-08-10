@@ -60,18 +60,36 @@
 	}
 }
 /* --- Wylogowanie jako formularz ------------------------------------------
-   Element opakowujący nie może zaburzyć układu nawigacji, dlatego znika
-   z drzewa layoutu (`display: contents`), a przycisk przejmuje wygląd linku. */
+   ⚠️ Wylogowanie to <button> w formularzu POST (działa bez JS-u), ale MUSI
+   wyglądać dokładnie jak pozostałe pozycje paska. Formularz znika z układu
+   (`display: contents`), a przycisk zeruje wyłącznie własne domyślne style
+   przeglądarki — całą warstwę wizualną nadaje wspólna klasa
+   `.custom-nav-link` / `.nav-link`, tak samo jak linkom.
+   `text-align: inherit`, nie `left`: pasek w stanie zwiniętym centruje treść. */
 .nav-logout-form {
     display: contents;
 }
 
 .nav-logout-btn {
+    appearance: none;
+    -webkit-appearance: none;
     border: 0;
     background: none;
+    box-shadow: none;
     font: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
     color: inherit;
-    text-align: left;
-    cursor: pointer;
+    text-align: inherit;
     text-decoration: none;
+    cursor: pointer;
+    width: 100%;
+    box-sizing: border-box;
+    /* ⚠️ Globalna reguła `button` w `theme.css` ustawia `justify-content: center`
+       i `gap: 8px` — na pasku nawigacji przesuwało to ikonę i etykietę na środek
+       kafla, gdy linki mają je dosunięte do lewej (ikona 24 px vs 77 px).
+       Zerujemy oba, żeby o rozkładzie decydowała TYLKO wspólna klasa paska —
+       w tym reguła stanu zwiniętego, która celowo centruje ikonę. */
+    justify-content: normal;
+    gap: normal;
 }
