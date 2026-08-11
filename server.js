@@ -206,9 +206,19 @@ app.use('/position', positionsRoutes);
 app.use('/address', addressRoutes);
 // Moduł fakturowania — REST API (patrz services/invoices/README.md).
 // Montowany na końcu, bo `app.all('*')` poniżej przechwytuje wszystko pozostałe.
-app.use('/api/v1/invoices', invoiceRoutes);
-// Panel ownera dla faktur (widoki HTML; dane bierze z API powyżej)
-app.use('/invoices', invoicePanelRoutes);
+//
+// ⚠️ MONTOWANY WARUNKOWO: przy `INVOICES_ENABLED != true` moduł ma być
+// niedostępny w całości, a nie tylko schowany w menu. Wcześniej routery
+// stały zawsze i chronił je wyłącznie login — adres `/invoices` wpisany
+// z palca działał także tam, gdzie moduł miał być wyłączony.
+if (features?.invoices) {
+	app.use('/api/v1/invoices', invoiceRoutes);
+	// Panel ownera dla faktur (widoki HTML; dane bierze z API powyżej)
+	app.use('/invoices', invoicePanelRoutes);
+	log('[invoices] moduł włączony (INVOICES_ENABLED=true)');
+} else {
+	log('[invoices] moduł WYŁĄCZONY — /invoices i /api/v1/invoices nie są montowane');
+}
 
 
 app.all('*', (req, res) => {

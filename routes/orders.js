@@ -24,6 +24,7 @@ const { translateOrderItems } = require('../services/translationDict/itemTransla
 const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../services/productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../utils/productionSendGuard');
 const { getOrderMutationBlock, shouldRedirectFromActiveOrderView } = require('../utils/orderStatusGuard');
+const { orderHidesPrices } = require('../services/abType');
 const { resolveVatLocals, vatFeatureEnabled } = require('../services/vatCalculator');
 
 function sentOrderPath(orderId) {
@@ -152,7 +153,10 @@ router.get('/edit/:orderId', requireLogin, async (req, res) => {
     // jest kartoteką salonu), a nie po sesji: admin i owner otwierają cudze
     // zamówienia i też muszą zobaczyć powiązanie.
     let selectedEndClient = null;
-    if (orderData?.end_client_id) {
+    // ⚠️ Przy wyłączonym module faktur nie sięgamy nawet do jego kartoteki —
+    // sekcja odbiorcy i tak się nie renderuje, a zapytanie do tabel modułu
+    // byłoby jedynym śladem, że gdzieś tam istnieje.
+    if (res.locals.invoicesEnabled && orderData?.end_client_id) {
         try {
             selectedEndClient = await invoiceRepository.getEndClient({
                 id: orderData.end_client_id,
@@ -1089,8 +1093,12 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             showGoldPrices
         }));
 
+        // Klient z `ab_type = without_price` dostaje potwierdzenie BEZ ŻADNYCH cen
+        const withoutPrices = await orderHidesPrices(id);
+        if (withoutPrices) log(`[ab_type] zamówienie ${id}: potwierdzenie bez cen (ab_type właściciela)`);
+
         // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
-        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail)
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices })
         const orgData = await db.getOrgInfo(req.session.user.organization)
 
         // Główny odbiorca i BCC zależne od środowiska

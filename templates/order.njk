@@ -185,7 +185,14 @@
                                                                                                         <tr style="cursor: pointer display:grid" data-id="{{ rowObj.item.id }}" data-link-group="{{ rowObj.item.link_group or '' }}" onclick="window.location.href='/position/{{ rowObj.item.id }}'">
                                                                                                         {% endblock %}
                                                                                                         {% block pos_btns %}
-                                                                                                            <td class="d-flex align-items-center">
+                                                                                                            {# ⚠️ `display: flex` NIE MOŻE stać na `<td>`: taka komórka przestaje być
+                                                                                                               komórką tabeli (przeglądarka owija ją anonimową komórką), a FIREFOX
+                                                                                                               nie przypina wtedy `position: sticky` — pierwsza kolumna odjeżdżała
+                                                                                                               przy przewijaniu w bok, mimo że kolumny 2 i 3 trzymały. Chromium to
+                                                                                                               wybaczał, więc błąd był widoczny tylko w Firefoksie.
+                                                                                                               Układ flex robi teraz wewnętrzny kontener. #}
+                                                                                                            <td class="order-action-cell">
+                                                                                                                <div class="order-action-cell__inner d-flex align-items-center">
                                                                                                                 <div class="position-controls d-flex flex-column align-items-center me-2">
                                                                                                                     <button class="btn move-up-btn has-tooltip" data-tooltip="{{ __('order.move_up') }}" data-id="{{ rowObj.item.id }}" onclick="event.stopPropagation()">
                                                                                                                         <svg viewbox="0 0 16 16">
@@ -215,6 +222,10 @@
                                                                                                                         <button class="action-btn action-btn-delete p-1 delete-position-btn has-tooltip" data-tooltip="{{ __('order.delete_pos') }}" type="button" data-id="{{ rowObj.item.id }}" data-href="/position/{{ rowObj.item.id }}/delete" onclick="event.stopPropagation()">
                                                                                                                             <img src="/img/delete.png" alt="{{ __('order.delete') }}"/>
                                                                                                                         </button>
+                                                                                                                    {# Zamknięcie wrappera MUSI być w tym bloku: szablony, które nadpisują
+                                                                                                                       `pos_btns` pustą treścią (np. `order_sent.njk`), nie mogą zostać
+                                                                                                                       z osieroconym `</div>` zamykającym cudzy kontener. #}
+                                                                                                                    </div>
                                                                                                                     {% endblock %}
                                                                                                                 </td>
                                                                                                                 <th scope="row" class='order-idx' data-id="{{ rowObj.item.id }}" data-idx='{{ globalIndex }}'>{{ globalIndex }}</th>
@@ -616,6 +627,7 @@
                                                                     <script src="/scripts/mobileCards.js"></script>
                     <script src="/scripts/linkPositions.js"></script>
                                                                     <script src="/scripts/stickyColumns.js"></script>
+                                                                    <script src="/scripts/tableTooltips.js"></script>
                                                                     {% if owner or admin %}
                                                                     <script type='module' src="/scripts/recalculateOrder.js"></script>
                                                                     {% endif %}

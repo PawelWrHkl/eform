@@ -7,6 +7,7 @@ const OrderSender = require('../services/sendOrderService');
 const mailBot = require('../services/mailBot/mailBot');
 const orderService = require('../services/orderService.js');
 const { generatePdf, generateOrderDocuments } = require('../services/mailBot/pdfGenerator');
+const { orderHidesPrices } = require('../services/abType');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
 const { buildItemProductionDays } = require('../services/productionDays');
 const path = require('path');
@@ -315,7 +316,8 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
         const mainRecipient = mail.organization_email;
         let bccList = [confirmationEmail, mail.organization_email2, extraMail, 'pawel.woroniecki@hkl.eu'].filter(Boolean).flat();
         // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
-        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays);
+        const withoutPrices = await orderHidesPrices(orderDetails.id);
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays, true, false, false, null, { withoutPrices });
         const orgData = await db.getOrgInfo(req.session.user.organization);
 
         if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'dev') {

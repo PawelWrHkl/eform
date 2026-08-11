@@ -80,7 +80,12 @@ function buildScreenHtmlDocument(bodyHtml, title = '') {
 
 // Generuje potwierdzenie zamówienia w obu formatach z jednego renderu szablonu:
 // { pdf: Buffer, html: string }. `generatePdf` to cienki wrapper zwracający tylko PDF.
-async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath, sendData, orderIdx, prices = true, maxProdDays = 0, showGoldPrices = true, clientView = false, showBoth = false, discountInfo = null) {
+async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath, sendData, orderIdx, prices = true, maxProdDays = 0, showGoldPrices = true, clientView = false, showBoth = false, discountInfo = null, options = {}) {
+  // ⚠️ `withoutPrices` (z `user.ab_type`) to TWARDE wyłączenie wszystkich kwot —
+  // silniejsze niż `prices`. Samo `prices: false` NIE wystarcza, bo w
+  // `order-pdf.njk` wiersz cen (`headers2`) i wiersz `SUB___` są bramkowane
+  // wyłącznie przez `clientView`/`showBoth`, nie przez `prices`.
+  const withoutPrices = options.withoutPrices === true;
   log('zaczynam', logoPath)
   const logoBase64 = fs.readFileSync(logoPath, { encoding: 'base64' });
   const logoDataUri = `data:image/png;base64,${logoBase64}`;
@@ -137,11 +142,18 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     prices: prices,
     maxProdDays: maxProdDays,
     totalQuantity: totalQuantity,
-    showGoldPrices: showGoldPrices,
+    showGoldPrices: showGoldPrices && !withoutPrices,
     clientView: clientView,
-    showBoth: showBoth,
-    discountInfo: discountInfo
+    showBoth: showBoth && !withoutPrices,
+    discountInfo: withoutPrices ? null : discountInfo,
+    withoutPrices: withoutPrices
   };
+
+  if (withoutPrices && renderContext.sendData) {
+    // Sumy idą do szablonu przez `sendData` — czyścimy je tutaj, żeby żaden
+    // wariant wołającego (mail, korekta, import) nie przemycił kwoty w stopce.
+    renderContext.sendData = { ...renderContext.sendData, total: null, total_hidden: null };
+  }
 
   const html = env.render('order-pdf.njk', renderContext);
 
@@ -217,6 +229,10 @@ function renderOrderPdfHtml({
   showGoldPrices = true,
   clientView = false,
   showBoth = false,
+  // ⚠️ Ta funkcja renderuje TEN SAM szablon co wysyłka maila i służy testom
+  // oraz podglądom — musi znać tę samą flagę, inaczej test „bez cen" przechodzi
+  // na dokumencie, który w mailu wygląda inaczej.
+  withoutPrices = false,
   lang = 'pl'
 }) {
   const i18n = confLang(lang);
@@ -233,14 +249,15 @@ function renderOrderPdfHtml({
     orderDetails,
     cleanOrderItems,
     logoPath: 'data:image/png;base64,test',
-    sendData,
+    sendData: withoutPrices && sendData ? { ...sendData, total: null, total_hidden: null } : sendData,
     orderNr,
     prices,
     maxProdDays,
     totalQuantity,
-    showGoldPrices,
+    showGoldPrices: showGoldPrices && !withoutPrices,
     clientView,
-    showBoth
+    showBoth: showBoth && !withoutPrices,
+    withoutPrices
   });
 }
 

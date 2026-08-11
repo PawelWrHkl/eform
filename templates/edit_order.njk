@@ -74,5 +74,8 @@
   {# ⚠️ Ten blok NADPISUJE `scripts` z `new-order.njk`, więc każdy moduł
      formularza trzeba tu wymienić osobno — inaczej sekcja odbiorcy końcowego
      renderuje się, ale jest martwa (bez wyszukiwarki i przycisku „+"). #}
-  <script type="module" src="/scripts/orderEndClient.js"></script>
+  {% if invoicesEnabled %}
+    {# Moduł faktur wyłączony flagą → nie ładujemy nawet skryptu sekcji odbiorcy #}
+    <script type="module" src="/scripts/orderEndClient.js"></script>
+  {% endif %}
 {% endblock scripts %}

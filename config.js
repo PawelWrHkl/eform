@@ -44,12 +44,18 @@ module.exports = {
   // there until it's deliberately added.
   features: {
     vat: process.env.VAT_ENABLED === 'true',
-    // Moduł fakturowania (`services/invoices`). Ta flaga steruje WYŁĄCZNIE
-    // widocznością wejścia w menu (`res.locals.invoicesEnabled` → `base.njk`);
-    // routery `/invoices` i `/api/v1/invoices` pozostają zamontowane, bo są
-    // chronione `requireOwner`. Ta sama konwencja co `vat`: brak zmiennej = off,
-    // więc środowisko, które nie ma jej w swoim `.env` (np. volumes/test),
-    // nie pokazuje ikonki bez żadnej zmiany w kodzie.
-    invoices: process.env.INVOICES_ENABLED === 'true'
+    // Moduł fakturowania (`services/invoices`). ⚠️ Ta flaga wyłącza CAŁY moduł,
+    // nie tylko wejście w menu: przy `false` nie są montowane routery
+    // `/invoices` ani `/api/v1/invoices` (adresy zwracają 404), znika ikona
+    // w nawigacji (`res.locals.invoicesEnabled` → `base.njk`), sekcja odbiorcy
+    // końcowego w formularzu zamówienia i kartoteka odbiorców. Dzięki temu
+    // środowisko z wyłączoną flagą nie wystawia żadnego wejścia do modułu —
+    // ani widoku, ani API.
+    //
+    // Podstawowa nazwa zmiennej to `INVOICES_ENABLED`; `INVOICE`/`INVOICES`
+    // przyjmujemy jako skróty, bo łatwo o pomyłkę przy ręcznej edycji `.env`.
+    // Brak zmiennej = wyłączone (ta sama konwencja co `vat`).
+    invoices: [process.env.INVOICES_ENABLED, process.env.INVOICES, process.env.INVOICE]
+      .some((v) => String(v).toLowerCase() === 'true'),
   }
 };

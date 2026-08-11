@@ -46,7 +46,10 @@
                   {% endif %}
                 {% endfor %}
               </tr>
-              {% if not clientView %}
+              {# ⚠️ `withoutPrices` (klient z `ab_type = without_price`) wyłącza WSZYSTKIE
+                 kwoty: ceny katalogowe, SUB, wartości zablokowane, sumy i rabat.
+                 Musi być tutaj, bo ten wiersz nie zależy od flagi `prices`. #}
+              {% if not clientView and not withoutPrices %}
               <tr>
                 {% for header in table.headers2 %}
                   {% if (not(header in rowObj.item.lockedParams)) %}
@@ -58,7 +61,7 @@
                 {% endfor %}
               </tr>
               {% endif %}
-              {% if clientView or showBoth %}
+              {% if (clientView or showBoth) and not withoutPrices %}
               <tr>
                 {% for entry in rowObj.item.subParamValues %}
                   {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}

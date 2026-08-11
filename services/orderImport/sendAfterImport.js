@@ -12,6 +12,7 @@ const orderService = require('../orderService');
 const mailBot = require('../mailBot/mailBot');
 const OrderSender = require('../sendOrderService');
 const { generateOrderDocuments, generateProductionPdf, uploadProductionPdf } = require('../mailBot/pdfGenerator');
+const { userHidesPrices } = require('../abType');
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { log } = require('../../utils/logging');
@@ -157,6 +158,10 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
       || ((data) => formatSendTotals(data, lang, user.organization_id, ordersDb));
     await formatTotals(sendData);
 
+    // Klient z `ab_type = without_price` dostaje potwierdzenie BEZ cen —
+    // `user` jest tu już wczytany, więc wystarczy sprawdzić jego pole.
+    const withoutPrices = userHidesPrices(user);
+
     const { pdf, html: confirmationHtml } = await docsGenerate(
       orderDetails,
       cleanOrderItems,
@@ -168,7 +173,9 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
       maxProdDays,
       user.organization_id != 3,
       false,
-      false
+      false,
+      null,
+      { withoutPrices }
     );
 
     const orgData = await ordersDb.getOrgInfo(user.organization_id);

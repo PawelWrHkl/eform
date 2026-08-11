@@ -6,6 +6,7 @@ const orderService = require('../orderService.js');
 const mailBot = require('../mailBot/mailBot');
 const { OrderSender } = require('../sendOrderService');
 const { generateOrderDocuments } = require('../mailBot/pdfGenerator');
+const { orderHidesPrices } = require('../abType');
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { buildItemProductionDays } = require('../productionDays');
@@ -130,6 +131,9 @@ async function submitCorrection(req, orderId, prices) {
     }));
 
     // Potwierdzenie korekty w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
+    // Klient z `ab_type = without_price` dostaje korektę również BEZ cen
+    const withoutPrices = await orderHidesPrices(orderDetails.id);
+
     const { pdf, html: confirmationHtml } = await generateOrderDocuments(
         orderDetails,
         cleanOrderItems,
@@ -141,7 +145,9 @@ async function submitCorrection(req, orderId, prices) {
         maxProdDays,
         showGoldPrices,
         isClientForPdf,
-        showBothForMail
+        showBothForMail,
+        null,
+        { withoutPrices }
     );
     const orgData = await db.getOrgInfo(req.session.user.organization);
 

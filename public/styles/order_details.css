@@ -894,6 +894,22 @@ html.nav-collapsed #order-nav {
     fill: var(--brand-primary);
 }
 
+/* Komórka akcji (pierwsza kolumna, przypięta). ⚠️ Sam `<td>` zostaje
+   komórką tabeli — `display: flex` na komórce psuje `position: sticky`
+   w Firefoksie (patrz komentarz w `templates/order.njk`). Flex jest na
+   wewnętrznym kontenerze. */
+.order-action-cell {
+    white-space: nowrap;
+    min-width: fit-content;
+}
+
+.order-action-cell__inner {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+/* Zgodność wstecz dla ewentualnych innych tabel z tym wzorcem */
 .table td.d-flex {
     white-space: nowrap;
     min-width: fit-content;
@@ -983,12 +999,80 @@ html.nav-collapsed #order-nav {
    When a .has-tooltip button inside a frozen cell is hovered we raise the
    cell's own z-index above the tooltip z-index (99999) so the entire stacking
    context paints on top of everything else. */
+/* Dymki w tabeli renderuje `public/scripts/tableTooltips.js` — jako element
+   w `document.body`, nie jako pseudoelement przycisku.
+   ⚠️ Powód: pseudoelement żyje w kontekście stakowania przypiętej komórki,
+   a zmierzone zachowanie obu silników jest takie, że komórka `tbody` nawet
+   z `z-index: 100001` maluje się POD komórką `thead` mającą `z-index >= 1`
+   (próg sprawdzony dla auto/0/1/2/3). Z wnętrza tabeli nie da się tego
+   przebić — dlatego dymek musi powstać poza nią.
+   Tutaj wyłączamy pseudoelementy, żeby nie było dwóch dymków naraz. */
+.order-table .has-tooltip::after,
+.order-table .has-tooltip::before {
+    content: none !important;
+}
+
+/* Warstwa dymka — `position: fixed` w `body`, więc żaden kontekst tabeli
+   (przypięte kolumny, nagłówek, wiersze cen) jej nie przykryje. */
+.table-tooltip {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 2147483000;
+    max-width: 320px;
+    padding: 8px 14px;
+    border-radius: var(--radius-md, 8px);
+    background: var(--brand-primary, #5e6e82);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.table-tooltip.is-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Strzałka celuje w środek elementu (`--tt-arrow-x` ustawia skrypt) */
+.table-tooltip::after {
+    content: '';
+    position: absolute;
+    left: var(--tt-arrow-x, 50%);
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+}
+
+.table-tooltip:not(.table-tooltip--below)::after {
+    top: 100%;
+    border-top: 6px solid var(--brand-primary, #5e6e82);
+}
+
+.table-tooltip--below::after {
+    bottom: 100%;
+    border-bottom: 6px solid var(--brand-primary, #5e6e82);
+}
+
+/* ⚠️ SELEKTOR MUSI LUSTRZANIE POWTARZAĆ łańcuch `:not(...)` z reguły bazowej.
+   Wcześniej brzmiał `.order-table tbody > tr > :nth-child(n)` — bez tych
+   pięciu `:not()`, z których każde liczy się do specyficzności jak klasa.
+   Reguła bazowa (`z-index: 3`) miała więc WYŻSZĄ specyficzność i wygrywała,
+   przez co podniesienie z-indeksu nigdy nie następowało: dymek zostawał
+   uwięziony w kontekście stakowania komórki (z-index 3) i chował się pod
+   przypiętym nagłówkiem tabeli (z-index 4). */
 .order-table thead th:nth-child(1):has(.has-tooltip:hover),
 .order-table thead th:nth-child(2):has(.has-tooltip:hover),
 .order-table thead th:nth-child(3):has(.has-tooltip:hover),
-.order-table tbody > tr > :nth-child(1):has(.has-tooltip:hover),
-.order-table tbody > tr > :nth-child(2):has(.has-tooltip:hover),
-.order-table tbody > tr > :nth-child(3):has(.has-tooltip:hover) {
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row) > :nth-child(1):has(.has-tooltip:hover),
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row) > :nth-child(2):has(.has-tooltip:hover),
+.order-table tbody > tr:not(.price-row):not(.sub-params-row):not(.sub-params-locked-row):not(.prod-time-row):not(.status-row) > :nth-child(3):has(.has-tooltip:hover) {
     z-index: 100001;
 }
 /* ── Link-positions feature ──────────────────────────────────────────── */

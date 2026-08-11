@@ -18,8 +18,13 @@
     var cells = headRow.children;
     if (cells.length < 3) return;
 
-    var width1 = cells[0].offsetWidth;
-    var width2 = cells[1].offsetWidth;
+    // ⚠️ `getBoundingClientRect().width`, NIE `offsetWidth`: kolumny mają
+    // szerokości UŁAMKOWE (np. 185.37 px), a `offsetWidth` zwraca zaokrągloną
+    // liczbę całkowitą (185). Przypięta kolumna lądowała wtedy o ułamek piksela
+    // za blisko albo za daleko — między pierwszą a drugą kolumną prześwitywała
+    // cienka szczelina, przez którą było widać przewijaną treść.
+    var width1 = cells[0].getBoundingClientRect().width;
+    var width2 = cells[1].getBoundingClientRect().width;
 
     table.style.setProperty('--sticky-left-1', '0px');
     table.style.setProperty('--sticky-left-2', width1 + 'px');
