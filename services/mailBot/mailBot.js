@@ -5,6 +5,7 @@ const fs = require('fs');
 const confLang = require('./conf');
 const { log } = require('../../utils/logging');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
+const { resolveAbLang } = require('../abType');
 
 
 const transporter = nodemailer.createTransport({
@@ -22,8 +23,17 @@ const transporter = nodemailer.createTransport({
 
 
 function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
-  const i18n = confLang(lang);
-  const __ = (key, opts) => i18n.__(key, { locale: lang, ...opts });
+  // JĘZYK POTWIERDZENIA: `user.ab_lang` (przekazany przez wołającego w
+  // `options.abLang`) wygrywa z językiem sesji/klienta. Dotyczy CAŁEGO maila —
+  // tematu, treści szablonu i nazwy załącznika — a nie tylko dokumentu PDF.
+  // Brak wartości albo nieznany język = zachowanie dotychczasowe.
+  //
+  // ⚠️ Odczyt z bazy zostaje po stronie wołających (`services/abType.js`):
+  // ta funkcja jest synchroniczna i używana także w testach, więc nie może
+  // sama sięgać do MySQL-a. Normalizację ('NL' → 'nl') robi `resolveAbLang`.
+  const mailLang = resolveAbLang(options.abLang) || lang;
+  const i18n = confLang(mailLang);
+  const __ = (key, opts) => i18n.__(key, { locale: mailLang, ...opts });
   const subject = `${__(subjectKey)} #${templateVars.orderNr} - ${templateVars.klient} `;
 
   nunjucks.configure(path.dirname(path.join(__dirname, templateName)), {

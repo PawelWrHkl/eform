@@ -7,7 +7,7 @@ const db = require('../../db/db_helper.js');
 const ownerService = require('../../services/owner.js');
 const orderService = require('../../services/orderService.js');
 const orderCorrectionService = require('../../services/admin/orderCorrectionService.js');
-const { recalcAndSaveMaxProdDays, buildItemProductionDays } = require('../../services/productionDays');
+const { recalcAndSaveMaxProdDays, buildItemProductionDays, getOrderDeliveryDelay } = require('../../services/productionDays');
 const { getPriceAfterDiscount } = require('../../services/getDiscount.js');
 const { getProductionSendSkipClient } = require('../../utils/productionSendGuard');
 const { orderHasSubPrices, calcSubTotals, resolveSubPricePdfView } = require('../../services/subPrices');
@@ -142,7 +142,7 @@ router.get('/:orderId', requireCorrectionOrder, loadEmployeePermissions, filterP
         let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
         const totalPrice = await db.getTotal(orderDetails.id);
         await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
-        const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+        const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, await getOrderDeliveryDelay(req.params.orderId));
         const hasSubPrices = orderHasSubPrices(cleanOrderItems);
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;

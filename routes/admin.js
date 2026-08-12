@@ -9,6 +9,9 @@ const { log } = require('../utils/logging');
 const sessionService = require('../services/sessionService');
 const accessLock = require('../services/accessLock');
 const orderCorrectionsRoutes = require('./admin/orderCorrections');
+const userAdminDb = require('../db/admin/userAdmin');
+const userAdminService = require('../services/admin/userAdminService');
+const { availabeLanguages } = require('../config');
 
 router.use(async (req, res, next) => {
     if (req.session.user?.isOwner) {
@@ -139,11 +142,91 @@ router.get('/api/login-history', requireLogin, requireAdmin, async (req, res) =>
     }
 });
 
+/* ------------------------------------------------------------------ */
+/* Administracja użytkownikami — ustawienia konta z tabeli `user`      */
+/* ------------------------------------------------------------------ */
+
 router.get('/users', requireLogin, requireAdmin, (req, res) => {
-    res.render('admin/placeholder.njk', {
-        title: 'Zarządzanie Użytkownikami',
-        message: 'Ta funkcja zostanie wkrótce dodana.'
+    res.render('admin/user_admin.njk', {
+        roleOptions: userAdminService.ROLE_OPTIONS,
+        abTypeOptions: userAdminService.AB_TYPE_OPTIONS,
+        abLangOptions: availabeLanguages,
+        minPasswordLength: userAdminService.MIN_PASSWORD_LENGTH,
+        maxDeliveryDelay: userAdminService.MAX_DELIVERY_DELAY
     });
+});
+
+router.get('/api/users/search', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const q = (req.query.q || '').trim();
+        // Bez frazy nie zwracamy niczego: wysypanie 1900 kont do podpowiedzi
+        // niczego nie ułatwia, a obciąża bazę przy każdym otwarciu strony.
+        if (q.length < 2) return res.json({ success: true, users: [] });
+        const users = await userAdminDb.searchUsers(q);
+        return res.json({ success: true, users });
+    } catch (err) {
+        log('[admin/users] błąd wyszukiwania:', err.message);
+        return res.status(500).json({ success: false, message: 'Błąd wyszukiwania użytkowników' });
+    }
+});
+
+router.get('/api/users/:id', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const user = await userAdminDb.getUserForAdmin(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'Nie znaleziono użytkownika' });
+        return res.json({ success: true, user });
+    } catch (err) {
+        log('[admin/users] błąd pobierania użytkownika:', err.message);
+        return res.status(500).json({ success: false, message: 'Błąd pobierania danych użytkownika' });
+    }
+});
+
+router.post('/api/users/:id/settings', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const user = await userAdminDb.getUserForAdmin(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'Nie znaleziono użytkownika' });
+
+        const { values, errors } = userAdminService.normalizeUserSettings(req.body);
+        if (errors.length) return res.status(400).json({ success: false, message: errors.join(' ') });
+
+        // Zapora na odcięcie sobie panelu: rolę admina odbiera komuś innemu,
+        // nie sam sobie — po takim zapisie nie byłoby drogi powrotu z aplikacji.
+        if (userAdminService.wouldDropOwnAdminRole(req.session.user, user.id, values.role)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nie możesz odebrać roli administratora własnemu kontu — poproś o to innego admina.'
+            });
+        }
+
+        const result = await userAdminDb.updateUserSettings(user.id, values);
+        if (!result) return res.status(500).json({ success: false, message: 'Zapis nie powiódł się' });
+
+        log(`[admin/users] ${req.session.user?.ident || req.session.user?.pin} zmienił ustawienia konta ${user.ident} (id ${user.id}): ${JSON.stringify(values)}`);
+        return res.json({ success: true, user: await userAdminDb.getUserForAdmin(user.id) });
+    } catch (err) {
+        log('[admin/users] błąd zapisu ustawień:', err.message);
+        return res.status(500).json({ success: false, message: 'Błąd zapisu ustawień' });
+    }
+});
+
+router.post('/api/users/:id/password', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const user = await userAdminDb.getUserForAdmin(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'Nie znaleziono użytkownika' });
+
+        const { password, errors } = userAdminService.validateNewPassword(req.body?.password, req.body?.password2);
+        if (errors.length) return res.status(400).json({ success: false, message: errors.join(' ') });
+
+        const result = await userAdminDb.setUserPassword(user.id, password);
+        if (!result) return res.status(500).json({ success: false, message: 'Zmiana hasła nie powiodła się' });
+
+        // Świadomie logujemy tylko FAKT zmiany — nigdy hasła ani hasha.
+        log(`[admin/users] ${req.session.user?.ident || req.session.user?.pin} zmienił hasło konta ${user.ident} (id ${user.id})`);
+        return res.json({ success: true, message: `Hasło konta ${user.ident} zostało zmienione` });
+    } catch (err) {
+        log('[admin/users] błąd zmiany hasła:', err.message);
+        return res.status(500).json({ success: false, message: 'Błąd zmiany hasła' });
+    }
 });
 
 router.get('/organizations', requireLogin, requireAdmin, (req, res) => {

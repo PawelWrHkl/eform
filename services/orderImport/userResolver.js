@@ -17,7 +17,11 @@ const { availabeLanguages, defaultLanguage } = require('../../config');
 const USER_QUERY = `
   SELECT u.id, u.ident, u.pin, u.client_name, u.tax_id, u.email,
          u.street, u.zip, u.city, u.country, u.phone,
-         u.organization_id, o.ident AS org_ident
+         u.organization_id, o.ident AS org_ident,
+         -- Zasady potwierdzenia (AB) muszą jechać razem z klientem: bez tych
+         -- kolumn wysyłka po imporcie nie miala z czego odczytac regul i szla
+         -- z cenami, w domyslnym jezyku i na adres organizacji.
+         u.ab_type, u.ab_lang, u.client_ab, u.delivery_delay
   FROM \`user\` u
   LEFT JOIN organization o ON o.id = u.organization_id
   WHERE u.ident = ?

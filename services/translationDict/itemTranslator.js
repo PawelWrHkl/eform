@@ -35,8 +35,29 @@ async function translateOrderItems(orderItems, cleanOrderItems, targetLang) {
     itemGroupMap[item.id] = item.asortment_group_number;
   }
 
+  // Nazwy DZIAŁU i GRUPY (kolumny „Produkt" i „Grupa" na dokumencie).
+  // ⚠️ Nie ma ich w `translation_dictionary` — to nie parametry konfiguratora,
+  // a wartości zapisane na pozycji w języku jej autora. Tłumaczenia trzymają
+  // tabele `product_group` / `department`; bez tego dokument wymuszony np. na
+  // niderlandzki miał nagłówki i parametry po niderlandzku, a „Produkt"
+  // i „Grupę" nadal po polsku.
+  const nazwyGrup = await repo.getGroupDepartmentNames(groupNumbers, targetLang);
+
   // Deep clone
   const translated = JSON.parse(JSON.stringify(cleanOrderItems));
+
+  // Podmiana nazw działu i grupy — NIEZALEŻNIE od słownika parametrów: grupa
+  // może nie mieć wpisów w `translation_dictionary`, a nazwę i tak trzeba
+  // przetłumaczyć.
+  for (const table of translated) {
+    for (const rowObj of table.rows || []) {
+      const numer = itemGroupMap[rowObj.item.id || rowObj.item.posId];
+      const nazwy = numer != null ? nazwyGrup.get(String(numer)) : null;
+      if (!nazwy) continue;
+      if (nazwy.department) rowObj.item.department = nazwy.department;
+      if (nazwy.group) rowObj.item.group_name = nazwy.group;
+    }
+  }
 
   for (const table of translated) {
     if (table.rows.length === 0) continue;

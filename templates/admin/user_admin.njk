@@ -1,0 +1,179 @@
+{% extends "base.njk" %}
+
+{% block head %}
+    <link rel="stylesheet" href="/styles/home.css">
+    <link rel="stylesheet" href="/styles/mobile/home.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="/styles/admin/user_admin.css?v=1">
+{% endblock head %}
+
+{% block content %}
+<div class="content">
+    <div class="container mb-5 col-12 w-100 mobile-rm-card">
+        <div class="row">
+            <div class="col-12 d-flex flex-wrap align-items-center gap-3 mb-4">
+                <h2 class="mb-0">Administracja użytkownikami</h2>
+                <a href="/admin" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i> Panel administracyjny
+                </a>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            {# --- Wybór użytkownika ------------------------------------- #}
+            <div class="col-lg-5 col-12">
+                <div class="ua-card">
+                    <h5 class="ua-card__title">
+                        <i class="bi bi-search me-2"></i>Wybierz użytkownika
+                    </h5>
+                    <p class="ua-hint">
+                        Szukaj po identyfikatorze, PIN-ie, nazwie klienta lub adresie e-mail
+                        (minimum 2 znaki).
+                    </p>
+                    <input type="search"
+                           id="ua-search"
+                           class="ua-input"
+                           placeholder="np. TCN, 1234, Gordijn…"
+                           autocomplete="off">
+                    <div id="ua-results" class="ua-results" hidden></div>
+                </div>
+            </div>
+
+            {# --- Edycja ------------------------------------------------- #}
+            <div class="col-lg-7 col-12">
+                {# Dopóki nikt nie jest wybrany, pokazujemy sam komunikat —
+                   puste pola formularza sugerowałyby, że coś już edytujemy. #}
+                <div id="ua-empty" class="ua-card ua-empty">
+                    <i class="bi bi-person-gear"></i>
+                    <p class="mb-0">Wybierz użytkownika z listy po lewej, żeby zmienić jego ustawienia.</p>
+                </div>
+
+                <div id="ua-editor" hidden>
+                    <div class="ua-card mb-4">
+                        <div class="ua-user-head">
+                            <div>
+                                <div class="ua-user-ident" id="ua-user-ident"></div>
+                                <div class="ua-user-meta" id="ua-user-meta"></div>
+                            </div>
+                            <span class="ua-badge" id="ua-user-org"></span>
+                        </div>
+                    </div>
+
+                    {# --- Ustawienia konta --- #}
+                    <form id="ua-settings-form" class="ua-card mb-4" novalidate>
+                        <h5 class="ua-card__title"><i class="bi bi-sliders me-2"></i>Ustawienia konta</h5>
+
+                        <div class="ua-grid">
+                            <label class="ua-field">
+                                <span class="ua-label">Rola</span>
+                                <select name="role" id="ua-role" class="ua-input">
+                                    {% for opt in roleOptions %}
+                                        <option value="{{ opt.value }}">{{ opt.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="ua-help">Decyduje o dostępie: administrator widzi panel /admin, „grupa" to konto sklepu.</span>
+                            </label>
+
+                            <label class="ua-field">
+                                <span class="ua-label">E-mail</span>
+                                <input type="email" name="email" id="ua-email" class="ua-input" placeholder="brak">
+                                <span class="ua-help">Adres z tabeli <code>user</code> — używany m.in. przy potwierdzeniach.</span>
+                            </label>
+
+                            <label class="ua-field">
+                                <span class="ua-label">Typ potwierdzenia (ab_type)</span>
+                                <select name="ab_type" id="ua-ab-type" class="ua-input">
+                                    {% for opt in abTypeOptions %}
+                                        <option value="{{ opt.value }}">{{ opt.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="ua-help">„Bez cen" = PDF potwierdzenia bez jakichkolwiek kwot.</span>
+                            </label>
+
+                            <label class="ua-field">
+                                <span class="ua-label">Język potwierdzenia (ab_lang)</span>
+                                <select name="ab_lang" id="ua-ab-lang" class="ua-input">
+                                    <option value="">Jak w aplikacji (domyślnie)</option>
+                                    {% for lang in abLangOptions %}
+                                        <option value="{{ lang }}">{{ lang | upper }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="ua-help">Ustawiony język wymusza go w PDF-ie <em>i</em> w treści maila.</span>
+                            </label>
+
+                            <label class="ua-field">
+                                <span class="ua-label">Opóźnienie dostawy (delivery_delay)</span>
+                                <input type="number"
+                                       name="delivery_delay"
+                                       id="ua-delivery-delay"
+                                       class="ua-input"
+                                       step="1"
+                                       min="0"
+                                       max="{{ maxDeliveryDelay }}"
+                                       placeholder="brak">
+                                <span class="ua-help">Liczba całkowita dni dodawana do czasu produkcji. Puste = bez opóźnienia.</span>
+                            </label>
+                        </div>
+
+                        <div class="ua-switches">
+                            <label class="ua-switch">
+                                <input type="checkbox" name="intro_needed" id="ua-intro-needed">
+                                <span>
+                                    <strong>intro_needed</strong>
+                                    <em>Pokaż wprowadzenie po zalogowaniu</em>
+                                </span>
+                            </label>
+                            <label class="ua-switch">
+                                <input type="checkbox" name="client_ab" id="ua-client-ab">
+                                <span>
+                                    <strong>client_ab</strong>
+                                    <em>Potwierdzenie kierowane do klienta</em>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="ua-actions">
+                            <button type="submit" class="btn btn-primary" id="ua-save-settings">
+                                <i class="bi bi-check2 me-1"></i> Zapisz ustawienia
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="ua-reset-settings">
+                                Przywróć wartości z bazy
+                            </button>
+                        </div>
+                    </form>
+
+                    {# --- Hasło --- #}
+                    <form id="ua-password-form" class="ua-card ua-card--warn" novalidate>
+                        <h5 class="ua-card__title"><i class="bi bi-key me-2"></i>Zmiana hasła</h5>
+                        <p class="ua-hint">
+                            Ustawiasz nowe hasło bez znania starego. Użytkownik zaloguje się nim
+                            natychmiast — przekaż mu je bezpiecznym kanałem.
+                        </p>
+                        <div class="ua-grid">
+                            <label class="ua-field">
+                                <span class="ua-label">Nowe hasło</span>
+                                <input type="text" name="password" id="ua-password" class="ua-input"
+                                       autocomplete="new-password" placeholder="min. {{ minPasswordLength }} znaków">
+                            </label>
+                            <label class="ua-field">
+                                <span class="ua-label">Powtórz hasło</span>
+                                <input type="text" name="password2" id="ua-password2" class="ua-input"
+                                       autocomplete="new-password">
+                            </label>
+                        </div>
+                        <div class="ua-actions">
+                            <button type="submit" class="btn btn-danger" id="ua-save-password">
+                                <i class="bi bi-shield-lock me-1"></i> Ustaw nowe hasło
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+    <script src="/scripts/admin/user_admin.js?v=1"></script>
+{% endblock scripts %}

@@ -4,6 +4,7 @@ const { usersPath } = require('../config.js');
 const path = require('path');
 const csv = require('csvtojson');
 const { log } = require('../utils/logging');
+const { isLocallyManagedPassword } = require('../utils/localPassword');
 
 async function updateClients() {
   if (process.env?.PRODUCTION === 'true' || process.env?.PRODUCTION) {
@@ -116,6 +117,16 @@ function compareClients(fileClients, dbClients) {
       for (const field of fieldsToCheck) {
         const fileValue = (fileClient[field] || '').trim();
         const dbValue = (dbClient[field] || '').trim();
+
+        // ⚠️ Hasło ustawione WEWNĄTRZ aplikacji (panel /admin/users, zakładanie
+        // konta) leży w bazie jako hash bcrypt, a w contractors.txt jest jawny
+        // tekst z ERP — te wartości NIGDY nie będą równe, więc bez tej zapory
+        // każde wejście na stronę logowania (tam odpala się `updateClients`)
+        // przywracało hasło z pliku i zmiana z panelu żyłaby kilka minut.
+        // Zasada: hash w bazie = hasło zarządzane lokalnie, plik go nie rusza.
+        if (field === 'password' && isLocallyManagedPassword(dbValue)) {
+          continue;
+        }
 
         if (fileValue !== dbValue) {
           needsUpdate = true;
@@ -395,4 +406,4 @@ async function fixEncodingInDatabase() {
     }
   }
 }
-module.exports = { updateClients, fixEncodingInDatabase, updateExistingClients, syncUserCountry };
+module.exports = { updateClients, fixEncodingInDatabase, updateExistingClients, syncUserCountry, isLocallyManagedPassword };

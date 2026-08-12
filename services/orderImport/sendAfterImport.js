@@ -12,7 +12,7 @@ const orderService = require('../orderService');
 const mailBot = require('../mailBot/mailBot');
 const OrderSender = require('../sendOrderService');
 const { generateOrderDocuments, generateProductionPdf, uploadProductionPdf } = require('../mailBot/pdfGenerator');
-const { userHidesPrices } = require('../abType');
+const { resolveOrderAbPolicy, resolveConfirmationRecipients, policyFromUserRow } = require('../confirmationPolicy');
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { log } = require('../../utils/logging');
@@ -143,7 +143,22 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
     const productionTimes = user.organization_id
       ? await ordersDb.getGroupDeliveryTimes(user.organization_id)
       : {};
-    const { maxProdDays } = itemProductionDays(cleanOrderItems, productionTimes);
+
+    // Zasady potwierdzenia (`ab_type`, `ab_lang`, `client_ab`, `delivery_delay`)
+    // z tego samego miejsca co panel — patrz `services/confirmationPolicy.js`.
+    //
+    // ⚠️ Źródło jest wybierane JAWNIE: jeśli przekazany wiersz `user` zawiera
+    // te kolumny (tak robi `userResolver.js` i `SELECT *` w wysyłce na
+    // produkcję) — czytamy z niego; jeśli nie, dopytujemy bazę po zamówieniu.
+    // Wcześniej kod bezwarunkowo czytał z wiersza, a zapytanie importu tych
+    // kolumn NIE wybierało, więc reguły dostawały `undefined` i po cichu nie
+    // działały: PDF wychodził z cenami, a język i `client_ab` były ignorowane.
+    const abPolicyResolver = deps.resolveOrderAbPolicy || resolveOrderAbPolicy;
+    const wierszMaKolumny = !!user && ['ab_type', 'ab_lang', 'client_ab', 'delivery_delay'].some((k) => k in user);
+    const abPolicy = wierszMaKolumny ? policyFromUserRow(user) : await abPolicyResolver(orderId);
+    logger(`[ab] zamówienie ${orderId}: bez cen=${abPolicy.withoutPrices}, język=${abPolicy.abLang || 'domyślny'}, do klienta=${abPolicy.clientAb}, opóźnienie=${abPolicy.deliveryDelay} (źródło: ${wierszMaKolumny ? 'wiersz user' : 'zapytanie po zamówieniu'})`);
+
+    const { maxProdDays } = itemProductionDays(cleanOrderItems, productionTimes, abPolicy.deliveryDelay);
     const attachments = await extraAttachments(sender.slopePaths);
     const mail = await ordersDb.getUserMail(user.pin);
     const orderIdx = await ordersDb.getUserOrderId(orderId);
@@ -154,18 +169,29 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
       confirmationEmail = contactInfo?.email || mail.user_email;
     }
 
+    // JĘZYK POTWIERDZENIA: `user.ab_lang` wymusza język dokumentu (i etykiet
+    // sum w jego stopce). `user` jest tu już wczytany, więc bez zapytania.
+    const abLang = abPolicy.abLang;
+    const docLang = abLang || lang;
+    if (abLang) logger(`[ab_lang] zamówienie ${orderId}: potwierdzenie w języku ${abLang} (język klienta: ${lang})`);
+
     const formatTotals = deps.formatSendTotals
-      || ((data) => formatSendTotals(data, lang, user.organization_id, ordersDb));
+      || ((data) => formatSendTotals(data, docLang, user.organization_id, ordersDb));
     await formatTotals(sendData);
 
-    // Klient z `ab_type = without_price` dostaje potwierdzenie BEZ cen —
-    // `user` jest tu już wczytany, więc wystarczy sprawdzić jego pole.
-    const withoutPrices = userHidesPrices(user);
+    // Klient z `ab_type = without_price` dostaje potwierdzenie BEZ cen
+    const withoutPrices = abPolicy.withoutPrices;
+
+    // Treść pozycji też musi być w języku dokumentu — inaczej nagłówki byłyby
+    // w jednym języku, a wartości parametrów w drugim.
+    const docItems = (abLang && abLang !== lang)
+      ? await itemTranslator(orderItems, cleanOrderItems, abLang)
+      : cleanOrderItems;
 
     const { pdf, html: confirmationHtml } = await docsGenerate(
       orderDetails,
-      cleanOrderItems,
-      lang,
+      docItems,
+      docLang,
       logoPath,
       sendData,
       orderIdx,
@@ -180,19 +206,19 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
 
     const orgData = await ordersDb.getOrgInfo(user.organization_id);
 
-    let mainRecipient;
-    let bccList;
     const extraMail = process.env.EXTRA_MAIL ? process.env.EXTRA_MAIL.split(',') : false;
 
-    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'dev') {
-      mainRecipient = 'pawel.woroniecki@hkl.eu';
-      bccList = ['krzysztof.krawczyk@hkl.eu'];
-    } else {
-      mainRecipient = mail.organization_email;
-      bccList = [confirmationEmail, mail.organization_email2, extraMail, 'pawel.woroniecki@hkl.eu']
-        .filter(Boolean)
-        .flat();
-    }
+    // Ta sama reguła co w panelu — `client_ab` kieruje potwierdzenie wprost
+    // do klienta, dev/test poza tym przypadkiem trafia na skrzynkę deweloperską.
+    const recipients = deps.resolveConfirmationRecipients || resolveConfirmationRecipients;
+    const { mainRecipient, bcc } = recipients({
+      clientAb: abPolicy.clientAb,
+      confirmationEmail,
+      organizationEmail: mail.organization_email,
+      organizationEmail2: mail.organization_email2,
+      extraMail
+    });
+    if (abPolicy.clientAb) logger(`[client_ab] zamówienie ${orderId}: potwierdzenie dla klienta (${mainRecipient})`);
 
     const sendMailAsync = deps.sendMailAsync || mailer.sendMailAsync;
     if (!sendMailAsync) {
@@ -212,10 +238,10 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
         organization: orgData,
         isImport: true
       },
-      bccList.join(', '),
+      bcc,
       'mailTemplate.njk',
       'mail.subject',
-      { htmlContent: confirmationHtml }
+      { htmlContent: confirmationHtml, abLang }
     );
 
     try {

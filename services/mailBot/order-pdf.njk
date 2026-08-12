@@ -33,8 +33,13 @@
               {% endfor %}
             </tr>
           </thead>
-          <tbody>
-            {% for rowObj in table.rows %}
+          {# ⚠️ KAŻDA pozycja siedzi we WŁASNYM `<tbody>`, a nie wszystkie w jednym.
+             To jedyny sposób, żeby wiersz parametrów i wiersze cen tej samej
+             pozycji nie rozjechały się na dwie strony: `break-inside: avoid`
+             działa na grupę wierszy (`tbody`), a nie na luźne `<tr>` obok
+             siebie. Kilka `<tbody>` w jednej tabeli to poprawny HTML. #}
+          {% for rowObj in table.rows %}
+          <tbody class="pos{% if loop.index % 2 == 0 %} pos--alt{% endif %}">
               <tr>
                 <td><span class="pdf-val">{{ globalIndex }}</span></td>
                 <td>{{ pdfCell(rowObj.item.department) }}</td>
@@ -111,8 +116,8 @@
               </tr>
               {% endif %}
               {% set globalIndex = globalIndex + 1 %}
-            {% endfor %}
           </tbody>
+          {% endfor %}
         </table>
       {% endfor %}
       {% if maxProdDays %}

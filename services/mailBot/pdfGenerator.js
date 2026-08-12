@@ -53,13 +53,28 @@ function buildPdfHtmlDocument(bodyHtml) {
 // telefonie bez `min-width` kolumny zgniotłyby się do nieczytelnej szerokości
 // zamiast wyjechać za ekran — dlatego stała szerokość treści + przesuwanie
 // palcem w lewo/prawo (`-webkit-overflow-scrolling: touch`).
+/**
+ * Szerokość dokumentu na ekranie. Jedna stała dla `min-width` treści i dla
+ * `meta viewport` — gdyby te dwie liczby się rozjechały, telefon albo ucinałby
+ * tabelę, albo zostawiał pusty pas z boku.
+ */
+const SCREEN_DOC_WIDTH = 1100;
+
 function buildScreenHtmlDocument(bodyHtml, title = '') {
   return `
   <!DOCTYPE html>
   <html>
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- UWAGA: viewport podaje SZEROKOŚĆ DOKUMENTU, nie device-width.
+         Dokument ma na sztywno ${SCREEN_DOC_WIDTH} px (tabela z kilkunastoma kolumnami).
+         Przy device-width telefon renderował go w skali 1:1, więc na ekranie
+         widać było wycinek jednej kolumny - "strasznie przybliżone". Podanie
+         samej szerokości, BEZ initial-scale, każe przeglądarce wpasować cały
+         dokument w ekran; palcami dalej można przybliżyć, a przewijanie w bok
+         zostaje dla treści szerszej niż ${SCREEN_DOC_WIDTH} px.
+         Bez backticków w tym komentarzu - to wnętrze template literal w JS. -->
+    <meta name="viewport" content="width=${SCREEN_DOC_WIDTH}">
     ${title ? `<title>${title}</title>` : ''}
     <style>
       /* Import głównego CSS */
@@ -69,11 +84,27 @@ function buildScreenHtmlDocument(bodyHtml, title = '') {
       @media screen {
         html, body { margin: 0; padding: 0; background: #fff; }
         .h-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .h-inner { min-width: 1100px; }
+        .h-inner { min-width: ${SCREEN_DOC_WIDTH}px; }
       }
     </style>
   </head>
-  <body><div class="h-scroll"><div class="h-inner">${bodyHtml}</div></div></body>
+  <body><div class="h-scroll"><div class="h-inner">${bodyHtml}</div></div>
+  <script>
+    /* Dopasowanie szerokości viewportu do RZECZYWISTEJ szerokości dokumentu.
+       Stała ${SCREEN_DOC_WIDTH} px to tylko minimum - tabela rośnie z liczbą kolumn
+       (zmierzone: zamówienie z kilkunastoma parametrami daje ok. 1470 px), więc
+       przy sztywnej wartości część tabeli nadal wystawałaby za ekran telefonu.
+       Bez skryptu (np. w podglądzie poczty blokującym JS) zostaje wartość
+       z meta - i tak wielokrotnie lepsza niż renderowanie 1:1. */
+    (function () {
+      var inner = document.querySelector('.h-inner');
+      var meta = document.querySelector('meta[name=viewport]');
+      if (!inner || !meta) return;
+      var szerokosc = Math.ceil(Math.max(inner.scrollWidth, ${SCREEN_DOC_WIDTH}));
+      meta.setAttribute('content', 'width=' + szerokosc);
+    })();
+  </script>
+  </body>
   </html>
 `;
 }

@@ -1,6 +1,6 @@
 /**
- * `user.ab_type` — tryb dokumentu (AB = Auftragsbestätigung / potwierdzenie
- * zamówienia) ustawiany per klient.
+ * `user.ab_type` / `user.ab_lang` — tryb i JĘZYK dokumentu
+ * (AB = Auftragsbestätigung / potwierdzenie zamówienia) ustawiane per klient.
  *
  * Na razie obsługujemy jeden tryb: klient, którego potwierdzenie ma być
  * BEZ JAKICHKOLWIEK CEN — bez cen katalogowych, bez cen SUB, bez kwot
@@ -11,10 +11,17 @@
  * pojawiła się jako `without_prices`. Przyjmujemy OBA zapisy (bez rozróżniania
  * wielkości liter i z obcięciem spacji) — literówka przy ręcznym ustawianiu
  * kolumny nie może cicho przywrócić cen na dokumencie klienta.
+ *
+ * ⚠️ Ten plik zawiera WYŁĄCZNIE funkcje czyste (odczyt pojedynczej wartości).
+ * Wcześniejsze osłony `orderHidesPrices`/`userAbLang`/`orderClientAb` zostały
+ * usunięte celowo: każdy tor wysyłki wołał inny podzbiór, a import czytał je
+ * z wiersza `user` bez tych kolumn i reguły cicho nie działały. Zasady składa
+ * teraz jedno miejsce — `services/confirmationPolicy.js`.
  */
 
-const { selectQuery } = require('../db/core');
+const { availabeLanguages } = require('../config');
 const { log } = require('../utils/logging');
+
 
 /** Wartości `ab_type` oznaczające dokument bez cen. */
 const BEZ_CEN = ['without_prices', 'without_price'];
@@ -28,40 +35,50 @@ function isWithoutPrices(abType) {
   return BEZ_CEN.includes(String(abType).trim().toLowerCase());
 }
 
-/**
- * Czy potwierdzenie dla WŁAŚCICIELA tego zamówienia ma być bez cen.
- *
- * ⚠️ Liczy się właściciel zamówienia, nie osoba klikająca „wyślij": dokument
- * trafia do klienta, a admin czy owner mogą wysyłać w jego imieniu.
- *
- * @param {number|string} orderId
- * @returns {Promise<boolean>}
- */
-async function orderHidesPrices(orderId) {
-  if (!orderId) return false;
-  try {
-    const rows = await selectQuery(
-      'SELECT u.ab_type FROM `order` o JOIN `user` u ON u.id = o.user_id WHERE o.id = ?',
-      [orderId]
-    );
-    return isWithoutPrices(rows && rows[0] && rows[0].ab_type);
-  } catch (err) {
-    // Brak informacji nie może wstrzymać wysyłki — logujemy i zostawiamy ceny
-    // (zachowanie dotychczasowe), bo to stan wyjątkowy, nie reguła.
-    log('[ab_type] nie udało się odczytać trybu dokumentu:', err.message);
-    return false;
-  }
-}
+
 
 /**
- * Wariant dla znanego już użytkownika (import, korekty) — bez dodatkowego
- * zapytania, gdy wiersz `user` jest pod ręką.
+ * Język potwierdzenia z `user.ab_lang`.
  *
- * @param {{ ab_type?: string }|null} user
+ * ⚠️ Normalizacja jest konieczna: w bazie wartość zapisana jest WIELKIMI
+ * literami (`"NL"`), a aplikacja i pliki tłumaczeń używają małych (`nl`).
+ * Wartość poza listą `availabeLanguages` traktujemy jak brak ustawienia —
+ * literówka w kolumnie nie może wywalić generowania dokumentu ani wysłać
+ * potwierdzenia w nieistniejącym języku.
+ *
+ * @param {string|null|undefined} abLang wartość kolumny `user.ab_lang`
+ * @returns {string|null} kod języka albo `null`, gdy brak/nieznany
+ */
+function resolveAbLang(abLang) {
+  if (!abLang) return null;
+  const kod = String(abLang).trim().toLowerCase();
+  if (!kod) return null;
+  if (!availabeLanguages.includes(kod)) {
+    log(`[ab_lang] nieznany język potwierdzenia: ${JSON.stringify(abLang)} — używam domyślnego`);
+    return null;
+  }
+  return kod;
+}
+
+
+
+/**
+ * `user.client_ab` — czy potwierdzenie ma iść WPROST DO KLIENTA.
+ *
+ * Kolumna jest `tinyint(1)`, więc z bazy przychodzi `0`/`1` (albo `null`).
+ * Traktujemy jako włączone tylko jawną prawdę — brak wartości zostawia
+ * dotychczasowy tor wysyłki (na organizację).
+ *
+ * @param {number|boolean|string|null|undefined} value
  * @returns {boolean}
  */
-function userHidesPrices(user) {
-  return isWithoutPrices(user && user.ab_type);
+function isClientAb(value) {
+  if (value === true) return true;
+  if (value === false || value == null) return false;
+  const liczba = Number(value);
+  return Number.isFinite(liczba) ? liczba === 1 : String(value).trim().toLowerCase() === 'true';
 }
 
-module.exports = { isWithoutPrices, orderHidesPrices, userHidesPrices, BEZ_CEN };
+
+
+module.exports = { isWithoutPrices, resolveAbLang, isClientAb, BEZ_CEN };

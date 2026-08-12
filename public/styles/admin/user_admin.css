@@ -1,0 +1,176 @@
+/*
+ * Administracja użytkownikami (/admin/users).
+ *
+ * Kolory wyłącznie z tokenów `theme.css` — dzięki temu strona przełącza się
+ * razem z motywem (`[data-theme="dark"]`) i nie trzeba tu duplikować palety.
+ * Uczy nas tego historia panelu faktur, gdzie na sztywno wpisane biele
+ * znikały w trybie ciemnym.
+ */
+
+.ua-card {
+    background: var(--bg-surface-solid);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--space-lg);
+}
+
+.ua-card--warn {
+    border-color: var(--border-strong);
+    border-left: 4px solid #c0392b;
+}
+
+.ua-card__title {
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-bottom: var(--space-sm);
+}
+
+.ua-hint {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: var(--space-md);
+}
+
+/* --- Wyszukiwanie ------------------------------------------------- */
+
+/* ⚠️ Obramowanie i tło pól są WIDOCZNE zawsze, nie tylko na focusie —
+   inaczej formularz wygląda jak zbiór napisów bez pól do wpisania.
+   Selektor jest podwójny (`.ua-card .ua-input`) świadomie: `theme.css` ma
+   reguły typu `input[type="email"]` (0,1,1), które biją samą klasę (0,1,0),
+   przez co `input` i `select` w tym samym wierszu wyglądały inaczej. */
+.ua-card .ua-input,
+.ua-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-surface-solid);
+    color: var(--text-primary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.ua-card .ua-input:focus,
+.ua-input:focus {
+    outline: none;
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px var(--brand-primary-glow);
+}
+
+.ua-card .ua-input::placeholder,
+.ua-input::placeholder { color: var(--text-tertiary); }
+
+.ua-results {
+    margin-top: var(--space-md);
+    max-height: 420px;
+    overflow-y: auto;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+}
+
+.ua-result {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-default);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.ua-result:last-child { border-bottom: none; }
+.ua-result:hover  { background: var(--bg-hover); }
+.ua-result.is-active { background: var(--bg-active); }
+
+.ua-result__ident { font-weight: 600; }
+.ua-result__meta  { color: var(--text-secondary); font-size: 0.85rem; }
+
+.ua-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    min-height: 260px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.ua-empty i { font-size: 2.5rem; color: var(--text-tertiary); }
+
+/* --- Nagłówek wybranego konta ------------------------------------- */
+
+.ua-user-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.ua-user-ident { font-size: 1.15rem; font-weight: 700; color: var(--text-primary); }
+.ua-user-meta  { color: var(--text-secondary); font-size: 0.9rem; }
+
+.ua-badge {
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    background: var(--brand-primary-light);
+    color: var(--brand-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* --- Formularz ---------------------------------------------------- */
+
+.ua-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-md);
+}
+
+.ua-field { display: flex; flex-direction: column; gap: 6px; }
+
+.ua-label { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+
+.ua-help { font-size: 0.8rem; color: var(--text-tertiary); line-height: 1.35; }
+
+.ua-switches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    margin-top: var(--space-lg);
+}
+
+.ua-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1 1 240px;
+    padding: 12px 14px;
+    background: var(--bg-surface-sunken);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.ua-switch input { width: 18px; height: 18px; flex: 0 0 auto; cursor: pointer; }
+.ua-switch span  { display: flex; flex-direction: column; }
+.ua-switch em    { font-style: normal; font-size: 0.8rem; color: var(--text-secondary); }
+
+.ua-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-lg);
+}
+
+@media (max-width: 576px) {
+    .ua-card { padding: var(--space-md); }
+    .ua-actions .btn { flex: 1 1 100%; }
+}

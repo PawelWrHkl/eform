@@ -6,7 +6,7 @@ const orderService = require('../orderService.js');
 const mailBot = require('../mailBot/mailBot');
 const { OrderSender } = require('../sendOrderService');
 const { generateOrderDocuments } = require('../mailBot/pdfGenerator');
-const { orderHidesPrices } = require('../abType');
+const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../confirmationPolicy');
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { buildItemProductionDays } = require('../productionDays');
@@ -99,7 +99,9 @@ async function submitCorrection(req, orderId, prices) {
     const logoPath = path.join(__dirname, '../../img/', photoFile);
     let { cleanOrderItems } = await orderService.jsonTextBackToMap(orderItems);
     const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
-    const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+    // Zasady potwierdzenia wspólne z panelem, importem i zatwierdzaniem sklepu
+    const abPolicy = await resolveOrderAbPolicy(orderDetails.id);
+    const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, abPolicy.deliveryDelay);
     const attachments = await getExtraAttachments(sender.slopePaths);
     const lang = req.getLocale();
     const mail = await db.getUserMail(currentUser?.pin);
@@ -132,12 +134,15 @@ async function submitCorrection(req, orderId, prices) {
 
     // Potwierdzenie korekty w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
     // Klient z `ab_type = without_price` dostaje korektę również BEZ cen
-    const withoutPrices = await orderHidesPrices(orderDetails.id);
+    const withoutPrices = abPolicy.withoutPrices;
+    // …a `ab_lang` wymusza język dokumentu również dla korekty
+    const abLang = abPolicy.abLang;
+    const docLang = abLang || lang;
 
     const { pdf, html: confirmationHtml } = await generateOrderDocuments(
         orderDetails,
         cleanOrderItems,
-        lang,
+        docLang,
         logoPath,
         sendData,
         orderIdx,
@@ -151,15 +156,14 @@ async function submitCorrection(req, orderId, prices) {
     );
     const orgData = await db.getOrgInfo(req.session.user.organization);
 
-    let extraMail = process.env.EXTRA_MAIL ? process.env.EXTRA_MAIL.split(',') : false;
-    let mainRecipient, bccList;
-    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'dev') {
-        mainRecipient = 'pawel.woroniecki@hkl.eu';
-        bccList = ['krzysztof.krawczyk@hkl.eu'];
-    } else {
-        mainRecipient = mail.organization_email;
-        bccList = [confirmationEmail, mail.organization_email2, extraMail, 'pawel.woroniecki@hkl.eu'].filter(Boolean).flat();
-    }
+    const extraMail = process.env.EXTRA_MAIL ? process.env.EXTRA_MAIL.split(',') : false;
+    const { mainRecipient, bcc } = resolveConfirmationRecipients({
+        clientAb: abPolicy.clientAb,
+        confirmationEmail,
+        organizationEmail: mail.organization_email,
+        organizationEmail2: mail.organization_email2,
+        extraMail
+    });
 
     mailBot.sendCorrectionMail(
         mainRecipient,
@@ -173,8 +177,8 @@ async function submitCorrection(req, orderId, prices) {
             orderDetails: sendData,
             organization: orgData
         },
-        bccList.join(', '),
-        { htmlContent: confirmationHtml }
+        bcc,
+        { htmlContent: confirmationHtml, abLang }
     );
 
     log(`Admin correction submitted for order ${orderId} (${orderIdx}) by ${req.session.user?.pin || '?'}`);

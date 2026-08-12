@@ -21,10 +21,10 @@ const { applySubPriceLocals } = require('../services/subPriceContext');
 const { log } = require('../utils/logging');
 const { availabeLanguages } = require('../config');
 const { translateOrderItems } = require('../services/translationDict/itemTranslator');
-const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../services/productionDays');
+const { buildItemProductionDays, recalcAndSaveMaxProdDays, getOrderDeliveryDelay } = require('../services/productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../utils/productionSendGuard');
 const { getOrderMutationBlock, shouldRedirectFromActiveOrderView } = require('../utils/orderStatusGuard');
-const { orderHidesPrices } = require('../services/abType');
+const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../services/confirmationPolicy');
 const { resolveVatLocals, vatFeatureEnabled } = require('../services/vatCalculator');
 
 function sentOrderPath(orderId) {
@@ -483,7 +483,9 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
         const totalPrice = await db.getTotal(orderDetails.id)
         await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
-        const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+        // Indywidualne opóźnienie dostawy klienta (`user.delivery_delay`)
+        const deliveryDelay = await getOrderDeliveryDelay(orderDetails.id);
+        const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, deliveryDelay);
         const hasSubPrices = orderHasSubPrices(cleanOrderItems);
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
@@ -581,7 +583,8 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
         const totalPrice = await db.getTotal(orderDetails.id)
         await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
-        const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+        const deliveryDelay = await getOrderDeliveryDelay(orderDetails.id);
+        const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, deliveryDelay);
         const hasSubPrices = orderHasSubPrices(cleanOrderItems);
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
@@ -674,7 +677,7 @@ router.get('/order-details/:orderId', requireLogin, checkOrderOwnership, loadEmp
         await db.syncTotalPriceIfMissing(order.orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
         const currentUser = ownerService.getCurrentUser(req);
         const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
-        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, await getOrderDeliveryDelay(order.orderDetails.id));
 
         // Ukryj dane cenowe gdy pracownik nie ma uprawnienia can_see_prices
         if (req.hidePrices) {
@@ -786,7 +789,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
 
         const currentUser = ownerService.getCurrentUser(req);
         const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
-        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, await getOrderDeliveryDelay(req.params.orderId));
         const photoFile = await db.getUserLogo(currentUser?.pin);
         const logoPath = path.join(__dirname, '../img/', photoFile);
         const isShort = req.params.short === 'true';
@@ -1060,7 +1063,11 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         const heads = Object.keys(orderItems[0].json_parameters);
         let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
         const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
-        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+        // Wszystkie zasady potwierdzenia (`ab_type`, `ab_lang`, `client_ab`,
+        // `delivery_delay`) z jednego zapytania — ta sama funkcja obsługuje
+        // import i wysyłkę na produkcję, więc reguły nie mogą się rozjechać.
+        const abPolicy = await resolveOrderAbPolicy(id);
+        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, abPolicy.deliveryDelay);
         const attachments = await getExtraAttachments(sender.slopePaths);
         const lang = req.getLocale();
         const mail = await db.getUserMail(currentUser?.pin)
@@ -1076,9 +1083,23 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         }
 
         const totalPrice = await db.getTotal(id);
+
+        // JĘZYK POTWIERDZENIA (AB): `user.ab_lang` wymusza język dokumentu.
+        // ⚠️ Dotyczy CAŁEJ treści dokumentu, nie tylko etykiet — jeśli język
+        // różni się od bieżącego, tłumaczymy też parametry pozycji, inaczej
+        // nagłówki byłyby w jednym języku, a wartości w drugim.
+        const abLang = abPolicy.abLang;
+        const docLang = abLang || lang;
+        if (abLang) {
+            log(`[ab_lang] zamówienie ${id}: potwierdzenie wymuszone w języku ${abLang} (locale sesji: ${lang})`);
+            if (abLang !== lang) {
+                cleanOrderItems = await translateOrderItems(orderItems, cleanOrderItems, abLang);
+            }
+        }
+
         const confLang = require('../services/mailBot/conf');
-        const i18n = confLang(lang);
-        const __ = (key) => i18n.__(key, { locale: lang });
+        const i18n = confLang(docLang);
+        const __ = (key) => i18n.__(key, { locale: docLang });
         const showGoldPrices = currentUser?.orgId != 3;
         // Tryb cen PDF przy wysyłce maila — taki sam jak widok użytkownika
         const hasSubPricesMail = orderHasSubPrices(cleanOrderItems);
@@ -1094,22 +1115,24 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         }));
 
         // Klient z `ab_type = without_price` dostaje potwierdzenie BEZ ŻADNYCH cen
-        const withoutPrices = await orderHidesPrices(id);
+        const withoutPrices = abPolicy.withoutPrices;
         if (withoutPrices) log(`[ab_type] zamówienie ${id}: potwierdzenie bez cen (ab_type właściciela)`);
 
         // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
-        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices })
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices })
         const orgData = await db.getOrgInfo(req.session.user.organization)
 
-        // Główny odbiorca i BCC zależne od środowiska
-        let mainRecipient, bccList;
-        if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'dev') {
-            mainRecipient = 'pawel.woroniecki@hkl.eu';
-            bccList = ['krzysztof.krawczyk@hkl.eu'];
-        } else {
-            mainRecipient = mail.organization_email;
-            bccList = [confirmationEmail, mail.organization_email2, extraMail, 'pawel.woroniecki@hkl.eu'].filter(Boolean).flat();
-        }
+        // Odbiorca i BCC — wspólna reguła dla panelu, importu i wysyłki na
+        // produkcję (`services/confirmationPolicy.js`), żeby tory nie rozjechały
+        // się przy kolejnej zmianie. `client_ab` kieruje mail wprost do klienta.
+        const { mainRecipient, bcc } = resolveConfirmationRecipients({
+            clientAb: abPolicy.clientAb,
+            confirmationEmail,
+            organizationEmail: mail.organization_email,
+            organizationEmail2: mail.organization_email2,
+            extraMail
+        });
+        if (abPolicy.clientAb) log(`[client_ab] zamówienie ${id}: potwierdzenie dla klienta (${mainRecipient})`);
 
         mailBot.sendMail(
             mainRecipient,
@@ -1123,8 +1146,10 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
                 orderDetails: sendData,
                 organization: orgData
             },
-            bccList.join(', '),
-            { htmlContent: confirmationHtml }
+            bcc,
+            // `abLang` — mail (temat, treść, nazwa załącznika) w języku
+            // potwierdzenia klienta; `null` = zachowanie dotychczasowe
+            { htmlContent: confirmationHtml, abLang }
         );
 
         // Generuj i wyślij PDF produkcyjny po polsku (fire-and-forget, nie blokuje odpowiedzi)

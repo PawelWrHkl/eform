@@ -3,7 +3,7 @@
  * Handles table creation, upsert, and query operations.
  */
 
-const { connetToDb } = require('../../db/core');
+const { connetToDb, selectQuery } = require('../../db/core');
 const { log } = require('../../utils/logging');
 
 const TABLE_NAME = 'translation_dictionary';
@@ -21,6 +21,54 @@ const CREATE_TABLE_SQL = `
     UNIQUE KEY uq_translation (group_number, source_type, param_name, value_key(191), lang)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
+
+/**
+ * Nazwy DZIAŁU i GRUPY produktowej w zadanym języku.
+ *
+ * ⚠️ Te dwie kolumny (`order_item.department`, `order_item.group_name`) NIE są
+ * parametrami z konfiguratora i nie ma ich w `translation_dictionary` — są
+ * zapisywane w języku osoby zakładającej pozycję. Tłumaczenia trzymają
+ * natomiast tabele `product_group` i `department`, każda z kolumnami
+ * `name_pl … name_fr`, powiązane przez `product_group.department_id`.
+ * Klucz dopasowania: `order_item.asortment_group_number` = `product_group.group_number`.
+ *
+ * @param {string[]} groupNumbers numery grup asortymentowych z pozycji
+ * @param {string} lang kod języka z `availabeLanguages` (używany w nazwie kolumny)
+ * @returns {Promise<Map<string, {group: string|null, department: string|null}>>}
+ */
+async function getGroupDepartmentNames(groupNumbers, lang) {
+  const wynik = new Map();
+  if (!groupNumbers || !groupNumbers.length) return wynik;
+
+  // ⚠️ Język trafia do NAZWY KOLUMNY, więc nie może pochodzić wprost z wejścia —
+  // dopuszczamy wyłącznie kody z konfiguracji aplikacji.
+  const { availabeLanguages } = require('../../config');
+  const kod = String(lang || '').toLowerCase();
+  if (!availabeLanguages.includes(kod)) return wynik;
+
+  const kolumna = `name_${kod}`;
+  const placeholders = groupNumbers.map(() => '?').join(', ');
+  try {
+    const rows = await selectQuery(
+      `SELECT pg.group_number, pg.\`${kolumna}\` AS grupa, d.\`${kolumna}\` AS dzial
+         FROM product_group pg
+         LEFT JOIN department d ON d.id = pg.department_id
+        WHERE pg.group_number IN (${placeholders})`,
+      groupNumbers
+    );
+    for (const row of rows || []) {
+      wynik.set(String(row.group_number), {
+        group: row.grupa || null,
+        department: row.dzial || null
+      });
+    }
+  } catch (err) {
+    // Brak tłumaczenia nazw nie może wywalić generowania dokumentu — zostają
+    // wartości zapisane na pozycji.
+    log('[translationDict] nazwy działu/grupy:', err.message);
+  }
+  return wynik;
+}
 
 /**
  * Ensure the translation_dictionary table exists.
@@ -202,5 +250,6 @@ module.exports = {
   removeStaleEntries,
   getTranslations,
   getGroupTranslations,
-  getSyncStatus
+  getSyncStatus,
+  getGroupDepartmentNames
 };

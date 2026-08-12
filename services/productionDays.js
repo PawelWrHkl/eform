@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config');
 const db = require('../db/db_helper');
+const { selectQuery } = require('../db/core');
 const orderService = require('./orderService');
 
 // Coupon fabrics are flagged in the KOLOR attribute file (the same source the
@@ -69,7 +70,6 @@ function isElectric(jsonParams) {
 
 function isSlope(jsonParams) {
     if (!jsonParams) return false;
-    console.log(jsonParams.WYMIAROWANIE_SLOPOW___VISIBLE === true);
     if (jsonParams.WYMIAROWANIE_SLOPOW___VISIBLE === true) return true;
     const dodatki = String(jsonParams.DODATKI___DESCRIPTION || '').toUpperCase();
     return dodatki.includes('SLOPE') || dodatki.includes('SCHRÄG');
@@ -90,7 +90,6 @@ function computeItemProductionDays(item, productionTimes) {
     let days = isSlope(jp) && groupData.slopeDays != null
         ? groupData.slopeDays
         : groupData.days;
-        console.log(days);
     if (isElectric(jp)) {
         days += ELECTRIC_EXTRA_DAYS;
     }
@@ -98,22 +97,89 @@ function computeItemProductionDays(item, productionTimes) {
     return days;
 }
 
-function buildItemProductionDays(cleanOrderItems, productionTimes) {
+/**
+ * Normalizuje `user.delivery_delay` do liczby dni.
+ *
+ * @param {number|string|null|undefined} value kolumna `user.delivery_delay` (int)
+ * @returns {number} 0, gdy brak wartości albo wartość nienumeryczna
+ */
+function resolveDeliveryDelay(value) {
+    const dni = Number(value);
+    return Number.isFinite(dni) ? dni : 0;
+}
+
+/**
+ * Dokłada indywidualne opóźnienie dostawy klienta do wyliczonych dni produkcji.
+ *
+ * ⚠️ Dotyczy WYŁĄCZNIE terminów liczonych z bazy (czasy grup asortymentowych
+ * z `getGroupDeliveryTimes`). Statusy i daty pochodzące z `status.txt` są
+ * faktami z produkcji — tam nic nie dodajemy. W widokach oba źródła są
+ * rozdzielone: szacunek z bazy pokazuje się tylko, gdy nie ma jeszcze
+ * `order.prod_status` (patrz `templates/orders_history.njk`).
+ *
+ * @param {number|null} days     wyliczone dni albo `null` (brak danych grupy)
+ * @param {number} deliveryDelay dni z `user.delivery_delay`
+ * @returns {number|null}
+ */
+function applyDeliveryDelay(days, deliveryDelay) {
+    const dni = resolveDeliveryDelay(deliveryDelay);
+    // Brak wyliczenia zostaje brakiem — bez opóźnienia nie zmyślamy terminu
+    if (days == null || dni === 0) return days;
+    // Nigdy poniżej zera, choćby kolumna zawierała wartość ujemną
+    return Math.max(0, days + dni);
+}
+
+/**
+ * Opóźnienie dostawy WŁAŚCICIELA zamówienia.
+ * Liczy się właściciel, nie osoba przeglądająca — termin dotyczy jego dostawy.
+ *
+ * @param {number|string} orderId
+ * @returns {Promise<number>}
+ */
+async function getOrderDeliveryDelay(orderId) {
+    if (!orderId) return 0;
+    try {
+        const rows = await selectQuery(
+            'SELECT u.delivery_delay FROM `order` o JOIN `user` u ON u.id = o.user_id WHERE o.id = ?',
+            [orderId]
+        );
+        return resolveDeliveryDelay(rows && rows[0] && rows[0].delivery_delay);
+    } catch (err) {
+        console.error('getOrderDeliveryDelay error:', err.message);
+        return 0;
+    }
+}
+
+/**
+ * @param {Array} cleanOrderItems
+ * @param {Record<string, any>} productionTimes czasy grup z bazy
+ * @param {number} [deliveryDelay=0] dni z `user.delivery_delay`
+ */
+function buildItemProductionDays(cleanOrderItems, productionTimes, deliveryDelay = 0) {
     const map = {};
     let maxProdDays = 0;
     for (const table of cleanOrderItems) {
         for (const rowObj of table.rows) {
-            const days = computeItemProductionDays(rowObj.item, productionTimes);
+            const days = applyDeliveryDelay(
+                computeItemProductionDays(rowObj.item, productionTimes),
+                deliveryDelay
+            );
             if (days != null) {
                 map[rowObj.item.id] = days;
                 if (days > maxProdDays) maxProdDays = days;
             }
         }
     }
+    // `maxProdDays` wychodzi już z opóźnieniem, bo każda pozycja je dostała —
+    // dodawanie go tu drugi raz podwoiłoby termin.
     return { itemProductionDays: map, maxProdDays };
 }
 
-module.exports = { computeItemProductionDays, buildItemProductionDays, ELECTRIC_EXTRA_DAYS, COUPON_PRODUCTION_DAYS, isCoupon, recalcAndSaveMaxProdDays };
+module.exports = {
+    computeItemProductionDays, buildItemProductionDays, ELECTRIC_EXTRA_DAYS, COUPON_PRODUCTION_DAYS,
+    isCoupon, recalcAndSaveMaxProdDays,
+    applyDeliveryDelay, resolveDeliveryDelay, getOrderDeliveryDelay
+};
 
 async function recalcAndSaveMaxProdDays(orderId) {
     try {
@@ -126,7 +192,10 @@ async function recalcAndSaveMaxProdDays(orderId) {
         const orgId = details?.organization_id;
         const productionTimes = orgId ? await db.getGroupDeliveryTimes(orgId) : {};
         const { cleanOrderItems } = await orderService.jsonTextBackToMap(orderItems);
-        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+        // ⚠️ Zapisujemy termin JUŻ z opóźnieniem klienta: listy zamówień czytają
+        // `order.max_prod_days` wprost z bazy i nie doliczają go ponownie.
+        const deliveryDelay = await getOrderDeliveryDelay(orderId);
+        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, deliveryDelay);
         await db.updateMaxProdDays(orderId, maxProdDays);
         return maxProdDays;
     } catch (err) {

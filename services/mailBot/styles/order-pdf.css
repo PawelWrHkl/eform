@@ -189,7 +189,10 @@ body {
     padding: 2px 10% 2px 10px !important;
 }
 
-#table tbody tr:nth-child(even) {
+/* Pasowanie co drugą POZYCJĘ (a nie co drugi wiersz): po rozbiciu tabeli na
+   `tbody` per pozycja `nth-child` liczyłby wiersze od nowa w każdej pozycji,
+   więc szary byłby zawsze wiersz cen. Klasę nadaje `order-pdf.njk`. */
+#table tbody.pos--alt {
     background-color: #fafafa;
 }
 
@@ -214,4 +217,42 @@ a {
     .client-details {
         break-inside: avoid !important;
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* Podział na strony — pozycja jest NIEROZDZIELNA                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * ⚠️ Wiersz parametrów i wiersze cen tej samej pozycji nie mogą wylądować na
+ * dwóch stronach. Reguła siedzi na grupie wierszy (`tbody.pos` z szablonu),
+ * bo pojedyncze `<tr>` obok siebie Chromium łamie bez skrupułów.
+ *
+ * Jeśli jedna pozycja jest wyższa niż strona, Chromium mimo `avoid` musi ją
+ * przełamać — inaczej treść zostałaby ucięta. To świadomy, ostatni ratunek,
+ * a nie zignorowanie reguły.
+ *
+ * Reguły są poza `@media print`, bo PDF powstaje przez `page.pdf()` Chromium,
+ * a ten sam arkusz obsługuje też podglądowy dokument HTML.
+ */
+#table tbody.pos {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+/* Sam wiersz też nie ma się dzielić w poprzek (długi komentarz pozycji). */
+#table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+/* Nagłówek tabeli powtarzany na każdej stronie — po przenoszeniu pozycji
+   stron jest więcej, a kolumny bez nagłówka są nieczytelne. */
+#table thead {
+    display: table-header-group !important;
+}
+
+/* Nie zostawiamy nagłówka tabeli samego na końcu strony. */
+#table thead th {
+    break-after: avoid !important;
 }

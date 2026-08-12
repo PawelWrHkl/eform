@@ -7,7 +7,8 @@ const OrderSender = require('../services/sendOrderService');
 const mailBot = require('../services/mailBot/mailBot');
 const orderService = require('../services/orderService.js');
 const { generatePdf, generateOrderDocuments } = require('../services/mailBot/pdfGenerator');
-const { orderHidesPrices } = require('../services/abType');
+const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../services/confirmationPolicy');
+const { translateOrderItems } = require('../services/translationDict/itemTranslator');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
 const { buildItemProductionDays } = require('../services/productionDays');
 const path = require('path');
@@ -298,7 +299,10 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
         const logoPath = path.join(__dirname, '../img/', photoFile);
         const { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
         const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
-        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes);
+        // Zasady potwierdzenia wspólne z panelem i importem — w tym
+        // `delivery_delay`, którego ten tor wcześniej NIE uwzględniał.
+        const abPolicy = await resolveOrderAbPolicy(orderDetails.id);
+        const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, abPolicy.deliveryDelay);
         const attachments = await getExtraAttachments(sender.slopePaths);
         const lang = req.getLocale();
         const mail = await db.getUserMail(currentUser.pin);
@@ -313,16 +317,28 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
             confirmationEmail = shop.email || mail.user_email;
         }
 
-        const mainRecipient = mail.organization_email;
-        let bccList = [confirmationEmail, mail.organization_email2, extraMail, 'pawel.woroniecki@hkl.eu'].filter(Boolean).flat();
         // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
-        const withoutPrices = await orderHidesPrices(orderDetails.id);
-        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, true, maxProdDays, true, false, false, null, { withoutPrices });
+        const withoutPrices = abPolicy.withoutPrices;
+        const abLang = abPolicy.abLang;
+        const docLang = abLang || lang;
+        let docItems = cleanOrderItems;
+        if (abLang && abLang !== lang) {
+            docItems = await translateOrderItems(orderItems, cleanOrderItems, abLang);
+        }
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, docItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, true, false, false, null, { withoutPrices });
         const orgData = await db.getOrgInfo(req.session.user.organization);
 
-        if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'dev') {
-            bccList = [confirmationEmail, extraMail, 'pawel.woroniecki@hkl.eu', 'krzysztof.krawczyk@hkl.eu'].filter(Boolean).flat();
-        }
+        // ⚠️ Wcześniej ten tor na dev/test wysyłał na PRAWDZIWY adres organizacji
+        // (zmieniał tylko BCC) — teraz obowiązuje ta sama reguła co w panelu:
+        // lokalnie mail idzie na skrzynkę deweloperską, a `client_ab` kieruje
+        // potwierdzenie wprost do klienta (tu: adres sklepu grupy).
+        const { mainRecipient, bcc } = resolveConfirmationRecipients({
+            clientAb: abPolicy.clientAb,
+            confirmationEmail,
+            organizationEmail: mail.organization_email,
+            organizationEmail2: mail.organization_email2,
+            extraMail
+        });
 
         mailBot.sendMail(
             mainRecipient,
@@ -336,8 +352,8 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
                 orderDetails: sendData,
                 organization: orgData
             },
-            bccList.join(', '),
-            { htmlContent: confirmationHtml }
+            bcc,
+            { htmlContent: confirmationHtml, abLang }
         );
 
         return res.json({ success: true, message: req.__('group.approve_sent_success'), redirect: '/group/panel?tab=pending' });
