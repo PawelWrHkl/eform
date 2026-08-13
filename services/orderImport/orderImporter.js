@@ -27,12 +27,18 @@ const { resolveTwinParameters } = require('./twinParamResolver');
 const {
   readFormParamDefs,
   clearHiddenParams,
-  isHiddenParam
+  isHiddenParam,
+  VISIBLE_SUFFIX
 } = require('./paramVisibility');
 const {
   loadClientDescriptions,
   seedParamDescriptions
 } = require('./paramDescriptions');
+const {
+  normalizeSlopeParams,
+  findSourceParamNames,
+  isFilledSlopeModel
+} = require('./slopeSubform');
 const {
   buildDisplayValuesFromDictionary,
   getProductGroupName,
@@ -163,6 +169,37 @@ function buildPersistedParameters(importValues, engineValues) {
   return out;
 }
 
+/**
+ * Put the rebuilt sub-form ("slope") models back after the engine merge.
+ *
+ * `buildPersistedParameters` lets any non-empty engine value win, and the
+ * engine's own `SourceWindow` always returns an object — an *empty* one, since
+ * nothing seeds it with the payload. That object is non-empty as far as the
+ * merge is concerned, so it would silently replace the dimensions the customer
+ * ordered. The model built by `slopeSubform` from the payload is authoritative.
+ *
+ * @param {object} persisted                     mutated in place
+ * @param {object} importValues                  values holding the rebuilt models
+ * @param {Map<string, object>|null} paramDefs   the group's `param.txt` defs
+ * @returns {object} the same `persisted` object
+ */
+function restoreSlopeParams(persisted, importValues, paramDefs) {
+  if (!persisted || !importValues) return persisted;
+  for (const name of findSourceParamNames(paramDefs)) {
+    const model = importValues[name];
+    if (model && typeof model === 'object' && !Array.isArray(model)) {
+      persisted[name] = model;
+      // The engine never rendered this field (see paramVisibility.isSubformParam),
+      // so its `___VISIBLE:false` is an artefact, not a verdict — and persisting
+      // it would drop the field from the display values too. We hold a filled
+      // sub-form from the payload, so the field applies; the browser recalc
+      // corrects this later if the configuration says otherwise.
+      if (isFilledSlopeModel(model)) persisted[`${name}${VISIBLE_SUFFIX}`] = true;
+    }
+  }
+  return persisted;
+}
+
 /** @deprecated use buildPersistedParameters */
 function mergeImportParameters(engineValues, importValues) {
   return buildPersistedParameters(importValues, engineValues);
@@ -194,6 +231,19 @@ function restoreParametersAfterRecalc(before, after, opts = {}) {
   const { defs = null, report = null } = opts;
   const out = { ...(after || {}) };
   const skipped = [];
+
+  // Sub-form ("slope") params are objects, so the "the browser left it empty"
+  // test below never fires for them: a blank model — what the form produces when
+  // its SourceWindow could not be seeded — looks just as non-empty as a filled
+  // one. Compare the models themselves and keep the dimensions we imported.
+  for (const name of findSourceParamNames(defs)) {
+    // The browser did render the sub-form, so a `___VISIBLE:false` from it is a
+    // real verdict ("this configuration has no slope") and must be honoured.
+    if (isHiddenParam(out, name)) continue;
+    if (isFilledSlopeModel(before && before[name]) && !isFilledSlopeModel(out[name])) {
+      out[name] = before[name];
+    }
+  }
 
   for (const [key, val] of Object.entries(before || {})) {
     if (isMetaParameterKey(key)) continue;
@@ -253,6 +303,7 @@ async function restoreOrderParametersAfterRecalc(orderId, snapshot, deps = {}) {
   if (!snapshot || snapshot.size === 0) return 0;
   const logger = deps.log || log;
   const readDefs = deps.readFormParamDefs || readFormParamDefs;
+  const slopeNormalizer = deps.normalizeSlopeParams || normalizeSlopeParams;
   const { connetToDb } = require('../../db/core');
   const conn = await connetToDb();
   let updated = 0;
@@ -273,6 +324,11 @@ async function restoreOrderParametersAfterRecalc(orderId, snapshot, deps = {}) {
         : null;
       const report = {};
       const merged = restoreParametersAfterRecalc(before, current, { defs, report });
+      // Rebuild the sub-form models from their catalog: whoever filled the
+      // dimensions (payload or browser) keeps them, but the meta comes out clean
+      // — a browser that still runs the old `processSourceValues` writes the
+      // whole option array into `<SUB>___DICT`.
+      await slopeNormalizer(merged, defs, row.lang || 'pl');
       if (report.skipped && report.skipped.length) {
         logger(`Import visibility: position ${row.id} — nie przywrócono ${report.skipped.join(', ')}`);
       }
@@ -328,6 +384,7 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
   const dictRepo = deps.translationRepo || translationRepo();
   const paramDefsReader = deps.readFormParamDefs || readFormParamDefs;
   const clientDescriptionsLoader = deps.loadClientDescriptions || loadClientDescriptions;
+  const slopeNormalizer = deps.normalizeSlopeParams || normalizeSlopeParams;
   const logger = deps.log || log;
 
   // Per-group+lang paramdict cache so we hit translation_dictionary once per
@@ -483,6 +540,19 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     }
     seedControlLengthDefault(cleanValues, paramDefs);
 
+    // Rebuild sub-form ("slope") params — a whole nested form inside one field —
+    // from the payload, the way the browser modal does. The engine's own
+    // SourceWindow starts empty and would otherwise overwrite the imported
+    // dimensions with a blank model (see slopeSubform.js).
+    const slopeReport = await slopeNormalizer(cleanValues, paramDefs, lang);
+    if (slopeReport.rebuilt.length) {
+      logger(`orderImport slope (item ${item.posid != null ? item.posid : '?'}, group ${groupNumber}): `
+        + `zbudowano podformularz ${slopeReport.rebuilt.join('; ')}`);
+    }
+    for (const note of slopeReport.notes || []) {
+      logger(`orderImport slope (item ${item.posid != null ? item.posid : '?'}, group ${groupNumber}): ${note}`);
+    }
+
     // Run the full server-side form engine (singlePass) to get authoritative
     // row/locked/sub/listsum and real prices. Falls back to lightweight
     // getFormMeta + stubs when the engine fails (e.g. missing group scripts).
@@ -518,6 +588,7 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     }
 
     const persistedValues = buildPersistedParameters(cleanValues, priced.values);
+    restoreSlopeParams(persistedValues, cleanValues, paramDefs);
 
     // Honour the ENABLE formulas: blank every param the engine reported as
     // disabled for this configuration (`<PARAM>___VISIBLE:false`), which
@@ -614,6 +685,7 @@ module.exports = {
   buildShortJson,
   buildSendAddress,
   buildPersistedParameters,
+  restoreSlopeParams,
   mergeImportParameters,
   extractImportParams,
   restoreParametersAfterRecalc,

@@ -3093,3 +3093,26 @@ fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: 
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-08-12 10:35:01 - Start ===
 === 2026-08-12 10:35:01 - Dodawanie zmian do commita ===
+[main 4789127] Automatic commit 2026-08-12 10:35
+ 37 files changed, 11032 insertions(+), 124 deletions(-)
+ create mode 100644 db/admin/userAdmin.js
+ create mode 100644 public/scripts/admin/user_admin.js
+ create mode 100644 public/styles/admin/user_admin.css
+ create mode 100644 services/__tests__/confirmationPolicy.test.js
+ create mode 100644 services/__tests__/deliveryDelay.test.js
+ create mode 100644 services/admin/__tests__/userAdminService.test.js
+ create mode 100644 services/admin/userAdminService.js
+ create mode 100644 services/confirmationPolicy.js
+ create mode 100644 services/mailBot/__tests__/pdfPositionBlocks.test.js
+ create mode 100644 services/translationDict/__tests__/groupDepartmentNames.test.js
+ create mode 100644 templates/admin/user_admin.njk
+ create mode 100644 utils/__tests__/localPasswordGuard.test.js
+ create mode 100644 utils/localPassword.js
+=== 2026-08-12 10:35:02 - Wysyłanie do origin/main ===
+remote: Permission to PawelWoronieckiHkl/eform.git denied to PawelWrHkl.
+fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: The requested URL returned error: 403
+=== 2026-08-12 12:00:01 - Start ===
+=== 2026-08-12 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-08-13 10:35:01 - Start ===
+=== 2026-08-13 10:35:01 - Dodawanie zmian do commita ===

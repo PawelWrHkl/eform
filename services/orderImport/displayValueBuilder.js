@@ -1,6 +1,7 @@
 'use strict';
 
 const { isHiddenParam, isPriceLikeName } = require('./paramVisibility');
+const { buildSlopeDisplayValue } = require('./slopeSubform');
 
 const SUPPORTED_LANGS = new Set(['pl', 'en', 'de', 'fr', 'nl']);
 
@@ -314,22 +315,17 @@ function stringifyValue(value) {
   return String(value);
 }
 
+/**
+ * Display entry for a sub-form ("slope") param, whose value is a nested model
+ * rather than a scalar — see services/orderImport/slopeSubform.js.
+ *
+ * Delegated so the importer and the browser modal describe a slope the same way:
+ * labels are the sub-param titles cut at the first space (`B [mm]` → `B`), meta
+ * keys (`___DICT`/`___TITLE`/`___VISIBLE`/`___DESCRIPTION`/`_ALIAS`) never leak
+ * into the text, and the entry carries no scalar `option_value`.
+ */
 function buildObjectDisplayValue(value) {
-  const valueParts = [];
-  const descParts = [];
-
-  for (const [fieldName, fieldValue] of Object.entries(value || {})) {
-    if (fieldName === 'TYP') continue;
-    if (!hasValue(fieldValue)) continue;
-
-    valueParts.push(String(fieldValue));
-    descParts.push(`${String(fieldName).split(' ')[0]}:${fieldValue}`);
-  }
-
-  return {
-    option_value: valueParts.join(' / '),
-    option_description: descParts.join(' / ')
-  };
+  return buildSlopeDisplayValue(value);
 }
 
 function resolveOptionDescription({
@@ -622,6 +618,11 @@ async function buildDisplayValuesFromDictionary({
 
     let optionValue = '';
     let optionDescription = '';
+    // A nested model (sub-form / "slope" param) describes itself — see
+    // buildObjectDisplayValue — and that description wins over anything the
+    // engine emitted, which for an unseeded SourceWindow is a blank model
+    // stringified through its meta keys.
+    const isObjectValue = !priceLike && rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue);
 
     if (priceLike) {
       if (hasValue(existingEntry && existingEntry.option_value)) {
@@ -632,7 +633,7 @@ async function buildDisplayValuesFromDictionary({
       } else if (hasValue(rawValue)) {
         optionValue = stringifyValue(rawValue);
       }
-    } else if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) {
+    } else if (isObjectValue) {
       const objectDisplay = buildObjectDisplayValue(rawValue);
       optionValue = objectDisplay.option_value;
       optionDescription = objectDisplay.option_description;
@@ -683,6 +684,10 @@ async function buildDisplayValuesFromDictionary({
       formMeta,
       safeValues
     );
+    if (isObjectValue) {
+      merged.option_value = baseEntry.option_value;
+      merged.option_description = baseEntry.option_description;
+    }
     // Faithful to formTools: the real form keeps every param in formDisplayValues.
     // Visibility is decided by the template (empty value / row '0' / locked), never
     // by dropping entries here. Dropping is what made prices vanish and reordered

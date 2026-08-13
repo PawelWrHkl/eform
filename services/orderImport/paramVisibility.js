@@ -118,7 +118,12 @@ function enableFormulaRefs(expression) {
 }
 
 /**
- * Parse the `NAME`/`ENABLE`/`FORMROW`/`LISTROW`/`TYPE` columns of a `param.txt`.
+ * Parse the `NAME`/`DESCRIPTION`/`ENABLE`/`FORMROW`/`LISTROW`/`TYPE`/`SOURCE`
+ * columns of a `param.txt`.
+ *
+ * `SOURCE` is what marks a sub-form ("slope") param: `SOURCE === NAME` means the
+ * field is filled from its own catalog under `data/<SOURCE>/` — see
+ * `slopeSubform.js` and `public/scripts/formTools/slope.js`.
  *
  * @param {string|null} raw
  * @returns {Map<string, object>|null} null when the file is unreadable/empty.
@@ -134,10 +139,12 @@ function parseParamDefinitions(raw) {
   if (nameIdx === -1) return null;
 
   const columnIdx = {
+    DESCRIPTION: header.indexOf('DESCRIPTION'),
     ENABLE: header.indexOf('ENABLE'),
     FORMROW: header.indexOf('FORMROW'),
     LISTROW: header.indexOf('LISTROW'),
-    TYPE: header.indexOf('TYPE')
+    TYPE: header.indexOf('TYPE'),
+    SOURCE: header.indexOf('SOURCE')
   };
 
   const defs = new Map();
@@ -228,6 +235,29 @@ function isEnableDriven(paramName, defs) {
 }
 
 /**
+ * A sub-form ("slope") param — `param.txt` points its `SOURCE` at its own name,
+ * so the field is a whole nested form loaded from `data/<NAME>/` (see
+ * `slopeSubform.js`).
+ *
+ * ⚠️ The JSDOM engine **cannot render these at all**: `form.js` builds a
+ * `SourceWindow`, whose `init()` fetches the sub-form catalog over HTTP, and in
+ * the engine that fetch fails — the `catch` there returns before the field is
+ * created. The param then never enters `enabledParams`, so `clearDisabledValues`
+ * reports `___VISIBLE:false` and wipes the value for *every* slope position,
+ * whatever its ENABLE formula says. Real case: group 43, `MODEL=VS4_L`,
+ * `ENABLE = ZAWIERA(MODEL___DESCRIPTION,"SLOPE")` with `MODEL___DESCRIPTION`
+ * correctly set to "Slope" — the formula is true, the engine still said false.
+ *
+ * @param {string} paramName
+ * @param {Map<string, object>|null} defs
+ */
+function isSubformParam(paramName, defs) {
+  if (!defs || !paramName || typeof defs.get !== 'function') return false;
+  const def = defs.get(paramName);
+  return !!(def && def.SOURCE && def.SOURCE === def.NAME);
+}
+
+/**
  * Can we believe a `___VISIBLE:false` reported by the JSDOM engine for this
  * param? Only when its ENABLE formula could actually be evaluated: the param is
  * declared in `param.txt`, it has an ENABLE formula, and every identifier that
@@ -297,6 +327,10 @@ function clearHiddenParams(target, opts = {}) {
     if (keepPrices && isPriceLikeName(name)) continue;
     // Only ENABLE formulas may empty a field — never a FORMROW=0 layout flag.
     if (!isEnableDriven(name, defs)) continue;
+    // Sub-form params are invisible to the JSDOM engine by construction, so its
+    // verdict about them says nothing (see isSubformParam). The browser, which
+    // renders them for real, is trusted as usual.
+    if (!trustAll && isSubformParam(name, defs)) continue;
     if (!trustAll && !isVisibilityTrustworthy(name, defs, inputValues)) continue;
 
     target[visibleKey(name)] = false;
@@ -320,6 +354,7 @@ module.exports = {
   isPriceLikeName,
   enableFormulaRefs,
   isEnableDriven,
+  isSubformParam,
   parseParamDefinitions,
   readFormParamDefs,
   clearParamDefsCache,

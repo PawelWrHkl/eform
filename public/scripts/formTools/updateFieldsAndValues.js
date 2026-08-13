@@ -182,48 +182,31 @@ export function buildValuesToDisplay(dictValues, value, paramName, displayValues
     }
 
 
+    // Sub-form ("slope") param: the value is a whole nested form, either the
+    // modal's sourceDisplayValues (title -> value) or the full model produced by
+    // processSourceValues (values + ___DICT/___TITLE/___VISIBLE/___DESCRIPTION/
+    // _ALIAS meta). Only the real sub-values get described, labelled by their
+    // title cut at the first space ("B [mm]" -> "B") — feeding the meta keys into
+    // the text is what produced "TYP___DICT:[object Object],…" on imported orders.
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-        const valueParts = [];
+        const isModel = Object.keys(value).some(key => key.endsWith('___TITLE'));
+        const isMetaField = (key) => /___(DICT|TITLE|VISIBLE|DESCRIPTION)$/.test(key)
+            || key.endsWith('_ALIAS') || key.endsWith('_ALIAS_DESCRIPTION');
         const descParts = [];
-        console.log('budujemy display dla obiektu', value)
+
         for (let [fieldName, fieldVal] of Object.entries(value)) {
-            if (fieldName === 'TYP') { continue }
-            if (!fieldVal || value === '<NONE>') {
-                let currentValue = displayValues.get(paramName) || {};
-                for (let key in currentValue) {
-                    currentValue[key] = '';
-                }
+            if (isModel && isMetaField(fieldName)) continue;
+            // Title maps carry no meta, so the type field is only recognisable
+            // by its own label there — kept skipped, as before.
+            if (!isModel && fieldName === 'TYP') continue;
+            if (!fieldVal || fieldVal === '<NONE>') continue;
 
-                currentValue['option_value'] = '';
-                currentValue['option_description'] = '';
-                displayValues.set(paramName, currentValue);
-                continue;
-            }
-            descParts.push(fieldName.split(' ')[0] + ':' + fieldVal);
-            valueParts.push(fieldVal);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            const title = (isModel && value[`${fieldName}___TITLE`]) || fieldName;
+            descParts.push(String(title).split(' ')[0] + ':' + fieldVal);
         }
 
-
-        currentValue['option_value'] = ''
+        currentValue['option_value'] = '';
         currentValue['option_description'] = descParts.join(' / ');
-        console.log('TO sprawdzamy dv-1 ', valueParts, descParts)
         displayValues.set(paramName, currentValue);
 
         return;

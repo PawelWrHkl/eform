@@ -60,6 +60,29 @@ function buildPdfHtmlDocument(bodyHtml) {
  */
 const SCREEN_DOC_WIDTH = 1100;
 
+/**
+ * Czyści treść przed włożeniem jej do załącznika `.html`.
+ *
+ * ⚠️ iOS otwiera załączniki HTML w piaskownicy WebKit i przy skrypcie albo
+ * zasobie, którego nie da się pobrać, potrafi wstrzymać całe pobieranie pliku
+ * BEZ komunikatu — użytkownik widzi wyłącznie kręcącą się ikonę. `order-pdf.njk`
+ * niesie oba takie elementy, bo ten sam render obsługuje podgląd w aplikacji:
+ * `<script type='module' src='/scripts/base.js'>` (blok `scripts`) i
+ * `<link rel="stylesheet" href="styles/order-pdf.css">` (blok `head`).
+ *
+ * W PDF-ie nie przeszkadzają (Chromium po prostu ich nie znajduje), więc
+ * czyszczone są WYŁĄCZNIE na potrzeby załącznika — `buildPdfHtmlDocument`
+ * dostaje treść nietkniętą i plik PDF zostaje bit w bit taki jak był. Arkusz
+ * stylów i logo są w dokumencie i tak: CSS wklejony w `<style>`, logo jako
+ * `data:` URI, więc usunięcie odwołań niczego nie odbiera.
+ */
+function stripUnfetchableAssets(html) {
+  return String(html)
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<script\b[^>]*\/>/gi, '')
+    .replace(/<link\b[^>]*>/gi, '');
+}
+
 function buildScreenHtmlDocument(bodyHtml, title = '') {
   return `
   <!DOCTYPE html>
@@ -73,6 +96,11 @@ function buildScreenHtmlDocument(bodyHtml, title = '') {
          samej szerokości, BEZ initial-scale, każe przeglądarce wpasować cały
          dokument w ekran; palcami dalej można przybliżyć, a przewijanie w bok
          zostaje dla treści szerszej niż ${SCREEN_DOC_WIDTH} px.
+         Wartość jest STAŁA: dopasowywał ją kiedyś skrypt mierzący scrollWidth,
+         ale JS w załączniku HTML to jedna z rzeczy, na których podgląd iOS
+         potrafi zawiesić pobieranie pliku - patrz stripUnfetchableAssets.
+         Zamiast tego treść szersza niż ta stała przewija się w poziomie
+         kontenerem .h-scroll, bez ani jednej linijki skryptu.
          Bez backticków w tym komentarzu - to wnętrze template literal w JS. -->
     <meta name="viewport" content="width=${SCREEN_DOC_WIDTH}">
     ${title ? `<title>${title}</title>` : ''}
@@ -88,23 +116,7 @@ function buildScreenHtmlDocument(bodyHtml, title = '') {
       }
     </style>
   </head>
-  <body><div class="h-scroll"><div class="h-inner">${bodyHtml}</div></div>
-  <script>
-    /* Dopasowanie szerokości viewportu do RZECZYWISTEJ szerokości dokumentu.
-       Stała ${SCREEN_DOC_WIDTH} px to tylko minimum - tabela rośnie z liczbą kolumn
-       (zmierzone: zamówienie z kilkunastoma parametrami daje ok. 1470 px), więc
-       przy sztywnej wartości część tabeli nadal wystawałaby za ekran telefonu.
-       Bez skryptu (np. w podglądzie poczty blokującym JS) zostaje wartość
-       z meta - i tak wielokrotnie lepsza niż renderowanie 1:1. */
-    (function () {
-      var inner = document.querySelector('.h-inner');
-      var meta = document.querySelector('meta[name=viewport]');
-      if (!inner || !meta) return;
-      var szerokosc = Math.ceil(Math.max(inner.scrollWidth, ${SCREEN_DOC_WIDTH}));
-      meta.setAttribute('content', 'width=' + szerokosc);
-    })();
-  </script>
-  </body>
+  <body><div class="h-scroll"><div class="h-inner">${stripUnfetchableAssets(bodyHtml)}</div></div></body>
   </html>
 `;
 }
@@ -292,7 +304,18 @@ function renderOrderPdfHtml({
   });
 }
 
-module.exports = { generateExcel, generatePdf, generateOrderDocuments, generateProductionPdf, uploadProductionPdf, renderOrderPdfHtml };
+module.exports = {
+  generateExcel,
+  generatePdf,
+  generateOrderDocuments,
+  generateProductionPdf,
+  uploadProductionPdf,
+  renderOrderPdfHtml,
+  // Eksportowane dla testów: dokument załącznika `.html` musi dać się sprawdzić
+  // bez uruchamiania Chromium (`generateOrderDocuments` renderuje PDF-a).
+  buildScreenHtmlDocument,
+  stripUnfetchableAssets
+};
 
 async function generateProductionPdf(orderData, cleanOrderItems, logoPath, orderIdx, clientName) {
   const lang = 'pl';

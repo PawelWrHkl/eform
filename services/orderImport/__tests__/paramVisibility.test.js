@@ -175,3 +175,56 @@ test('IMPORT_KEEP_HIDDEN_PARAMS=1 disables clearing entirely', () => {
     else process.env.IMPORT_KEEP_HIDDEN_PARAMS = previous;
   }
 });
+
+// Real group 43 row: the slope field is a sub-form (SOURCE == NAME) whose ENABLE
+// reads a price-group description.
+const GROUP43_PARAM_TXT = [
+  'NAME\tDESCRIPTION\tTYPE\tPROC\tENABLE\tSOURCE\tFORMROW\tLISTROW',
+  'MODEL\tMODEL\tdict\t<NULL>\t<NULL>\t<NULL>\t1\t1',
+  'WYMIAROWANIE_SLOPOW\tAFMETINGEN VOOR SLOPE\t<NULL>\t<NULL>\t=ZAWIERA(MODEL___DESCRIPTION,"SLOPE")\tWYMIAROWANIE_SLOPOW\t1\t1'
+].join('\n');
+
+test('a sub-form param is recognised by SOURCE == NAME', () => {
+  const defs = parseParamDefinitions(GROUP43_PARAM_TXT);
+  const { isSubformParam } = require('../paramVisibility');
+
+  assert.equal(isSubformParam('WYMIAROWANIE_SLOPOW', defs), true);
+  assert.equal(isSubformParam('MODEL', defs), false);
+  assert.equal(isSubformParam('WYMIAROWANIE_SLOPOW', null), false);
+});
+
+test('clearHiddenParams ignores the JSDOM verdict about a sub-form param', () => {
+  const defs = parseParamDefinitions(GROUP43_PARAM_TXT);
+  // The engine cannot render a sub-form (its SourceWindow fetch fails), so it
+  // reports ___VISIBLE:false for every slope position — even here, where the
+  // ENABLE formula is plainly true.
+  const values = {
+    MODEL: 'VS4_L',
+    MODEL___DESCRIPTION: 'Slope',
+    WYMIAROWANIE_SLOPOW: { TYP: 'TYP1', WYM_B: 920 },
+    WYMIAROWANIE_SLOPOW___VISIBLE: false
+  };
+
+  const { cleared } = clearHiddenParams(values, {
+    defs,
+    inputValues: { MODEL: 'VS4_L', MODEL___DESCRIPTION: 'Slope' }
+  });
+
+  assert.deepEqual(cleared, []);
+  assert.equal(values.WYMIAROWANIE_SLOPOW.WYM_B, 920);
+});
+
+test('clearHiddenParams still accepts the browser verdict about a sub-form param', () => {
+  const defs = parseParamDefinitions(GROUP43_PARAM_TXT);
+  const values = {
+    MODEL: 'VS1',
+    MODEL___DESCRIPTION: 'Verspannt',
+    WYMIAROWANIE_SLOPOW: { TYP: 'TYP1', WYM_B: 920 },
+    WYMIAROWANIE_SLOPOW___VISIBLE: false
+  };
+
+  const { cleared } = clearHiddenParams(values, { defs, trustAll: true });
+
+  assert.deepEqual(cleared, ['WYMIAROWANIE_SLOPOW']);
+  assert.equal(values.WYMIAROWANIE_SLOPOW, '');
+});

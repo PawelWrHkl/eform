@@ -512,3 +512,98 @@ test('importResolvedOrder seeds price-group descriptions from client_aliases', a
   assert.equal(values.WYSOKOSC___DESCRIPTION, '');
   assert.equal(values.WYSOKOSC_ALIAS___DESCRIPTION, '');
 });
+
+// ---------------------------------------------------------------------------
+// Sub-form ("slope") params — services/orderImport/slopeSubform.js
+// ---------------------------------------------------------------------------
+
+const SLOPE_GROUP_PARAM_TXT = [
+  'NAME\tDESCRIPTION\tTYPE\tPROC\tENABLE\tSOURCE\tFORMROW\tLISTROW',
+  'MODEL\tMODEL\tdict\t<NULL>\t<NULL>\t<NULL>\t1\t1',
+  'WYMIAROWANIE_SLOPOW\tAFMETINGEN VOOR SLOPE\tbutton\t<NULL>\t<NULL>\tWYMIAROWANIE_SLOPOW\t1\t1'
+].join('\n');
+
+function slopeGroupDefs() {
+  const { parseParamDefinitions } = require('../paramVisibility');
+  return parseParamDefinitions(SLOPE_GROUP_PARAM_TXT);
+}
+
+/** What the modal (and slopeSubform) produce for a filled slope field. */
+function slopeModel() {
+  return {
+    TYP: 'TYP1', TYP___TITLE: 'TYPE', TYP___DICT: true, TYP___VISIBLE: false,
+    WYM_B: 979, WYM_B___TITLE: 'B [mm]', WYM_B___DICT: false, WYM_B___VISIBLE: true
+  };
+}
+
+/** What an unseeded SourceWindow produces — same shape, no dimensions. */
+function blankSlopeModel() {
+  return {
+    TYP: '', TYP___TITLE: 'TYPE', TYP___DICT: true, TYP___VISIBLE: false,
+    WYM_B: '', WYM_B___TITLE: 'B [mm]', WYM_B___DICT: false, WYM_B___VISIBLE: true
+  };
+}
+
+test('restoreSlopeParams keeps the imported model over the engine blank one', () => {
+  const { restoreSlopeParams } = require('../orderImporter');
+
+  const importValues = { MODEL: 'FSlope1_L', WYMIAROWANIE_SLOPOW: slopeModel() };
+  // buildPersistedParameters lets any non-empty engine value win, and a blank
+  // model is "non-empty" — hence this explicit restore.
+  const persisted = { MODEL: 'FSlope1_L', WYMIAROWANIE_SLOPOW: blankSlopeModel() };
+
+  restoreSlopeParams(persisted, importValues, slopeGroupDefs());
+
+  assert.equal(persisted.WYMIAROWANIE_SLOPOW.WYM_B, 979);
+  assert.equal(persisted.WYMIAROWANIE_SLOPOW.TYP, 'TYP1');
+});
+
+test('restoreParametersAfterRecalc keeps slope dimensions the browser blanked', () => {
+  const { restoreParametersAfterRecalc } = require('../orderImporter');
+
+  const out = restoreParametersAfterRecalc(
+    { MODEL: 'FSlope1_L', WYMIAROWANIE_SLOPOW: slopeModel() },
+    { MODEL: 'FSlope1_L', WYMIAROWANIE_SLOPOW: blankSlopeModel(), CENA: 501 },
+    { defs: slopeGroupDefs() }
+  );
+
+  assert.equal(out.WYMIAROWANIE_SLOPOW.WYM_B, 979);
+  assert.equal(out.CENA, 501);
+});
+
+test('restoreParametersAfterRecalc accepts a slope model the browser did fill', () => {
+  const { restoreParametersAfterRecalc } = require('../orderImporter');
+
+  const recalculated = { ...blankSlopeModel(), TYP: 'TYP20', WYM_B: 1232 };
+  const out = restoreParametersAfterRecalc(
+    { MODEL: 'FSlope1_L', WYMIAROWANIE_SLOPOW: slopeModel() },
+    { MODEL: 'FSlope1_L', WYMIAROWANIE_SLOPOW: recalculated },
+    { defs: slopeGroupDefs() }
+  );
+
+  assert.equal(out.WYMIAROWANIE_SLOPOW.WYM_B, 1232);
+});
+
+test('restoreSlopeParams overrides the engine ___VISIBLE artefact', () => {
+  const { restoreSlopeParams } = require('../orderImporter');
+
+  // The engine never renders a sub-form, so its ___VISIBLE:false says nothing —
+  // persisting it would also drop the field from json_parameters_desc.
+  const persisted = { WYMIAROWANIE_SLOPOW: '', WYMIAROWANIE_SLOPOW___VISIBLE: false };
+  restoreSlopeParams(persisted, { WYMIAROWANIE_SLOPOW: slopeModel() }, slopeGroupDefs());
+
+  assert.equal(persisted.WYMIAROWANIE_SLOPOW___VISIBLE, true);
+  assert.equal(persisted.WYMIAROWANIE_SLOPOW.WYM_B, 979);
+});
+
+test('restoreParametersAfterRecalc honours a browser verdict of "no slope here"', () => {
+  const { restoreParametersAfterRecalc } = require('../orderImporter');
+
+  const out = restoreParametersAfterRecalc(
+    { MODEL: 'VS1', WYMIAROWANIE_SLOPOW: slopeModel() },
+    { MODEL: 'VS1', WYMIAROWANIE_SLOPOW: '', WYMIAROWANIE_SLOPOW___VISIBLE: false },
+    { defs: slopeGroupDefs() }
+  );
+
+  assert.equal(out.WYMIAROWANIE_SLOPOW, '');
+});

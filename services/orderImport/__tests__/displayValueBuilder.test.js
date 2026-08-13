@@ -788,3 +788,58 @@ test('an import value does not resurrect a field the form disabled (___VISIBLE:f
   assert.equal(out.MODEL.option_value, 'BB24');
   assert.equal(out.MODEL.row, '1');
 });
+
+test('describes a slope sub-form by its dimensions, not by its meta keys', async () => {
+  // The value of a SOURCE ("slope") param is a whole nested form. The engine's
+  // own SourceWindow starts empty, so its display entry is the blank model
+  // stringified through the meta keys — the imported dimensions must win.
+  const model = {
+    TYP: 'TYP20',
+    TYP___DICT: true,
+    TYP___TITLE: 'TYPE',
+    TYP___VISIBLE: false,
+    TYP___DESCRIPTION: 'TYP 20',
+    TYP_ALIAS: '',
+    WYM_B: 1232,
+    WYM_B___DICT: false,
+    WYM_B___TITLE: 'B [mm]',
+    WYM_B___VISIBLE: true,
+    WYM_H: '',
+    WYM_H___DICT: false,
+    WYM_H___TITLE: 'H [mm]',
+    WYM_H___VISIBLE: false,
+    WYM_H1: 1232,
+    WYM_H1___DICT: false,
+    WYM_H1___TITLE: 'H1 [mm]',
+    WYM_H1___VISIBLE: true
+  };
+
+  const out = await buildDisplayValuesFromDictionary({
+    groupNumber: '59',
+    lang: 'nl',
+    values: { MODEL: 'FSlope1_L', WYMIAROWANIE_SLOPOW: model },
+    importValues: { MODEL: 'FSlope1_L', WYMIAROWANIE_SLOPOW: model },
+    displayValues: [
+      ['MODEL', { param_description: 'MODEL', option_value: 'FSlope1_L', row: '1', locked: false, sub: false }],
+      ['WYMIAROWANIE_SLOPOW', {
+        param_description: 'AFMETINGEN VOOR SLOPE',
+        option_value: '[object Object],[object Object] / TYP / false / B [mm]',
+        option_description: 'TYP___DICT:[object Object] / TYP___TITLE:TYP',
+        row: '1',
+        locked: false,
+        sub: false
+      }]
+    ],
+    repo: fakeRepo({
+      params: { MODEL: 'MODEL', WYMIAROWANIE_SLOPOW: 'AFMETINGEN VOOR SLOPE' },
+      paramdict: {}
+    })
+  });
+
+  assert.equal(out.WYMIAROWANIE_SLOPOW.option_value, '');
+  assert.equal(
+    out.WYMIAROWANIE_SLOPOW.option_description,
+    'TYPE:TYP20 / B:1232 / H1:1232'
+  );
+  assert.equal(out.WYMIAROWANIE_SLOPOW.row, '1');
+});

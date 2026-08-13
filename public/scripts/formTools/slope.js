@@ -239,8 +239,9 @@ export class SourceWindow {
 
                 
                 if (paramVisibility) {
-                    processedValues[`${subParamName}___DICT`] = paramVisibility.hasDict;
-                    
+
+                    processedValues[`${subParamName}___DICT`] = !!paramVisibility.hasDict;
+
                 } else {
                     
                     processedValues[`${subParamName}___DICT`] = false;
