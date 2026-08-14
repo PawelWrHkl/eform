@@ -1,0 +1,160 @@
+{#
+  Klienci organizacji — lista.
+
+  Renderowana w całości po stronie serwera: filtry, sortowanie i paginacja to
+  zwykłe GET-y, więc ekran działa bez JavaScriptu, da się go zabookmarkować
+  i wysłać linkiem. Skrypt strony dokłada wyłącznie potwierdzenie dezaktywacji
+  i eksport bez przeładowania.
+#}
+{% extends "base.njk" %}
+
+{% block title %}{{ L.title }}{% endblock title %}
+
+{% block head %}
+  <link rel="stylesheet" href="/styles/orgCustomers.css?v={{ assetVersion }}">
+{% endblock head %}
+
+{% block content %}
+  <div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card oc-page">
+
+      <div class="oc-topbar">
+        <div>
+          <h2 class="fw-bold header mb-1">{{ L.title }}</h2>
+          <div class="oc-subtitle">{{ L.subtitle }}</div>
+        </div>
+        <div class="oc-topbar__actions">
+          <a class="oc-btn oc-btn--ghost" href="/">{{ L.back }}</a>
+          <a class="oc-btn oc-btn--accent" href="/org/customers/new">
+            <span aria-hidden="true">+</span> {{ L.new }}
+          </a>
+        </div>
+      </div>
+
+      {# ---------- Filtry (GET, bez JS) ---------- #}
+      <form class="oc-card oc-filters" method="get" action="/org/customers">
+        <label class="oc-field oc-field--grow">
+          <span class="oc-label">{{ L.search_placeholder }}</span>
+          <input type="search" name="q" value="{{ query.q or '' }}" class="oc-input"
+                 placeholder="{{ L.search_placeholder }}" maxlength="100">
+        </label>
+
+        <label class="oc-field">
+          <span class="oc-label">{{ L.filter_status }}</span>
+          <select name="status" class="oc-input">
+            <option value="active" {% if filters.status == 'active' %}selected{% endif %}>{{ L.status_active }}</option>
+            <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>{{ L.status_inactive }}</option>
+            <option value="all" {% if filters.status == 'all' %}selected{% endif %}>{{ L.status_all }}</option>
+          </select>
+        </label>
+
+        <label class="oc-field">
+          <span class="oc-label">{{ L.filter_country }}</span>
+          <select name="country" class="oc-input">
+            <option value="">—</option>
+            {% for c in countries %}
+              <option value="{{ c }}" {% if filters.country == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <button type="submit" class="oc-btn">{{ L.filter_apply }}</button>
+      </form>
+
+      {# ---------- Lista ---------- #}
+      <section class="oc-card">
+        <div class="oc-card__head">
+          <h3 class="oc-card__title">{{ L.title }}</h3>
+          <span class="oc-count">{{ L.count | replace('%s', total) }}</span>
+        </div>
+
+        {% if rows.length == 0 %}
+          <p class="oc-empty">{{ L.empty }}</p>
+        {% else %}
+          <div class="oc-table-wrap">
+            <table class="oc-table" id="oc-table">
+              <thead>
+                <tr>
+                  {% for col, key in {
+                    'ident': L.col_ident, 'client_name': L.col_name, 'city': L.col_city,
+                    'country': L.col_country
+                  } %}
+                    <th>
+                      <a href="?q={{ query.q or '' }}&status={{ filters.status }}&country={{ filters.country or '' }}&price_list={{ filters.priceList or '' }}&sort={{ col }}&dir={% if filters.sort == col and filters.dir == 'asc' %}desc{% else %}asc{% endif %}">
+                        {{ key }}{% if filters.sort == col %} <span aria-hidden="true">{{ '▲' if filters.dir == 'asc' else '▼' }}</span>{% endif %}
+                      </a>
+                    </th>
+                  {% endfor %}
+                  <th>{{ L.col_groups }}</th>
+                  <th>{{ L.col_status }}</th>
+                  <th>{{ L.col_export }}</th>
+                  <th>{{ L.col_actions }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in rows %}
+                  <tr data-id="{{ row.id }}">
+                    <td><a href="/org/customers/{{ row.id }}">{{ row.ident }}</a></td>
+                    <td>{{ row.client_name or '—' }}</td>
+                    <td>{{ row.city or '—' }}</td>
+                    <td>{{ row.country or '—' }}</td>
+                    {# Cennik jest per grupa — jedna liczba mówi tu więcej niż
+                       zmyślony „główny cennik": ile grup ma ustawione warunki. #}
+                    <td>
+                      {% if row.groups_configured %}
+                        <span class="oc-badge oc-badge--ok">{{ row.groups_configured }}</span>
+                      {% else %}
+                        <span class="oc-badge oc-badge--off">{{ L.groups_from_config }}</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="oc-badge {{ 'oc-badge--ok' if row.active else 'oc-badge--off' }}">
+                        {{ L.active if row.active else L.inactive }}
+                      </span>
+                    </td>
+                    <td>
+                      {% if row.last_export_status %}
+                        <span class="oc-badge {{ 'oc-badge--ok' if row.last_export_status == 'success' else 'oc-badge--err' }}">{{ row.last_export_status }}</span>
+                      {% else %}
+                        <small>{{ L.export_never }}</small>
+                      {% endif %}
+                    </td>
+                    <td class="oc-actions">
+                      <a class="oc-btn oc-btn--small" href="/org/customers/{{ row.id }}">{{ L.edit }}</a>
+                      {# Bez JS: zwykły POST. Skrypt strony dokłada potwierdzenie. #}
+                      <form method="post" action="/org/customers/{{ row.id }}/status" class="oc-inline-form"
+                            data-confirm="{{ L.deactivate if row.active else L.activate }}">
+                        <input type="hidden" name="active" value="{{ '0' if row.active else '1' }}">
+                        <button type="submit" class="oc-btn oc-btn--small oc-btn--ghost">
+                          {{ L.deactivate if row.active else L.activate }}
+                        </button>
+                      </form>
+                      {% if exportEnabled %}
+                        <form method="post" action="/org/customers/{{ row.id }}/export" class="oc-inline-form">
+                          <button type="submit" class="oc-btn oc-btn--small oc-btn--ghost">{{ L.export_now }}</button>
+                        </form>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {% if pages > 1 %}
+            <nav class="oc-pager">
+              {% for p in range(1, pages + 1) %}
+                <a class="oc-page {{ 'is-current' if p == page }}"
+                   href="?q={{ query.q or '' }}&status={{ filters.status }}&country={{ filters.country or '' }}&price_list={{ filters.priceList or '' }}&sort={{ filters.sort or '' }}&dir={{ filters.dir }}&page={{ p }}">{{ p }}</a>
+              {% endfor %}
+            </nav>
+          {% endif %}
+        {% endif %}
+      </section>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block scripts %}
+  <script type="module" src="/scripts/orgCustomers/list.js?v={{ assetVersion }}"></script>
+{% endblock scripts %}

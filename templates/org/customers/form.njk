@@ -1,0 +1,399 @@
+{#
+  Klient organizacji — formularz zakładania i edycji.
+
+  Heurystyki, których ten ekran pilnuje (Nielsen):
+   - widoczność statusu: przycisk zapisu przechodzi w „Zapisywanie…", a wynik
+     wraca paskiem na górze formularza, nie w konsoli,
+   - dopasowanie do świata użytkownika: sekcje idą w kolejności rozmowy
+     z klientem (kto to jest → jak się kontaktować → gdzie wysłać → na jakich
+     warunkach), a nie w kolejności kolumn w tabeli,
+   - zapobieganie błędom: identyfikator jest zablokowany i generowany, kraj
+     i waluta mają domyślne wartości z organizacji, pola liczbowe mają
+     `min`/`max`/`step`, a nie samą walidację po stronie serwera,
+   - rozpoznawanie zamiast przypominania: każda niejasna pozycja ma podpowiedź
+     pod polem (nie tooltip, który znika),
+   - kontrola: „Anuluj" wraca do listy bez zapisu, a dezaktywacja jest osobną,
+     odwracalną akcją zamiast usuwania.
+
+  ⚠️ Formularz działa BEZ JavaScriptu — to zwykły `<form method="post">`.
+  Skrypt dokłada inline-walidację, edytor reguł rabatowych i zapis bez
+  przeładowania; bez niego wszystko to robi serwer.
+#}
+{% extends "base.njk" %}
+{% from "org/customers/_partials/field.njk" import field, checkbox, select %}
+
+{% block title %}{{ L.edit if customer else L.new }}{% endblock title %}
+
+{% block head %}
+  <link rel="stylesheet" href="/styles/orgCustomers.css?v={{ assetVersion }}">
+{% endblock head %}
+
+{% block content %}
+  <div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card oc-page">
+
+      <div class="oc-topbar">
+        <div>
+          <h2 class="fw-bold header mb-1">{{ L.edit if customer else L.new }}</h2>
+          <div class="oc-subtitle">{{ customer.ident if customer else L.subtitle }}</div>
+        </div>
+        <div class="oc-topbar__actions">
+          <a class="oc-btn oc-btn--ghost" href="/org/customers">{{ L.back }}</a>
+        </div>
+      </div>
+
+      {# Pasek wyniku: wypełnia go serwer (po PRG) albo skrypt (po fetchu). #}
+      <div class="oc-flash" id="oc-flash" role="status" aria-live="polite">
+        {% if query.saved %}<div class="oc-flash__ok">{{ L.saved }}</div>{% endif %}
+      </div>
+
+      <form id="oc-form" class="oc-form" method="post"
+            action="{{ '/org/customers/' + customer.id if customer else '/org/customers' }}"
+            novalidate>
+
+        {# ---------- Dostęp do konta ----------
+           ⚠️ Ani identyfikatora, ani PIN-u operator nie wpisuje: identyfikator
+           powstaje z nazwy firmy (`HKL-TAPIJTCENTRUM-NEDERLAND-FAF4`), a PIN
+           jest losowany i sprawdzany pod kątem zajętości w bazie. Puste pole
+           hasła = wygenerujemy je również. Komplet danych do logowania pokazuje
+           się RAZ, po zapisie — nie ma sensu prosić operatora o wymyślanie
+           trzech wartości, z których dwie i tak musiałyby przejść kontrolę
+           unikalności na końcu formularza. #}
+        <fieldset class="oc-card">
+          <legend class="oc-card__title">{{ L.section_access }}</legend>
+          <p class="oc-section-hint">{{ L.access_hint }}</p>
+
+          {% if customer %}
+            <div class="oc-readonly-grid">
+              <div class="oc-readonly">
+                <span class="oc-label">{{ L.ident }}</span>
+                <code class="oc-value">{{ customer.ident }}</code>
+              </div>
+              <div class="oc-readonly">
+                <span class="oc-label">{{ L.pin }}</span>
+                <code class="oc-value">{{ customer.pin }}</code>
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="oc-grid">
+            {{ field({
+              name: 'password', label: L.password, type: 'password', value: '',
+              hint: L.password_hint, maxlength: 72, autocomplete: 'new-password', width: 'short'
+            }) }}
+          </div>
+        </fieldset>
+
+        {# ---------- Dane podstawowe ---------- #}
+        <fieldset class="oc-card">
+          <legend class="oc-card__title">{{ L.section_basic }}</legend>
+          <div class="oc-grid">
+            {{ field({
+              name: 'client_name', label: L.client_name, value: customer.client_name if customer else '',
+              required: true, requiredText: L.required, maxlength: 128, autocomplete: 'organization'
+            }) }}
+            {{ field({
+              name: 'tax_id', label: L.tax_id, value: customer.tax_id if customer else '', maxlength: 30
+            }) }}
+            {{ field({
+              name: 'country', label: L.country, value: customer.country if customer else defaults.country,
+              pattern: patterns.country, maxlength: 2, autocomplete: 'country'
+            }) }}
+            {{ select({
+              name: 'locale', label: L.locale, value: customer.locale if customer else defaults.locale,
+              options: [
+                { value: '', label: '—' }, { value: 'pl', label: 'PL' }, { value: 'en', label: 'EN' },
+                { value: 'de', label: 'DE' }, { value: 'fr', label: 'FR' }, { value: 'nl', label: 'NL' }
+              ]
+            }) }}
+          </div>
+        </fieldset>
+
+        {# ---------- Kontakt ---------- #}
+        <fieldset class="oc-card">
+          <legend class="oc-card__title">{{ L.section_contact }}</legend>
+          <div class="oc-grid">
+            {{ field({
+              name: 'email', label: L.email, type: 'email', value: customer.email if customer else '',
+              maxlength: 128, autocomplete: 'email'
+            }) }}
+            {{ field({
+              name: 'phone', label: L.phone, type: 'tel', value: customer.phone if customer else '',
+              maxlength: 22, autocomplete: 'tel', hint: '+48… / 0048…'
+            }) }}
+            {{ select({
+              name: 'preferred_channel', label: L.preferred_channel,
+              value: customer.preferred_channel if customer else 'email',
+              options: [{ value: 'email', label: L.channel_email }, { value: 'phone', label: L.channel_phone }]
+            }) }}
+          </div>
+        </fieldset>
+
+        {# ---------- Adresy ---------- #}
+        <fieldset class="oc-card">
+          <legend class="oc-card__title">{{ L.section_address }}</legend>
+          <div class="oc-grid">
+            {{ field({ name: 'street', label: L.street, value: customer.street if customer else '', maxlength: 128 }) }}
+            {{ field({ name: 'zip', label: L.zip, value: customer.zip if customer else '', maxlength: 15 }) }}
+            {{ field({ name: 'city', label: L.city, value: customer.city if customer else '', maxlength: 126 }) }}
+          </div>
+        </fieldset>
+
+        <fieldset class="oc-card">
+          <legend class="oc-card__title">{{ L.section_delivery }}</legend>
+          <p class="oc-section-hint">{{ L.delivery_same }}?</p>
+          {{ checkbox({
+            name: 'delivery_same_as_registered', label: L.delivery_same,
+            checked: not customer, dataToggle: 'oc-delivery'
+          }) }}
+          <div class="oc-grid" id="oc-delivery">
+            {{ field({ name: 'delivery_name', label: L.delivery_name, value: customer.delivery_name if customer else '', maxlength: 50 }) }}
+            {{ field({ name: 'delivery_street', label: L.street, value: customer.delivery_street if customer else '', maxlength: 200 }) }}
+            {{ field({ name: 'delivery_zip', label: L.zip, value: customer.delivery_zip if customer else '', maxlength: 100 }) }}
+            {{ field({ name: 'delivery_city', label: L.city, value: customer.delivery_city if customer else '', maxlength: 155 }) }}
+            {{ field({ name: 'delivery_country', label: L.country, value: customer.delivery_country if customer else '', pattern: patterns.country, maxlength: 2 }) }}
+            {{ field({ name: 'delivery_phone', label: L.phone, type: 'tel', value: customer.delivery_phone if customer else '', maxlength: 100 }) }}
+          </div>
+        </fieldset>
+
+        {# ---------- Dane handlowe (opisowe) ----------
+           ⚠️ ŻADNE z tych pól NIE steruje wyliczeniem ceny. Cennik, rabat
+           i dopłaty ustala się per grupa asortymentowa (sekcja niżej), bo tak
+           działa silnik: wybiera plik `param-CENA-<WARIANT>.js` z katalogu
+           grupy. Trzymamy tu wyłącznie dane, które opisują umowę z klientem
+           (waluta, VAT, termin, limit) i nie mają odpowiednika w konfiguracji. #}
+        <fieldset class="oc-card">
+          <legend class="oc-card__title">{{ L.section_commercial }}</legend>
+          <p class="oc-section-hint">{{ L.commercial_hint }}</p>
+          <div class="oc-grid">
+            {{ field({
+              name: 'currency', label: L.currency, value: customer.currency if customer else defaults.currency,
+              pattern: patterns.currency, maxlength: 3, width: 'short'
+            }) }}
+            {{ field({
+              name: 'vat_rate', label: L.vat_rate, type: 'number',
+              value: customer.vat_rate if customer else '', min: 0, max: 100, step: '0.01', width: 'short'
+            }) }}
+            {{ field({
+              name: 'payment_terms_days', label: L.payment_terms_days, type: 'number',
+              value: customer.payment_terms_days if customer else '0', min: 0, max: 365, step: '1', width: 'short'
+            }) }}
+            {{ field({
+              name: 'credit_limit', label: L.credit_limit, type: 'number',
+              value: customer.credit_limit if customer else '', min: 0, step: '0.01', width: 'short'
+            }) }}
+          </div>
+          {{ checkbox({
+            name: 'sub_price_enabled', label: L.sub_price_enabled,
+            checked: customer.sub_price_enabled if customer else false
+          }) }}
+        </fieldset>
+
+        {# ---------- RODO ---------- #}
+        <fieldset class="oc-card">
+          <legend class="oc-card__title">{{ L.section_rodo }}</legend>
+          {{ checkbox({ name: 'rodo_consent', label: L.rodo_consent, checked: customer.rodo_consent if customer else false }) }}
+          <div class="oc-grid">
+            {{ field({
+              name: 'rodo_consent_at', label: L.rodo_consent_at, type: 'date',
+              value: customer.rodo_consent_at | string | truncate(10, true, '') if customer and customer.rodo_consent_at else ''
+            }) }}
+            {{ field({
+              name: 'terms_version', label: L.terms_version,
+              value: customer.terms_version if customer else '', maxlength: 30
+            }) }}
+          </div>
+        </fieldset>
+
+        {# ---------- Meta ---------- #}
+        <fieldset class="oc-card">
+          <legend class="oc-card__title">{{ L.section_meta }}</legend>
+          <label class="oc-field" for="notes">
+            <span class="oc-label">{{ L.notes }}</span>
+            <textarea class="oc-input" id="notes" name="notes" rows="3" maxlength="5000">{{ customer.notes if customer else '' }}</textarea>
+          </label>
+          {{ field({
+            name: 'tags', label: L.tags,
+            value: customer.tags | join(', ') if customer and customer.tags.length else ''
+          }) }}
+          {{ checkbox({ name: 'active', label: L.active_field, checked: customer.active if customer else true }) }}
+          {% if customer %}
+            <p class="oc-hint">{{ L.orders_count | replace('%s', customer.ordersCount) }}</p>
+          {% endif %}
+        </fieldset>
+
+        <div class="oc-form__actions">
+          <span class="oc-form__note">{{ L.required_note }}</span>
+          <a class="oc-btn oc-btn--ghost" href="/org/customers">{{ L.cancel }}</a>
+          <button type="submit" class="oc-btn oc-btn--accent" id="oc-submit" data-saving="{{ L.saving }}">
+            {{ L.save }}
+          </button>
+        </div>
+      </form>
+
+      {# ---------- Cenniki per grupa asortymentowa (tylko w edycji) ----------
+         ⚠️ To TUTAJ siedzi prawdziwy cennik i rabat klienta: warianty plików
+         `param-CENA-<WARIANT>.js` z katalogu grupy. Kolumna „źródło" mówi, czy
+         obowiązuje konfiguracja aplikacji zewnętrznej (`prod.txt`), czy nakładka
+         ustawiona w eFormie. Sekcja `Cennik i rabaty` wyżej to dane opisowe
+         (waluta, termin płatności, limit) — one nie sterują wyliczeniem ceny. #}
+      {% if customer and groups.length %}
+        <section class="oc-card">
+          <div class="oc-card__head">
+            <h3 class="oc-card__title">{{ L.section_groups }}</h3>
+          </div>
+          <p class="oc-hint">{{ L.groups_hint }}</p>
+
+          <form method="post" action="/org/customers/{{ customer.id }}/copy-terms" class="oc-filters">
+            <label class="oc-field oc-field--grow">
+              <span class="oc-label">{{ L.copy_terms }}</span>
+              <input type="text" name="template_ident" class="oc-input" placeholder="np. TCN" maxlength="50">
+              <small class="oc-hint">{{ L.copy_terms_hint }}</small>
+            </label>
+            <button type="submit" class="oc-btn oc-btn--primary">{{ L.copy }}</button>
+          </form>
+
+          <div class="oc-table-wrap">
+            <table class="oc-table">
+              <thead>
+                <tr>
+                  <th>{{ L.col_group }}</th>
+                  <th>{{ L.col_source }}</th>
+                  <th>{{ L.col_price_variant }}</th>
+                  <th>{{ L.col_discount_variant }}</th>
+                  <th>{{ L.col_collections }}</th>
+                  <th>{{ L.col_actions }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for group in groups %}
+                  <tr>
+                    <td>
+                      <strong>{{ group.groupNumber }}</strong>
+                      {% if group.description %}<br><small>{{ group.description }}</small>{% endif %}
+                    </td>
+                    <td>
+                      <span class="oc-badge {{ 'oc-badge--ok' if group.source == 'baza' else ('oc-badge--off' if group.source == 'plik' else '') }}">
+                        {{ L.source_db if group.source == 'baza' else (L.source_file if group.source == 'plik' else L.source_none) }}
+                      </span>
+                    </td>
+
+                    {# ⚠️ Listy wyboru pokazujemy TYLKO dla wierszy, którymi ten
+                       panel faktycznie zarządza (źródło `baza`). Przy źródle
+                       `plik` konfiguracja należy do aplikacji zewnętrznej, a przy
+                       `brak` nie ma czego zmieniać — rozwijana lista sugerowałaby
+                       wtedy, że zmiana zadziała, a zapis dopiero TWORZY nakładkę.
+                       Stąd osobna, jednoznaczna akcja „Dodaj". #}
+                    {% if group.source == 'baza' %}
+                      <td>
+                        <form method="post" action="/org/customers/{{ customer.id }}/group-terms" class="oc-inline-form oc-variant-form">
+                          <input type="hidden" name="group_number" value="{{ group.groupNumber }}">
+                          <select name="price_variant" class="oc-input" aria-label="{{ L.col_price_variant }}">
+                            {% for variant in variants[group.groupNumber].price %}
+                              <option value="{{ variant }}" {% if variant == group.priceVariant %}selected{% endif %}>{{ variant }}</option>
+                            {% endfor %}
+                          </select>
+                      </td>
+                      <td>
+                          <select name="discount_variant" class="oc-input" aria-label="{{ L.col_discount_variant }}">
+                            {% for variant in variants[group.groupNumber].discount %}
+                              <option value="{{ variant }}" {% if variant == group.discountVariant %}selected{% endif %}>{{ variant }}</option>
+                            {% endfor %}
+                          </select>
+                      </td>
+                      <td>{{ group.collections | length or '—' }}</td>
+                      <td class="oc-actions">
+                          <button type="submit" class="oc-btn oc-btn--small">{{ L.save }}</button>
+                        </form>
+                        <form method="post" action="/org/customers/{{ customer.id }}/group-terms" class="oc-inline-form"
+                              data-confirm="{{ L.remove_terms }}">
+                          <input type="hidden" name="group_number" value="{{ group.groupNumber }}">
+                          <input type="hidden" name="action" value="delete">
+                          <button type="submit" class="oc-btn oc-btn--small oc-btn--ghost">{{ L.remove_terms }}</button>
+                        </form>
+                      </td>
+                    {% else %}
+                      <td>{{ group.priceVariant or '—' }}</td>
+                      <td>{{ group.discountVariant or '—' }}</td>
+                      <td>{{ group.collections | length or '—' }}</td>
+                      <td>
+                        {# `details` zamiast modala: działa bez JS-u i nie wywraca
+                           układu tabeli — formularz rozwija się w miejscu. #}
+                        <details class="oc-add">
+                          <summary class="oc-btn oc-btn--small oc-btn--ghost">+ {{ L.add_terms }}</summary>
+                          <form method="post" action="/org/customers/{{ customer.id }}/group-terms" class="oc-add__form">
+                            <input type="hidden" name="group_number" value="{{ group.groupNumber }}">
+                            <label class="oc-field oc-field--short">
+                              <span class="oc-label">{{ L.col_price_variant }}</span>
+                              <select name="price_variant" class="oc-input">
+                                <option value="">—</option>
+                                {% for variant in variants[group.groupNumber].price %}
+                                  <option value="{{ variant }}" {% if variant == group.priceVariant %}selected{% endif %}>{{ variant }}</option>
+                                {% endfor %}
+                              </select>
+                            </label>
+                            <label class="oc-field oc-field--short">
+                              <span class="oc-label">{{ L.col_discount_variant }}</span>
+                              <select name="discount_variant" class="oc-input">
+                                <option value="">—</option>
+                                {% for variant in variants[group.groupNumber].discount %}
+                                  <option value="{{ variant }}" {% if variant == group.discountVariant %}selected{% endif %}>{{ variant }}</option>
+                                {% endfor %}
+                              </select>
+                            </label>
+                            <button type="submit" class="oc-btn oc-btn--small">{{ L.add_terms }}</button>
+                          </form>
+                        </details>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endif %}
+
+      {# ---------- Historia eksportu (tylko w edycji) ---------- #}
+      {% if customer and customer.exportLog.length %}
+        <section class="oc-card">
+          <h3 class="oc-card__title">{{ L.export_history }}</h3>
+          <div class="oc-table-wrap">
+            <table class="oc-table">
+              <thead>
+                <tr>
+                  <th>{{ L.export_date }}</th>
+                  <th>{{ L.export_attempt }}</th>
+                  <th>{{ L.export_status }}</th>
+                  <th>{{ L.export_code }}</th>
+                  <th>payload_hash</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for entry in customer.exportLog %}
+                  <tr>
+                    <td>{{ entry.created_at }}</td>
+                    <td>{{ entry.attempt_no }} ({{ entry.trigger_source }})</td>
+                    <td>
+                      <span class="oc-badge {{ 'oc-badge--ok' if entry.status == 'success' else 'oc-badge--err' }}">{{ entry.status }}</span>
+                    </td>
+                    <td>{{ entry.http_code or '—' }}</td>
+                    <td><code>{{ entry.payload_hash | truncate(12, true, '') }}</code></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endif %}
+
+      {# Słownik komunikatów dla skryptu — bez tego frontend musiałby mieć
+         własną kopię tłumaczeń. #}
+      <script type="application/json" id="oc-labels">{{ L | dump | safe }}</script>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block scripts %}
+  <script type="module" src="/scripts/orgCustomers/form.js?v={{ assetVersion }}"></script>
+{% endblock scripts %}

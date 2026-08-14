@@ -57,5 +57,24 @@ module.exports = {
     // Brak zmiennej = wyłączone (ta sama konwencja co `vat`).
     invoices: [process.env.INVOICES_ENABLED, process.env.INVOICES, process.env.INVOICE]
       .some((v) => String(v).toLowerCase() === 'true'),
+
+    // Moduł „Klienci organizacji" (`/org/customers`). Przy `false` router nie
+    // jest w ogóle montowany (adresy zwracają 404) — ta sama konwencja co
+    // `invoices`: brak zmiennej = wyłączone.
+    orgCustomers: String(process.env.ORG_CUSTOMERS_ENABLED).toLowerCase() === 'true',
+  },
+
+  // ── Eksport klientów do systemu zewnętrznego ───────────────────────────
+  // ⚠️ `enabled` jest NIEZALEŻNE od `features.orgCustomers`: moduł ma sens sam
+  // w sobie (zakładanie klientów w eForm), a integracja bywa niegotowa po
+  // stronie odbiorcy. Przy wyłączonej fladze zapis klienta działa normalnie,
+  // a eksport kończy się statusem `skipped` — bez błędu i bez wpisu do logu.
+  customerExport: {
+    enabled: String(process.env.CUSTOMER_EXPORT_ENABLED).toLowerCase() === 'true',
+    url: process.env.CUSTOMER_EXPORT_URL || '',
+    token: process.env.CUSTOMER_EXPORT_TOKEN || '',
+    hmacSecret: process.env.CUSTOMER_EXPORT_HMAC_SECRET || '',
+    timeoutMs: Number(process.env.CUSTOMER_EXPORT_TIMEOUT_MS) || 10000,
+    attempts: Number(process.env.CUSTOMER_EXPORT_ATTEMPTS) || 4
   }
 };

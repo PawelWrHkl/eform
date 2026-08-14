@@ -1,0 +1,60 @@
+{#
+  Pojedyncze pole formularza — jedno miejsce na etykietę, podpowiedź, znacznik
+  „wymagane" i miejsce na komunikat błędu.
+
+  ⚠️ Kontener `.oc-msg` istnieje ZAWSZE (pusty), a nie jest dorzucany przez JS.
+  Dzięki temu pojawienie się błędu nie przesuwa reszty formularza w dół —
+  pole nie „ucieka" spod kursora w trakcie poprawiania.
+
+  Parametry: name, label, value, type, hint, required, pattern, placeholder,
+  maxlength, min, max, step, autocomplete, readonly, inputmode.
+#}
+{% macro field(opts) %}
+  <label class="oc-field{{ ' oc-field--short' if opts.width == 'short' }}{{ ' oc-field--wide' if opts.width == 'wide' }}" for="{{ opts.name }}">
+    <span class="oc-label">
+      {{ opts.label }}{% if opts.required %} <abbr class="oc-req" title="{{ opts.requiredText }}">*</abbr>{% endif %}
+    </span>
+    <input
+      class="oc-input"
+      id="{{ opts.name }}"
+      name="{{ opts.name }}"
+      type="{{ opts.type or 'text' }}"
+      value="{{ opts.value if opts.value is not none else '' }}"
+      {% if opts.placeholder %}placeholder="{{ opts.placeholder }}"{% endif %}
+      {% if opts.pattern %}pattern="{{ opts.pattern }}"{% endif %}
+      {% if opts.maxlength %}maxlength="{{ opts.maxlength }}"{% endif %}
+      {% if opts.min is not none %}min="{{ opts.min }}"{% endif %}
+      {% if opts.max is not none %}max="{{ opts.max }}"{% endif %}
+      {% if opts.step %}step="{{ opts.step }}"{% endif %}
+      {% if opts.inputmode %}inputmode="{{ opts.inputmode }}"{% endif %}
+      {% if opts.autocomplete %}autocomplete="{{ opts.autocomplete }}"{% endif %}
+      {% if opts.required %}required{% endif %}
+      {% if opts.readonly %}readonly{% endif %}
+      {% if opts.list %}list="{{ opts.list }}"{% endif %}>
+    {% if opts.hint %}<small class="oc-hint">{{ opts.hint }}</small>{% endif %}
+    <span class="oc-msg" data-for="{{ opts.name }}" role="alert" aria-live="polite"></span>
+  </label>
+{% endmacro %}
+
+{% macro checkbox(opts) %}
+  <label class="oc-check" for="{{ opts.name }}">
+    <input type="checkbox" id="{{ opts.name }}" name="{{ opts.name }}" value="1"
+           {% if opts.checked %}checked{% endif %}
+           {% if opts.dataToggle %}data-toggle="{{ opts.dataToggle }}"{% endif %}>
+    <span>{{ opts.label }}</span>
+    {% if opts.hint %}<small class="oc-hint">{{ opts.hint }}</small>{% endif %}
+  </label>
+{% endmacro %}
+
+{% macro select(opts) %}
+  <label class="oc-field" for="{{ opts.name }}">
+    <span class="oc-label">{{ opts.label }}</span>
+    <select class="oc-input" id="{{ opts.name }}" name="{{ opts.name }}">
+      {% for option in opts.options %}
+        <option value="{{ option.value }}" {% if option.value == opts.value %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+    {% if opts.hint %}<small class="oc-hint">{{ opts.hint }}</small>{% endif %}
+    <span class="oc-msg" data-for="{{ opts.name }}" role="alert" aria-live="polite"></span>
+  </label>
+{% endmacro %}

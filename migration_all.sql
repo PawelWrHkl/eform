@@ -153,3 +153,10 @@ ALTER TABLE `send_address`
 
 ALTER TABLE `order_address`
   MODIFY COLUMN `phone` VARCHAR(50);
+
+-- ── 8. Moduł „Klienci organizacji" (/org/customers) ──────────────
+-- Pełna treść wraz z komentarzami: migration_organization_customers.sql
+-- (uruchamiaj TEN plik — ma procedurę zapewniającą idempotencję kolumny
+-- `employee.can_manage_customers` i indeksu `user.idx_user_ident`).
+--
+--   source migration_organization_customers.sql

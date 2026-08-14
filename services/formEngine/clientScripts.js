@@ -73,6 +73,61 @@ function parseProdTxt(text) {
   return out;
 }
 
+/**
+ * Nakładka warunków z bazy (`customer_group_terms`) dla klientów zakładanych
+ * w eFormie — patrz `services/orgCustomers/groupTerms.js`.
+ *
+ * ⚠️ Musi być SYNCHRONICZNIE dostępna: `getClientScripts`/`loadClientAliases` są
+ * wołane z JSDOM-owego stubu `window.formsManager` w środku `selectPrices()`,
+ * a przerobienie ich na async pociągnęłoby za sobą kod przeglądarki. Dlatego
+ * wołający (import zamówień, recalc) najpierw robi `await primeClientOverlay()`,
+ * co wsypuje mapę do pamięci, a odczyt jest już zwykłym `Map.get`.
+ *
+ * Klucz: `ORG/KLIENT/GRUPA` (wielkość liter bez znaczenia, jak w plikach).
+ */
+const overlayCache = new Map();
+
+function overlayKey(orgIdent, userIdent, groupNumber) {
+	return `${String(orgIdent).trim().toLowerCase()}/${String(userIdent).trim().toLowerCase()}/${groupNumber}`;
+}
+
+/**
+ * Wczytuje nakładkę dla (klient, grupa) do pamięci. Bez tego wywołania moduł
+ * zachowuje się dokładnie jak dotąd — czyta wyłącznie `prod.txt`.
+ *
+ * @param {object} params
+ * @param {number} params.userId
+ * @param {string} params.orgIdent
+ * @param {string} params.userIdent
+ * @param {string|number} params.groupNumber
+ * @param {object} [deps] `{ db }` do testów
+ * @returns {Promise<boolean>} czy nakładka istnieje
+ */
+async function primeClientOverlay({ userId, orgIdent, userIdent, groupNumber }, deps = {}) {
+  if (!userId || !orgIdent || !userIdent || !groupNumber) return false;
+  const db = deps.db || require('../../db/orgCustomers');
+  let terms = null;
+  try {
+    terms = await db.getGroupTerms(userId, groupNumber);
+  } catch (_err) {
+    terms = null;
+  }
+  const key = overlayKey(orgIdent, userIdent, groupNumber);
+  if (terms) overlayCache.set(key, terms);
+  else overlayCache.delete(key);
+  return !!terms;
+}
+
+/** Czyści nakładkę (testy, koniec importu). */
+function clearClientOverlay() {
+  overlayCache.clear();
+}
+
+function readOverlay(orgIdent, userIdent, groupNumber) {
+  if (!orgIdent || !userIdent || !groupNumber) return null;
+  return overlayCache.get(overlayKey(orgIdent, userIdent, groupNumber)) || null;
+}
+
 const prodTxtCache = new Map();
 
 function readProdTxt(groupNumber, lang) {
@@ -102,18 +157,31 @@ function readProdTxt(groupNumber, lang) {
 function getClientScripts({ groupNumber, lang, orgIdent, userIdent }) {
   if (!groupNumber || !orgIdent || !userIdent) return null;
   const prod = readProdTxt(groupNumber, lang || 'pl');
-  if (!prod || !prod.param_scripts) return null;
 
-  const entries = parseScriptEntries(prod.param_scripts);
   const org = orgIdent.trim().toLowerCase();
   const client = userIdent.trim().toLowerCase();
-  const matching = entries.filter((e) =>
-    e.organization.trim().toLowerCase() === org && e.client.trim().toLowerCase() === client
-  );
-  if (!matching.length) return null;
+  const matching = prod && prod.param_scripts
+    ? parseScriptEntries(prod.param_scripts).filter((e) =>
+      e.organization.trim().toLowerCase() === org && e.client.trim().toLowerCase() === client
+    )
+    : [];
 
-  const currentRootPath = `/data/${groupNumber}/data/`;
-  return [currentRootPath, matching];
+  // Nakładka z bazy dokłada/zastępuje wpisy per parametr — klient założony
+  // w eFormie nie ma NIC w `prod.txt`, więc bez niej `selectPrices()` zostawiłby
+  // `param.SOURCE` na `<NULL>` i cena policzyłaby się jako 0.
+  const overlay = readOverlay(orgIdent, userIdent, groupNumber);
+  if (overlay && overlay.scripts) {
+    const byParam = new Map(matching.map((e) => [e.param, e]));
+    for (const [param, file] of Object.entries(overlay.scripts)) {
+      if (!file) continue;
+      byParam.set(param, { organization: orgIdent, client: userIdent, param, file });
+    }
+    const merged = [...byParam.values()];
+    return merged.length ? [`/data/${groupNumber}/data/`, merged] : null;
+  }
+
+  if (!matching.length) return null;
+  return [`/data/${groupNumber}/data/`, matching];
 }
 
 /**
@@ -140,14 +208,29 @@ function getClientScripts({ groupNumber, lang, orgIdent, userIdent }) {
 function loadClientAliases({ groupNumber, lang, orgIdent, userIdent }) {
   if (!groupNumber || !orgIdent || !userIdent) return {};
   const prod = readProdTxt(groupNumber, lang || 'pl');
-  if (!prod || !prod.paramdict_aliases) return {};
+  // Brak kolumny w pliku nie kończy sprawy: klient z eForma ma kolekcje wyłącznie
+  // w nakładce.
+  if ((!prod || !prod.paramdict_aliases) && !readOverlay(orgIdent, userIdent, groupNumber)) return {};
 
-  const entries = parseScriptEntries(prod.paramdict_aliases);
+  const entries = parseScriptEntries((prod && prod.paramdict_aliases) || '');
   const org = orgIdent.trim().toLowerCase();
   const client = userIdent.trim().toLowerCase();
   const matching = entries.filter((e) =>
     e.organization.trim().toLowerCase() === org && e.client.trim().toLowerCase() === client
   );
+
+  // Kolekcje tkanin z nakładki — ta sama zasada co przy skryptach cenowych:
+  // wpis w bazie zastępuje plikowy dla tego samego parametru.
+  const overlay = readOverlay(orgIdent, userIdent, groupNumber);
+  if (overlay && overlay.collections) {
+    const byParam = new Map(matching.map((e) => [e.param, e]));
+    for (const [param, file] of Object.entries(overlay.collections)) {
+      if (!file) continue;
+      byParam.set(param, { organization: orgIdent, client: userIdent, param, file });
+    }
+    matching.length = 0;
+    matching.push(...byParam.values());
+  }
   if (!matching.length) return {};
 
   const out = {};
@@ -168,6 +251,8 @@ function loadClientAliases({ groupNumber, lang, orgIdent, userIdent }) {
 module.exports = {
   getClientScripts,
   loadClientAliases,
+  primeClientOverlay,
+  clearClientOverlay,
   parseScriptEntries,
   parseProdTxt,
   parseTabFile

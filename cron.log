@@ -3116,3 +3116,16 @@ fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: 
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-08-13 10:35:01 - Start ===
 === 2026-08-13 10:35:01 - Dodawanie zmian do commita ===
+[main 9516d2e] Automatic commit 2026-08-13 10:35
+ 17 files changed, 10034 insertions(+), 85 deletions(-)
+ create mode 100644 services/mailBot/__tests__/mailAttachments.test.js
+ create mode 100644 services/orderImport/__tests__/slopeSubform.test.js
+ create mode 100644 services/orderImport/slopeSubform.js
+=== 2026-08-13 10:35:02 - Wysyłanie do origin/main ===
+remote: Permission to PawelWoronieckiHkl/eform.git denied to PawelWrHkl.
+fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: The requested URL returned error: 403
+=== 2026-08-13 12:00:01 - Start ===
+=== 2026-08-13 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-08-14 10:35:01 - Start ===
+=== 2026-08-14 10:35:01 - Dodawanie zmian do commita ===

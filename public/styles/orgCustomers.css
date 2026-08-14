@@ -1,0 +1,669 @@
+/**
+ * Klienci organizacji — style modułu.
+ *
+ * Założenia, które wynikają z tego, jak ten ekran jest używany (operator
+ * przepisuje dane klienta z telefonu albo maila, sekcja po sekcji):
+ *
+ *  1. **Jedna kolumna czytania.** Kontener ma `max-width`, bo formularz
+ *     rozciągnięty na 2000 px zmusza do wodzenia wzrokiem przez pół ekranu
+ *     między etykietą a polem.
+ *  2. **Pola mają szerokość swojej treści.** Kod waluty i liczba dni nie
+ *     dostają połowy wiersza (`.oc-field--short`) — inaczej formularz wygląda
+ *     jak przypadkowy zlepek pustych prostokątów.
+ *  3. **Sekcja = krok z numerem i jednym zdaniem wyjaśnienia.** Numer daje
+ *     poczucie postępu, zdanie zdejmuje pytanie „co tu wpisać".
+ *  4. **Zapis jest zawsze pod ręką** — pasek akcji przykleja się do dołu okna,
+ *     więc przy długim formularzu nie trzeba przewijać na koniec, żeby zapisać.
+ *  5. **Błąd nie przesuwa layoutu**: miejsce na komunikat jest zarezerwowane,
+ *     a niepoprawne pole dostaje kolorową krawędź od lewej (widoczne też przy
+ *     daltonizmie, bo zmienia się grubość, nie tylko barwa).
+ *
+ * Wyłącznie zmienne z `theme.css` (żaden własny kolor bazowy), prefiks `.oc-`
+ * na każdym selektorze, zero `!important`.
+ */
+
+/* ─────────────────────────────────────────────── układ i nagłówek strony */
+
+.oc-page {
+	/* 900 px to ~2 kolumny pól po 420 px — dalej nie ma czego dokładać. */
+	max-width: 980px;
+	margin: 0 auto;
+	padding: 0 0.5rem 6rem;
+}
+
+.oc-topbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	align-items: flex-end;
+	justify-content: space-between;
+	margin-bottom: 1.5rem;
+}
+
+.oc-topbar h2 {
+	margin: 0;
+	font-size: 1.6rem;
+	line-height: 1.2;
+}
+
+.oc-subtitle {
+	color: var(--text-secondary);
+	font-size: 0.92rem;
+	margin-top: 0.15rem;
+}
+
+.oc-topbar__actions {
+	display: flex;
+	gap: 0.5rem;
+}
+
+/* ───────────────────────────────────────────────────────────────── karty */
+
+.oc-card {
+	background: var(--bg-surface-solid);
+	border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+	border-radius: var(--radius-lg, 14px);
+	padding: 1.5rem 1.5rem 1.25rem;
+	margin: 0 0 1.25rem;
+	/* `fieldset` ma domyślny min-width, który psuje grid na wąskich ekranach. */
+	min-width: 0;
+}
+
+.oc-card__title {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	width: 100%;
+	margin: 0 0 0.35rem;
+	padding: 0;
+	font-size: 1.08rem;
+	font-weight: 650;
+	color: var(--text-primary);
+	line-height: 1.3;
+}
+
+/* Numer kroku — czysta dekoracja treści, dlatego z `counter`, a nie z HTML-a. */
+.oc-form {
+	counter-reset: oc-step;
+}
+
+.oc-form .oc-card > .oc-card__title::before {
+	counter-increment: oc-step;
+	content: counter(oc-step);
+	flex: 0 0 1.6rem;
+	height: 1.6rem;
+	display: inline-grid;
+	place-items: center;
+	border-radius: 50%;
+	background: var(--brand-primary-light, rgba(94, 110, 130, 0.12));
+	color: var(--brand-primary);
+	font-size: 0.82rem;
+	font-weight: 700;
+}
+
+.oc-card__head {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: baseline;
+	justify-content: space-between;
+	margin-bottom: 0.35rem;
+}
+
+.oc-card__subtitle {
+	margin: 0;
+	font-size: 0.98rem;
+	font-weight: 600;
+}
+
+.oc-section-hint {
+	margin: 0 0 1.1rem;
+	color: var(--text-secondary);
+	font-size: 0.87rem;
+	line-height: 1.5;
+	max-width: 62ch;
+}
+
+.oc-count {
+	color: var(--text-tertiary);
+	font-size: 0.85rem;
+	font-weight: 500;
+}
+
+/* ────────────────────────────────────────────────────────────── formularz */
+
+/* `auto-fill` + minmax daje dwie kolumny na desktopie i jedną na telefonie
+   bez żadnego media query — jeden próg mniej do pilnowania. */
+.oc-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: 1.1rem 1.25rem;
+	align-items: start;
+}
+
+.oc-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	min-width: 0;
+}
+
+/* Pole na 2–4 znaki (waluta, VAT, dni) nie zajmuje całej kolumny. */
+.oc-field--short .oc-input {
+	max-width: 11rem;
+}
+
+.oc-field--wide {
+	grid-column: 1 / -1;
+}
+
+.oc-field--grow {
+	flex: 1 1 240px;
+}
+
+.oc-field--action {
+	justify-content: flex-end;
+	padding-bottom: 1.5rem;
+}
+
+.oc-label {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	letter-spacing: 0.01em;
+}
+
+.oc-req {
+	color: var(--brand-accent);
+	text-decoration: none;
+	cursor: help;
+}
+
+.oc-input {
+	width: 100%;
+	/* 44 px wysokości = wygodny cel dotyku na telefonie. */
+	min-height: 2.75rem;
+	padding: 0.55rem 0.75rem;
+	border: 1px solid var(--border-default, rgba(15, 23, 42, 0.16));
+	border-left: 3px solid transparent;
+	border-radius: var(--radius-md, 10px);
+	background: var(--bg-surface-solid);
+	color: var(--text-primary);
+	font: inherit;
+	font-size: 0.95rem;
+	transition: border-color var(--transition-fast, 150ms), box-shadow var(--transition-fast, 150ms);
+}
+
+textarea.oc-input {
+	min-height: 5rem;
+	resize: vertical;
+	line-height: 1.5;
+}
+
+select.oc-input {
+	/* Bez tego Safari rysuje select w innej wysokości niż input obok. */
+	appearance: none;
+	background-image: linear-gradient(45deg, transparent 49%, var(--text-tertiary) 50%),
+		linear-gradient(135deg, var(--text-tertiary) 50%, transparent 51%);
+	background-position: calc(100% - 1.1rem) 1.2rem, calc(100% - 0.75rem) 1.2rem;
+	background-size: 0.35rem 0.35rem;
+	background-repeat: no-repeat;
+	padding-right: 2.2rem;
+}
+
+.oc-input:hover:not([readonly]) {
+	border-color: var(--brand-primary);
+}
+
+.oc-input:focus {
+	outline: none;
+	border-color: var(--border-focus, var(--brand-primary));
+	border-left-color: var(--brand-primary);
+	box-shadow: var(--border-glow, 0 0 0 3px rgba(94, 110, 130, 0.18));
+}
+
+.oc-input[readonly] {
+	background: var(--bg-surface-sunken);
+	color: var(--text-secondary);
+	cursor: default;
+}
+
+/* Błąd widać dwiema cechami naraz: barwą i grubą krawędzią od lewej. */
+.oc-input.is-invalid {
+	border-color: var(--danger, #dc2626);
+	border-left-color: var(--danger, #dc2626);
+	background: rgba(220, 38, 38, 0.04);
+}
+
+.oc-hint {
+	color: var(--text-tertiary);
+	font-size: 0.79rem;
+	line-height: 1.45;
+}
+
+/* Miejsce na komunikat istnieje zawsze — pole nie „skacze" przy błędzie. */
+.oc-msg {
+	display: block;
+	min-height: 1.05rem;
+	font-size: 0.79rem;
+	font-weight: 500;
+	color: var(--danger, #dc2626);
+}
+
+.oc-check {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+	margin: 0.9rem 0 0.2rem;
+	padding: 0.7rem 0.85rem;
+	border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+	border-radius: var(--radius-md, 10px);
+	background: var(--bg-surface-sunken);
+	font-size: 0.92rem;
+	color: var(--text-primary);
+	cursor: pointer;
+}
+
+.oc-check input {
+	width: 1.15rem;
+	height: 1.15rem;
+	margin-top: 0.1rem;
+	accent-color: var(--brand-primary);
+	flex: 0 0 auto;
+}
+
+.oc-check:hover {
+	border-color: var(--brand-primary);
+}
+
+/* Pasek zapisu przyklejony do dołu — przy 8 sekcjach nikt nie powinien
+   przewijać na koniec strony tylko po to, żeby kliknąć „Zapisz". */
+.oc-form__actions {
+	position: sticky;
+	bottom: 0;
+	z-index: 5;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: center;
+	justify-content: flex-end;
+	margin: 1.5rem 0 0;
+	padding: 0.85rem 1rem;
+	border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+	border-radius: var(--radius-lg, 14px);
+	background: var(--bg-glass-strong, rgba(255, 255, 255, 0.9));
+	backdrop-filter: blur(8px);
+	box-shadow: 0 -2px 14px rgba(15, 23, 42, 0.06);
+}
+
+.oc-form__note {
+	margin-right: auto;
+	color: var(--text-tertiary);
+	font-size: 0.8rem;
+}
+
+.oc-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	align-items: flex-end;
+}
+
+/* ─────────────────────────────────────────────────────────────── przyciski */
+
+.oc-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	min-height: 2.6rem;
+	padding: 0.5rem 1.1rem;
+	border: 1px solid transparent;
+	border-radius: var(--radius-md, 10px);
+	background: var(--brand-primary);
+	color: var(--text-inverse);
+	font: inherit;
+	font-size: 0.92rem;
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+	transition: background var(--transition-fast, 150ms), transform var(--transition-fast, 150ms), opacity var(--transition-fast, 150ms);
+}
+
+.oc-btn:hover {
+	background: var(--brand-primary-hover);
+	color: var(--text-inverse);
+}
+
+.oc-btn:active {
+	transform: translateY(1px);
+}
+
+.oc-btn:focus-visible {
+	outline: 2px solid var(--brand-accent);
+	outline-offset: 2px;
+}
+
+.oc-btn--accent {
+	background: var(--brand-accent);
+	padding-inline: 1.6rem;
+}
+
+.oc-btn--accent:hover {
+	background: var(--brand-accent-hover);
+}
+
+.oc-btn--ghost {
+	background: transparent;
+	border-color: var(--border-default, rgba(15, 23, 42, 0.16));
+	color: var(--text-secondary);
+}
+
+.oc-btn--ghost:hover {
+	background: var(--bg-hover);
+	color: var(--text-primary);
+}
+
+.oc-btn--small {
+	min-height: 2.1rem;
+	padding: 0.25rem 0.7rem;
+	font-size: 0.82rem;
+}
+
+.oc-btn[disabled] {
+	opacity: 0.55;
+	cursor: progress;
+	transform: none;
+}
+
+/* ────────────────────────────────────────────────────────────────── tabele */
+
+.oc-table-wrap {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	border: 1px solid var(--border-default, rgba(15, 23, 42, 0.08));
+	border-radius: var(--radius-md, 10px);
+}
+
+.oc-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.9rem;
+}
+
+.oc-table th,
+.oc-table td {
+	padding: 0.65rem 0.75rem;
+	text-align: left;
+	border-bottom: 1px solid var(--border-default, rgba(15, 23, 42, 0.07));
+	vertical-align: middle;
+}
+
+.oc-table thead th {
+	position: sticky;
+	top: 0;
+	background: var(--bg-surface-sunken);
+	color: var(--text-secondary);
+	font-size: 0.8rem;
+	font-weight: 650;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	white-space: nowrap;
+}
+
+.oc-table th a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.oc-table tbody tr:hover {
+	background: var(--bg-hover);
+}
+
+.oc-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+/* W tabeli grup selecty stoją obok siebie — bez tego rozpychają wiersz. */
+.oc-table select.oc-input {
+	min-height: 2.2rem;
+	min-width: 7rem;
+	padding-block: 0.2rem;
+	font-size: 0.85rem;
+	background-position: calc(100% - 1rem) 0.95rem, calc(100% - 0.7rem) 0.95rem;
+}
+
+.oc-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.oc-inline-form {
+	display: inline;
+	margin: 0;
+}
+
+.oc-badge {
+	display: inline-block;
+	padding: 0.2rem 0.55rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 650;
+	background: var(--bg-surface-sunken);
+	color: var(--text-secondary);
+	white-space: nowrap;
+}
+
+.oc-badge--ok {
+	background: rgba(22, 163, 74, 0.13);
+	color: #15803d;
+}
+
+.oc-badge--err {
+	background: rgba(220, 38, 38, 0.13);
+	color: #b91c1c;
+}
+
+.oc-badge--off {
+	background: rgba(100, 116, 139, 0.16);
+	color: var(--text-secondary);
+}
+
+.oc-empty {
+	color: var(--text-tertiary);
+	padding: 2.5rem 1rem;
+	text-align: center;
+	font-size: 0.95rem;
+}
+
+.oc-pager {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin-top: 1rem;
+}
+
+.oc-page {
+	min-width: 2.2rem;
+	padding: 0.35rem 0.6rem;
+	border: 1px solid var(--border-default, rgba(15, 23, 42, 0.14));
+	border-radius: var(--radius-md, 10px);
+	color: var(--text-secondary);
+	text-align: center;
+	text-decoration: none;
+}
+
+.oc-page:hover {
+	background: var(--bg-hover);
+}
+
+.oc-page.is-current {
+	background: var(--brand-primary);
+	border-color: var(--brand-primary);
+	color: var(--text-inverse);
+}
+
+/* ──────────────────────────────────────────────────── komunikaty zapisu */
+
+.oc-flash:empty {
+	display: none;
+}
+
+.oc-flash__ok,
+.oc-flash__err {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	padding: 0.85rem 1rem;
+	border-radius: var(--radius-md, 10px);
+	border-left: 4px solid currentColor;
+	margin-bottom: 1.25rem;
+	font-weight: 600;
+	line-height: 1.45;
+}
+
+.oc-flash__ok {
+	background: rgba(22, 163, 74, 0.1);
+	color: #15803d;
+}
+
+.oc-flash__err {
+	background: rgba(220, 38, 38, 0.1);
+	color: #b91c1c;
+}
+
+/* ───────────────────────────────────────────────────────── wąskie ekrany */
+
+@media (max-width: 640px) {
+	.oc-card {
+		padding: 1.15rem 1rem 1rem;
+	}
+
+	.oc-topbar h2 {
+		font-size: 1.35rem;
+	}
+
+	.oc-form__actions {
+		/* Na telefonie „Zapisz" ma być pełnej szerokości i pod ręką. */
+		flex-direction: column-reverse;
+		align-items: stretch;
+	}
+
+	.oc-form__note {
+		margin: 0.35rem 0 0;
+		text-align: center;
+	}
+}
+
+/* ───────────────────────────── dane tylko do odczytu (identyfikator, PIN) */
+
+/* Nadawane przez system, nigdy nie edytowane — pokazujemy je jak wartość,
+   a nie jak zablokowane pole formularza. Wyszarzony input z kursorem „nie
+   wolno" sugeruje, że coś jest chwilowo niedostępne; tu po prostu nie ma
+   czego wpisywać. */
+.oc-readonly-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 0.9rem 1.25rem;
+	margin-bottom: 1.1rem;
+}
+
+.oc-readonly {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-width: 0;
+}
+
+.oc-value {
+	padding: 0.4rem 0.6rem;
+	border-radius: var(--radius-md, 10px);
+	background: var(--bg-surface-sunken);
+	color: var(--text-primary);
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 0.95rem;
+	letter-spacing: 0.02em;
+	overflow-wrap: anywhere;
+}
+
+/* ─────────────────────────────────── „Dodaj cennik" w tabeli grup */
+
+/* `details/summary` zamiast modala: rozwija się w miejscu, działa bez JS-u
+   i nie zabiera fokusu z tabeli. Domyślny trójkącik znika, bo `summary`
+   udaje przycisk. */
+.oc-add > summary {
+	list-style: none;
+	cursor: pointer;
+	user-select: none;
+}
+
+.oc-add > summary::-webkit-details-marker {
+	display: none;
+}
+
+.oc-add[open] > summary {
+	background: var(--bg-active, rgba(94, 110, 130, 0.1));
+	color: var(--text-primary);
+}
+
+.oc-add__form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.6rem;
+	margin-top: 0.6rem;
+	padding: 0.75rem;
+	border: 1px solid var(--border-default, rgba(15, 23, 42, 0.12));
+	border-radius: var(--radius-md, 10px);
+	background: var(--bg-surface-sunken);
+}
+
+.oc-add__form .oc-field {
+	gap: 0.2rem;
+}
+
+.oc-add__form .oc-input {
+	min-width: 7.5rem;
+}
+
+/* ─────────────────────────────── ekran po założeniu klienta */
+
+/* Zastępuje formularz, więc musi od razu komunikować „udało się" — stąd
+   zielona krawędź, a nie kolejna neutralna karta w tym samym rytmie. */
+.oc-created {
+	border-left: 4px solid #15803d;
+}
+
+.oc-cred-grid {
+	display: grid;
+	gap: 0.85rem;
+	margin: 1rem 0 1.5rem;
+}
+
+.oc-cred {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.oc-cred__box {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.oc-cred__box .oc-value {
+	flex: 1 1 12rem;
+	/* Hasło i PIN bywają przepisywane z ekranu — większy stopień pisma
+	   zmniejsza szansę pomylenia znaków. */
+	font-size: 1.05rem;
+	padding: 0.5rem 0.7rem;
+}
+
+.oc-created__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+}

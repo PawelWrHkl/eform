@@ -13,6 +13,8 @@ const adminRoutes = require('./routes/admin');
 const addressRoutes = require('./routes/address');
 const invoiceRoutes = require('./services/invoices/http/routes');
 const invoicePanelRoutes = require('./services/invoices/http/panel');
+const orgCustomersRoutes = require('./routes/orgCustomers');
+const clientTermsRoutes = require('./routes/clientTerms');
 // Znacznik wersji zasobów: zmienia się przy każdym starcie procesu, czyli po
 // każdym wdrożeniu (`update.sh` restartuje kontener, `--watch` proces hosta).
 const ASSET_VERSION = Date.now().toString(36);
@@ -163,6 +165,16 @@ const { features } = require('./config');
 app.use((req, res, next) => {
 	res.locals.vatEnabled = !!features?.vat;
 	res.locals.invoicesEnabled = !!features?.invoices;
+	res.locals.orgCustomersEnabled = !!features?.orgCustomers;
+	// ⚠️ Warunek widoczności wejścia w menu MUSI być liczony tutaj, a nie
+	// z `owner`/`admin` w szablonie: `owner` jest lokalną zmienną pojedynczego
+	// renderu (`routes/index.js` ustawia je tylko dla strony głównej), a `admin`
+	// dokłada `addOrganizationsForAdmin` wyłącznie adminom. Oparcie linku na nich
+	// dawało pozycję w menu widoczną na stronie głównej i znikającą na każdej
+	// innej. Sesja jest jedynym źródłem dostępnym przy każdym renderze.
+	const sessionUser = req.session && req.session.user;
+	res.locals.canManageCustomers = !!(features?.orgCustomers && sessionUser
+		&& (sessionUser.isOwner || sessionUser.isAdmin));
 	// Wersja zasobów do cache-bustingu (`?v=`) — bez tego przeglądarka trzyma
 	// stary plik JS po wdrożeniu, co objawia się błędami z nieaktualnej wersji
 	// (np. panel salonu pytający o endpoint dla ownera).
@@ -218,6 +230,20 @@ if (features?.invoices) {
 	log('[invoices] moduł włączony (INVOICES_ENABLED=true)');
 } else {
 	log('[invoices] moduł WYŁĄCZONY — /invoices i /api/v1/invoices nie są montowane');
+}
+
+// Moduł „Klienci organizacji" — ta sama zasada co wyżej: przy wyłączonej fladze
+// router w ogóle nie wstaje, więc `/org/customers` zwraca 404 zamiast ekranu
+// chronionego samym loginem.
+if (features?.orgCustomers) {
+	app.use('/org/customers', orgCustomersRoutes);
+	// Nakładka cenników dla formularza w przeglądarce — dostępna dla KAŻDEGO
+	// zalogowanego (formularz otwiera też klient i pracownik), zawężona do
+	// klienta z sesji/kontekstu. Patrz routes/clientTerms.js.
+	app.use('/client-terms', clientTermsRoutes);
+	log('[orgCustomers] moduł włączony (ORG_CUSTOMERS_ENABLED=true)');
+} else {
+	log('[orgCustomers] moduł WYŁĄCZONY — /org/customers nie jest montowany');
 }
 
 

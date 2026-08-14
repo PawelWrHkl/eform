@@ -23,6 +23,7 @@ const formEngine = () => require('../formEngine');
 const translationRepo = () => require('../translationDict/dbRepository');
 const { translateParametersToCanonical } = require('./parameterTranslator');
 const { validateParameterValues } = require('./optionValidator');
+const { primeClientOverlay } = require('../formEngine/clientScripts');
 const { resolveTwinParameters } = require('./twinParamResolver');
 const {
   readFormParamDefs,
@@ -551,6 +552,22 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     }
     for (const note of slopeReport.notes || []) {
       logger(`orderImport slope (item ${item.posid != null ? item.posid : '?'}, group ${groupNumber}): ${note}`);
+    }
+
+    // Klienci zakładani w eFormie nie mają wpisów w `prod.txt` (ten plik generuje
+    // aplikacja zewnętrzna), więc ich cennik siedzi w nakładce `customer_group_terms`.
+    // `getClientScripts` czyta ją synchronicznie z pamięci — trzeba ją wsypać PRZED
+    // uruchomieniem silnika, inaczej `selectPrices()` nie znajdzie skryptu ceny
+    // i pozycja policzy się na 0.
+    try {
+      await primeClientOverlay({
+        userId: user.id,
+        orgIdent: user.org_ident,
+        userIdent: user.ident,
+        groupNumber
+      });
+    } catch (overlayErr) {
+      logger(`primeClientOverlay failed for user ${user.ident} / group ${groupNumber}: ${overlayErr.message}`);
     }
 
     // Run the full server-side form engine (singlePass) to get authoritative

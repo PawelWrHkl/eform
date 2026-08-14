@@ -71,16 +71,32 @@ export class FormsManager {
     }
 
     async loadDataPerClient(group) {
+        // Nakładka kolekcji tkanin — ta sama zasada co przy skryptach cenowych.
+        const overlay = await this.getTermsOverlay(group);
+        const overlayCollections = Object.entries(overlay.collections || {}).filter(([, file]) => !!file);
 
-        if (this.aliases?.[group]) {
+        if (this.aliases?.[group] || overlayCollections.length) {
 
-            const foundAliases = this.aliases[group].filter(entry =>
+            let foundAliases = (this.aliases?.[group] || []).filter(entry =>
                 entry.organization.trim().toUpperCase() === this.clientData.orgIdent.trim().toUpperCase() &&
                 entry.client.trim().toUpperCase() === this.clientData.userIdent.trim().toUpperCase()
 
             );
                 console.log('DEBUG ALIASES 1', foundAliases, 'clientData:', this.clientData)
-                
+
+            if (overlayCollections.length) {
+                const byParam = new Map(foundAliases.map(entry => [entry.param, entry]));
+                for (const [param, file] of overlayCollections) {
+                    byParam.set(param, {
+                        organization: this.clientData.orgIdent,
+                        client: this.clientData.userIdent,
+                        param,
+                        file
+                    });
+                }
+                foundAliases = [...byParam.values()];
+            }
+
             if (!foundAliases.length) {
                 console.warn('Brak pasujących aliasów dla:', this.clientData);
                 return {};
@@ -114,6 +130,38 @@ export class FormsManager {
             return {}
         }
     }
+    /**
+     * Nakładka warunków handlowych z bazy — dla klientów zakładanych w eFormie,
+     * których NIE ma w `prod.txt` (ten plik generuje aplikacja zewnętrzna).
+     *
+     * ⚠️ Bez tego formularz takiego klienta nie znajdzie skryptu ceny i pozycja
+     * policzy się na 0 — dokładnie tak, jak przed nakładką zachowywał się silnik
+     * importu. Endpoint zwraca wyłącznie dane klienta z bieżącej sesji/kontekstu
+     * (patrz routes/clientTerms.js), więc nie da się nim podejrzeć cudzych cenników.
+     *
+     * Awaria/404 = pusta nakładka, czyli zachowanie sprzed zmiany.
+     *
+     * @param {string|number} groupNr
+     * @returns {Promise<{scripts: Object, collections: Object}>}
+     */
+    async getTermsOverlay(groupNr) {
+        this._overlayCache = this._overlayCache || {};
+        if (this._overlayCache[groupNr]) return this._overlayCache[groupNr];
+
+        let overlay = { scripts: {}, collections: {} };
+        try {
+            const response = await fetch(`/client-terms/${groupNr}`, { headers: { Accept: 'application/json' } });
+            if (response.ok) {
+                const data = await response.json();
+                overlay = { scripts: data.scripts || {}, collections: data.collections || {} };
+            }
+        } catch (error) {
+            console.warn('Nakładka cenników niedostępna — zostaje konfiguracja z prod.txt', error);
+        }
+        this._overlayCache[groupNr] = overlay;
+        return overlay;
+    }
+
     getAliases(paramName){
         return this.foundAliases.find(alias => alias.param === paramName) || [];
     }
@@ -149,6 +197,24 @@ export class FormsManager {
                 entry.organization.trim().toLowerCase() === this.clientData.orgIdent.trim().toLowerCase() &&
                 entry.client.trim().toLowerCase() === this.clientData.userIdent.trim().toLowerCase()
             );
+        }
+
+        // Nakładka z bazy dokłada/zastępuje wpisy per parametr. Scalamy PRZED
+        // testem „brak wpisów", bo klient założony w eFormie ma w prod.txt zero
+        // wierszy i bez nakładki wyszlibyśmy stąd z `false` (cena = 0).
+        const overlay = await this.getTermsOverlay(window.tempGroupNumber);
+        if (overlay.scripts && Object.keys(overlay.scripts).length) {
+            const byParam = new Map(foundScripts.map(entry => [entry.param, entry]));
+            for (const [param, file] of Object.entries(overlay.scripts)) {
+                if (!file) continue;
+                byParam.set(param, {
+                    organization: this.clientData.orgIdent,
+                    client: this.clientData.userIdent,
+                    param,
+                    file
+                });
+            }
+            foundScripts = [...byParam.values()];
         }
 
         if (!foundScripts.length) {

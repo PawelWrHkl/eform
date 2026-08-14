@@ -119,6 +119,11 @@
                             <a href="/invoices" class="nav-link">Faktury</a>
                         </li>
                     {% endif %}
+                    {% if canManageCustomers %}
+                        <li class="nav-item">
+                            <a href="/org/customers" class="nav-link">Klienci organizacji</a>
+                        </li>
+                    {% endif %}
                     {% if isGroup %}
                         <li class="nav-item">
                             <a href="/group/panel" class="nav-link">{{ __('group.panel_title') }}</a>
@@ -208,6 +213,18 @@
                     <a href="/invoices" id='invoices-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="Faktury">
                         <img src="/img/orders_history.png" class='nav-icon' alt="invoices-ico">
                         <span class="nav-text">Faktury</span>
+                    </a>
+                {% endif %}
+                {# Klienci organizacji — przy włączonej fladze `features.orgCustomers`
+                   (ORG_CUSTOMERS_ENABLED w .env). Wejście tylko dla konta
+                   organizacji; pracownik bez `can_manage_customers` dostanie 403
+                   na samej trasie, więc nie pokazujemy mu wejścia w menu.
+                   Etykieta na sztywno — jak przy fakturach, bo tłumaczenia idą
+                   z /mnt/eform/languages, a nie z repo. #}
+                {% if canManageCustomers %}
+                    <a href="/org/customers" id='org-customers-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="Klienci organizacji">
+                        <img src="/img/employee.png" class='nav-icon' alt="customers-ico">
+                        <span class="nav-text">Klienci</span>
                     </a>
                 {% endif %}
                 {% if isGroup %}
