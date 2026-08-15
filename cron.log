@@ -3129,3 +3129,40 @@ fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: 
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-08-14 10:35:01 - Start ===
 === 2026-08-14 10:35:01 - Dodawanie zmian do commita ===
+[main ab14244] Automatic commit 2026-08-14 10:35
+ 39 files changed, 17489 insertions(+), 1559 deletions(-)
+ create mode 100644 db/orgCustomers.js
+ rewrite locales/de.json (99%)
+ rewrite locales/en.json (99%)
+ rewrite locales/fr.json (99%)
+ rewrite locales/nl.json (99%)
+ rewrite locales/pl.json (99%)
+ create mode 100644 middleware/orgCustomerAccess.js
+ create mode 100644 migration_customer_group_terms.sql
+ create mode 100644 migration_organization_customers.sql
+ create mode 100644 public/scripts/orgCustomers/form.js
+ create mode 100644 public/scripts/orgCustomers/list.js
+ create mode 100644 public/styles/orgCustomers.css
+ create mode 100644 routes/clientTerms.js
+ create mode 100644 routes/orgCustomers.js
+ create mode 100644 services/customerExport/__tests__/exportCustomer.test.js
+ create mode 100644 services/customerExport/__tests__/mapper.test.js
+ create mode 100644 services/customerExport/index.js
+ create mode 100644 services/customerExport/mapper.js
+ create mode 100644 services/orgCustomers/__tests__/groupTerms.test.js
+ create mode 100644 services/orgCustomers/__tests__/validator.test.js
+ create mode 100644 services/orgCustomers/groupTerms.js
+ create mode 100644 services/orgCustomers/i18n/labels.json
+ create mode 100644 services/orgCustomers/index.js
+ create mode 100644 services/orgCustomers/validator.js
+ create mode 100644 templates/org/customers/_partials/field.njk
+ create mode 100644 templates/org/customers/form.njk
+ create mode 100644 templates/org/customers/list.njk
+=== 2026-08-14 10:35:02 - Wysyłanie do origin/main ===
+remote: Permission to PawelWoronieckiHkl/eform.git denied to PawelWrHkl.
+fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: The requested URL returned error: 403
+=== 2026-08-14 12:00:01 - Start ===
+=== 2026-08-14 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-08-15 10:35:01 - Start ===
+=== 2026-08-15 10:35:01 - Dodawanie zmian do commita ===
