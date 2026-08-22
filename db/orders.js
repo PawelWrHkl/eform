@@ -99,6 +99,10 @@ async function getOrderDetails(orderId) {
     -- UWAGA: bez backticków — to wnętrze template literal w JS.
     \`order\`.user_id,
     \`order\`.end_client_id,
+    -- kto założył zamówienie (konto podrzędne grupy) — bramka edycji dla
+    -- grupy typu 'client', patrz utils/orderStatusGuard.js
+    \`order\`.group_user_id,
+    \`order\`.created_by_group_user_id,
     da.id as address_id,
     da.street,
     da.phone_number as phone,
@@ -308,8 +312,9 @@ async function getUserOrders(userId, limit = 10, offset = 0, sent = false, organ
     if (!sent) {
         query = `
         SELECT o.id, o.user_id, o.delivery_address_id, o.commision, o.total_price, o.created_date, o.sent_date, o.organization_id, o.comment, o.status, o.send_address_id, o.order_idx, o.value, o.total_price_hidden, o.employee_id, o.prod_status, o.delivery_date, o.spedition_numbers, o.max_prod_days
-,e.id as emp_id, e.name, e.surname FROM \`order\` o 
+,e.id as emp_id, e.name, e.surname, gu.name as shop_name, gu.ident as shop_ident, o.created_by_group_user_id FROM \`order\` o 
         left join employee e on e.id = o.employee_id
+        left join group_user gu on gu.id = o.group_user_id
         WHERE  o.user_id = ? ${sqlInput} and o.status like 'active'
         ORDER BY o.id DESC 
         LIMIT ? OFFSET ?
@@ -318,8 +323,9 @@ async function getUserOrders(userId, limit = 10, offset = 0, sent = false, organ
     else {
         query = `
         SELECT o.id, o.user_id, o.delivery_address_id, o.commision, o.total_price, o.created_date, o.sent_date, o.organization_id, o.comment, o.status, o.send_address_id, o.order_idx, o.value, o.total_price_hidden, o.employee_id, o.prod_status, o.delivery_date, o.spedition_numbers, o.max_prod_days
-,e.id as emp_id, e.name, e.surname FROM \`order\` o 
+,e.id as emp_id, e.name, e.surname, gu.name as shop_name, gu.ident as shop_ident, o.created_by_group_user_id FROM \`order\` o 
         left join employee e on e.id = o.employee_id
+        left join group_user gu on gu.id = o.group_user_id
         WHERE o.user_id = ? ${sqlInput} and o.status like 'sent'
         ORDER BY o.sent_date DESC 
         LIMIT ? OFFSET ?
@@ -347,6 +353,22 @@ async function getUserOrders(userId, limit = 10, offset = 0, sent = false, organ
     }
 }
 
+
+/**
+ * Id konta podrzędnego, które ZAŁOŻYŁO zamówienie (`null`, gdy zrobiła to
+ * grupa-matka albo zwykły klient). Osobna, wąska funkcja, bo pytają o to
+ * bramki edycji przy każdej mutacji — nie ma po co ciągnąć całego wiersza.
+ */
+async function getOrderCreatedByGroupUser(orderId) {
+    const query = `SELECT created_by_group_user_id FROM \`order\` WHERE id = ?`;
+    try {
+        const rows = await selectQuery(query, [orderId]);
+        return rows?.[0]?.created_by_group_user_id || null;
+    } catch (err) {
+        log(err);
+        return null;
+    }
+}
 
 async function getUserOrderId(orderId) {
     const query = `SELECT order_idx FROM \`order\` WHERE id = ?`;
@@ -421,12 +443,17 @@ async function insertSendAddress(address) {
     }
 }
 
-async function insertNewOrder(commision, addressId, userId, comment, sendAddressId = null, totalPrice = 0, employeeId = null, mailId = null, groupUserId = null) {
+async function insertNewOrder(commision, addressId, userId, comment, sendAddressId = null, totalPrice = 0, employeeId = null, mailId = null, groupUserId = null, createdByGroupUserId = null) {
     addressId = addressId || null;
     mailId = mailId || null;
     sendAddressId = sendAddressId || null;
     employeeId = employeeId || null;
     groupUserId = groupUserId || null;
+    // KTO zakłada zamówienie: id konta podrzędnego, jeśli robi to ono samo,
+    // `null` gdy grupa-matka (także pracując w kontekście tego konta).
+    // `group_user_id` na to nie odpowiada — patrz
+    // migration_order_created_by_group_user.sql.
+    createdByGroupUserId = createdByGroupUserId || null;
 
     const groupShopOrderIdx = groupUserId ? await buildGroupShopOrderIdx(groupUserId) : null;
 
@@ -444,11 +471,12 @@ async function insertNewOrder(commision, addressId, userId, comment, sendAddress
         contact_info_id,
         employee_id,
         order_idx,
-        group_user_id)
+        group_user_id,
+        created_by_group_user_id)
         values (?,?,?,
         ?,
         (select u.organization_id from eform.\`user\` u  where u.id =?) 
-        ,?,'active',?,?,?,?,?,?)`
+        ,?,'active',?,?,?,?,?,?,?)`
         try {
             const response = await insertQuery(query,
                 [userId,
@@ -462,7 +490,8 @@ async function insertNewOrder(commision, addressId, userId, comment, sendAddress
                     mailId,
                     employeeId,
                     groupShopOrderIdx,
-                    groupUserId
+                    groupUserId,
+                    createdByGroupUserId
                 ]
             )
 
@@ -487,10 +516,11 @@ async function insertNewOrder(commision, addressId, userId, comment, sendAddress
     send_address_id,
     contact_info_id,
     employee_id,
-    group_user_id)
+    group_user_id,
+    created_by_group_user_id)
     values (?,?,?,?,
     (select u.organization_id from eform.\`user\` u  where u.id =?) 
-    ,?,'active',?,?,?,?,?)`
+    ,?,'active',?,?,?,?,?,?)`
     try {
         const response = await insertQuery(query,
             [userId,
@@ -503,7 +533,8 @@ async function insertNewOrder(commision, addressId, userId, comment, sendAddress
                 sendAddressId,
                 mailId,
                 employeeId,
-                groupUserId
+                groupUserId,
+                createdByGroupUserId
             ]
         )
 
@@ -543,8 +574,10 @@ async function getGroupShopOrders(groupUserId, limit = 10, offset = 0, sent = fa
         : `('active', 'pending_approval')`;
     const query = `
         SELECT o.id, o.user_id, o.commision, o.total_price, o.created_date, o.sent_date,
-               o.comment, o.status, o.order_idx, o.prod_status, o.spedition_numbers, o.max_prod_days
+               o.comment, o.status, o.order_idx, o.prod_status, o.spedition_numbers, o.max_prod_days,
+               o.created_by_group_user_id, gu.name as shop_name, gu.ident as shop_ident
         FROM \`order\` o
+        LEFT JOIN group_user gu ON gu.id = o.group_user_id
         WHERE o.group_user_id = ? AND o.status IN ${statuses}
         ORDER BY o.id DESC
         LIMIT ? OFFSET ?
@@ -703,6 +736,10 @@ async function searchUserOrders(userId, phrase, limit = 40, offset = 0, sent = f
     if (filters.prodStatus === '__received__') { extraClauses.push('(o.prod_status IS NULL OR o.prod_status = \'\')'); } else if (filters.prodStatus) { extraClauses.push('o.prod_status = ?'); extraParams.push(filters.prodStatus); }
     if (filters.sentDateFrom) { extraClauses.push('DATE(o.sent_date) >= ?'); extraParams.push(filters.sentDateFrom); }
     if (filters.sentDateTo)   { extraClauses.push('DATE(o.sent_date) <= ?'); extraParams.push(filters.sentDateTo); }
+    // Zakres konta podrzędnego grupy (`order.group_user_id`) — ustawiany przez
+    // routes/orders.js z services/groupContext.js, żeby wyszukiwarka pokazywała
+    // to samo, co lista zamówień sklepu/klienta.
+    if (filters.groupUserId) { extraClauses.push('o.group_user_id = ?'); extraParams.push(filters.groupUserId); }
     const extraWhere = extraClauses.length ? ' AND ' + extraClauses.join(' AND ') : '';
 
     if (organization) {
@@ -737,9 +774,11 @@ async function searchUserOrders(userId, phrase, limit = 40, offset = 0, sent = f
                o.created_date, o.sent_date, o.organization_id, o.comment, o.status,
                o.send_address_id, o.order_idx, o.value, o.total_price_hidden,
                o.employee_id, o.prod_status, o.delivery_date, o.spedition_numbers, o.max_prod_days,
-               e.name, e.surname
+               e.name, e.surname, gu.name as shop_name, gu.ident as shop_ident,
+               o.created_by_group_user_id
         FROM \`order\` o
         LEFT JOIN employee e ON e.id = o.employee_id
+        LEFT JOIN group_user gu ON gu.id = o.group_user_id
         WHERE o.user_id = ? ${employeeClause}
           AND o.status = ?
           AND (o.commision LIKE ? OR o.order_idx LIKE ?)
@@ -773,6 +812,10 @@ async function countSearchUserOrders(userId, phrase, sent = false, employeeId = 
     if (filters.prodStatus === '__received__') { extraClauses.push('(o.prod_status IS NULL OR o.prod_status = \'\')'); } else if (filters.prodStatus) { extraClauses.push('o.prod_status = ?'); extraParams.push(filters.prodStatus); }
     if (filters.sentDateFrom) { extraClauses.push('DATE(o.sent_date) >= ?'); extraParams.push(filters.sentDateFrom); }
     if (filters.sentDateTo)   { extraClauses.push('DATE(o.sent_date) <= ?'); extraParams.push(filters.sentDateTo); }
+    // Zakres konta podrzędnego grupy (`order.group_user_id`) — ustawiany przez
+    // routes/orders.js z services/groupContext.js, żeby wyszukiwarka pokazywała
+    // to samo, co lista zamówień sklepu/klienta.
+    if (filters.groupUserId) { extraClauses.push('o.group_user_id = ?'); extraParams.push(filters.groupUserId); }
     const extraWhere = extraClauses.length ? ' AND ' + extraClauses.join(' AND ') : '';
 
     if (organization) {
@@ -836,6 +879,7 @@ module.exports = {
     changeOrderStatus,
     insertSendAddress,
     getUserOrderId,
+    getOrderCreatedByGroupUser,
     checkOwner,
     checkGroupShopOrderOwner,
     updateOrderPriceOnSend,

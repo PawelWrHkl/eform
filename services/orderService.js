@@ -1,5 +1,9 @@
 const _ = require("n_");
 
+// Rabat klienta grupy zapisany przed zmianą nazw kluczy — patrz niżej.
+const LEGACY_CLIENT_DISCOUNT_KEYS = new Set(['RABAT_KLIENTA', 'WARTOSC_PO_RABACIE']);
+const CLIENT_DISCOUNT_KEYS = new Set(['SUB___RABAT_KLIENTA', 'SUB___WARTOSC_PO_RABACIE']);
+
 function isRabatParamName(key) {
   return !!key && String(key).includes('RABAT');
 }
@@ -103,6 +107,11 @@ async function jsonTextBackToMap(orderItems) {
     item.lockedParams = []
     item.subParams = []
     item.subParamValues = []
+    // Wiersze rabatu klienta grupy trzymamy DODATKOWO osobno, żeby widok pokazał
+    // je we WŁASNYM wierszu pod spodem (templates/order.njk), a nie wmieszane
+    // między pozostałe ceny SUB. W `subParamValues` zostają, bo z tej listy
+    // korzystają jeszcze widok cen (`order_prices.njk`) i `services/subPrices.js`.
+    item.clientDiscountValues = []
     item.posId = item.id || 0
     let rowObj = {};
     for (const [key, param] of jsonParameters.entries()) {
@@ -133,6 +142,24 @@ async function jsonTextBackToMap(orderItems) {
         value = String(param);
       }
 
+      // Pozycje zapisane PRZED zmianą nazw kluczy (2026-08-21) mają rabat pod
+      // `RABAT_KLIENTA`/`WARTOSC_PO_RABACIE`, bez prefiksu `SUB___` — bez tego
+      // mapowania wyświetlałyby się w tabeli cen katalogowych i kłódka rabatu
+      // nie miałaby czego odsłonić. Wersja bez migracji danych: te dwa klucze
+      // wpuszczamy tą samą ścieżką co wiersze `SUB___`, zawsze jako `locked`.
+      if (LEGACY_CLIENT_DISCOUNT_KEYS.has(key)) {
+        if (isRabatParamName(key) && isZeroRabatDisplayValue(value)) {
+          continue;
+        }
+        if (value !== '-' && value !== null && value !== undefined) {
+          const legacyDisplay = param && param.param_description ? param.param_description : key;
+          const legacyEntry = { key: `SUB___${key}`, display: legacyDisplay, value, locked: true };
+          item.subParamValues.push(legacyEntry);
+          item.clientDiscountValues.push(legacyEntry);
+        }
+        continue;
+      }
+
       // SUB___ params: store in subParamValues, skip main table entirely
       if (key.startsWith('SUB___')) {
         if (isRabatParamName(key) && isZeroRabatDisplayValue(value)) {
@@ -141,7 +168,15 @@ async function jsonTextBackToMap(orderItems) {
         const isLocked = param && param.locked === true;
         if (value !== '-' && value !== null && value !== undefined) {
           const display = param && param.param_description ? param.param_description : key;
-          item.subParamValues.push({ display, value, locked: isLocked });
+          // `key` idzie do widoku, bo szablon musi rozpoznać wiersze rabatu
+          // klienta (`SUB___RABAT_KLIENTA`/`SUB___WARTOSC_PO_RABACIE`) — one
+          // jedne, choć `locked`, mają być dostępne klientowi końcowemu po
+          // odsłonięciu kłódką (templates/order.njk).
+          const subEntry = { key, display, value, locked: isLocked };
+          item.subParamValues.push(subEntry);
+          if (CLIENT_DISCOUNT_KEYS.has(key)) {
+            item.clientDiscountValues.push(subEntry);
+          }
         }
         continue;
       }

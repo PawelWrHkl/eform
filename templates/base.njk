@@ -128,6 +128,22 @@
                         <li class="nav-item">
                             <a href="/group/panel" class="nav-link">{{ __('group.panel_title') }}</a>
                         </li>
+                        {% if groupShops and groupShops | length > 0 %}
+                            <li class="nav-item mt-2">
+                                <label for="mobileGroupShopSelect" class="nav-link pb-0">{{ __(gk('context_select_label')) }}</label>
+                                <div class="px-3">
+                                    <select id="mobileGroupShopSelect" class="dropdown-input w-100">
+                                        <option value="">{{ __(gk('context_select_placeholder')) }}</option>
+                                        {% for shop in groupShops %}
+                                            <option value="{{ shop.id }}" {% if groupShopContext and groupShopContext.id == shop.id %}selected{% endif %}>{{ shop.name or shop.ident }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% if groupShopContext %}
+                                        <a href="/group/context/clear" class="nav-link px-0">{{ __('group.context_exit') }}</a>
+                                    {% endif %}
+                                </div>
+                            </li>
+                        {% endif %}
                     {% endif %}
                     {% if owner and not admin %}
                         <li class="nav-item mt-2">
@@ -244,6 +260,29 @@
                     <!-- <i class="fas fa-question-circle nav-icon" style="font-size: 1.4rem; display: flex; align-items: center; justify-content: center;"></i> -->
                     <!-- <span class="nav-text">{{ __('base.tour') or 'Tour' }}</span> -->
                 <!-- </a> -->
+                {# ── Kontekst konta podrzędnego dla grupy (`role = 'group'`) ──
+                   Odpowiednik listy klientów u ownera/admina, ale na poziomie
+                   `group_user`: grupa wybiera swój sklep/klienta i pracuje jako
+                   on (services/groupContext.js). #}
+                {% if isGroup and groupShops and groupShops | length > 0 %}
+                    <div id='groupShopContextContainer'>
+                        <label for='groupShopSelect' class="mt-4">{{ __(gk('context_select_label')) }}</label>
+                        <select id="groupShopSelect" class="dropdown-input w-100">
+                            <option value="">{{ __(gk('context_select_placeholder')) }}</option>
+                            {% for shop in groupShops %}
+                                <option value="{{ shop.id }}" {% if groupShopContext and groupShopContext.id == shop.id %}selected{% endif %}>{{ shop.name or shop.ident }}{% if shop.name and shop.ident %} ({{ shop.ident }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        {% if groupShopContext %}
+                            <div class="group-context-chip mt-2">
+                                <span>{{ __('group.context_active') }}: <strong>{{ groupShopContext.name }}</strong></span>
+                                <a href="/group/context/clear" class="group-context-exit">{{ __('group.context_exit') }}</a>
+                            </div>
+                        {% else %}
+                            <small class="form-text text-muted d-block">{{ __(gk('context_hint')) }}</small>
+                        {% endif %}
+                    </div>
+                {% endif %}
                 {% block user_select %}
                     {% if owner and not admin %}
                         <div id='userSelectContainer'>
@@ -287,7 +326,7 @@
 {% endblock %}
 <header class="languages">
     <div class="language-switcher">
-        <a href="/change-language?lang=pl" {% if locale=='pl' %} class="active" data-tooltip="{{ __('base.base.polish_tooltip') }}" {% endif %}><img src="/img/poland.png" alt="Poland flag" width="30" height="28"></a>
+        <a href="/change-language?lang=pl" {% if locale=='pl' %} class="active" data-tooltip="{{ __('base.polish_tooltip') }}" {% endif %}><img src="/img/poland.png" alt="Poland flag" width="30" height="28"></a>
         <a href="/change-language?lang=en" {% if locale=='en' %} class="active" data-tooltip="{{ __('base.base.english_tooltip') }}" {% endif %}><img src="/img/united-kingdom.png" alt="UK flag" width="30" height="28"></a>
         <a href="/change-language?lang=de" {% if locale=='de' %} class="active" data-tooltip="{{ __('base.german_tooltip') }}" {% endif %}><img src="/img/germany.png" alt="Germany flag" width="30" height="28"></a>
         <a href="/change-language?lang=nl" {% if locale=='nl' %} class="active" data-tooltip="{{ __('base.netherlands_tooltip') }}" {% endif %}><img src="/img/netherlands.png" alt="Netherlands flag" width="30" height="28"></a>
@@ -395,6 +434,14 @@
         window.userLoggedIn = {{ (owner or admin or isEmployee) | dump }};
         window.isGroup = {{ isGroup | dump }};
         window.isGroupShop = {{ isGroupShop | dump }};
+        window.groupType = {{ groupType | dump | safe }};
+        {# Konto podrzędne grupy typu `client` (services/groupType.js) nie dostaje
+           w `user-info` danych grupy-MATKI (nazwa + mail) — dla klienta grupy są
+           mylące. Sama filia (nazwa konta) zostaje, patrz base.js. #}
+        window.hideParentUserInfo = {{ hideUserInfo | dump }};
+        {# Aktywny kontekst konta podrzędnego grupy — skrypty muszą wiedzieć, że
+           zamówienie zakładane „na klienta" nie jest zwykłym zamówieniem grupy. #}
+        window.groupShopContextId = {% if groupShopContext %}{{ groupShopContext.id }}{% else %}null{% endif %};
         window.hidePrices = {{ hidePrices | dump }};
         window.priceFactor = {{ priceFactor | dump | default("1") }};
         window.canViewSubPrices = {{ canViewSubPrices | dump | default("false") }};

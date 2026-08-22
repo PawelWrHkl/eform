@@ -79,6 +79,12 @@
                   {% endblock content %}
                   {% block scripts %}
                     {# VAT block gated by features.vat (config.js) — see form.njk. #}
+                    {# Rabat klienta grupy (`group_user.discount_percent`) — doliczany po
+                       przeliczeniu ceny przez silnik, patrz pricesCalculator.js
+                       (applyClientDiscount). 0 = brak rabatu, czyli zachowanie jak dotąd. #}
+                    <script>
+                      window.clientDiscountPercent = {{ clientDiscountPercent | default(0) | dump | safe }};
+                    </script>
                     {% if vatEnabled %}
                     <script>
                       window.vatEnabled = true;

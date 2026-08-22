@@ -2,6 +2,7 @@ import {
     generateForm,
     buildCommentSpace,
     buildVatFields,
+    buildClientDiscountFields,
     getTotal,
     recalculateLastChangedField
 
@@ -274,6 +275,7 @@ async function init() {
         // Built before forceRecalculation() so applyVatToGrossValue() (called from the
         // standard updateFieldStates pipeline that forceRecalculation triggers) finds
         // #WARTOSC_BRUTTO already in the DOM and fills it on this same recalc pass.
+        buildClientDiscountFields(formDiv);
         buildVatFields(formDiv);
 
         // Force full recalculation so all formulas/scripts run with the new schema rules.

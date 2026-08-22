@@ -2,6 +2,7 @@ import {
 	generateForm,
 	buildCommentSpace,
 	buildVatFields,
+	buildClientDiscountFields,
 	recalculateLastChangedField,
 	getTotal
 } from "/scripts/form.js";
@@ -212,6 +213,9 @@ async function buildDynamicForm(version, groupNumber, config = null) {
 
 	const orderId = document.getElementById('orderId').textContent;
 	const comment = buildCommentSpace(formContainer);
+	// Rabat PRZED blokiem VAT — VAT liczy się od kwoty po rabacie, a
+	// `buildVatFields()` dokłada na końcu jeszcze pola załączników.
+	buildClientDiscountFields(formContainer);
 	buildVatFields(formContainer);
 	setTimeout(() => {
 		console.log('siema eniu shortjson')

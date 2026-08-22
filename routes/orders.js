@@ -7,6 +7,8 @@ const fs = require('fs');
 const adminDb = require("../db/admin/db_helper.js");
 const orderService = require('../services/orderService.js');
 const ownerService = require('../services/owner.js');
+const { getActiveGroupShopId } = require('../services/groupContext');
+const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const mailBot = require('../services/mailBot/mailBot');
 const path = require('path');
 const OrderSender = require("../services/sendOrderService");
@@ -23,7 +25,7 @@ const { availabeLanguages } = require('../config');
 const { translateOrderItems } = require('../services/translationDict/itemTranslator');
 const { buildItemProductionDays, recalcAndSaveMaxProdDays, getOrderDeliveryDelay } = require('../services/productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../utils/productionSendGuard');
-const { getOrderMutationBlock, shouldRedirectFromActiveOrderView } = require('../utils/orderStatusGuard');
+const { getOrderMutationBlock, shouldRedirectFromActiveOrderView, getClientGroupOrderBlock } = require('../utils/orderStatusGuard');
 const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../services/confirmationPolicy');
 const { resolveVatLocals, vatFeatureEnabled } = require('../services/vatCalculator');
 
@@ -50,6 +52,21 @@ async function rejectSentOrderMutation(res, orderId, req) {
         return res.status(403).json(block);
     }
     return null;
+}
+
+/**
+ * Wersja bramki „zamówienie klienta grupy" dla EKRANÓW (GET): zamiast 403 w
+ * JSON-ie wraca przekierowanie do podglądu zamówienia. Sam zapis i tak jest
+ * odcięty w `getOrderMutationBlock`, ale bez tego grupa dostawałaby formularz
+ * edycji, który przy zapisie odbija się o 403 — mylące.
+ */
+async function redirectClientGroupOrder(req, res) {
+    const block = await getClientGroupOrderBlock(req.params.orderId, req?.session?.user);
+    if (block) {
+        res.redirect(block.redirect);
+        return true;
+    }
+    return false;
 }
 
 
@@ -100,6 +117,10 @@ router.get('/search', requireLogin, async (req, res) => {
             prodStatus:   req.query.prodStatus   || null,
             sentDateFrom: req.query.sentDateFrom || null,
             sentDateTo:   req.query.sentDateTo   || null,
+            // Wyszukiwarka musi widzieć to samo, co lista: zakres konta
+            // podrzędnego (sesja sklepu albo kontekst grupy). Bez tego sklep
+            // znajdował w wyszukiwaniu WSZYSTKIE zamówienia grupy-matki.
+            groupUserId:  getActiveGroupShopId(req),
         };
 
         const [orders, totalOrders] = await Promise.all([
@@ -132,13 +153,19 @@ router.get('/edit/:orderId', requireLogin, async (req, res) => {
     if (await redirectSentOrder(req, res)) {
         return;
     }
+    if (await redirectClientGroupOrder(req, res)) {
+        return;
+    }
 
     const currentUser = ownerService.getCurrentUser(req);
     const orderData = await db.getOrderDetails(req.params.orderId);
     let addr, emails;
 
-    if (req.session.user?.isGroupShop) {
-        const shop = await db.getGroupUserById(req.session.user.groupShopId);
+    // Dane adresowe konta podrzędnego — zarówno gdy sklep/klient jest zalogowany
+    // sam, jak i gdy grupa pracuje w jego kontekście (services/groupContext.js).
+    const activeShopId = getActiveGroupShopId(req);
+    if (activeShopId) {
+        const shop = await db.getGroupUserById(activeShopId);
         addr = shop ? [{ id: null, name: shop.name || shop.ident, phone: shop.phone || '', street: shop.street || '', city: shop.city || '', zip: shop.zip || '', country: '' }] : [];
         emails = (shop && shop.email) ? [{ id: null, email: shop.email }] : [];
     } else {
@@ -228,8 +255,12 @@ router.get("/", requireLogin, loadEmployeePermissions, filterPriceData, filterOr
     let orders, totalOrders;
     const currentUser = ownerService.getCurrentUser(req);
 
-    if (req.session.user?.isGroupShop) {
-        const groupShopId = req.session.user.groupShopId;
+    // Lista zamówień konta podrzędnego: dla samego sklepu/klienta ORAZ dla grupy
+    // pracującej w jego kontekście. ⚠️ `admin`/`owner`/`isEmployee` zostają na
+    // `false` także dla grupy — w kontekście oglądamy panel oczami tego konta,
+    // a przyciski administracyjne nie mają tu zastosowania.
+    const groupShopId = getActiveGroupShopId(req);
+    if (groupShopId) {
         [orders, totalOrders] = await Promise.all([
             db.getGroupShopOrders(groupShopId, limit, offset),
             db.countGroupShopOrders(groupShopId)
@@ -378,11 +409,11 @@ router.get("/history", requireLogin, loadEmployeePermissions, filterPriceData, f
     let status = new SyncProdStatus();
     const files = await status.init(user.orgIdent, user.userIdent);
 
-    if (req.session.user?.isGroupShop) {
-        const groupShopId = req.session.user.groupShopId;
+    const historyShopId = getActiveGroupShopId(req);
+    if (historyShopId) {
         [orders, totalOrders] = await Promise.all([
-            db.getGroupShopOrders(groupShopId, limit, offset, true),
-            db.countGroupShopOrders(groupShopId, true)
+            db.getGroupShopOrders(historyShopId, limit, offset, true),
+            db.countGroupShopOrders(historyShopId, true)
         ]);
     }
     // Filtrowanie zamówień na podstawie uprawnień pracownika (req.orderFilter)
@@ -516,8 +547,9 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
 router.get("/add-order", requireLogin, async (req, res) => {
     const currentUser = ownerService.getCurrentUser(req);
 
-    if (req.session.user?.isGroupShop) {
-        const shop = await db.getGroupUserById(req.session.user.groupShopId);
+    const addOrderShopId = getActiveGroupShopId(req);
+    if (addOrderShopId) {
+        const shop = await db.getGroupUserById(addOrderShopId);
         const shopAddr = shop ? [{
             id: null,
             name: shop.name || shop.ident,
@@ -576,6 +608,10 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
     const clientDiscount = await getPriceAfterDiscount(req.params.orderId);
     const currentUser = ownerService.getCurrentUser(req);
     const groupOrderShop = orderDetails?.group_user_id ? await db.getGroupUserById(orderDetails.group_user_id) : null;
+    // Zamówienie ZAŁOŻONE przez klienta grupy: grupa-matka typu `client` ma tu
+    // sam podgląd i zatwierdzenie (utils/orderStatusGuard.js). Widok musi to
+    // wiedzieć, żeby nie pokazywać przycisków, które i tak odbiją się o 403.
+    const clientOwnedOrder = !!(await getClientGroupOrderBlock(req.params.orderId, req.session?.user));
     const productionOrderOverrideClient = getProductionSendSkipClient(currentUser, [groupOrderShop, orderDetails]);
     const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
     if (orderItems) {
@@ -594,6 +630,7 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render('order_prices.njk', {
                 orderDetails,
+                clientOwnedOrder,
                 orderItems,
                 heads,
                 cleanOrderItems,
@@ -618,6 +655,7 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
             console.log(cleanOrderItems, 'CLEAN ORDER ITEMS IN ORDER VIEW');
             res.render('order.njk', {
                 orderDetails,
+                clientOwnedOrder,
                 orderItems,
                 heads,
                 cleanOrderItems,
@@ -643,7 +681,7 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
             return;
         }
     } else {
-        res.render('order.njk', { orderDetails, hidePrices: req.hidePrices });
+        res.render('order.njk', { orderDetails, clientOwnedOrder, hidePrices: req.hidePrices });
     }
 });
 
@@ -696,6 +734,13 @@ router.post('/order/:orderId/set-discount', requireLogin, checkOrderOwnership, a
     try {
         const { discountPercentage, discountValue } = req.body;
         const orderId = req.params.orderId;
+        // ⚠️ Ta trasa nie miała ŻADNEJ bramki mutacji (stan sprzed zmiany) —
+        // dokładam tylko regułę „zamówienie klienta grupy", żeby nie zmieniać
+        // przy okazji zachowania dla zamówień wysłanych/w korekcie.
+        const clientGroupBlock = await getClientGroupOrderBlock(orderId, req.session?.user);
+        if (clientGroupBlock) {
+            return res.status(403).json(clientGroupBlock);
+        }
         const result = await db.saveDiscount(orderId, discountPercentage, discountValue);
         if (result) {
             return res.json({
@@ -894,6 +939,9 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
     if (await redirectSentOrder(req, res)) {
         return;
     }
+    if (await redirectClientGroupOrder(req, res)) {
+        return;
+    }
 
     // VAT rule: domestic sale (organization country == logged-in user's
     // country) uses that country's own rate; cross-border sale is VAT-exempt
@@ -903,7 +951,12 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
     // no locals, so form.njk renders no VAT markup at all.
     const vatLocals = vatFeatureEnabled ? await resolveVatLocals(req) : {};
 
-    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, ...vatLocals });
+    // Rabat klienta grupy (`group_user.discount_percent`) — liczony z konta
+    // podrzędnego przypisanego do ZAMÓWIENIA, więc wychodzi ten sam niezależnie
+    // od tego, czy pozycję konfiguruje klient, czy grupa w jego kontekście.
+    const clientDiscountPercent = await resolveClientDiscountForOrder(req.params.orderId);
+
+    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, clientDiscountPercent, ...vatLocals });
 });
 
 
@@ -1021,6 +1074,20 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         });
     }
 
+    // Grupa typu `client` nie wysyła zamówienia klienta TĄ trasą — robi to
+    // przez zatwierdzenie w panelu grupy (`/group/approve-order/:orderId`),
+    // które dokłada etykietę i adres konta podrzędnego. Ukrycie przycisku w
+    // szablonach samo nie wystarcza: adres da się wywołać z palca.
+    const clientGroupSendBlock = await getClientGroupOrderBlock(req.params.orderId, req.session?.user);
+    if (clientGroupSendBlock) {
+        return res.status(403).json({
+            success: false,
+            status: 'error',
+            message: 'Zamówienie klienta zatwierdzasz i wysyłasz z panelu grupy.',
+            redirect: '/group/panel?tab=pending'
+        });
+    }
+
     try {
         let extraMail = process.env.EXTRA_MAIL ? process.env.EXTRA_MAIL.split(',') : false;
         const id = req.params.orderId;
@@ -1047,7 +1114,16 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         const sender = new OrderSender.OrderSender(req, orderDetails, orderItems);
         const sendData = await sender.init()
         const forceProductionSend = shouldForceProductionSend(req.body?.productionOrder);
-        const ignoredProductionClient = getProductionSendSkipClient(orderDetails, [], { forceProductionSend });
+        // Zamówienie konta podrzędnego grupy (sklep/klient) — ten tor obsługuje
+        // je, gdy wysyła grupa-matka (także pracując w kontekście konta) albo
+        // admin. ⚠️ Identyfikator konta podrzędnego musi wejść do sprawdzenia
+        // `ignore_mail_list.json`, tak jak w torze zatwierdzania z panelu grupy
+        // (`routes/group.js`) — inaczej ta sama wysyłka byłaby raz pomijana,
+        // a raz nie, zależnie od miejsca kliknięcia.
+        const orderShop = orderDetails?.group_user_id
+            ? await db.getGroupUserById(orderDetails.group_user_id)
+            : null;
+        const ignoredProductionClient = getProductionSendSkipClient(orderDetails, orderShop?.ident, { forceProductionSend });
         await sender.saveToFile({ forceProductionSend });
 
         if (ignoredProductionClient) {
@@ -1058,6 +1134,12 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         const currentUser = ownerService.getCurrentUser(req);
         const user = await db.getUserData(currentUser?.pin)
         const clientName = formatClientLabel(user.client_name, user.ident)
+        // W mailu widać, dla którego sklepu/klienta grupy jest zamówienie —
+        // ten sam format co przy zatwierdzaniu z panelu grupy. Produkcyjny PDF
+        // zostaje przy samej etykiecie klienta (bez zmian).
+        const mailClientName = orderShop
+            ? `${clientName} / ${orderShop.name || orderShop.ident} (id: ${orderShop.id})`
+            : clientName;
         const photoFile = await db.getUserLogo(currentUser?.pin)
         const logoPath = path.join(__dirname, '../img/', photoFile)
         const heads = Object.keys(orderItems[0].json_parameters);
@@ -1080,6 +1162,13 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             confirmationEmail = mail.user_email;
         } else {
             confirmationEmail = mail.user_email;
+        }
+        // Zamówienie sklepu/klienta grupy: adres konta podrzędnego ma
+        // pierwszeństwo — tak jak w torze zatwierdzania z panelu grupy.
+        // Na produkcji bez `client_ab` ląduje w BCC, przy `client_ab` jest
+        // głównym odbiorcą (services/confirmationPolicy.js).
+        if (orderShop?.email) {
+            confirmationEmail = orderShop.email;
         }
 
         const totalPrice = await db.getTotal(id);
@@ -1140,7 +1229,7 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             pdf,
             attachments,
             {
-                klient: clientName,
+                klient: mailClientName,
                 orderNr: orderIdx,
                 logoPath: logoPath,
                 orderDetails: sendData,
@@ -1179,8 +1268,11 @@ router.post('/copy/:orderId', checkOrderOwnership, requireLogin, async (req, res
         sendAddress = await db.duplicateSendAddress(orderDetails.send_address_id);
     }
 
-    const groupUserId = req.session.user?.isGroupShop ? req.session.user.groupShopId : null;
-    const newOrderId = await db.insertNewOrder(orderDetails.commision, orderDetails.delivery_address_id || null, orderDetails.user_id, orderDetails.comment, sendAddress, 0, null, orderDetails.contact_info_id || null, groupUserId);
+    // Kopia dziedziczy konto podrzędne po AKTYWNYM kontekście, nie po źródle —
+    // tak samo jak nowe zamówienie niżej.
+    const groupUserId = getActiveGroupShopId(req);
+    const createdByGroupUserId = req.session.user?.isGroupShop ? (req.session.user.groupShopId || null) : null;
+    const newOrderId = await db.insertNewOrder(orderDetails.commision, orderDetails.delivery_address_id || null, orderDetails.user_id, orderDetails.comment, sendAddress, 0, null, orderDetails.contact_info_id || null, groupUserId, createdByGroupUserId);
     if (!newOrderId) {
         return res.status(500).json({ status: "error", message: "Nie udało się skopiować zamówienia" });
     }
@@ -1246,13 +1338,18 @@ router.post('/save-order', requireLogin, async (req, res) => {
         }
 
         const currentUser = ownerService.getCurrentUser(req);
-        const groupUserId = req.session.user?.isGroupShop ? req.session.user.groupShopId : null;
+        const groupUserId = getActiveGroupShopId(req);
+        // Autorstwo: konto podrzędne zapisujemy TYLKO gdy zakłada je ono samo.
+        // Grupa pracująca w kontekście klienta pozostaje autorem — inaczej
+        // zablokowałaby sobie edycję zamówienia, które właśnie utworzyła
+        // (utils/orderStatusGuard.js).
+        const createdByGroupUserId = req.session.user?.isGroupShop ? (req.session.user.groupShopId || null) : null;
         let id = 0;
         if (req.session.user.isEmployee) {
-            id = await db.insertNewOrder(commission, addrId, currentUser.userId, comment, sendAddrId, 0, req.session?.employee.id ?? null, mailId, groupUserId);
+            id = await db.insertNewOrder(commission, addrId, currentUser.userId, comment, sendAddrId, 0, req.session?.employee.id ?? null, mailId, groupUserId, createdByGroupUserId);
         }
         else {
-            id = await db.insertNewOrder(commission, addrId, currentUser.userId, comment, sendAddrId, 0, null, mailId, groupUserId);
+            id = await db.insertNewOrder(commission, addrId, currentUser.userId, comment, sendAddrId, 0, null, mailId, groupUserId, createdByGroupUserId);
         }
         if (!id) {
             return res.status(500).json({ status: "error", message: "Nie udało się utworzyć zamówienia. Skontaktuj się z administratorem." });

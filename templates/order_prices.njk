@@ -2,6 +2,8 @@
 {% block print_space %}
   <div id="generate-container" class='me-3 d-none d-md-flex'>
     {% block edit_order_btn %}
+      {# Zamówienie klienta grupy — bez edycji, patrz utils/orderStatusGuard.js #}
+      {% if not clientOwnedOrder %}
       <a
         href="/orders/edit/{{ orderDetails.id }}"
         class="action-btn action-btn-edit row me-2"
@@ -9,6 +11,7 @@
         type="button">
         {{ __('edit_order.title') }}
       </a>
+      {% endif %}
     {% endblock %}
     {% if not isHklClient %}
     <button id="lockBtn" class="btn">
@@ -91,6 +94,10 @@
                     <td
                       class="d-flex align-items-center">
 
+                      {# Pozycje zamówienia klienta grupy: bez przenoszenia, duplikowania,
+                         edycji i usuwania — grupa-matka typu `client` ma sam podgląd
+                         (utils/orderStatusGuard.js). #}
+                      {% if not clientOwnedOrder %}
                       <div class="position-controls d-flex flex-column align-items-center me-2">
                         <button class="btn move-up-btn has-tooltip" data-tooltip="{{ __('order.move_up') }}" data-id="{{ rowObj.item.id }}" onclick="event.stopPropagation()">
                           <svg viewbox="0 0 16 16">
@@ -116,6 +123,7 @@
                           <button class="action-btn action-btn-delete p-1 delete-position-btn has-tooltip" data-tooltip="{{ __('order.delete_pos') }}" type="button" data-id="{{ rowObj.item.id }}" data-href="/position/{{ rowObj.item.id }}/delete" onclick="event.stopPropagation()">
                             <img src="/img/delete.png" alt="{{ __('order.delete') }}"/>
                           </button>
+                      {% endif %}
                         {% endblock %}
                       </td>
                       <th scope="row">{{ globalIndex }}</th>
@@ -443,6 +451,10 @@
                                     {% endif %}
                                     <div class="mobile-item-actions">
                                       <div
+                                        {# Pozycje zamówienia klienta grupy: bez przenoszenia, duplikowania,
+                                           edycji i usuwania — grupa-matka typu `client` ma sam podgląd
+                                           (utils/orderStatusGuard.js). #}
+                                        {% if not clientOwnedOrder %}
                                         class="position-controls d-flex flex-column align-items-start me-2"
                                         style="display: inline-flex !important; flex-direction: row !important;">
                                         <button class="btn move-up-btn has-tooltip" data-tooltip="{{ __('order.move_up') }}" data-id="{{ rowObj.item.id }}" onclick="event.stopPropagation()">
@@ -474,6 +486,7 @@
                                       <button class="action-btn action-btn-delete delete-position-btn" data-id="{{ rowObj.item.id }}" data-href="/position/{{ rowObj.item.id }}/delete" onclick="event.stopPropagation()">
                                         {{ __('order.delete') }}
                                       </button>
+                                        {% endif %}
                                     </div>
                                   </div>
                                 {% endfor %}

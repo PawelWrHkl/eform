@@ -4,7 +4,8 @@ const { log } = require('../utils/logging');
 
 async function getGroupUsersByParentId(parentUserId) {
     const query = `
-        SELECT id, user_id, ident, pin, plain, name, street, zip, city, phone, email, tax_id
+        SELECT id, user_id, ident, pin, plain, name, street, zip, city, phone, email, tax_id,
+               discount_percent
         FROM group_user
         WHERE user_id = ?
         ORDER BY id, ident
@@ -15,7 +16,8 @@ async function getGroupUsersByParentId(parentUserId) {
 
 async function getGroupUserById(id) {
     const query = `
-        SELECT id, user_id, ident, pin, name, street, zip, city, phone, email, tax_id
+        SELECT id, user_id, ident, pin, name, street, zip, city, phone, email, tax_id,
+               discount_percent
         FROM group_user
         WHERE id = ?
     `;
@@ -91,7 +93,8 @@ async function addGroupUser(data) {
         zip = '',
         city = '',
         phone = '',
-        email = ''
+        email = '',
+        discountPercent = 0
     } = data;
 
     const hashedPassword = bcrypt.hashSync(password, 12);
@@ -109,13 +112,13 @@ async function addGroupUser(data) {
 
     const query = `
         INSERT INTO group_user
-            (user_id, ident, pin, password, plain, name, street, zip, city, phone, email, tax_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+            (user_id, ident, pin, password, plain, name, street, zip, city, phone, email, tax_id, discount_percent)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
     `;
     try {
         const result = await insertQuery(query, [
             parentUserId, ident, pin, hashedPassword, password,
-            name, street, zip, city, phone, email
+            name, street, zip, city, phone, email, normalizeDiscountPercent(discountPercent)
         ]);
         return { success: true, id: result[0]?.insertId, ident, pin };
     } catch (err) {
@@ -137,16 +140,35 @@ async function updateGroupUser(id, data) {
         email = ''
     } = data;
 
-    const query = `
-        UPDATE group_user
-        SET name = ?, street = ?, zip = ?, city = ?, phone = ?, email = ?
-        WHERE id = ?
-    `;
-    await updateQuery(query, [
-        name, street, zip, city, phone, email,
-        id
-    ]);
+    // Rabat aktualizujemy TYLKO gdy wołający go podał — grupa typu `shop` nie
+    // ma tego pola w formularzu i nie może przez zapis danych adresowych
+    // wyczyścić rabatu ustawionego wcześniej (np. przez zmianę typu grupy).
+    const hasDiscount = data.discountPercent !== undefined && data.discountPercent !== null;
+
+    const query = hasDiscount
+        ? `UPDATE group_user
+           SET name = ?, street = ?, zip = ?, city = ?, phone = ?, email = ?, discount_percent = ?
+           WHERE id = ?`
+        : `UPDATE group_user
+           SET name = ?, street = ?, zip = ?, city = ?, phone = ?, email = ?
+           WHERE id = ?`;
+    const params = hasDiscount
+        ? [name, street, zip, city, phone, email, normalizeDiscountPercent(data.discountPercent), id]
+        : [name, street, zip, city, phone, email, id];
+
+    await updateQuery(query, params);
     return { success: true };
+}
+
+/**
+ * Rabat klienta grupy: procent w zakresie 0–100, zaokrąglony do dwóch miejsc.
+ * ⚠️ Zakres pilnujemy TUTAJ, a nie tylko w formularzu — pole edytuje grupa,
+ * a `DECIMAL(5,2)` przyjąłby 999.99 i pozycja policzyłaby się na minus.
+ */
+function normalizeDiscountPercent(value) {
+    const num = parseFloat(String(value ?? '').replace(',', '.'));
+    if (!Number.isFinite(num) || num <= 0) return 0;
+    return Math.min(100, Math.round(num * 100) / 100);
 }
 
 async function updateGroupUserPassword(id, password) {
@@ -265,6 +287,7 @@ async function getOrderCountsByShop(parentUserId) {
 }
 
 module.exports = {
+    normalizeDiscountPercent,
     getGroupUsersByParentId,
     getGroupUserById,
     getGroupUserByLogin,

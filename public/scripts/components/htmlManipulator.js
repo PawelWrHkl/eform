@@ -86,7 +86,11 @@ export function createInfoDialog({
     ],
     parent = null,
     input = null,
-    checkbox = null
+    checkbox = null,
+    // Klasa na samym <dialog> — pozwala zwężyć/przestylować KONKRETNY monit
+    // (np. `compact-dialog` przy kłódce rabatu) bez ruszania szerokich dialogów
+    // potwierdzeń, które dzielą ten sam element `#delete-dialog`.
+    className = ""
 } = {}) {
     if (!parent) throw new Error("Parent element is required!");
 
@@ -96,7 +100,9 @@ export function createInfoDialog({
         existingDialog.remove();
     }
 
-    const dialog = createElement("dialog", { id: "delete-dialog" }, parent);
+    const dialogAttrs = { id: "delete-dialog" };
+    if (className) dialogAttrs.class = className.split(" ").filter(Boolean);
+    const dialog = createElement("dialog", dialogAttrs, parent);
 
     if (title) {
         createElement("h3", { class: ["text-center"], id: "dialog-title", text: title }, dialog);

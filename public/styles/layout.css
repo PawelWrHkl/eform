@@ -17,6 +17,35 @@
 		position: relative;
 	}
 
+	/* Kontekst konta podrzędnego grupy (sklep/klient) — ta sama geometria co
+	   lista klientów ownera, żeby navbar nie zmieniał układu. */
+	#groupShopContextContainer {
+		max-width: 90%;
+		margin-bottom: 20px;
+		margin-left: 15px;
+		margin-top: 13px;
+		position: relative;
+	}
+
+	#groupShopContextContainer label {
+		font-weight: bold;
+	}
+
+	.group-context-chip {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 0.85rem;
+	}
+
+	.group-context-exit {
+		font-weight: 600;
+	}
+
+	html.nav-collapsed #groupShopContextContainer {
+		display: none;
+	}
+
 	.dropdown-item {
 		padding-top: 5% !important;
 		padding-bottom: 5% !important;

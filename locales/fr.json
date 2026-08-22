@@ -18,7 +18,12 @@
 		"country_placeholder": "Pays",
 		"comments": "Commentaires de la commande",
 		"comments_placeholder": "Commentaires",
-		"save_button": "Enregistrer"
+		"save_button": "Enregistrer",
+		"end_client": "Client final",
+		"end_client_placeholder": "Rechercher un client…",
+		"end_client_add": "Ajouter un client final",
+		"end_client_hint": "La commande sera liée au client choisi — la facture se crée depuis le panneau des factures.",
+		"end_client_link_error": "Impossible de lier le client final."
 	},
 	"base": {
 		"portal_title": "Portail de commandes HKL",
@@ -35,7 +40,11 @@
 		"city_country": "Ville :",
 		"user_id": "(Test) ID :",
 		"no_user_data": "Aucune donnée utilisateur.",
-		"tour": "Visite guidée"
+		"tour": "Visite guidée",
+		"polish_tooltip": "Polonais",
+		"german_tooltip": "Allemand",
+		"french_tooltip": "Français",
+		"netherlands_tooltip": "Néerlandais"
 	},
 	"edit_order": {
 		"title": "Modifier la commande",
@@ -74,7 +83,7 @@
 		"delete_address_dialog_info": "Voulez-vous vraiment supprimer l'adresse de livraison selectionnee ?",
 		"delete_mail_dialog_info": "Voulez-vous vraiment supprimer l'adresse e-mail selectionnee ?",
 		"production_time_label": "Delai de production :",
-		"production_time_short_label": "Delai prod. :",
+		"production_time_short_label": "Délai de production",
 		"commission_time_prefix": "commande",
 		"days_label": "jours",
 		"delete_order": "Supprimer la commande",
@@ -137,7 +146,8 @@
 		"link_save": "Enregistrer",
 		"link_group_label": "Groupe",
 		"link_move_here": "Déplacer la sélection ici",
-		"link_delete_group": "Supprimer le groupe"
+		"link_delete_group": "Supprimer le groupe",
+		"duplicate": "Dupliquer"
 	},
 	"orders": {
 		"title": "Vos commandes",
@@ -151,7 +161,9 @@
 		"no_orders": "Aucune commande.",
 		"add_first_order": "Ajoutez une nouvelle commande pour commencer.",
 		"add_order_btn": "Ajouter une commande",
-		"saved_success_label": "Données enregistrées avec succès"
+		"saved_success_label": "Données enregistrées avec succès",
+		"all_users": "Tous les utilisateurs",
+		"copied_success_label": "La commande a été copiée."
 	},
 	"form": {
 		"title": "Formulaire HKL",
@@ -184,10 +196,13 @@
 		"check_word": "Sélectionner",
 		"check_option": "Sélectionner une option",
 		"search_input_placeholder": "Rechercher par nom...",
-		"empty_select_warning": "Aucune option sélectionnée.",
+		"empty_select_warning": "Sélectionnez une valeur dans la liste.",
 		"all_word": "Tous",
-		"validation_error": "Vérifiez l'exactitude des valeurs",
-		"manual_override": "Saisir manuellement"
+		"validation_error": "Vérifiez les valeurs saisies.",
+		"manual_override": "Saisir manuellement",
+		"client_discount_label": "Remise client",
+		"value_after_discount_label": "Valeur après remise",
+		"client_discount_unlock": "Saisissez votre mot de passe pour voir la remise"
 	},
 	"employee": {
 		"panel_title": "Gestion des employés",
@@ -287,7 +302,7 @@
 		"dont_show": "Ne plus afficher"
 	},
 	"mail": {
-		"import_note": "Cette commande a été importée automatiquement depuis un système externe.",
+		"import_note": "Cette commande a été importée automatiquement depuis un fichier.",
 		"correction_subject": "CORRECTION DE PRIX – commande",
 		"correction_title": "Correction des prix de commande",
 		"correction_body_1": "Nous vous informons que les prix de votre commande n° {{orderNr}} ont été corrigés par l'administrateur.",
@@ -485,5 +500,63 @@
 		"go_to_customer": "Aller au client",
 		"add_another": "En ajouter un autre",
 		"back_to_list": "Retour à la liste"
+	},
+	"group": {
+		"client": {
+			"panel_subtitle": "Gérez les clients et leurs commandes",
+			"shops_label": "Clients",
+			"tab_shops": "Clients",
+			"add_shop_btn": "Ajouter un client",
+			"add_first_shop_btn": "Ajouter le premier client",
+			"back_to_shops": "Retour aux clients",
+			"filter_all_shops": "Tous les clients",
+			"filter_aria": "Filtre de client",
+			"filter_shop_label": "Filtrer le client",
+			"col_shop": "Client",
+			"alert_shop_added": "Le client a été ajouté.",
+			"alert_shop_updated": "Le client a été mis à jour.",
+			"alert_shop_deleted": "Le client a été supprimé.",
+			"alert_shop_notfound": "Client introuvable ou pas d'autorisation.",
+			"error_delete": "Échec de la suppression du client.",
+			"modal_delete_shop_title": "Supprimer le client",
+			"modal_delete_shop_q": "Voulez-vous vraiment supprimer le client",
+			"modal_delete_shop_confirm": "Oui, supprimer",
+			"modal_reject_body": "La commande sera remise au statut « active » et le client pourra la modifier.",
+			"modal_reject_warn": "Le client pourra à nouveau modifier la commande.",
+			"no_orders_active_desc": "Aucune commande active des clients.",
+			"no_orders_sent_desc": "Aucune commande envoyée des clients.",
+			"no_shops_title": "Aucun client",
+			"no_shops_desc": "Vous n'avez pas encore de clients.",
+			"shops_empty": "Vous n'avez pas encore de clients.",
+			"shops_page_title": "Vos clients",
+			"show_shop_orders_title": "Afficher les commandes du client",
+			"pending_empty_desc": "Toutes les commandes des clients ont déjà été approuvées.",
+			"pending_h2": "Commandes clients en attente",
+			"shop_form_title_new": "Ajouter un client",
+			"shop_form_title_edit": "Modifier le client",
+			"sf_shop_name": "Nom du client",
+			"sf_shop_name_hint": "Nom descriptif affiché dans le panneau à côté de l'identifiant.",
+			"sf_shop_name_placeholder": "p. ex. Jean Dupont",
+			"sf_save_new": "Ajouter un client",
+			"shop_orders_h2": "Commandes des clients",
+			"shop_orders_page_title": "Commandes des clients",
+			"shop_orders_empty_active": "Aucune commande active des clients.",
+			"shop_orders_empty_sent": "Aucune commande envoyée des clients.",
+			"submit_for_approval_message": "Voulez-vous vraiment envoyer la commande pour approbation ?",
+			"form_error_add_shop": "Erreur lors de l'ajout du client.",
+			"context_select_label": "Travailler comme client",
+			"context_select_placeholder": "Choisir un client",
+			"context_hint": "Les commandes créées dans ce contexte sont attribuées au client choisi."
+		},
+		"context_select_label": "Travailler comme boutique",
+		"context_select_placeholder": "Choisir une boutique",
+		"context_hint": "Les commandes créées dans ce contexte sont attribuées à la boutique choisie.",
+		"context_active": "Vous travaillez comme",
+		"context_exit": "Quitter le contexte",
+		"context_enter": "Entrer dans le contexte",
+		"sf_discount": "Remise client (%)",
+		"sf_discount_hint": "Appliquée automatiquement après le calcul du prix de la position de ce client. 0 = aucune remise.",
+		"col_discount": "Remise",
+		"discount_save": "Enregistrer la remise"
 	}
 }

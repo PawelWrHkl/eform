@@ -260,6 +260,16 @@ async function getUserRole(pin) {
     return result && result.length > 0 ? result[0].role : null;
 }
 
+// Odmiana modułu grupowego (kolumna `user.group_type`): `shop` — klasyczna
+// grupa ze sklepami/filiami, `client` — grupa zarządzająca własnymi klientami.
+// Pusta wartość znaczy „jak dotąd", czyli `shop` — istniejące konta grupowe
+// nie mogą zmienić wyglądu panelu tylko dlatego, że kolumna jest NULL.
+async function getUserGroupType(pin) {
+    const query = `SELECT group_type FROM \`user\` WHERE pin LIKE ?`;
+    const result = await selectQuery(query, [pin]);
+    return result && result.length > 0 ? result[0].group_type : null;
+}
+
 
 
 async function addUser(userData) {
@@ -590,6 +600,7 @@ module.exports = {
     insertUserIntousrtble,
     updatePasswordInUsrtblpsswd,
     getUserRole,
+    getUserGroupType,
     getUsersFromUsrtblpsswd,
     getIntroNeeded,
     setIntroNeeded,

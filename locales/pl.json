@@ -18,7 +18,12 @@
 		"country_placeholder": "Kraj",
 		"comments": "Uwagi do zamówienia",
 		"comments_placeholder": "Uwagi",
-		"save_button": "Zapisz"
+		"save_button": "Zapisz",
+		"end_client": "Odbiorca końcowy",
+		"end_client_placeholder": "Szukaj odbiorcy…",
+		"end_client_add": "Dodaj odbiorcę końcowego",
+		"end_client_hint": "Zamówienie zostanie powiązane z wybranym odbiorcą — fakturę wystawisz z panelu faktur.",
+		"end_client_link_error": "Nie udało się powiązać odbiorcy końcowego."
 	},
 	"base": {
 		"portal_title": "Portal zamówień HKL",
@@ -35,7 +40,11 @@
 		"city_country": "Miasto:",
 		"user_id": "(Testowo) ident:",
 		"no_user_data": "Brak danych użytkownika.",
-		"tour": "Przewodnik"
+		"tour": "Przewodnik",
+		"polish_tooltip": "Polski",
+		"german_tooltip": "Niemiecki",
+		"french_tooltip": "Francuski",
+		"netherlands_tooltip": "Niderlandzki"
 	},
 	"edit_order": {
 		"title": "Edytuj zamówienie",
@@ -74,7 +83,7 @@
 		"delete_address_dialog_info": "Czy na pewno usunąć wybrany adres dostawy?",
 		"delete_mail_dialog_info": "Czy na pewno usunąć wybrany adres email?",
 		"production_time_label": "Termin produkcji:",
-		"production_time_short_label": "Termin prod.:",
+		"production_time_short_label": "Czas produkcji",
 		"commission_time_prefix": "commision",
 		"days_label": "dni",
 		"delete_order": "Usuń zamówienie",
@@ -137,7 +146,8 @@
 		"link_save": "Zapisz",
 		"link_group_label": "Grupa",
 		"link_move_here": "Przenieś zaznaczone tutaj",
-		"link_delete_group": "Usuń grupę"
+		"link_delete_group": "Usuń grupę",
+		"duplicate": "Duplikuj"
 	},
 	"orders": {
 		"title": "Twoje Zamówienia",
@@ -151,7 +161,9 @@
 		"no_orders": "Brak Zamówień.",
 		"add_first_order": "Dodaj nowe zamówienie, aby rozpocząć.",
 		"add_order_btn": "Dodaj zamówienie",
-		"saved_success_label": "Pomyślnie zapisano dane"
+		"saved_success_label": "Pomyślnie zapisano dane",
+		"all_users": "Wszyscy użytkownicy",
+		"copied_success_label": "Zamówienie zostało skopiowane."
 	},
 	"form": {
 		"title": "Formularz HKL",
@@ -184,14 +196,17 @@
 		"check_word": "Wybierz",
 		"check_option": "Wybierz opcję",
 		"search_input_placeholder": "Wyszukaj po nazwie...",
-		"empty_select_warning": "Nie wybrano żadnej opcji.",
+		"empty_select_warning": "Wybierz wartość z listy.",
 		"all_word": "Wszystkie",
 		"status_zero": "Niedostępne",
 		"status_safe": "Dostępne",
 		"status_low": "Niski stan",
 		"status_critical": "Stan krytyczny",
-		"validation_error": "Sprawdź poprawność wartości",
-		"manual_override": "Wpisz ręcznie"
+		"validation_error": "Sprawdź poprawność wartości.",
+		"manual_override": "Wpisz ręcznie",
+		"client_discount_label": "Rabat klienta",
+		"value_after_discount_label": "Wartość po rabacie",
+		"client_discount_unlock": "Podaj hasło, aby zobaczyć rabat"
 	},
 	"mail": {
 		"order_confirm": "mail.order_confirm",
@@ -200,7 +215,7 @@
 		"see_order": "mail.see_order",
 		"footer_1": "mail.footer_1",
 		"footer_2": "mail.footer_2",
-		"import_note": "To zamówienie zostało zaimportowane automatycznie z systemu zewnętrznego.",
+		"import_note": "Zamówienie zostało wczytane automatycznie z pliku importu.",
 		"correction_subject": "KOREKTA CEN – zamówienie",
 		"correction_title": "Korekta cen zamówienia",
 		"correction_body_1": "Uprzejmie informujemy, że ceny w Twoim zamówieniu nr {{orderNr}} zostały skorygowane przez administratora.",
@@ -495,5 +510,63 @@
 		"go_to_customer": "Przejdź do klienta",
 		"add_another": "Dodaj kolejnego",
 		"back_to_list": "Wróć do listy"
+	},
+	"group": {
+		"client": {
+			"panel_subtitle": "Zarządzaj klientami i ich zamówieniami",
+			"shops_label": "Klienci",
+			"tab_shops": "Klienci",
+			"add_shop_btn": "Dodaj klienta",
+			"add_first_shop_btn": "Dodaj pierwszego klienta",
+			"back_to_shops": "Wróć do klientów",
+			"filter_all_shops": "Wszyscy klienci",
+			"filter_aria": "Filtr klientów",
+			"filter_shop_label": "Filtruj klienta",
+			"col_shop": "Klient",
+			"alert_shop_added": "Klient został dodany.",
+			"alert_shop_updated": "Dane klienta zostały zaktualizowane.",
+			"alert_shop_deleted": "Klient został usunięty.",
+			"alert_shop_notfound": "Nie znaleziono klienta lub brak uprawnień.",
+			"error_delete": "Nie udało się usunąć klienta.",
+			"modal_delete_shop_title": "Usuń klienta",
+			"modal_delete_shop_q": "Czy na pewno chcesz usunąć klienta",
+			"modal_delete_shop_confirm": "Tak, usuń",
+			"modal_reject_body": "Zamówienie zostanie cofnięte do statusu „aktywne” i klient będzie mógł je edytować.",
+			"modal_reject_warn": "Klient będzie mógł ponownie edytować zamówienie.",
+			"no_orders_active_desc": "Brak aktywnych zamówień klientów.",
+			"no_orders_sent_desc": "Brak wysłanych zamówień klientów.",
+			"no_shops_title": "Brak klientów",
+			"no_shops_desc": "Nie masz jeszcze żadnych klientów.",
+			"shops_empty": "Nie masz jeszcze żadnych klientów.",
+			"shops_page_title": "Twoi klienci",
+			"show_shop_orders_title": "Pokaż zamówienia klienta",
+			"pending_empty_desc": "Wszystkie zamówienia klientów zostały już zatwierdzone.",
+			"pending_h2": "Oczekujące zamówienia klientów",
+			"shop_form_title_new": "Dodaj klienta",
+			"shop_form_title_edit": "Edytuj klienta",
+			"sf_shop_name": "Nazwa klienta",
+			"sf_shop_name_hint": "Opisowa nazwa wyświetlana w panelu obok identyfikatora.",
+			"sf_shop_name_placeholder": "np. Jan Kowalski",
+			"sf_save_new": "Dodaj klienta",
+			"shop_orders_h2": "Zamówienia klientów",
+			"shop_orders_page_title": "Zamówienia klientów",
+			"shop_orders_empty_active": "Brak aktywnych zamówień klientów.",
+			"shop_orders_empty_sent": "Brak wysłanych zamówień klientów.",
+			"submit_for_approval_message": "Czy na pewno chcesz wysłać zamówienie do zatwierdzenia?",
+			"form_error_add_shop": "Błąd podczas dodawania klienta.",
+			"context_select_label": "Pracuj jako klient",
+			"context_select_placeholder": "Wybierz klienta",
+			"context_hint": "Zamówienia zakładane w kontekście trafiają do wybranego klienta."
+		},
+		"context_select_label": "Pracuj jako sklep",
+		"context_select_placeholder": "Wybierz sklep",
+		"context_hint": "Zamówienia zakładane w kontekście trafiają do wybranego sklepu.",
+		"context_active": "Pracujesz jako",
+		"context_exit": "Wyjdź z kontekstu",
+		"context_enter": "Wejdź w kontekst",
+		"sf_discount": "Rabat klienta (%)",
+		"sf_discount_hint": "Doliczany automatycznie po przeliczeniu ceny pozycji tego klienta. 0 = brak rabatu.",
+		"col_discount": "Rabat",
+		"discount_save": "Zapisz rabat"
 	}
 }

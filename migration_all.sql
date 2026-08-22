@@ -160,3 +160,13 @@ ALTER TABLE `order_address`
 -- `employee.can_manage_customers` i indeksu `user.idx_user_ident`).
 --
 --   source migration_organization_customers.sql
+
+-- ── 9. `order.created_by_group_user_id` (kto założył zamówienie) ──
+-- Pełna treść i uzasadnienie: migration_order_created_by_group_user.sql
+--
+--   source migration_order_created_by_group_user.sql
+
+-- ── 10. `group_user.discount_percent` (rabat klienta grupy) ───────
+-- Pełna treść i uzasadnienie: migration_group_user_discount.sql
+--
+--   source migration_group_user_discount.sql

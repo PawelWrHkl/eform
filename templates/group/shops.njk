@@ -1,5 +1,5 @@
 {% extends "base.njk" %}
-{% block title %}{{ __('group.shops_page_title') }}{% endblock %}
+{% block title %}{{ __(gk('shops_page_title')) }}{% endblock %}
 
 {% block head %}
     <link rel="stylesheet" href="/styles/group/shops.css">
@@ -18,27 +18,27 @@
         <div class="container my-4">
 
             <div class="d-flex align-items-center justify-content-between mb-4">
-                <h2 class="mb-0">{{ __('group.shops_page_title') }}</h2>
+                <h2 class="mb-0">{{ __(gk('shops_page_title')) }}</h2>
                 <a href="/group/shops/new" class="action-btn action-btn-add">
-                    + {{ __('group.add_shop_btn') }}
+                    + {{ __(gk('add_shop_btn')) }}
                 </a>
             </div>
 
             {% if success === 'added' %}
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    {{ __('group.alert_shop_added') }}
+                    {{ __(gk('alert_shop_added')) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             {% elif success === 'updated' %}
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    {{ __('group.alert_shop_updated') }}
+                    {{ __(gk('alert_shop_updated')) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             {% endif %}
 
             {% if error === 'notfound' %}
                 <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                    {{ __('group.alert_shop_notfound') }}
+                    {{ __(gk('alert_shop_notfound')) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             {% endif %}
@@ -91,9 +91,9 @@
                 </div>
             {% else %}
                 <div class="empty-state text-center py-5">
-                    <p class="text-muted mb-3">{{ __('group.shops_empty') }}</p>
+                    <p class="text-muted mb-3">{{ __(gk('shops_empty')) }}</p>
                     <a href="/group/shops/new" class="action-btn action-btn-add">
-                        + {{ __('group.add_first_shop_btn') }}
+                        + {{ __(gk('add_first_shop_btn')) }}
                     </a>
                 </div>
             {% endif %}
@@ -106,11 +106,11 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">{{ __('group.modal_delete_shop_title') }}</h5>
+                    <h5 class="modal-title">{{ __(gk('modal_delete_shop_title')) }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    {{ __('group.modal_delete_shop_q') }}
+                    {{ __(gk('modal_delete_shop_q')) }}
                     <strong id="deleteShopName"></strong>?
                     <br>
                     <small class="text-muted">{{ __('group.modal_irreversible') }}</small>

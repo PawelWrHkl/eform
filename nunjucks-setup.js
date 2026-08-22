@@ -4,6 +4,7 @@ let env = null;
 const { defaultLanguage } = require('./config');
 const { log } = require('./utils/logging');
 const { pdfValueParts } = require('./utils/pdfValueParts');
+const { groupLabelKey } = require('./services/groupType');
 module.exports = {
   configure: (app) => {
     if (!env) {
@@ -19,6 +20,15 @@ module.exports = {
         const lang = ctx && ctx.lang ? ctx.lang : defaultLanguage;
         log(lang)
         return i18n.__(key, { locale: lang });
+      });
+
+      // Etykiety modułu grupowego zależne od `user.group_type`: `gk('tab_shops')`
+      // zwraca `group.client.tab_shops` dla grupy typu `client`, a `group.tab_shops`
+      // dla klasycznej grupy ze sklepami. Wołane jako `__(gk('...'))`, żeby cała
+      // reszta mechaniki tłumaczeń (locale, fallback) została bez zmian.
+      env.addGlobal('gk', function (key) {
+        const ctx = this.getVariables();
+        return groupLabelKey(key, ctx && ctx.groupType);
       });
 
       // Filtr do mnożenia cen przez faktor (wizualny, tylko dla pracownika)

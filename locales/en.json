@@ -18,7 +18,12 @@
 		"country_placeholder": "Country",
 		"comments": "Order Comments",
 		"comments_placeholder": "Comments",
-		"save_button": "Save"
+		"save_button": "Save",
+		"end_client": "End client",
+		"end_client_placeholder": "Search for a client…",
+		"end_client_add": "Add end client",
+		"end_client_hint": "The order will be linked to the selected client — you can invoice it from the invoices panel.",
+		"end_client_link_error": "Failed to link the end client."
 	},
 	"base": {
 		"portal_title": "HKL Order Portal",
@@ -37,7 +42,11 @@
 		"no_user_data": "No user data.",
 		"organization": "Organization",
 		"turn_off_context": "Turn off context",
-		"tour": "Tour"
+		"tour": "Tour",
+		"polish_tooltip": "Polish",
+		"german_tooltip": "German",
+		"french_tooltip": "French",
+		"netherlands_tooltip": "Dutch"
 	},
 	"edit_order": {
 		"title": "Edit Order",
@@ -76,7 +85,7 @@
 		"delete_address_dialog_info": "Are you sure you want to delete the selected delivery address?",
 		"delete_mail_dialog_info": "Are you sure you want to delete the selected email address?",
 		"production_time_label": "Production time:",
-		"production_time_short_label": "Prod. time:",
+		"production_time_short_label": "Production time",
 		"commission_time_prefix": "commission",
 		"days_label": "days",
 		"delete_order": "Delete order",
@@ -137,7 +146,9 @@
 		"link_save": "Save",
 		"link_group_label": "Group",
 		"link_move_here": "Move selected here",
-		"link_delete_group": "Delete group"
+		"link_delete_group": "Delete group",
+		"duplicate": "Duplicate",
+		"error_word": "Error"
 	},
 	"orders": {
 		"title": "Your Orders",
@@ -150,7 +161,9 @@
 		"send": "send",
 		"no_orders": "No orders.",
 		"add_first_order": "Add a new order to get started.",
-		"add_order_btn": "Add order"
+		"add_order_btn": "Add order",
+		"all_users": "All users",
+		"copied_success_label": "The order has been copied."
 	},
 	"form": {
 		"title": "HKL Form",
@@ -183,16 +196,19 @@
 		"vat_reason_unknown": "country data missing",
 		"check_word": "Check",
 		"search_input_placeholder": "Search by name...",
-		"empty_select_warning": "No option selected.",
+		"empty_select_warning": "Select a value from the list.",
 		"all_word": "All",
 		"status": "Stock status",
 		"status_zero": "Unavailable",
 		"status_safe": "Available",
 		"status_low": "Low stock",
 		"status_critical": "Critical stock",
-		"validation_error": "Check the correctness of the values",
+		"validation_error": "Check the entered values.",
 		"reset_filters": "Reset filters",
-		"manual_override": "Enter manually"
+		"manual_override": "Enter manually",
+		"client_discount_label": "Client discount",
+		"value_after_discount_label": "Value after discount",
+		"client_discount_unlock": "Enter your password to see the discount"
 	},
 	"employee": {
 		"panel_title": "Employee Management",
@@ -292,7 +308,7 @@
 		"dont_show": "Don't show again"
 	},
 	"mail": {
-		"import_note": "This order was automatically imported from an external system.",
+		"import_note": "This order was imported automatically from a file.",
 		"correction_subject": "PRICE CORRECTION – order",
 		"correction_title": "Order Price Correction",
 		"correction_body_1": "We would like to inform you that the prices in your order no. {{orderNr}} have been corrected by the administrator.",
@@ -489,5 +505,63 @@
 		"go_to_customer": "Go to customer",
 		"add_another": "Add another",
 		"back_to_list": "Back to list"
+	},
+	"group": {
+		"client": {
+			"panel_subtitle": "Manage clients and their orders",
+			"shops_label": "Clients",
+			"tab_shops": "Clients",
+			"add_shop_btn": "Add client",
+			"add_first_shop_btn": "Add first client",
+			"back_to_shops": "Back to clients",
+			"filter_all_shops": "All clients",
+			"filter_aria": "Client filter",
+			"filter_shop_label": "Filter client",
+			"col_shop": "Client",
+			"alert_shop_added": "Client has been added.",
+			"alert_shop_updated": "Client has been updated.",
+			"alert_shop_deleted": "Client has been deleted.",
+			"alert_shop_notfound": "Client not found or no permission.",
+			"error_delete": "Failed to delete client.",
+			"modal_delete_shop_title": "Delete client",
+			"modal_delete_shop_q": "Are you sure you want to delete the client",
+			"modal_delete_shop_confirm": "Yes, delete",
+			"modal_reject_body": "The order will be reverted to \"active\" status and the client will be able to edit it.",
+			"modal_reject_warn": "The client will be able to edit the order again.",
+			"no_orders_active_desc": "No active client orders.",
+			"no_orders_sent_desc": "No sent client orders.",
+			"no_shops_title": "No clients",
+			"no_shops_desc": "You don't have any clients yet.",
+			"shops_empty": "You don't have any clients yet.",
+			"shops_page_title": "Your clients",
+			"show_shop_orders_title": "Show client orders",
+			"pending_empty_desc": "All client orders have already been approved.",
+			"pending_h2": "Pending client orders",
+			"shop_form_title_new": "Add client",
+			"shop_form_title_edit": "Edit client",
+			"sf_shop_name": "Client name",
+			"sf_shop_name_hint": "Descriptive name displayed in the panel next to the identifier.",
+			"sf_shop_name_placeholder": "e.g. John Smith",
+			"sf_save_new": "Add client",
+			"shop_orders_h2": "Client orders",
+			"shop_orders_page_title": "Client orders",
+			"shop_orders_empty_active": "No active client orders.",
+			"shop_orders_empty_sent": "No sent client orders.",
+			"submit_for_approval_message": "Are you sure you want to submit the order for approval?",
+			"form_error_add_shop": "Error while adding the client.",
+			"context_select_label": "Work as client",
+			"context_select_placeholder": "Select client",
+			"context_hint": "Orders created in this context are assigned to the selected client."
+		},
+		"context_select_label": "Work as shop",
+		"context_select_placeholder": "Select shop",
+		"context_hint": "Orders created in this context are assigned to the selected shop.",
+		"context_active": "Working as",
+		"context_exit": "Exit context",
+		"context_enter": "Enter context",
+		"sf_discount": "Client discount (%)",
+		"sf_discount_hint": "Applied automatically after the position price is calculated for this client. 0 = no discount.",
+		"col_discount": "Discount",
+		"discount_save": "Save discount"
 	}
 }

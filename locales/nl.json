@@ -18,7 +18,12 @@
 		"country_placeholder": "Land",
 		"comments": "Opmerkingen bij bestelling",
 		"comments_placeholder": "Opmerkingen",
-		"save_button": "Opslaan"
+		"save_button": "Opslaan",
+		"end_client": "Eindklant",
+		"end_client_placeholder": "Klant zoeken…",
+		"end_client_add": "Eindklant toevoegen",
+		"end_client_hint": "De bestelling wordt gekoppeld aan de gekozen klant — de factuur maak je in het facturenpaneel.",
+		"end_client_link_error": "Kan de eindklant niet koppelen."
 	},
 	"base": {
 		"portal_title": "HKL Bestelportaal",
@@ -35,7 +40,11 @@
 		"city_country": "Stad:",
 		"user_id": "(Test) ID:",
 		"no_user_data": "Geen gebruikersgegevens.",
-		"tour": "Rondleiding"
+		"tour": "Uitleg",
+		"polish_tooltip": "Pools",
+		"german_tooltip": "Duits",
+		"french_tooltip": "Frans",
+		"netherlands_tooltip": "Nederlands"
 	},
 	"edit_order": {
 		"title": "Bestelling bewerken",
@@ -74,7 +83,7 @@
 		"delete_address_dialog_info": "Weet u zeker dat u het geselecteerde afleveradres wilt verwijderen?",
 		"delete_mail_dialog_info": "Weet u zeker dat u het geselecteerde e-mailadres wilt verwijderen?",
 		"production_time_label": "Productietijd:",
-		"production_time_short_label": "Prod.-tijd:",
+		"production_time_short_label": "Productietijd",
 		"commission_time_prefix": "opdracht",
 		"days_label": "dagen",
 		"delete_order": "Bestelling verwijderen",
@@ -137,7 +146,8 @@
 		"link_save": "Opslaan",
 		"link_group_label": "Groep",
 		"link_move_here": "Selectie hierheen verplaatsen",
-		"link_delete_group": "Groep verwijderen"
+		"link_delete_group": "Groep verwijderen",
+		"duplicate": "Kopieren"
 	},
 	"orders": {
 		"title": "Uw bestellingen",
@@ -151,7 +161,9 @@
 		"no_orders": "Geen bestellingen.",
 		"add_first_order": "Voeg een nieuwe bestelling toe om te beginnen.",
 		"add_order_btn": "Bestelling toevoegen",
-		"saved_success_label": "Gegevens succesvol opgeslagen"
+		"saved_success_label": "Gegevens succesvol opgeslagen",
+		"all_users": "Alle gebruikers",
+		"copied_success_label": "De bestelling is gekopieerd."
 	},
 	"form": {
 		"title": "HKL Formulier",
@@ -184,10 +196,13 @@
 		"check_word": "Selecteer",
 		"check_option": "Selecteer optie",
 		"search_input_placeholder": "Zoek op naam...",
-		"empty_select_warning": "Geen optie geselecteerd.",
+		"empty_select_warning": "Kies een waarde uit de lijst.",
 		"all_word": "Alle",
-		"validation_error": "Controleer de juistheid van de waarden",
-		"manual_override": "Handmatig invoeren"
+		"validation_error": "Controleer de ingevoerde waarden.",
+		"manual_override": "Handmatig invoeren",
+		"client_discount_label": "Klantkorting",
+		"value_after_discount_label": "Waarde na korting",
+		"client_discount_unlock": "Voer je wachtwoord in om de korting te zien"
 	},
 	"employee": {
 		"panel_title": "Medewerkersbeheer",
@@ -287,7 +302,7 @@
 		"dont_show": "Niet meer tonen"
 	},
 	"mail": {
-		"import_note": "Deze bestelling is automatisch geïmporteerd uit een extern systeem.",
+		"import_note": "Deze bestelling is automatisch uit een importbestand ingelezen.",
 		"correction_subject": "PRIJSCORRECTIE – bestelling",
 		"correction_title": "Prijscorrectie van bestelling",
 		"correction_body_1": "Wij informeren u dat de prijzen in uw bestelling nr. {{orderNr}} door de beheerder zijn gecorrigeerd.",
@@ -485,5 +500,63 @@
 		"go_to_customer": "Naar klant",
 		"add_another": "Nog een toevoegen",
 		"back_to_list": "Terug naar lijst"
+	},
+	"group": {
+		"client": {
+			"panel_subtitle": "Beheer klanten en hun bestellingen",
+			"shops_label": "Klanten",
+			"tab_shops": "Klanten",
+			"add_shop_btn": "Klant toevoegen",
+			"add_first_shop_btn": "Voeg eerste klant toe",
+			"back_to_shops": "Terug naar klanten",
+			"filter_all_shops": "Alle klanten",
+			"filter_aria": "Klantfilter",
+			"filter_shop_label": "Klant filteren",
+			"col_shop": "Klant",
+			"alert_shop_added": "Klant is toegevoegd.",
+			"alert_shop_updated": "Klant is bijgewerkt.",
+			"alert_shop_deleted": "Klant is verwijderd.",
+			"alert_shop_notfound": "Klant niet gevonden of geen toestemming.",
+			"error_delete": "Klant verwijderen mislukt.",
+			"modal_delete_shop_title": "Klant verwijderen",
+			"modal_delete_shop_q": "Weet je zeker dat je de klant wilt verwijderen",
+			"modal_delete_shop_confirm": "Ja, verwijderen",
+			"modal_reject_body": "De bestelling wordt teruggezet naar de status \"actief\" en de klant kan deze bewerken.",
+			"modal_reject_warn": "De klant kan de bestelling opnieuw bewerken.",
+			"no_orders_active_desc": "Geen actieve bestellingen van klanten.",
+			"no_orders_sent_desc": "Geen verzonden bestellingen van klanten.",
+			"no_shops_title": "Geen klanten",
+			"no_shops_desc": "Je hebt nog geen klanten.",
+			"shops_empty": "Je hebt nog geen klanten.",
+			"shops_page_title": "Jouw klanten",
+			"show_shop_orders_title": "Klantbestellingen weergeven",
+			"pending_empty_desc": "Alle klantbestellingen zijn al goedgekeurd.",
+			"pending_h2": "Klantbestellingen in afwachting",
+			"shop_form_title_new": "Klant toevoegen",
+			"shop_form_title_edit": "Klant bewerken",
+			"sf_shop_name": "Klantnaam",
+			"sf_shop_name_hint": "Beschrijvende naam die naast de identificator in het paneel wordt weergegeven.",
+			"sf_shop_name_placeholder": "bijv. Jan Kowalski",
+			"sf_save_new": "Klant toevoegen",
+			"shop_orders_h2": "Klantbestellingen",
+			"shop_orders_page_title": "Klantbestellingen",
+			"shop_orders_empty_active": "Geen actieve bestellingen van klanten.",
+			"shop_orders_empty_sent": "Geen verzonden bestellingen van klanten.",
+			"submit_for_approval_message": "Weet je zeker dat je de bestelling ter goedkeuring wilt versturen?",
+			"form_error_add_shop": "Fout bij het toevoegen van de klant.",
+			"context_select_label": "Werken als klant",
+			"context_select_placeholder": "Klant kiezen",
+			"context_hint": "Bestellingen die in deze context worden aangemaakt, gaan naar de gekozen klant."
+		},
+		"context_select_label": "Werken als winkel",
+		"context_select_placeholder": "Winkel kiezen",
+		"context_hint": "Bestellingen die in deze context worden aangemaakt, gaan naar de gekozen winkel.",
+		"context_active": "Je werkt als",
+		"context_exit": "Context verlaten",
+		"context_enter": "Context openen",
+		"sf_discount": "Klantkorting (%)",
+		"sf_discount_hint": "Wordt automatisch toegepast na het berekenen van de prijs van de positie van deze klant. 0 = geen korting.",
+		"col_discount": "Korting",
+		"discount_save": "Korting opslaan"
 	}
 }

@@ -428,6 +428,10 @@ const searchMount = document.getElementById('orders-search-mount');
 const isSent = searchMount?.dataset.sent === 'true';
 const isEmployee = searchMount?.dataset.isEmployee === 'true';
 const isOrganization = searchMount?.dataset.organization === 'true';
+// Kolumna z firmą konta podrzędnego — wiersze wyszukiwarki muszą mieć tyle samo
+// komórek, co wiersze wyrenderowane przez serwer (templates/orders.njk), inaczej
+// po wpisaniu frazy tabela rozjeżdża się o jedną kolumnę.
+const isGroup = window.isGroup === true;
 const orderPath = isSent ? '/orders/history/order' : '/orders/order';
 
 function renderTableRow(order) {
@@ -492,6 +496,7 @@ function renderTableRow(order) {
 	return `<tr onclick="window.location.href='${orderPath}/${id}'" class="order-row" data-commission="${escapeHtml(order.commision)}">
 		<th scope="row">${escapeHtml(order.order_idx)}</th>
 		${isOrganization ? `<td>${escapeHtml(order.user_ident || '')}${order.user_name ? ` (${escapeHtml(order.user_name)})` : ''}</td>` : ''}
+		${isGroup ? `<td>${order.shop_ident || order.shop_name ? `${escapeHtml(order.shop_ident || order.shop_name)}${order.shop_ident && order.shop_name ? ` (${escapeHtml(order.shop_name)})` : ''}` : '—'}</td>` : ''}
 		<td>${escapeHtml(order.commision)}${order.name ? ` (${escapeHtml(order.name)} ${escapeHtml(order.surname)})` : ''}</td>
 		<td>${escapeHtml(order.created_date)}</td>
 		${extraCells}${actionBtns}
@@ -548,6 +553,7 @@ function renderMobileCard(order) {
 			<span class="mobile-order-number">#${escapeHtml(order.order_idx)}</span>
 			<span class="mobile-order-date">${escapeHtml(order.created_date)}</span>
 		</div>
+		${isGroup && (order.shop_name || order.shop_ident) ? `<div class="mobile-order-client text-muted" style="font-size:0.85rem;">${escapeHtml(order.shop_ident || order.shop_name)}${order.shop_ident && order.shop_name ? ` (${escapeHtml(order.shop_name)})` : ''}</div>` : ''}
 		<div class="mobile-order-commission">${escapeHtml(order.commision)}</div>
 		${isOrganization && order.user_ident ? `<div class="mobile-order-client text-muted" style="font-size:0.85rem;">${escapeHtml(order.user_ident)}${order.user_name ? ` (${escapeHtml(order.user_name)})` : ''}</div>` : ''}
 		${extraInfo}

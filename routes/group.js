@@ -15,6 +15,9 @@ const path = require('path');
 const { log } = require('../utils/logging');
 const { formatClientLabel } = require('../utils/formatClient');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../utils/productionSendGuard');
+const { groupLabelKey } = require('../services/groupType');
+const { setGroupShopContext, clearGroupShopContext, getGroupShopContext } = require('../services/groupContext');
+const { isClientGroupType } = require('../services/groupType');
 
 // ── Middleware: wszystkie trasy wymagają zalogowania i roli 'group' ──────────
 
@@ -83,6 +86,11 @@ router.post('/shops', async (req, res, next) => {
             });
         }
 
+        // Rabat przyjmujemy WYŁĄCZNIE od grupy typu `client` — dla klasycznej
+        // grupy ze sklepami pola nie ma w formularzu i nie może wjechać z
+        // podrobionego POST-a (patrz services/groupDiscount.js).
+        const acceptsDiscount = isClientGroupType(currentUser.groupType);
+
         const result = await db.addGroupUser({
             parentUserId: currentUser.userId,
             password,
@@ -91,14 +99,15 @@ router.post('/shops', async (req, res, next) => {
             zip: (zip || '').trim(),
             city: (city || '').trim(),
             phone: (phone || '').trim(),
-            email: (email || '').trim()
+            email: (email || '').trim(),
+            discountPercent: acceptsDiscount ? req.body.discountPercent : 0
         });
 
         if (!result.success) {
             return res.render('group/shop_form.njk', {
                 shop: req.body,
                 mode: 'new',
-                error: req.__('group.form_error_add_shop')
+                error: req.__(groupLabelKey('form_error_add_shop', currentUser.groupType))
             });
         }
 
@@ -141,13 +150,18 @@ router.post('/shops/:id', async (req, res, next) => {
 
         const { password, street, zip, city, phone, email } = req.body;
 
+        // `discountPercent: undefined` = nie ruszaj rabatu (grupa typu `shop`
+        // nie ma tego pola) — patrz db/group.js updateGroupUser.
+        const acceptsDiscount = isClientGroupType(currentUser.groupType);
+
         await db.updateGroupUser(id, {
             name: (req.body.name || '').trim(),
             street: (street || '').trim(),
             zip: (zip || '').trim(),
             city: (city || '').trim(),
             phone: (phone || '').trim(),
-            email: (email || '').trim()
+            email: (email || '').trim(),
+            discountPercent: acceptsDiscount ? (req.body.discountPercent ?? 0) : undefined
         });
 
         if (password && password.trim()) {
@@ -157,6 +171,44 @@ router.post('/shops/:id', async (req, res, next) => {
         return res.redirect('/group/panel?tab=shops&success=updated');
     } catch (err) {
         log('[group/shops/:id POST] Error:', err);
+        return next(err);
+    }
+});
+
+// ── POST /group/shops/:id/discount ─ szybka zmiana rabatu z panelu ───────────
+// Osobna, wąska trasa (a nie pełny zapis konta), żeby zmiana rabatu z tabeli
+// nie wymagała wchodzenia w formularz i nie przepisywała danych adresowych.
+// ⚠️ Zwykły formularz HTML, bez JS-u: panel grupy ma działać także wtedy, gdy
+// skrypt się nie wykona (ta sama zasada co przy wylogowaniu w base.njk).
+
+router.post('/shops/:id/discount', async (req, res, next) => {
+    try {
+        const currentUser = ownerService.getCurrentUser(req);
+        const id = parseInt(req.params.id, 10);
+        const shop = await db.getGroupUserById(id);
+
+        if (!shop || shop.user_id !== currentUser.userId) {
+            return res.redirect('/group/panel?tab=shops&error=notfound');
+        }
+        // Rabat należy do modułu grupy typu `client` — grupa ze sklepami nie ma
+        // tego pola nawet w widoku, więc trasa też go dla niej nie przyjmuje.
+        if (!isClientGroupType(currentUser.groupType)) {
+            return res.redirect('/group/panel?tab=shops&error=notfound');
+        }
+
+        await db.updateGroupUser(id, {
+            name: shop.name || '',
+            street: shop.street || '',
+            zip: shop.zip || '',
+            city: shop.city || '',
+            phone: shop.phone || '',
+            email: shop.email || '',
+            discountPercent: req.body.discountPercent ?? 0
+        });
+
+        return res.redirect('/group/panel?tab=shops&success=updated');
+    } catch (err) {
+        log('[group/shops/:id/discount POST] Error:', err);
         return next(err);
     }
 });
@@ -178,6 +230,30 @@ router.delete('/shops/:id', async (req, res, next) => {
     } catch (err) {
         log('[group/shops DELETE] Error:', err);
         return res.status(500).json({ success: false, message: req.__('group.error_server') });
+    }
+});
+
+// ── Kontekst konta podrzędnego ───────────────────────────────────────────────
+// Odpowiednik kontekstu klienta u admina: grupa „wchodzi" w swój sklep/klienta
+// i od tej pory widzi jego zamówienia, zakłada je na niego i wysyła jako on.
+// ⚠️ `/clear` MUSI stać przed `/:shopId`, inaczej Express dopasuje „clear" jako
+// identyfikator i kontekst nigdy by się nie wyłączył.
+
+router.get('/context/clear', async (req, res) => {
+    clearGroupShopContext(req);
+    return res.redirect(req.query.redirect || '/orders');
+});
+
+router.get('/context/:shopId', async (req, res, next) => {
+    try {
+        const context = await setGroupShopContext(req, req.params.shopId);
+        if (!context) {
+            return res.redirect('/group/panel?tab=shops&error=notfound');
+        }
+        return res.redirect(req.query.redirect || '/orders');
+    } catch (err) {
+        log('[group/context GET] Error:', err);
+        return next(err);
     }
 });
 

@@ -4,6 +4,18 @@ window.t = function (key) {
   return key.split('.').reduce((o, k) => (o || {})[k], window.translations) || key;
 };
 
+// Odpowiednik serwerowego `gk()` (services/groupType.js) dla skryptów: etykiety
+// modułu grupowego w odmianie `client` mają własne brzmienie w `group.client.*`.
+// Gdy tłumaczenia nie ma, wracamy do `group.*` — inaczej `t()` pokazałby surowy
+// klucz.
+window.gk = function (key) {
+  const short = String(key || '').replace(/^group\./, '');
+  if (window.groupType === 'client' && window.translations?.group?.client?.[short]) {
+    return `group.client.${short}`;
+  }
+  return `group.${short}`;
+};
+
 window.loadTranslations = async function (lang) {
   try {
     const res = await fetch(`/translations?lang=${lang}`);

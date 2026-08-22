@@ -93,6 +93,12 @@
                     {# Whole VAT block only exists while features.vat is on (config.js).
                        Off — production default — nothing below is emitted, so
                        window.vatEnabled stays undefined and form.js builds no VAT fields. #}
+                    {# Rabat klienta grupy (`group_user.discount_percent`) — doliczany po
+                       przeliczeniu ceny przez silnik, patrz pricesCalculator.js
+                       (applyClientDiscount). 0 = brak rabatu, czyli zachowanie jak dotąd. #}
+                    <script>
+                      window.clientDiscountPercent = {{ clientDiscountPercent | default(0) | dump | safe }};
+                    </script>
                     {% if vatEnabled %}
                     <script>
                       // Server-computed VAT rate (services/vatCalculator.js) — domestic sale

@@ -4,7 +4,8 @@ const multer = require('multer');
 const { requireLogin } = require('../middleware/loginMixture');
 const { loadEmployeePermissions, filterPriceData } = require('../middleware/employeePermissions');
 const db = require("../db/db_helper.js");
-const { getOrderMutationBlock } = require('../utils/orderStatusGuard');
+const { getOrderMutationBlock, getClientGroupOrderBlock } = require('../utils/orderStatusGuard');
+const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const adminDb = require("../db/admin/db_helper.js");
 const ownerService = require('../services/owner.js');
 const fs = require('fs');
@@ -255,9 +256,19 @@ router.get('/:positionId/edit/', requireLogin, loadEmployeePermissions, filterPr
     if (await isOrderSent(orderId)) {
       return res.redirect(sentOrderPath(orderId));
     }
+    // Pozycja zamówienia założonego przez klienta grupy: grupa-matka typu
+    // `client` ma sam podgląd, więc formularz edycji nawet się nie otwiera
+    // (zapis jest odcięty w getOrderMutationBlock).
+    const clientGroupBlock = await getClientGroupOrderBlock(orderId, req.session?.user);
+    if (clientGroupBlock) {
+      return res.redirect(clientGroupBlock.redirect);
+    }
 
     const vatLocals = await resolveVatLocals(req);
-    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, ...vatLocals })
+    // Ten sam rabat co przy zakładaniu pozycji — inaczej edycja pozycji
+    // zapisałaby cenę bez rabatu (services/groupDiscount.js).
+    const clientDiscountPercent = await resolveClientDiscountForOrder(orderId);
+    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, clientDiscountPercent, ...vatLocals })
   }
   else {
     return res.status(400).json({

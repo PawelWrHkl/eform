@@ -69,6 +69,131 @@ function formatSpecDisplay(raw) {
 }
 
 /**
+ * Rabat klienta grupy (`group_user.discount_percent`, wstrzykiwany jako
+ * `window.clientDiscountPercent` — patrz services/groupDiscount.js).
+ *
+ * ⚠️ **Rabat dotyczy WYŁĄCZNIE cen `SUB___*`** — czyli ceny klienta. Zwykłe
+ * (katalogowe) ceny i suma `total`/`total_hidden` zostają nietknięte, bo to nie
+ * cena, którą klient płaci.
+ *
+ * ⚠️ **Żaden WIDOCZNY wiersz ceny nie jest zmieniany** (decyzja właściciela,
+ * 2026-08-21): `SUB___SUMA_BRUTTO` i pozostałe sumy pokazują dokładnie to, co
+ * policzył silnik — tak samo w formularzu i w podglądzie zamówienia. Wcześniej
+ * skalowaliśmy tu wiersze `listsum`, co dawało dwa objawy: cena klienta po
+ * zapisie „schodziła" o rabat (choć rabat ma być ukryty), a w podglądzie ta sama
+ * kwota pojawiała się dwa razy — raz jako suma, raz jako „wartość po rabacie".
+ * Rabat siedzi teraz WYŁĄCZNIE w dwóch ukrytych wierszach `SUB___RABAT_KLIENTA`
+ * (%) i `SUB___WARTOSC_PO_RABACIE` (kwota po rabacie) oraz w `total_sub`
+ * liczonym w `form.js getTotal()`.
+ *
+ * ⚠️ **Rabat NIE jest wpisywany do wartości parametrów silnika.** Formuły w
+ * `param.txt` liczą się łańcuchowo z `values` (SUB___CENA → SUB___CENA_SUMA →
+ * SUB___SUMA_BRUTTO → SUB___WARTOSC_KONCOWA), a `updateFieldStates` przelicza je
+ * przy każdej zmianie pola. Gdyby rabat nadpisywał np. `SUB___CENA`, kolejne
+ * przeliczenie policzyłoby sumy z już zrabatowanej ceny i rabat naliczałby się
+ * wielokrotnie.
+ *
+ * ⚠️ Rabat NIE wpływa na VAT ani na `WARTOSC_BRUTTO` — te liczą się od
+ * nierabatowanego netto, tak jak przed wprowadzeniem rabatu.
+ *
+ * Zwraca mnożnik (np. 0.9 dla 10%).
+ */
+export function clientDiscountFactor() {
+    const pct = Number(window.clientDiscountPercent) || 0;
+    if (!(pct > 0)) return 1;
+    return 1 - Math.min(100, pct) / 100;
+}
+
+/** Klucze wierszy rabatu w `displayValues` — z prefiksem SUB___, patrz niżej. */
+const CLIENT_DISCOUNT_KEYS = ['SUB___RABAT_KLIENTA', 'SUB___WARTOSC_PO_RABACIE'];
+
+/**
+ * ⚠️ Rejestracja w `window.subParams` i `window.lockedParams` jest KONIECZNA:
+ * `createForm.js hideSub/hideLocked` przy każdym przeliczeniu przepisuje flagi
+ * `sub`/`locked` WSZYSTKICH wpisów `displayValues` z tych dwóch list. Bez tego
+ * wiersze rabatu traciły `sub: true`/`locked: true` przy najbliższej zmianie
+ * pola i (zależnie od momentu zapisu) mogły trafić do bazy jako zwykły,
+ * widoczny wiersz obok cen katalogowych.
+ */
+function registerClientDiscountKeys() {
+    if (!Array.isArray(window.subParams)) window.subParams = [];
+    if (!Array.isArray(window.lockedParams)) window.lockedParams = [];
+    for (const key of CLIENT_DISCOUNT_KEYS) {
+        if (!window.subParams.includes(key)) window.subParams.push(key);
+        if (!window.lockedParams.includes(key)) window.lockedParams.push(key);
+    }
+}
+
+export function applyClientDiscount(values, displayValues) {
+    const pct = Number(window.clientDiscountPercent) || 0;
+    if (!(pct > 0)) return;
+    const factor = clientDiscountFactor();
+    registerClientDiscountKeys();
+
+    // Podstawa rabatu: WYŁĄCZNIE cena klienta z łańcucha SUB___. Brak tych
+    // parametrów (np. organizacja HKL, gdzie SUB___ nie występuje) = nie ma
+    // czego rabatować — pokazujemy sam procent i nie ruszamy żadnej sumy.
+    const rawSubNet = values['SUB___SUMA_BRUTTO'] !== undefined
+        ? values['SUB___SUMA_BRUTTO']
+        : values['SUB___WARTOSC_KONCOWA'];
+    const netValue = parseFloat(rawSubNet);
+
+    const afterDiscount = Number.isFinite(netValue)
+        ? parseFloat((netValue * factor).toFixed(2))
+        : NaN;
+
+    // Pola informacyjne w formularzu (form.js → buildClientDiscountFields).
+    values['RABAT_KLIENTA'] = pct;
+    if (Number.isFinite(afterDiscount)) values['WARTOSC_PO_RABACIE'] = afterDiscount;
+
+    const discountInput = document.getElementById('RABAT_KLIENTA');
+    if (discountInput) discountInput.value = `${pct}%`;
+    const afterInput = document.getElementById('WARTOSC_PO_RABACIE');
+    if (afterInput && Number.isFinite(afterDiscount)) afterInput.value = afterDiscount;
+
+    if (!displayValues) return;
+
+    // ⚠️ NIE ruszamy wierszy `listsum` — widoczne sumy zostają takie, jak je
+    // policzył silnik (patrz opis funkcji). Rabat wchodzi do zapisywanej sumy
+    // klienta dopiero w `form.js getTotal()`.
+
+    // Wiersze widoczne w podglądzie zamówienia i na dokumencie — ta sama
+    // nomenklatura co przy VAT (`sub` dla klienta spoza HKL).
+    // ⚠️ Wiersze rabatu zapisujemy pod kluczami `SUB___*`, bo o tym, czy wiersz
+    // jest ceną klienta, decyduje po stronie serwera PREFIKS KLUCZA, a nie flaga
+    // `sub`: `services/orderService.js` wrzuca do `item.subParamValues` tylko
+    // `key.startsWith('SUB___')`. Bez prefiksu rabat wyświetlał się w tabeli
+    // razem z cenami katalogowymi. Ten sam zabieg co przy VAT
+    // (`SUB___VAT`/`SUB___WARTOSC_VAT`) — identyfikatory pól w formularzu
+    // zostają bez prefiksu.
+    //
+    // ⚠️ `locked: true` — rabat ma być domyślnie UKRYTY i pokazywać się razem z
+    // cenami zablokowanymi („złotymi"), czyli po odblokowaniu kłódką
+    // (`order.njk`: wiersz SUB renderuje się przy `not entry.locked or prices`).
+    const existingDiscount = displayValues.get('SUB___RABAT_KLIENTA') || {};
+    displayValues.set('SUB___RABAT_KLIENTA', {
+        param_description: existingDiscount.param_description || t('form.client_discount_label'),
+        option_value: `${pct}%`,
+        option_description: '',
+        locked: true,
+        sub: true,
+        row: existingDiscount.row || '2'
+    });
+
+    if (Number.isFinite(afterDiscount)) {
+        const existingAfter = displayValues.get('SUB___WARTOSC_PO_RABACIE') || {};
+        displayValues.set('SUB___WARTOSC_PO_RABACIE', {
+            param_description: existingAfter.param_description || t('form.value_after_discount_label'),
+            option_value: String(afterDiscount),
+            option_description: '',
+            locked: true,
+            sub: true,
+            row: existingAfter.row || '2'
+        });
+    }
+}
+
+/**
  * Fills the read-only WARTOSC_VAT (VAT amount in currency) and WARTOSC_BRUTTO
  * fields (built by form.js's buildVatFields()) from SUB___SUMA_BRUTTO + the
  * server-computed VAT rate (window.vatRate, see services/vatCalculator.js).
@@ -102,6 +227,12 @@ export function applyVatToGrossValue(values, displayValues) {
     // the templates). Off: no VAT keys in values/displayValues, nothing saved.
     if (!window.vatEnabled) return;
 
+    // ⚠️ TYMCZASOWO: konto podrzędne grupy (`group_user`) nie widzi VAT-u na
+    // żadnym etapie, więc nie liczymy go wcale — żaden klucz VAT nie wejdzie do
+    // `values`/`displayValues`, a więc i do zapisanej pozycji
+    // (form.js buildVatFields też nie tworzy dla niego pól).
+    if (window.isGroupShop) return;
+
     const bruttoInput = document.getElementById('WARTOSC_BRUTTO');
     if (!bruttoInput) return;
     const vatValueInput = document.getElementById('WARTOSC_VAT');
@@ -120,6 +251,11 @@ export function applyVatToGrossValue(values, displayValues) {
         if (Number.isFinite(netValue)) break;
     }
     if (!Number.isFinite(netValue)) return;
+
+    // ⚠️ Rabat klienta grupy NIE wchodzi do VAT-u ani do `WARTOSC_BRUTTO`
+    // (decyzja właściciela): kwota brutto ma zostać taka, jaka była przed
+    // wprowadzeniem rabatu, a rabat siedzi wyłącznie w ukrytym
+    // `WARTOSC_PO_RABACIE` i w sumie SUB pozycji.
 
     const vatRate = Number(window.vatRate) || 0;
     const grossValue = parseFloat((netValue * (1 + vatRate / 100)).toFixed(2));

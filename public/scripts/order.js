@@ -353,6 +353,95 @@ unlockBtns.forEach(unlockBtn => {
   });
 });
 
+// --- Kłódka rabatu klienta grupy -------------------------------------------
+// Grupa i klient końcowy (`group_user`) nie mają zwykłej kłódki cenowej — ta
+// przechodzi przez `/user/auth/check-password`, które sprawdza hasło konta z
+// sesji, a konto podrzędne dzieli sesję z grupą-matką i po prostu nie zna jej
+// hasła. Dlatego rabat ma własną kłódkę: wiersze renderują się ukryte
+// (`client-discount-row d-none`, templates/order.njk), a odsłonięcie wymaga
+// PODANIA HASŁA TEGO KONTA (`/user/auth/check-login-password` — dla konta
+// podrzędnego sprawdza `group_user.password`, dla pozostałych `user.password`).
+// ⚠️ Schowanie z powrotem hasła nie wymaga, a poprawne hasło obowiązuje tylko do
+// przeładowania strony — nic nie zapisujemy w sesji, żeby ukryta cena nie
+// zostawała odsłonięta „na później".
+const clientDiscountToggleBtns = document.querySelectorAll('[id="clientDiscountToggleBtn"]');
+let clientDiscountUnlocked = false;
+
+function setClientDiscountVisible(visible) {
+  document.querySelectorAll('.client-discount-row')
+    .forEach(row => row.classList.toggle('d-none', !visible));
+  clientDiscountToggleBtns.forEach(b => b.classList.toggle('active', visible));
+}
+
+async function checkLoginPassword(password) {
+  try {
+    const response = await fetch('/user/auth/check-login-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const result = await response.json();
+    return !!result?.success;
+  } catch (err) {
+    console.warn(err);
+    return false;
+  }
+}
+
+clientDiscountToggleBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const rows = document.querySelectorAll('.client-discount-row');
+    if (!rows.length) return;
+
+    // widoczne → chowamy bez pytania o hasło
+    if (!rows[0].classList.contains('d-none')) {
+      setClientDiscountVisible(false);
+      return;
+    }
+    // hasło podane już wcześniej na tej stronie → nie pytamy drugi raz
+    if (clientDiscountUnlocked) {
+      setClientDiscountVisible(true);
+      return;
+    }
+
+    const parent = document.getElementById('dialog-container');
+    createInfoDialog({
+      title: `${t('form.client_discount_unlock')}`,
+      buttons: [
+        {
+          label: `${t('orders.abort')}`,
+          className: 'btn btn-secondary me-1',
+          id: 'cancel-btn'
+        },
+        {
+          enter: true,
+          label: `${t('order.unlock')}`,
+          className: 'btn btn-success ms-1',
+          id: 'confirm-btn',
+          action: async () => {
+            const value = passwordInput?.value?.trim() || '';
+            if (!value) {
+              showToast('error', `${t('order.invalid_password')}`);
+              return;
+            }
+            if (await checkLoginPassword(value)) {
+              clientDiscountUnlocked = true;
+              setClientDiscountVisible(true);
+            } else {
+              showToast('error', `${t('order.invalid_password')}`);
+            }
+          }
+        }
+      ],
+      parent,
+      input: { name: `${t('login.password_label')}`, id: 'client-discount-password', type: 'password' },
+      // Wąski, prawie kwadratowy monit — styl w public/styles/dialog.css
+      className: 'compact-dialog'
+    });
+    const passwordInput = document.getElementById('client-discount-password');
+  });
+});
+
 // --- Sub params toggle (przekierowanie do widoku z sub-params) ---
 unlockSubBtns.forEach(unlockSubBtn => {
   unlockSubBtn.addEventListener('click', async () => await toggleSub())
@@ -465,7 +554,7 @@ async function setOrderPos(positionId, idx) {
     btn.addEventListener('click', function () {
         createInfoDialog({
             title: t('group.submit_for_approval_title'),
-            message: t('group.submit_for_approval_message'),
+            message: t(gk('submit_for_approval_message')),
             parent,
             buttons: [
                 { label: t('orders.abort'), className: 'btn btn-secondary me-1', id: 'cancel-btn' },

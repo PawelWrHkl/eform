@@ -18,7 +18,12 @@
 		"country_placeholder": "Land",
 		"comments": "Bestellkommentare",
 		"comments_placeholder": "Kommentare",
-		"save_button": "Speichern"
+		"save_button": "Speichern",
+		"end_client": "Endkunde",
+		"end_client_placeholder": "Kunde suchen…",
+		"end_client_add": "Endkunden hinzufügen",
+		"end_client_hint": "Die Bestellung wird mit dem gewählten Kunden verknüpft — die Rechnung erstellst du im Rechnungspanel.",
+		"end_client_link_error": "Der Endkunde konnte nicht verknüpft werden."
 	},
 	"base": {
 		"portal_title": "HKL Bestellportal",
@@ -35,7 +40,11 @@
 		"city_country": "Stadt:",
 		"user_id": "(Test) ID:",
 		"no_user_data": "Keine Benutzerdaten.",
-		"tour": "Tour"
+		"tour": "Rundgang",
+		"polish_tooltip": "Polnisch",
+		"german_tooltip": "Deutsch",
+		"french_tooltip": "Französisch",
+		"netherlands_tooltip": "Niederländisch"
 	},
 	"edit_order": {
 		"title": "Bestellung bearbeiten",
@@ -74,7 +83,7 @@
 		"delete_address_dialog_info": "Möchten Sie die ausgewählte Lieferadresse wirklich löschen?",
 		"delete_mail_dialog_info": "Möchten Sie die ausgewählte E-Mail-Adresse wirklich löschen?",
 		"production_time_label": "Produktionszeit:",
-		"production_time_short_label": "Prod.-Zeit:",
+		"production_time_short_label": "Produktionszeit",
 		"commission_time_prefix": "Kommission",
 		"days_label": "Tage",
 		"delete_order": "Bestellung löschen",
@@ -137,7 +146,8 @@
 		"link_save": "Speichern",
 		"link_group_label": "Gruppe",
 		"link_move_here": "Ausgewählte hierher verschieben",
-		"link_delete_group": "Gruppe löschen"
+		"link_delete_group": "Gruppe löschen",
+		"duplicate": "Kopieren"
 	},
 	"orders": {
 		"title": "Ihre Bestellungen",
@@ -151,7 +161,9 @@
 		"no_orders": "Keine Bestellungen.",
 		"add_first_order": "Fügen Sie eine neue Bestellung hinzu, um zu starten.",
 		"add_order_btn": "Bestellung hinzufügen",
-		"saved_success_label": "Daten erfolgreich gespeichert"
+		"saved_success_label": "Daten erfolgreich gespeichert",
+		"all_users": "Alle Benutzer",
+		"copied_success_label": "Die Bestellung wurde kopiert."
 	},
 	"form": {
 		"title": "HKL Formular",
@@ -184,10 +196,13 @@
 		"check_word": "Auswählen",
 		"check_option": "Option auswählen",
 		"search_input_placeholder": "Nach Name suchen...",
-		"empty_select_warning": "Keine Option ausgewählt.",
+		"empty_select_warning": "Wähle einen Wert aus der Liste.",
 		"all_word": "Alle",
-		"validation_error": "Überprüfen Sie die Richtigkeit der Werte",
-		"manual_override": "Manuell eingeben"
+		"validation_error": "Prüfe die eingegebenen Werte.",
+		"manual_override": "Manuell eingeben",
+		"client_discount_label": "Kundenrabatt",
+		"value_after_discount_label": "Wert nach Rabatt",
+		"client_discount_unlock": "Passwort eingeben, um den Rabatt zu sehen"
 	},
 	"employee": {
 		"panel_title": "Mitarbeiterverwaltung",
@@ -287,7 +302,7 @@
 		"dont_show": "Nicht mehr anzeigen"
 	},
 	"mail": {
-		"import_note": "Diese Bestellung wurde automatisch aus einem externen System importiert.",
+		"import_note": "Diese Bestellung wurde automatisch aus einer Importdatei übernommen.",
 		"correction_subject": "PREISKORREKTUR – Bestellung",
 		"correction_title": "Preiskorrektur der Bestellung",
 		"correction_body_1": "Wir möchten Sie informieren, dass die Preise in Ihrer Bestellung Nr. {{orderNr}} vom Administrator korrigiert wurden.",
@@ -485,5 +500,63 @@
 		"go_to_customer": "Zum Kunden",
 		"add_another": "Weiteren anlegen",
 		"back_to_list": "Zurück zur Liste"
+	},
+	"group": {
+		"client": {
+			"panel_subtitle": "Verwalte Kunden und ihre Bestellungen",
+			"shops_label": "Kunden",
+			"tab_shops": "Kunden",
+			"add_shop_btn": "Kunde hinzufügen",
+			"add_first_shop_btn": "Ersten Kunden hinzufügen",
+			"back_to_shops": "Zurück zu Kunden",
+			"filter_all_shops": "Alle Kunden",
+			"filter_aria": "Kundenfilter",
+			"filter_shop_label": "Kunde filtern",
+			"col_shop": "Kunde",
+			"alert_shop_added": "Kunde wurde hinzugefügt.",
+			"alert_shop_updated": "Kunde wurde aktualisiert.",
+			"alert_shop_deleted": "Kunde wurde gelöscht.",
+			"alert_shop_notfound": "Kunde nicht gefunden oder keine Berechtigung.",
+			"error_delete": "Kunde konnte nicht gelöscht werden.",
+			"modal_delete_shop_title": "Kunde löschen",
+			"modal_delete_shop_q": "Möchtest du den Kunden wirklich löschen",
+			"modal_delete_shop_confirm": "Ja, löschen",
+			"modal_reject_body": "Die Bestellung wird in den Status „aktiv“ zurückgesetzt und der Kunde kann sie bearbeiten.",
+			"modal_reject_warn": "Der Kunde kann die Bestellung erneut bearbeiten.",
+			"no_orders_active_desc": "Keine aktiven Kundenbestellungen.",
+			"no_orders_sent_desc": "Keine gesendeten Kundenbestellungen.",
+			"no_shops_title": "Keine Kunden",
+			"no_shops_desc": "Du hast noch keine Kunden.",
+			"shops_empty": "Du hast noch keine Kunden.",
+			"shops_page_title": "Deine Kunden",
+			"show_shop_orders_title": "Kundenbestellungen anzeigen",
+			"pending_empty_desc": "Alle Kundenbestellungen wurden bereits genehmigt.",
+			"pending_h2": "Ausstehende Kundenbestellungen",
+			"shop_form_title_new": "Kunde hinzufügen",
+			"shop_form_title_edit": "Kunde bearbeiten",
+			"sf_shop_name": "Kundenname",
+			"sf_shop_name_hint": "Beschreibender Name, der im Panel neben der Kennung angezeigt wird.",
+			"sf_shop_name_placeholder": "z. B. Jan Kowalski",
+			"sf_save_new": "Kunde hinzufügen",
+			"shop_orders_h2": "Kundenbestellungen",
+			"shop_orders_page_title": "Kundenbestellungen",
+			"shop_orders_empty_active": "Keine aktiven Kundenbestellungen.",
+			"shop_orders_empty_sent": "Keine gesendeten Kundenbestellungen.",
+			"submit_for_approval_message": "Möchtest du die Bestellung wirklich zur Genehmigung senden?",
+			"form_error_add_shop": "Fehler beim Hinzufügen des Kunden.",
+			"context_select_label": "Als Kunde arbeiten",
+			"context_select_placeholder": "Kunde auswählen",
+			"context_hint": "Im Kontext angelegte Bestellungen gehen an den ausgewählten Kunden."
+		},
+		"context_select_label": "Als Shop arbeiten",
+		"context_select_placeholder": "Shop auswählen",
+		"context_hint": "Im Kontext angelegte Bestellungen gehen an den ausgewählten Shop.",
+		"context_active": "Du arbeitest als",
+		"context_exit": "Kontext verlassen",
+		"context_enter": "In den Kontext wechseln",
+		"sf_discount": "Kundenrabatt (%)",
+		"sf_discount_hint": "Wird automatisch nach der Preisberechnung der Position dieses Kunden angewendet. 0 = kein Rabatt.",
+		"col_discount": "Rabatt",
+		"discount_save": "Rabatt speichern"
 	}
 }

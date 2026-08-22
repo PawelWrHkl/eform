@@ -141,9 +141,19 @@ export async function getUserName() {
             ? `</br><p class='pt-2'>Filia: </br> ${escapeHtml(data.shopName)}</p>`
             : '';
 
-        document.getElementById('user-info').innerHTML = `${t('base.user')}: </br> ${escapeHtml(data.name)}
+        // Konto podrzędne grupy typu `client` (`window.hideParentUserInfo`,
+        // patrz services/groupType.js) widzi tu WYŁĄCZNIE swoją filię — nazwa
+        // i mail należą do grupy-matki, więc dla klienta grupy są mylące.
+        // ⚠️ Warunek na istnienie elementu zostaje: bez niego TypeError
+        // zabijał całą resztę callbacku, w tym `getEmp()`.
+        const userInfoEl = document.getElementById('user-info');
+        if (userInfoEl) {
+            userInfoEl.innerHTML = window.hideParentUserInfo
+                ? shopInfo.replace(/^<\/br>/, '')
+                : `${t('base.user')}: </br> ${escapeHtml(data.name)}
         ${shopInfo}
         </br> <p class='pt-2'>Mail: </br> ${escapeHtml(data.email)}</p>  ${contextInfo}`;
+        }
         getEmp();
     }, 100);
     return data;
@@ -535,6 +545,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     initUserDropdown('userSelect', 'userDropdown', handleSidebarUserSelect);
+
+    // ── Kontekst konta podrzędnego grupy (sklep/klient) ──────────────────────
+    // Wybór z listy = wejście w kontekst, puste = wyjście. Zwykłe przejście
+    // adresem, bez fetcha: kontekst siedzi w sesji, więc po przekierowaniu cała
+    // strona (nawigacja, lista zamówień) ma już właściwy zakres.
+    ['groupShopSelect', 'mobileGroupShopSelect'].forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        select.addEventListener('change', () => {
+            const shopId = select.value;
+            window.location.href = shopId
+                ? `/group/context/${encodeURIComponent(shopId)}`
+                : '/group/context/clear';
+        });
+    });
 });
 
 // Session heartbeat

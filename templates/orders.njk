@@ -68,6 +68,11 @@
                         <thead>
                           <tr>
                             {% block order_no_th %}<th scope="col">{{ __('orders.order_no') }}</th>{% endblock %}
+                            {# Grupa widzi na swojej liście zamówienia WSZYSTKICH swoich kont
+                               podrzędnych (dzielą wiersz `user`), więc bez tej kolumny nie da się
+                               odróżnić, czyje jest zamówienie. Nazwa kolumny idzie przez `gk()`,
+                               żeby grupa typu `client` widziała „Klient", a nie „Sklep". #}
+                            {% if isGroup %}<th scope="col">{{ __(gk('col_shop')) }}</th>{% endif %}
                             <th scope="col">{{ __('orders.commission') }}</th>
                             <th scope="col">{{ __('orders.created_date') }}</th>
                             {% block extra_heads %}{% endblock %}
@@ -84,7 +89,13 @@
                             {% block order_item_link %}
                               <tr onclick="window.location.href='/orders/order/{{ order.id }}'" class="order-row" data-commission="{{ order.commision }}">
                               {% endblock %}
+                              {# Zamówienie założone przez klienta grupy (`group_type = client`):
+                                 grupa-matka ma podgląd, a wysyłkę robi przez zatwierdzenie w panelu
+                                 grupy — żadnej edycji, usuwania ani wysyłki z listy
+                                 (utils/orderStatusGuard.js). #}
+                              {% set clientOwned = isGroup and isGroupClientType and order.created_by_group_user_id %}
                               {% block order_no_td %}<th scope="row">{{ order.order_idx }}</th>{% endblock %}
+                              {% if isGroup %}<td>{% if order.shop_ident %}{{ order.shop_ident }}{% if order.shop_name %} ({{ order.shop_name }}){% endif %}{% elif order.shop_name %}{{ order.shop_name }}{% else %}—{% endif %}</td>{% endif %}
                               {% if order.employee_id and not isEmployee %}
                                 <td>{{ order.commision }} ({{ order.name }}
                                   {{ order.surname }})</td>
@@ -96,11 +107,13 @@
                               {% if not isEmployee %}
                                 {% block buttons_space %}
                                   <td class='buttons'>
+                                    {% if not clientOwned %}
                                     <button class="action-btn action-btn-delete p-1 delete-position-btn stop-propagation has-tooltip" data-tooltip="{{ __('orders.delete_order') }}" id="delete-order-btn" data-href='/orders/order/{{ order.id }}/delete' type='button' onclick="event.stopPropagation()" '>
                                       <img src="/img/delete.png" alt="{{ __('order.delete') }}" style="height: 24px;"/>
                                     </button>
                                     <a class="action-btn action-btn-edit p-1 stop-propagation has-tooltip" id='edit-order-btn' data-tooltip="{{ __('orders.edit_order_tooltip') }}" href='/orders/edit/{{ order.id }}'>
                                       <img src="/img/edit-text.png" alt="{{ __('orders.edit') }}"></a>
+                                    {% endif %}
                                       {% if isGroupShop %}
                                         {% if order.status == 'pending_approval' %}
                                           <span class="badge bg-warning text-dark align-self-center" style="font-size:0.8rem;">{{ __('group.status_submitted_for_approval') }}</span>
@@ -108,13 +121,13 @@
                                           <button class="action-btn action-btn-send p-1 stop-propagation submit-approval-btn has-tooltip" data-tooltip="{{ __('group.submit_for_approval_title') }}" type="button" data-id="{{ order.id }}">
                                             <img src="/img/send.png" alt="{{ __('group.submit_for_approval_title') }}"></button>
                                         {% endif %}
-                                      {% else %}
+                                      {% elif not clientOwned %}
                                         <button class="action-btn action-btn-send p-1 stop-propagation send-order-btn has-tooltip" data-tooltip="{{ __('orders.send_order_tooltip') }}" type="button" id='send-order' data-id="{{ order.id }}">
                                           <img src="/img/send.png" alt="{{ __('orders.send') }}"></button>
                                       {% endif %}
                                       </td>
                                     {% endblock buttons_space %}
-                                  {% elif isEmployee and employeePermissions and employeePermissions.can_send_orders %}
+                                  {% elif isEmployee and employeePermissions and employeePermissions.can_send_orders and not clientOwned %}
                                     <td class='buttons'>
                                       <button class="action-btn action-btn-send p-1 stop-propagation send-order-btn has-tooltip" data-tooltip="{{ __('orders.send_order_tooltip') }}" type="button" id='send-order' data-id="{{ order.id }}">
                                         <img src="/img/send.png" alt="{{ __('orders.send') }}"></button>
@@ -134,10 +147,14 @@
                                   {% block mobile_order_no %}<span class="mobile-order-number">#{{ order.order_idx }}</span>{% endblock %}
                                   <span class="mobile-order-date">{{ order.created_date }}</span>
                                 </div>
+                                {% set clientOwned = isGroup and isGroupClientType and order.created_by_group_user_id %}
+                                {% if isGroup and (order.shop_name or order.shop_ident) %}
+                                  <div class="mobile-order-client text-muted" style="font-size:0.85rem;">{{ order.shop_ident or order.shop_name }}{% if order.shop_ident and order.shop_name %} ({{ order.shop_name }}){% endif %}</div>
+                                {% endif %}
                                 <div class="mobile-order-commission">{{ order.commision }}</div>
                                 {% block mobile_order_actions %}
                                   <div class="mobile-order-actions">
-                                    {% if not isEmployee %}
+                                    {% if not isEmployee and not clientOwned %}
                                     <button
                                       class="action-btn action-btn-delete delete-position-btn stop-propagation"
                                       data-href='/orders/order/{{ order.id }}/delete'
@@ -157,7 +174,7 @@
                                           {{ __('group.submit_for_approval_title') }}
                                         </button>
                                       {% endif %}
-                                    {% elif not isEmployee or (employeePermissions and employeePermissions.can_send_orders) %}
+                                    {% elif not clientOwned and (not isEmployee or (employeePermissions and employeePermissions.can_send_orders)) %}
                                       <button class="action-btn action-btn-send stop-propagation send-order-btn" type="button" data-id="{{ order.id }}">
                                         {{ __('orders.send') }}
                                       </button>

@@ -1,6 +1,7 @@
 const { getUserByIdent } = require('../db/owner');
 const { saveRecentClient } = require('../db/users');
 const { log } = require('../utils/logging');
+const { normalizeGroupType } = require('./groupType');
 
 
 async function setContextUserByIdent(req, userIdent) {
@@ -29,6 +30,7 @@ async function setContextUserByIdent(req, userIdent) {
             clientName: userData.client_name,
             ident: userData.ident,
             isGroup: userData.role === 'group',
+            groupType: userData.role === 'group' ? normalizeGroupType(userData.group_type) : null,
             setAt: new Date().toISOString()
         };
 

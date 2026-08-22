@@ -21,6 +21,7 @@ const ASSET_VERSION = Date.now().toString(36);
 const groupRoutes = require('./routes/group');
 const { addOrganizationsForAdmin } = require('./middleware/loginMixture.js');
 const usersDb = require('./db/users.js');
+const groupDb = require('./db/group.js');
 const bodyParser = require("body-parser");
 const { photoPath, dataDir, localesDir, availabeLanguages, defaultLanguage } = require('./config');
 const cookieParser = require('cookie-parser');
@@ -141,12 +142,27 @@ app.use((req, res, next) => {
 	next();
 });
 
+const { normalizeGroupType, GROUP_TYPE_CLIENT } = require('./services/groupType');
+
 // ─── group flags global middleware ──────────────────────────────────────────
 // Make isGroup/isGroupShop available in every template (incl. /group/* views),
 // so that nav items remain visible across all pages for group users.
 app.use((req, res, next) => {
 	res.locals.isGroup = req.session?.user?.isGroup || req.session?.context_user?.isGroup || false;
 	res.locals.isGroupShop = req.session?.user?.isGroupShop || false;
+	// Odmiana modułu grupowego (`user.group_type`): decyduje o TREŚCI stron
+	// grupy — `shop` zostaje jak dotąd, `client` mówi wszędzie „klient".
+	// Kontekst (admin/owner oglądający grupę) liczy się tak samo jak sesja,
+	// inaczej panel oglądany przez admina wracałby do brzmienia „sklep".
+	res.locals.groupType = normalizeGroupType(
+		req.session?.context_user?.groupType || req.session?.user?.groupType
+	);
+	res.locals.isGroupClientType = res.locals.groupType === GROUP_TYPE_CLIENT;
+	// Konto podrzędne grupy typu `client` nie widzi w navbarze DANYCH
+	// GRUPY-MATKI (nazwa + mail) — dla klienta grupy są mylące. Sam blok
+	// `user-info` zostaje: nazwa filii (konta) nadal się w nim wyświetla,
+	// patrz public/scripts/base.js.
+	res.locals.hideUserInfo = !!(res.locals.isGroupShop && res.locals.isGroupClientType);
 	// Konto organizacyjne: userIdent === orgIdent (użytkownik jest jednocześnie organizacją)
 	const u = req.session?.user;
 	res.locals.isOrgAccount = !!(
@@ -164,8 +180,14 @@ app.use((req, res, next) => {
 const { features } = require('./config');
 app.use((req, res, next) => {
 	res.locals.vatEnabled = !!features?.vat;
-	res.locals.invoicesEnabled = !!features?.invoices;
-	res.locals.orgCustomersEnabled = !!features?.orgCustomers;
+	// Konto podrzędne grupy (`group_user`) nie ma dostępu do fakturowania ani
+	// do kartoteki odbiorców końcowych — składa wyłącznie zamówienia. Flaga
+	// gasi zarówno wejście w menu, jak i sekcję odbiorcy w formularzu
+	// zamówienia (`invoicesEnabled` bramkuje oba miejsca), a same trasy
+	// `/invoices` i `/api/v1/invoices` odcina `blockGroupShop` niżej.
+	const isGroupShopSession = !!req.session?.user?.isGroupShop;
+	res.locals.invoicesEnabled = !!features?.invoices && !isGroupShopSession;
+	res.locals.orgCustomersEnabled = !!features?.orgCustomers && !isGroupShopSession;
 	// ⚠️ Warunek widoczności wejścia w menu MUSI być liczony tutaj, a nie
 	// z `owner`/`admin` w szablonie: `owner` jest lokalną zmienną pojedynczego
 	// renderu (`routes/index.js` ustawia je tylko dla strony głównej), a `admin`
@@ -174,11 +196,43 @@ app.use((req, res, next) => {
 	// innej. Sesja jest jedynym źródłem dostępnym przy każdym renderze.
 	const sessionUser = req.session && req.session.user;
 	res.locals.canManageCustomers = !!(features?.orgCustomers && sessionUser
+		&& !sessionUser.isGroupShop
 		&& (sessionUser.isOwner || sessionUser.isAdmin));
 	// Wersja zasobów do cache-bustingu (`?v=`) — bez tego przeglądarka trzyma
 	// stary plik JS po wdrożeniu, co objawia się błędami z nieaktualnej wersji
 	// (np. panel salonu pytający o endpoint dla ownera).
 	res.locals.assetVersion = ASSET_VERSION;
+	next();
+});
+
+// ─── kontekst konta podrzędnego grupy ───────────────────────────────────────
+// Grupa (`role = 'group'`) pracuje „jako" swój sklep/klient — tak jak admin
+// w kontekście klienta. Lista kont i aktywny kontekst muszą być dostępne przy
+// KAŻDYM renderze, bo wybór siedzi w navbarze (jak lista klientów u ownera).
+// ⚠️ Zapytanie leci tylko dla sesji grupowej i tylko dla żądań o HTML —
+// nie chcemy go na każdym fetchu JSON-owym.
+const { getGroupShopContext } = require('./services/groupContext');
+app.use(async (req, res, next) => {
+	res.locals.groupShopContext = null;
+	res.locals.groupShops = [];
+	try {
+		if (res.locals.isGroup) {
+			res.locals.groupShopContext = getGroupShopContext(req);
+			if (req.method === 'GET' && req.accepts('html')) {
+				const parentUserId = req.session?.context_user?.userId || req.session?.user?.userId;
+				if (parentUserId) {
+					const shops = await groupDb.getGroupUsersByParentId(parentUserId);
+					// Do navbara idą TYLKO pola, które on wypisuje. `group_user`
+					// niesie też `plain` (hasło w jawnej postaci dla przycisku
+					// „kopiuj dane logowania" w panelu) — nie ma powodu, żeby
+					// krążyło w locals każdej strony.
+					res.locals.groupShops = (shops || []).map(s => ({ id: s.id, ident: s.ident, name: s.name }));
+				}
+			}
+		}
+	} catch (err) {
+		log('[groupContext] nie udało się wczytać kont podrzędnych:', err.message);
+	}
 	next();
 });
 
@@ -223,10 +277,24 @@ app.use('/address', addressRoutes);
 // niedostępny w całości, a nie tylko schowany w menu. Wcześniej routery
 // stały zawsze i chronił je wyłącznie login — adres `/invoices` wpisany
 // z palca działał także tam, gdzie moduł miał być wyłączony.
+// Konto podrzędne grupy (`group_user`) nie ma dostępu do fakturowania ani do
+// odbiorców końcowych — samo schowanie wejścia w menu nie wystarcza, bo adres
+// wpisany z palca nadal by działał (te trasy chroni tylko `requireLogin`,
+// a konto podrzędne JEST zalogowane, w sesji rodzica-grupy).
+function blockGroupShop(req, res, next) {
+	if (req.session?.user?.isGroupShop) {
+		if (req.accepts('html') && !req.xhr) {
+			return res.status(403).render('error.njk', { message: 'Brak dostępu' });
+		}
+		return res.status(403).json({ success: false, message: 'Brak dostępu' });
+	}
+	return next();
+}
+
 if (features?.invoices) {
-	app.use('/api/v1/invoices', invoiceRoutes);
+	app.use('/api/v1/invoices', blockGroupShop, invoiceRoutes);
 	// Panel ownera dla faktur (widoki HTML; dane bierze z API powyżej)
-	app.use('/invoices', invoicePanelRoutes);
+	app.use('/invoices', blockGroupShop, invoicePanelRoutes);
 	log('[invoices] moduł włączony (INVOICES_ENABLED=true)');
 } else {
 	log('[invoices] moduł WYŁĄCZONY — /invoices i /api/v1/invoices nie są montowane');
@@ -236,7 +304,7 @@ if (features?.invoices) {
 // router w ogóle nie wstaje, więc `/org/customers` zwraca 404 zamiast ekranu
 // chronionego samym loginem.
 if (features?.orgCustomers) {
-	app.use('/org/customers', orgCustomersRoutes);
+	app.use('/org/customers', blockGroupShop, orgCustomersRoutes);
 	// Nakładka cenników dla formularza w przeglądarce — dostępna dla KAŻDEGO
 	// zalogowanego (formularz otwiera też klient i pracownik), zawężona do
 	// klienta z sesji/kontekstu. Patrz routes/clientTerms.js.

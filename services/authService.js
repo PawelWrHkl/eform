@@ -9,6 +9,7 @@ const { dataDir, localesDir } = require('../config');
 const { log } = require('../utils/logging');
 const { rejectIfBlockedForLogin } = require('./accessLockAuth');
 const { syncUserCountry } = require('./dbUserSync');
+const { normalizeGroupType } = require('./groupType');
 
 async function handleAuthLogin(req, res, next, pin, password) {
     try {
@@ -31,6 +32,11 @@ async function handleAuthLogin(req, res, next, pin, password) {
             const role = await db.getUserRole(pin);
             req.session.user.isAdmin = role === "admin";
             req.session.user.isGroup = role === "group";
+            // Odmiana modułu grupowego (`shop`/`client`) — decyduje wyłącznie
+            // o treści panelu grupy, patrz services/groupType.js.
+            req.session.user.groupType = req.session.user.isGroup
+                ? normalizeGroupType(await db.getUserGroupType(pin))
+                : null;
 
             await logService.logUserLogin(pin, await db.getUserIdent(pin));
             // Fire-and-forget: refreshes user.country from contractors.txt's "kraj"
@@ -186,6 +192,9 @@ async function handleGroupShopLogin(req, res, next, login, password) {
             isAdmin: false,
             isGroup: false,
             isGroupShop: true,
+            // Typ grupy-matki: konto podrzędne grupy `client` ma inną treść
+            // strony i węższą nawigację niż konto sklepu.
+            groupType: normalizeGroupType(await db.getUserGroupType(parentPin)),
             groupShopId: shop.id,
             shopNumber: shop.id,
             shopName: shop.name || shop.ident,
@@ -198,4 +207,4 @@ async function handleGroupShopLogin(req, res, next, login, password) {
     }
 }
 
-module.exports = { checkPassword, checkFirstLogon, checkEmployeePassword, handleAuthLogin, handleGroupShopLogin };
+module.exports = { checkPassword, checkFirstLogon, checkEmployeePassword, checkGroupShopPassword, handleAuthLogin, handleGroupShopLogin };

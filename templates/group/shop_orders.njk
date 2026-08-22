@@ -1,5 +1,5 @@
 {% extends "base.njk" %}
-{% block title %}{{ __('group.shop_orders_page_title') }}{% endblock %}
+{% block title %}{{ __(gk('shop_orders_page_title')) }}{% endblock %}
 
 {% block head %}
     <link rel="stylesheet" href="/styles/group/shops.css">
@@ -18,8 +18,8 @@
         <div class="container my-4">
 
             <div class="d-flex align-items-center justify-content-between mb-4">
-                <h2 class="mb-0">{{ __('group.shop_orders_h2') }}</h2>
-                <a href="/group/shops" class="btn btn-outline-secondary btn-sm">← {{ __('group.back_to_shops') }}</a>
+                <h2 class="mb-0">{{ __(gk('shop_orders_h2')) }}</h2>
+                <a href="/group/shops" class="btn btn-outline-secondary btn-sm">← {{ __(gk('back_to_shops')) }}</a>
             </div>
 
             {# Tab: aktywne / wysłane #}
@@ -38,7 +38,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>{{ __('group.col_order_no') }}</th>
-                                <th>{{ __('group.col_shop') }}</th>
+                                <th>{{ __(gk('col_shop')) }}</th>
                                 <th>{{ __('group.col_commission') }}</th>
                                 <th>{{ __('group.col_status') }}</th>
                                 <th>{{ __('group.col_date') }}</th>
@@ -106,7 +106,7 @@
 
             {% else %}
                 <div class="text-center py-5">
-                    <p class="text-muted lead">{% if sent %}{{ __('group.shop_orders_empty_sent') }}{% else %}{{ __('group.shop_orders_empty_active') }}{% endif %}</p>
+                    <p class="text-muted lead">{% if sent %}{{ __(gk('shop_orders_empty_sent')) }}{% else %}{{ __(gk('shop_orders_empty_active')) }}{% endif %}</p>
                 </div>
             {% endif %}
 

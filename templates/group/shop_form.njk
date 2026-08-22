@@ -1,6 +1,6 @@
 {% extends "base.njk" %}
 {% block title %}
-    {% if mode === 'edit' %}{{ __('group.shop_form_title_edit') }}{% else %}{{ __('group.shop_form_title_new') }}{% endif %}
+    {% if mode === 'edit' %}{{ __(gk('shop_form_title_edit')) }}{% else %}{{ __(gk('shop_form_title_new')) }}{% endif %}
 {% endblock %}
 
 {% block head %}
@@ -23,9 +23,9 @@
                     <div class="card-header bg-secondary text-white">
                         <h3 class="mb-0">
                             {% if mode === 'edit' %}
-                                {{ __('group.shop_form_title_edit') }}
+                                {{ __(gk('shop_form_title_edit')) }}
                             {% else %}
-                                {{ __('group.shop_form_title_new') }}
+                                {{ __(gk('shop_form_title_new')) }}
                             {% endif %}
                         </h3>
                     </div>
@@ -97,15 +97,15 @@
                                 <p class="col-12 mb-0 fw-semibold text-secondary">{{ __('group.sf_address_data') }}</p>
 
                                 <div class="col-12">
-                                    <label for="name" class="form-label">{{ __('group.sf_shop_name') }}</label>
+                                    <label for="name" class="form-label">{{ __(gk('sf_shop_name')) }}</label>
                                     <input type="text"
                                            class="form-control"
                                            id="name"
                                            name="name"
                                            maxlength="150"
                                            value="{{ shop.name or '' }}"
-                                           placeholder="{{ __('group.sf_shop_name_placeholder') }}">
-                                    <small class="form-text text-muted">{{ __('group.sf_shop_name_hint') }}</small>
+                                           placeholder="{{ __(gk('sf_shop_name_placeholder')) }}">
+                                    <small class="form-text text-muted">{{ __(gk('sf_shop_name_hint')) }}</small>
                                 </div>
 
                                 <div class="col-12">
@@ -154,6 +154,27 @@
                                     <div class="invalid-feedback">{{ __('group.sf_phone_invalid') }}</div>
                                 </div>
 
+                                {# Rabat klienta — tylko dla grupy typu `client`
+                                   (`user.group_type`). Doliczany po przeliczeniu ceny w
+                                   formularzu pozycji, patrz services/groupDiscount.js. #}
+                                {% if isGroupClientType %}
+                                <div class="col-md-6">
+                                    <label for="discountPercent" class="form-label">{{ __('group.sf_discount') }}</label>
+                                    <div class="input-group">
+                                        <input type="number"
+                                               class="form-control"
+                                               id="discountPercent"
+                                               name="discountPercent"
+                                               min="0"
+                                               max="100"
+                                               step="0.01"
+                                               value="{{ shop.discount_percent if shop and shop.discount_percent else '0' }}">
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                    <small class="form-text text-muted">{{ __('group.sf_discount_hint') }}</small>
+                                </div>
+                                {% endif %}
+
                                 <div class="col-md-6">
                                     <label for="email" class="form-label">{{ __('group.sf_email') }}</label>
                                     <input type="email"
@@ -173,7 +194,7 @@
                                     {{ __('group.cancel_btn') }}
                                 </a>
                                 <button type="submit" class="btn btn-dark">
-                                    {% if mode === 'edit' %}{{ __('group.sf_save_edit') }}{% else %}{{ __('group.sf_save_new') }}{% endif %}
+                                    {% if mode === 'edit' %}{{ __('group.sf_save_edit') }}{% else %}{{ __(gk('sf_save_new')) }}{% endif %}
                                 </button>
                             </div>
 

@@ -705,6 +705,18 @@ export function buildVatFields(destinationNode) {
     return {};
   }
 
+  // ⚠️ TYMCZASOWO wyłączone dla konta podrzędnego grupy (`group_user`): na tym
+  // poziomie VAT/WARTOSC_VAT/WARTOSC_BRUTTO nie mają się pokazywać ani w
+  // konfiguracji pozycji, ani w podglądzie zamówienia (decyzja właściciela,
+  // 2026-08-21). Pola nie powstają, więc `applyVatToGrossValue` nie ma czego
+  // wypełnić i do zapisu nie idą żadne klucze VAT — patrz też pominięcie
+  // wierszy VAT w `templates/order.njk`. Załączniki dokładamy tak czy tak, bo
+  // ta funkcja jest właścicielem tego ostatniego kroku.
+  if (window.isGroupShop) {
+    appendDeferredAttachmentAreaDivs(destinationNode);
+    return {};
+  }
+
   const vatRate = Number(window.vatRate) || 0;
 
   const vatDiv = createElement('div', { class: ['VAT-select-area'] }, destinationNode);
@@ -754,6 +766,89 @@ export function buildVatFields(destinationNode) {
   return { vatInput, vatValueInput, bruttoInput };
 }
 
+/**
+ * Rabat klienta grupy — dwa pola tylko do odczytu: procent (`RABAT_KLIENTA`)
+ * i wartość po rabacie (`WARTOSC_PO_RABACIE`), wypełniane przez
+ * pricesCalculator.js → applyClientDiscount() po każdym przeliczeniu ceny.
+ *
+ * ⚠️ **Oba pola są UKRYTE w formularzu** (`display: none`). Mają się LICZYĆ, ale
+ * nie pokazywać osobie konfigurującej pozycję — rabat widać dopiero w podglądzie
+ * zamówienia, po odsłonięciu kłódką (`templates/order.njk`, wiersze
+ * `client-discount-row`). Inputy istnieją, bo `applyClientDiscount()` wpisuje do
+ * nich wynik przez `getElementById`, a wartości idą dalej do `values` i
+ * `displayValues`.
+ *
+ * ⚠️ Rabat NIE dotyka VAT-u ani `WARTOSC_BRUTTO` — brutto zostaje takie, jak
+ * przed wprowadzeniem rabatu (patrz applyVatToGrossValue).
+ *
+ * Ten sam wzorzec co buildVatFields(): pola NIE pochodzą z `param.txt`, więc
+ * silnik ich nie zna i żadna formuła się o nie nie potknie. Wołane przed
+ * `buildVatFields()`, które dokłada blok VAT, a na końcu pola załączników.
+ *
+ * Nic nie buduje, gdy rabatu nie ma (`window.clientDiscountPercent` = 0 albo
+ * brak).
+ */
+export function buildClientDiscountFields(destinationNode) {
+  const pct = Number(window.clientDiscountPercent) || 0;
+  if (!(pct > 0)) return {};
+  if (!destinationNode) return {};
+  // Te same zasady widoczności co ceny SUB___ (rabat jest ceną klienta):
+  // kto nie widzi cen SUB, nie widzi też rabatu; przy ukrytych cenach nic nie
+  // budujemy.
+  if (window.hidePrices || !canUserSeeSubPrices()) return {};
+
+  // Idempotencja: zmiana grupy asortymentowej przebudowuje formularz
+  // (buildDynamicForm woła to ponownie), a dwa pola o tym samym `id` zepsułyby
+  // wypełnianie przez getElementById.
+  destinationNode
+    .querySelectorAll('.RABAT_KLIENTA-select-area, .WARTOSC_PO_RABACIE-select-area')
+    .forEach((el) => el.remove());
+
+  // `display: none` na wrapperach: pola liczą się, ale nie są widoczne.
+  const discountDiv = createElement('div', { class: ['RABAT_KLIENTA-select-area', 'd-none'], style: 'display: none' }, destinationNode);
+  createElement('label', {
+    for: 'RABAT_KLIENTA',
+    text: t('form.client_discount_label'),
+    class: ['form-label', 'mb-1']
+  }, discountDiv);
+  const discountInput = createElement('input', {
+    type: 'text',
+    id: 'RABAT_KLIENTA',
+    class: ['input-form'],
+    disabled: true,
+    value: `${pct}%`
+  }, discountDiv);
+
+  const afterDiv = createElement('div', { class: ['WARTOSC_PO_RABACIE-select-area', 'd-none'], style: 'display: none' }, destinationNode);
+  createElement('label', {
+    for: 'WARTOSC_PO_RABACIE',
+    text: t('form.value_after_discount_label'),
+    class: ['form-label', 'mb-1']
+  }, afterDiv);
+  const afterInput = createElement('input', {
+    type: 'text',
+    id: 'WARTOSC_PO_RABACIE',
+    class: ['input-form'],
+    disabled: true,
+    value: '0'
+  }, afterDiv);
+
+  return { discountInput, afterInput };
+}
+
+/**
+ * Mnożnik rabatu klienta grupy — kopia jednej linijki z
+ * `formTools/pricesCalculator.js clientDiscountFactor()`, świadomie bez importu:
+ * `getTotal()` jest wołane przy zapisie pozycji z kilku ekranów, a ściąganie tu
+ * całego modułu cen (z jego zależnościami) tylko po mnożnik byłoby gorszym
+ * kompromisem niż te trzy linie.
+ */
+function clientDiscountFactorForTotals() {
+  const pct = Number(window.clientDiscountPercent) || 0;
+  if (!(pct > 0)) return 1;
+  return 1 - Math.min(100, pct) / 100;
+}
+
 export function getTotal(displayValues) {
   const totalObj = {};
   for (let [key, value] of displayValues) {
@@ -777,6 +872,16 @@ export function getTotal(displayValues) {
       }
     }
   }
+  // ⚠️ Rabat klienta grupy wchodzi TYLKO tutaj — do zapisywanej sumy klienta
+  // (`order_item.total_price_sub`). Widoczne wiersze cen zostają nietknięte
+  // (rabat ma być ukryty i pokazywany osobnym, zablokowanym wierszem), więc
+  // mnożymy dopiero przy budowaniu sum do zapisu. Suma katalogowa
+  // (`total`/`total_hidden`) rabatu nie dotyczy.
+  const discountFactor = clientDiscountFactorForTotals();
+  if (discountFactor !== 1 && Number.isFinite(totalObj['total_sub'])) {
+    totalObj['total_sub'] = parseFloat((totalObj['total_sub'] * discountFactor).toFixed(2));
+  }
+
   return totalObj;
 }
 

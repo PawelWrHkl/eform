@@ -18,9 +18,9 @@
         <div class="container my-4">
 
             <div class="d-flex align-items-center justify-content-between mb-4">
-                <h2 class="mb-0">{{ __('group.pending_h2') }}</h2>
+                <h2 class="mb-0">{{ __(gk('pending_h2')) }}</h2>
                 <a href="/group/shops" class="btn btn-outline-secondary btn-sm">
-                    ← {{ __('group.back_to_shops') }}
+                    ← {{ __(gk('back_to_shops')) }}
                 </a>
             </div>
 
@@ -30,7 +30,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>{{ __('group.col_order_no') }}</th>
-                                <th>{{ __('group.col_shop') }}</th>
+                                <th>{{ __(gk('col_shop')) }}</th>
                                 <th>{{ __('group.col_commission') }}</th>
                                 <th>{{ __('group.col_comment') }}</th>
                                 <th>{{ __('group.col_date') }}</th>
@@ -101,7 +101,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('group.close_btn') }}"></button>
                 </div>
                 <div class="modal-body">
-                    {{ __('group.modal_reject_body') }}
+                    {{ __(gk('modal_reject_body')) }}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ __('group.cancel_btn') }}</button>

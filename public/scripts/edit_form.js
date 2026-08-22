@@ -2,6 +2,7 @@ import {
     generateForm,
     buildCommentSpace,
     buildVatFields,
+    buildClientDiscountFields,
     getTotal,
     recalculateLastChangedField
 
@@ -14,7 +15,7 @@ import { FormsManager } from './formTools/getAvailableForms.js'
 import { showToast } from "/scripts/components/toast.js";
 import { createElement, editElementById } from "./components/htmlManipulator.js";
 import { validateAllFieldsOnSubmit } from './formTools/validateUtils.js'
-import { checkIfPriceIsCorrect, applyVatToGrossValue } from './formTools/pricesCalculator.js'
+import { checkIfPriceIsCorrect, applyVatToGrossValue, applyClientDiscount } from './formTools/pricesCalculator.js'
 import { startSpin, stopSpin } from "./components/hourglass.js";
 
 
@@ -100,10 +101,12 @@ async function init() {
 
     setupResetButton(editInputs, editValues, editValuesToDisplay)
     const editComment = buildCommentSpace(formDiv, comment)
+    buildClientDiscountFields(formDiv)
     buildVatFields(formDiv)
     // Saved positions already have their price params computed — fill
     // WARTOSC_BRUTTO from them immediately instead of leaving it at the
     // default '0' until the user touches a field or hits save.
+    applyClientDiscount(editValues, editValuesToDisplay)
     applyVatToGrossValue(editValues, editValuesToDisplay)
 
     setUpSaveButton(id, editValues, editValuesToDisplay, editComment, position.order_id, editInputs)

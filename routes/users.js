@@ -311,6 +311,40 @@ router.get('/name', requireLogin, async (req, res) => {
 });
 
 
+/**
+ * Sprawdzenie hasła KONTA Z BIEŻĄCEJ SESJI — bez zmiany czegokolwiek w sesji.
+ *
+ * ⚠️ Nie to samo co `/auth/check-password`: tamto odsłania ceny na stałe
+ * (`showPrices`) i sprawdza hasło z `session.user.pin`, a dla konta podrzędnego
+ * grupy `pin` należy do grupy-MATKI — klient końcowy nie zna tego hasła. Tutaj
+ * dla `isGroupShop` weryfikujemy `group_user.password` (własne hasło logowania
+ * klienta), a dla pozostałych `user.password`.
+ *
+ * Używane przez kłódkę rabatu klienta (`public/scripts/order.js`): odpowiedź to
+ * wyłącznie `{ success }`, bez żadnych danych o koncie.
+ */
+router.post("/auth/check-login-password", requireLogin, async (req, res) => {
+    try {
+        const password = req.body?.password;
+        if (!password) {
+            return res.json({ success: false });
+        }
+
+        if (req.session.user?.isGroupShop) {
+            const shop = await db.getGroupUserById(req.session.user.groupShopId);
+            if (!shop) return res.json({ success: false });
+            const valid = await authService.checkGroupShopPassword(shop.pin, password);
+            return res.json({ success: !!valid });
+        }
+
+        const valid = await authService.checkPassword(req.session.user?.pin, password);
+        return res.json({ success: !!valid });
+    } catch (err) {
+        log('[users/auth/check-login-password] Error:', err.message);
+        return res.status(500).json({ success: false });
+    }
+});
+
 router.post("/auth/check-password", async (req, res, next) => {
     try {
         const { password, remember, orderId } = req.body;

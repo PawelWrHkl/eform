@@ -25,6 +25,10 @@
                             <div class="order-nav-main">
                                 <div class="mobile-top-row d-block d-md-none">
                                     <div id="order-buttons">
+                                        {# Zamówienie klienta grupy (`group_type = client`) jest dla
+                                           grupy-matki tylko do wglądu i zatwierdzenia — bez nowej
+                                           pozycji i bez edycji (utils/orderStatusGuard.js). #}
+                                        {% if not clientOwnedOrder %}
                                         <a
                                             href="/orders/order/{{ orderDetails.id }}/new-position/"
                                             class="action-btn action-btn-send "
@@ -33,10 +37,20 @@
                                             <img class='ico' src="/img/new-position.png" alt=""></a>
                                             <a href="/orders/edit/{{ orderDetails.id }}" class="action-btn action-btn-edit" id="edit-order-button" type="button">
                                                 <img class='ico' src="/img/edit-text.png" alt="{{ __('orders.edit') }}"></a>
+                                            {% endif %}
                                             </div>
                                             <div id="generate-container-mobile">
                                                 <button class="btn open-link-manager-btn" type="button" aria-label="{{ __('order.link_manager_title') }}">
                                                     <span style="font-size:22px;">&#128279;</span></button>
+                                                {# Kłódka rabatu klienta — grupa i klient końcowy (group_user) nie mają
+                                                   zwykłej kłódki cenowej (wymaga hasła konta nadrzędnego), a rabat ma być
+                                                   domyślnie ukryty. Ten przycisk tylko odsłania wiersze `client-discount-row`
+                                                   (public/scripts/order.js) — nic nie wysyła i nie zmienia sesji. #}
+                                                {% if (isGroup or isGroupShop) and not hidePrices %}
+                                                    <button id="clientDiscountToggleBtn" class="btn has-tooltip" type="button" data-tooltip="{{ __('form.client_discount_label') }}">
+                                                        <img src="/img/padlock.png" alt="padlock icon" class='icon'>
+                                                    </button>
+                                                {% endif %}
                                                 {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient and (not hasSubPriceToggle or showCatalogPrices) %}
                                                 <button id="unlockBtn" class="btn">
                                                     <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
@@ -53,6 +67,7 @@
                                                     </div>
                                                     <div id="order-buttons" class="d-none d-md-flex">
                                                         {% block new_pos_btn %}
+                                                            {% if not clientOwnedOrder %}
                                                             <a
                                                                 href="/orders/order/{{ orderDetails.id }}/new-position/"
                                                                 class="action-btn action-btn-send custom-order-btn"
@@ -60,6 +75,7 @@
                                                                 type="button">
                                                                 {{ __('order.add_position_btn') }}
                                                             </a>
+                                                            {% endif %}
                                                         {% endblock %}
                                                     </div>
                                                     {% block order_space %}
@@ -78,6 +94,7 @@
                                                     {% block print_space %}
                                                         <div id="generate-container" class='me-3 d-none d-md-flex'>
                                                             {% block edit_order_btn %}
+                                                                {% if not clientOwnedOrder %}
                                                                 <a
                                                                     href="/orders/edit/{{ orderDetails.id }}"
                                                                     class="action-btn action-btn-edit row me-2"
@@ -85,6 +102,7 @@
                                                                     type="button">
                                                                     {{ __('edit_order.title') }}
                                                                 </a>
+                                                                {% endif %}
                                                             {% endblock %}
                                                             <div class='d-flex'>
                                                                 {% if owner or admin %}
@@ -99,6 +117,15 @@
                                                                 <button class="btn has-tooltip" data-tooltip="{{ __('base.give_discount_tooltip') }}" id='discount-btn'>
                                                                     <img src="/img/sale.png" alt="sale icon" class='icon'></button>
                                                                 {% endif %}
+                                                                    {# Kłódka rabatu klienta — grupa i klient końcowy (group_user) nie mają
+                                                                       zwykłej kłódki cenowej (wymaga hasła konta nadrzędnego), a rabat ma być
+                                                                       domyślnie ukryty. Ten przycisk tylko odsłania wiersze `client-discount-row`
+                                                                       (public/scripts/order.js) — nic nie wysyła i nie zmienia sesji. #}
+                                                                    {% if (isGroup or isGroupShop) and not hidePrices %}
+                                                                        <button id="clientDiscountToggleBtn" class="btn has-tooltip" type="button" data-tooltip="{{ __('form.client_discount_label') }}">
+                                                                            <img src="/img/padlock.png" alt="padlock icon" class='icon'>
+                                                                        </button>
+                                                                    {% endif %}
                                                                     {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient and (not hasSubPriceToggle or showCatalogPrices) %}
                                                                     <button id="unlockBtn" class="btn">
                                                                         <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
@@ -193,6 +220,10 @@
                                                                                                                Układ flex robi teraz wewnętrzny kontener. #}
                                                                                                             <td class="order-action-cell">
                                                                                                                 <div class="order-action-cell__inner d-flex align-items-center">
+                                                                                                                {# Pozycje zamówienia klienta grupy: bez przenoszenia, duplikowania,
+                                                                                                                   edycji i usuwania — grupa-matka typu `client` ma sam podgląd
+                                                                                                                   (utils/orderStatusGuard.js). #}
+                                                                                                                {% if not clientOwnedOrder %}
                                                                                                                 <div class="position-controls d-flex flex-column align-items-center me-2">
                                                                                                                     <button class="btn move-up-btn has-tooltip" data-tooltip="{{ __('order.move_up') }}" data-id="{{ rowObj.item.id }}" onclick="event.stopPropagation()">
                                                                                                                         <svg viewbox="0 0 16 16">
@@ -222,6 +253,7 @@
                                                                                                                         <button class="action-btn action-btn-delete p-1 delete-position-btn has-tooltip" data-tooltip="{{ __('order.delete_pos') }}" type="button" data-id="{{ rowObj.item.id }}" data-href="/position/{{ rowObj.item.id }}/delete" onclick="event.stopPropagation()">
                                                                                                                             <img src="/img/delete.png" alt="{{ __('order.delete') }}"/>
                                                                                                                         </button>
+                                                                                                                {% endif %}
                                                                                                                     {# Zamknięcie wrappera MUSI być w tym bloku: szablony, które nadpisują
                                                                                                                        `pos_btns` pustą treścią (np. `order_sent.njk`), nie mogą zostać
                                                                                                                        z osieroconym `</div>` zamykającym cudzy kontener. #}
@@ -267,7 +299,16 @@
                                                                                                                         <div class="sub-params-container">
                                                                                                                             {% for entry in rowObj.item.subParamValues %}
                                                                                                                                 {% if entry.value and entry.value != '-' and entry.value != '' %}
-                                                                                                                                    {% if not entry.locked or (not isOrgView and prices) %}
+                                                                                                                                    {# Rabat klienta grupy: wiersz jest `locked`, więc normalnie chowa się razem
+                                                                                                                                       z cenami „złotymi", ALE klient końcowy (group_user) i grupa mają go
+                                                                                                                                       zobaczyć po kliknięciu kłódki — renderujemy ukryty, odsłania
+                                                                                                                                       `clientDiscountToggleBtn` (public/scripts/order.js). #}
+                                                                                                                                    {% set isClientDiscountRow = entry.key == 'SUB___RABAT_KLIENTA' or entry.key == 'SUB___WARTOSC_PO_RABACIE' %}
+                                                                                                                                    {# ⚠️ TYMCZASOWO: konto podrzędne grupy (`group_user`) nie widzi VAT-u —
+                                                                                                                                       ani w konfiguracji pozycji (form.js nie tworzy pól), ani tutaj. Pozycje
+                                                                                                                                       zapisane wcześniej mają te wiersze w bazie, więc pomijamy je przy renderze. #}
+                                                                                                                                    {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
+                                                                                                                                    {% if (not isGroupShop or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgView and prices)) %}
                                                                                                                                     <span class="sub-param-item{% if entry.locked %} gold{% endif %}">
                                                                                                                                         <span class="sub-param-label">{{ entry.display }}:</span>
                                                                                                                                         <b class="sub-param-value">{{ entry.value }}</b>
@@ -278,6 +319,26 @@
                                                                                                                         </div>
                                                                                                                     </td>
                                                                                                                 </tr>
+{# Rabat klienta grupy w OSOBNYM wierszu pod cenami SUB — odsłaniany kłódką
+   (`clientDiscountToggleBtn`, public/scripts/order.js). ⚠️ `d-none` niesie
+   `!important`, więc po jego zdjęciu potrzebny jest własny inline
+   `display: table-row` — sam `.sub-params-row` jest w CSS ukryty. #}
+{% if rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 and (isGroup or isGroupShop) and not hidePrices %}
+    <tr class="sub-params-row client-discount-row d-none" style="display: table-row;">
+        <td colspan="100%" class="sub-params-cell">
+            <div class="sub-params-container">
+                {% for entry in rowObj.item.clientDiscountValues %}
+                    {% if entry.value and entry.value != '-' and entry.value != '' %}
+                        <span class="sub-param-item gold">
+                            <span class="sub-param-label">{{ entry.display }}:</span>
+                            <b class="sub-param-value">{{ entry.value }}</b>
+                        </span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </td>
+    </tr>
+{% endif %}
                                                                                                                 {% if isOrgView and showCatalogPrices and prices %}
                                                                                                                 <tr class="sub-params-row" style="display: table-row;">
                                                                                                                     <td colspan="100%" class="sub-params-cell">
@@ -386,7 +447,14 @@
                                                                                                                             <div class="mobile-sub-params"{% if isGroupShop or (isClient and itemHasSubPrices) or (hasSubPriceToggle and itemHasSubPrices) or (isGroup and showSub) %} style="display: block;"{% endif %}>
                                                                                                                                 {% for entry in rowObj.item.subParamValues %}
                                                                                                                                     {% if entry.value and entry.value != '-' and entry.value != '' %}
-                                                                                                                                        {% if not entry.locked or (not isOrgViewM and prices) %}
+                                                                                                                                        {# Jak w wersji desktopowej: wiersze rabatu klienta renderują się dla grupy
+                                                                                                                                           i klienta końcowego, ale ukryte — odsłania je kłódka. #}
+                                                                                                                                        {% set isClientDiscountRow = entry.key == 'SUB___RABAT_KLIENTA' or entry.key == 'SUB___WARTOSC_PO_RABACIE' %}
+                                                                                                                                        {# ⚠️ TYMCZASOWO: konto podrzędne grupy (`group_user`) nie widzi VAT-u —
+                                                                                                                                           ani w konfiguracji pozycji (form.js nie tworzy pól), ani tutaj. Pozycje
+                                                                                                                                           zapisane wcześniej mają te wiersze w bazie, więc pomijamy je przy renderze. #}
+                                                                                                                                        {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
+                                                                                                                                        {% if (not isGroupShop or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgViewM and prices)) %}
                                                                                                                                         <div class="mobile-sub-param-item{% if entry.locked %} gold{% endif %}">
                                                                                                                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                                                                                                                         </div>
@@ -394,6 +462,18 @@
                                                                                                                                     {% endif %}
                                                                                                                                 {% endfor %}
                                                                                                                             </div>
+{# Jak w wersji desktopowej: rabat w osobnym bloku pod cenami SUB. #}
+{% if rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 and (isGroup or isGroupShop) and not hidePrices %}
+    <div class="mobile-sub-params client-discount-row d-none" style="display: block;">
+        {% for entry in rowObj.item.clientDiscountValues %}
+            {% if entry.value and entry.value != '-' and entry.value != '' %}
+                <div class="mobile-sub-param-item gold">
+                    <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+{% endif %}
                                                                                                                             {% if isOrgViewM and showCatalogPrices and prices %}
                                                                                                                             <div class="mobile-sub-params" style="display: block;">
                                                                                                                                 {% for entry in rowObj.item.subParamValues %}
@@ -408,6 +488,10 @@
                                                                                                                         {% endif %}
                                                                                                                         <div class="mobile-item-actions">
                                                                                                                             <div
+                                                                                                                                {# Pozycje zamówienia klienta grupy: bez przenoszenia, duplikowania,
+                                                                                                                                   edycji i usuwania — grupa-matka typu `client` ma sam podgląd
+                                                                                                                                   (utils/orderStatusGuard.js). #}
+                                                                                                                                {% if not clientOwnedOrder %}
                                                                                                                                 class="position-controls d-flex flex-column align-items-start me-2"
                                                                                                                                 style="display: inline-flex !important; flex-direction: row !important;">
                                                                                                                                 <button class="btn move-up-btn has-tooltip" data-tooltip="{{ __('order.move_up') }}" data-id="{{ rowObj.item.id }}" onclick="event.stopPropagation()">
@@ -448,6 +532,7 @@
                                                                                                                             <button class="action-btn action-btn-delete delete-position-btn" data-id="{{ rowObj.item.id }}" data-href="/position/{{ rowObj.item.id }}/delete" onclick="event.stopPropagation()">
                                                                                                                                 {{ __('order.delete') }}
                                                                                                                             </button>
+                                                                                                                                {% endif %}
                                                                                                                         </div>
                                                                                                                     </div>
                                                                                                                 {% endfor %}
@@ -521,7 +606,9 @@
                                                                                                         <button class="action-btn action-btn-delete p-1 custom-order-btn" type="button" id='group-reject-btn' data-id="{{ orderDetails.id }}">
                                                                                                             <p>{{ __('group.reject_btn') }}</p>
                                                                                                         </button>
-                                                                                                    {% else %}
+                                                                                                    {% elif not clientOwnedOrder %}
+                                                                                                        {# Zamówienie klienta grupy wysyła się przez zatwierdzenie w panelu
+                                                                                                           grupy, nie tym przyciskiem (utils/orderStatusGuard.js). #}
                                                                                                         <button class="action-btn action-btn-send p-1 stop-propagation send-order-btn me-3 custom-order-btn" type="button" id='send-order' data-id="{{ orderDetails.id }}">
                                                                                                             <p>
                                                                                                                 {{ __('order.send_order_btn') }}</p>

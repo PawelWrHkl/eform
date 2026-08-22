@@ -50,7 +50,7 @@ async function getUserIdByIdent(ident) {
 
 async function getUserByIdent(ident) {
     const query = `
-        SELECT u.id, u.client_name, u.ident, u.pin, u.password, u.organization_id, u.role, o.ident AS org_ident
+        SELECT u.id, u.client_name, u.ident, u.pin, u.password, u.organization_id, u.role, u.group_type, o.ident AS org_ident
         FROM user u
         INNER JOIN organization o ON u.organization_id = o.id
         WHERE u.ident = ?;

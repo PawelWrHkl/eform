@@ -6,7 +6,7 @@ import { validateFormInput, setInputValid } from './validateUtils.js';
 import { showToast } from '../components/toast.js';
 import { loadScript } from './scriptLoader.js';
 import { findAllValidatorsForInput, clearDisabledValues } from './validateUtils.js'
-import { calculateFromScript, calculateFromFormula, checkIfPriceIsCorrect, applyVatToGrossValue } from './pricesCalculator.js';
+import { calculateFromScript, calculateFromFormula, checkIfPriceIsCorrect, applyVatToGrossValue, applyClientDiscount } from './pricesCalculator.js';
 import { applySingleParamVisibility } from './createForm.js';
 
 
@@ -494,6 +494,9 @@ export async function updateFieldStates(params, inputs, values, displayValues, g
         // Right after prices finish computing (SUB___WARTOSC_KONCOWA has its final
         // value) — before checkIfPriceIsCorrect's placeholder logic — fill the
         // read-only WARTOSC_BRUTTO field with the VAT-adjusted gross value.
+        // Rabat klienta grupy PRZED VAT-em — VAT ma być policzony od kwoty po
+        // rabacie (pricesCalculator.js → applyClientDiscount).
+        applyClientDiscount(values, displayValues);
         applyVatToGrossValue(values, displayValues);
         displayValues = checkIfPriceIsCorrect(values, inputs, displayValues);
     });
