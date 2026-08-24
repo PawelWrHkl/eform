@@ -72,6 +72,7 @@ async function redirectClientGroupOrder(req, res) {
 
 const {
     orderHasSubPrices,
+    calcClientDiscountTotal,
     calcSubTotals,
     resolveSubPricePdfView,
     buildPdfSendDataTotals
@@ -521,6 +522,10 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
+        // które widać przy pozycjach (services/subPrices.js).
+        const clientDiscountTotals = calcClientDiscountTotal(orderItems);
+        totalPrice.afterClientDiscount = clientDiscountTotals.found ? clientDiscountTotals.total : null;
 
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render("order_sent_prices.njk",
@@ -625,6 +630,10 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
+        // które widać przy pozycjach (services/subPrices.js).
+        const clientDiscountTotals = calcClientDiscountTotal(orderItems);
+        totalPrice.afterClientDiscount = clientDiscountTotals.found ? clientDiscountTotals.total : null;
         const { isClientView, showBoth: showBothInPdf } = resolveSubPricePdfView(req, hasSubPrices);
 
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
@@ -810,6 +819,10 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
+        // które widać przy pozycjach (services/subPrices.js).
+        const clientDiscountTotals = calcClientDiscountTotal(orderItems);
+        totalPrice.afterClientDiscount = clientDiscountTotals.found ? clientDiscountTotals.total : null;
 
         if (shouldShowPrices) {
             Object.assign(sendData, buildPdfSendDataTotals({

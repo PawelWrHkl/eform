@@ -44,7 +44,9 @@
 		"polish_tooltip": "Polonais",
 		"german_tooltip": "Allemand",
 		"french_tooltip": "Français",
-		"netherlands_tooltip": "Néerlandais"
+		"netherlands_tooltip": "Néerlandais",
+		"group_word": "Groupe",
+		"registered_client": "Client enregistré"
 	},
 	"edit_order": {
 		"title": "Modifier la commande",
@@ -202,7 +204,8 @@
 		"manual_override": "Saisir manuellement",
 		"client_discount_label": "Remise client",
 		"value_after_discount_label": "Valeur après remise",
-		"client_discount_unlock": "Saisissez votre mot de passe pour voir la remise"
+		"client_discount_unlock": "Saisissez votre mot de passe pour voir la remise",
+		"show_discounted_price": "Afficher le prix après remise"
 	},
 	"employee": {
 		"panel_title": "Gestion des employés",

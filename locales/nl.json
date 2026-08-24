@@ -44,7 +44,9 @@
 		"polish_tooltip": "Pools",
 		"german_tooltip": "Duits",
 		"french_tooltip": "Frans",
-		"netherlands_tooltip": "Nederlands"
+		"netherlands_tooltip": "Nederlands",
+		"group_word": "Groep",
+		"registered_client": "Geregistreerde klant"
 	},
 	"edit_order": {
 		"title": "Bestelling bewerken",
@@ -202,7 +204,8 @@
 		"manual_override": "Handmatig invoeren",
 		"client_discount_label": "Klantkorting",
 		"value_after_discount_label": "Waarde na korting",
-		"client_discount_unlock": "Voer je wachtwoord in om de korting te zien"
+		"client_discount_unlock": "Voer je wachtwoord in om de korting te zien",
+		"show_discounted_price": "Prijs na korting weergeven"
 	},
 	"employee": {
 		"panel_title": "Medewerkersbeheer",

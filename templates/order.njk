@@ -42,12 +42,12 @@
                                             <div id="generate-container-mobile">
                                                 <button class="btn open-link-manager-btn" type="button" aria-label="{{ __('order.link_manager_title') }}">
                                                     <span style="font-size:22px;">&#128279;</span></button>
-                                                {# Kłódka rabatu klienta — grupa i klient końcowy (group_user) nie mają
-                                                   zwykłej kłódki cenowej (wymaga hasła konta nadrzędnego), a rabat ma być
-                                                   domyślnie ukryty. Ten przycisk tylko odsłania wiersze `client-discount-row`
-                                                   (public/scripts/order.js) — nic nie wysyła i nie zmienia sesji. #}
+                                                {# Jeden przycisk „Pokaż cenę po rabacie" dla grupy i klienta końcowego:
+                                                   odsłania NARAZ wiersz cen SUB i wiersz rabatu, po podaniu hasła tego konta
+                                                   (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
+                                                   (przełącznik cen SUB przez sesję) jest dla tych ról ukryty niżej. #}
                                                 {% if (isGroup or isGroupShop) and not hidePrices %}
-                                                    <button id="clientDiscountToggleBtn" class="btn has-tooltip" type="button" data-tooltip="{{ __('form.client_discount_label') }}">
+                                                    <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-tooltip="{{ __('form.show_discounted_price') }}">
                                                         <img src="/img/padlock.png" alt="padlock icon" class='icon'>
                                                     </button>
                                                 {% endif %}
@@ -55,7 +55,7 @@
                                                 <button id="unlockBtn" class="btn">
                                                     <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
                                                 {% endif %}
-                                                    {% if isGroup or canViewSubPrices or viewAsOrganization %}
+                                                    {% if (canViewSubPrices or viewAsOrganization) and not isGroup and not isGroupShop %}
                                                         <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
                                                             <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
                                                     {% endif %}
@@ -117,12 +117,12 @@
                                                                 <button class="btn has-tooltip" data-tooltip="{{ __('base.give_discount_tooltip') }}" id='discount-btn'>
                                                                     <img src="/img/sale.png" alt="sale icon" class='icon'></button>
                                                                 {% endif %}
-                                                                    {# Kłódka rabatu klienta — grupa i klient końcowy (group_user) nie mają
-                                                                       zwykłej kłódki cenowej (wymaga hasła konta nadrzędnego), a rabat ma być
-                                                                       domyślnie ukryty. Ten przycisk tylko odsłania wiersze `client-discount-row`
-                                                                       (public/scripts/order.js) — nic nie wysyła i nie zmienia sesji. #}
+                                                                    {# Jeden przycisk „Pokaż cenę po rabacie" dla grupy i klienta końcowego:
+                                                                       odsłania NARAZ wiersz cen SUB i wiersz rabatu, po podaniu hasła tego konta
+                                                                       (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
+                                                                       (przełącznik cen SUB przez sesję) jest dla tych ról ukryty niżej. #}
                                                                     {% if (isGroup or isGroupShop) and not hidePrices %}
-                                                                        <button id="clientDiscountToggleBtn" class="btn has-tooltip" type="button" data-tooltip="{{ __('form.client_discount_label') }}">
+                                                                        <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-tooltip="{{ __('form.show_discounted_price') }}">
                                                                             <img src="/img/padlock.png" alt="padlock icon" class='icon'>
                                                                         </button>
                                                                     {% endif %}
@@ -130,7 +130,7 @@
                                                                     <button id="unlockBtn" class="btn">
                                                                         <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
                                                                     {% endif %}
-                                                                        {% if isGroup or canViewSubPrices or viewAsOrganization %}
+                                                                        {% if (canViewSubPrices or viewAsOrganization) and not isGroup and not isGroupShop %}
                                                                             <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
                                                                                 <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
                                                                         {% endif %}
@@ -302,7 +302,7 @@
                                                                                                                                     {# Rabat klienta grupy: wiersz jest `locked`, więc normalnie chowa się razem
                                                                                                                                        z cenami „złotymi", ALE klient końcowy (group_user) i grupa mają go
                                                                                                                                        zobaczyć po kliknięciu kłódki — renderujemy ukryty, odsłania
-                                                                                                                                       `clientDiscountToggleBtn` (public/scripts/order.js). #}
+                                                                                                                                       `showDiscountPriceBtn` (public/scripts/order.js). #}
                                                                                                                                     {% set isClientDiscountRow = entry.key == 'SUB___RABAT_KLIENTA' or entry.key == 'SUB___WARTOSC_PO_RABACIE' %}
                                                                                                                                     {# ⚠️ TYMCZASOWO: konto podrzędne grupy (`group_user`) nie widzi VAT-u —
                                                                                                                                        ani w konfiguracji pozycji (form.js nie tworzy pól), ani tutaj. Pozycje
@@ -320,7 +320,7 @@
                                                                                                                     </td>
                                                                                                                 </tr>
 {# Rabat klienta grupy w OSOBNYM wierszu pod cenami SUB — odsłaniany kłódką
-   (`clientDiscountToggleBtn`, public/scripts/order.js). ⚠️ `d-none` niesie
+   (`showDiscountPriceBtn`, public/scripts/order.js). ⚠️ `d-none` niesie
    `!important`, więc po jego zdjęciu potrzebny jest własny inline
    `display: table-row` — sam `.sub-params-row` jest w CSS ukryty. #}
 {% if rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 and (isGroup or isGroupShop) and not hidePrices %}
@@ -541,6 +541,48 @@
                                                                                                     {% endfor %}
                                                                                                     {% if totalPrice and not hidePrices %}
                                                                                                         <div id='total-container' data-sub-total="{{ totalPrice.subVisible or 0 }}" data-prices-unlocked="{{ 'true' if prices else 'false' }}">
+                                                                                                            {# Grupa typu `client` i jej klient końcowy widzą OBIE sumy: katalogową (HKL)
+                                                                                                               i sumę klienta (SUB___). Pozostałe role zostają przy jednej sumie —
+                                                                                                               dokładnie jak dotąd (gałąź `{% else %}` niżej). #}
+                                                                                                            {% if isGroupClientType and (isGroup or isGroupShop) %}
+                                                                                                                {# Suma widoczna od razu:
+                                                                                                                   • grupa-matka → katalogowa („HKL"), bo to jej cena zakupu,
+                                                                                                                   • konto podrzędne (`group_user`) → JEGO suma `SUB___` z pozycji
+                                                                                                                     („WARTOŚĆ BR.[€]" = `SUB___SUMA_BRUTTO`, czyli `totalPrice.subVisible`).
+                                                                                                                   ⚠️ Konto podrzędne NIE MOŻE widzieć sumy katalogowej. #}
+                                                                                                                {% if not isGroupShop %}
+                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center">
+                                                                                                                        <span class='total price-label col-3 text-center'>
+                                                                                                                            {% if totalPrice.visible and totalPrice.visible != '0.00' %}
+                                                                                                                                HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}&#8364;
+                                                                                                                            {% else %}
+                                                                                                                                {{ __('order.according_to_price') }}
+                                                                                                                            {% endif %}
+                                                                                                                        </span>
+                                                                                                                    </div>
+                                                                                                                {% else %}
+                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center">
+                                                                                                                        <span class='total price-label sub-total col-3 text-center'>
+                                                                                                                            {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                                                                                                                                {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}&#8364;
+                                                                                                                            {% else %}
+                                                                                                                                {{ __('order.according_to_price') }}
+                                                                                                                            {% endif %}
+                                                                                                                        </span>
+                                                                                                                    </div>
+                                                                                                                {% endif %}
+                                                                                                                {# Suma PO RABACIE klienta — dokładnie suma wierszy „Wartość po rabacie"
+                                                                                                                   z pozycji (`services/subPrices.js calcClientDiscountTotal`), więc stopka
+                                                                                                                   zgadza się z tym, co widać przy pozycjach. Ukryta do kliknięcia kłódki
+                                                                                                                   „Pokaż cenę po rabacie" (`client-discount-row`, public/scripts/order.js). #}
+                                                                                                                {% if totalPrice.afterClientDiscount %}
+                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center client-discount-row d-none">
+                                                                                                                        <span class='total price-label sub-total col-3 text-center'>
+                                                                                                                            {{ __('form.value_after_discount_label') }}: {{ totalPrice.afterClientDiscount | applyFactor(priceFactor) }}&#8364;
+                                                                                                                        </span>
+                                                                                                                    </div>
+                                                                                                                {% endif %}
+                                                                                                            {% else %}
                                                                                                             <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                 <span class='total price-label col-3 text-center{% if isGroupShop or (isClient and hasSubPrices) or (hasSubPriceToggle and hasSubPrices and not showCatalogPrices) %} sub-total{% endif %}'>
                                                                                                                     {% if isGroupShop or (isClient and hasSubPrices) or (hasSubPriceToggle and hasSubPrices and not showCatalogPrices) %}
@@ -558,6 +600,7 @@
                                                                                                                     {% endif %}
                                                                                                                 </span>
                                                                                                             </div>
+                                                                                                            {% endif %}
                                                                                                             {% if hasSubPriceToggle and showCatalogPrices and hasSubPrices and totalPrice.subVisible and totalPrice.subVisible != 0 %}
                                                                                                                 <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                     <span class='total price-label sub-total col-3 text-center'>

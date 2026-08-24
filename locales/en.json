@@ -46,7 +46,9 @@
 		"polish_tooltip": "Polish",
 		"german_tooltip": "German",
 		"french_tooltip": "French",
-		"netherlands_tooltip": "Dutch"
+		"netherlands_tooltip": "Dutch",
+		"group_word": "Group",
+		"registered_client": "Registered client"
 	},
 	"edit_order": {
 		"title": "Edit Order",
@@ -208,7 +210,8 @@
 		"manual_override": "Enter manually",
 		"client_discount_label": "Client discount",
 		"value_after_discount_label": "Value after discount",
-		"client_discount_unlock": "Enter your password to see the discount"
+		"client_discount_unlock": "Enter your password to see the discount",
+		"show_discounted_price": "Show discounted price"
 	},
 	"employee": {
 		"panel_title": "Employee Management",

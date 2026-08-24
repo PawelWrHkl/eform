@@ -33,6 +33,49 @@ function orderHasSubPrices(cleanOrderItems) {
 }
 
 /**
+ * Suma „wartości po rabacie klienta grupy" ze WSZYSTKICH pozycji zamówienia —
+ * dokładnie tych liczb, które widok pokazuje przy pozycjach jako „Wartość po
+ * rabacie" (`SUB___WARTOSC_PO_RABACIE`, patrz
+ * public/scripts/formTools/pricesCalculator.js).
+ *
+ * ⚠️ Nie da się jej zastąpić `SUM(order_item.total_price_sub)`: ta kolumna
+ * powstaje z `form.js getTotal()` i dla pozycji zapisanych przed zmianą
+ * podstawy rabatu bywa policzona z innej liczby (np. 14,27 zamiast 40,77) —
+ * stopka rozjeżdżałaby się z wierszami pozycji. Tu sumujemy to samo, co widać.
+ *
+ * ⚠️ Klucz bez prefiksu (`WARTOSC_PO_RABACIE`) też liczymy — tak nazywały się
+ * wiersze rabatu zapisane przed 2026-08-21 (patrz services/orderService.js).
+ */
+function calcClientDiscountTotal(orderItems) {
+  let total = 0;
+  let found = false;
+  if (!Array.isArray(orderItems)) return { total: 0, found: false };
+
+  for (const item of orderItems) {
+    let parsed = item?.json_parameters_desc;
+    try {
+      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+    } catch {
+      parsed = null;
+    }
+    if (!parsed) continue;
+
+    const entries = parsed instanceof Map
+      ? Array.from(parsed.entries())
+      : (Array.isArray(parsed) ? parsed : Object.entries(parsed));
+
+    for (const [key, param] of entries) {
+      if (key !== 'SUB___WARTOSC_PO_RABACIE' && key !== 'WARTOSC_PO_RABACIE') continue;
+      const val = parseFloat(param && typeof param === 'object' ? param.option_value : param);
+      if (!isFinite(val)) continue;
+      total += val;
+      found = true;
+    }
+  }
+  return { total: parseFloat(total.toFixed(2)), found };
+}
+
+/**
  * Wylicza dwa osobne sumy SUB cen z `orderItems`:
  *  - subVisible: suma SUB params z listsum=true i NIE-locked
  *  - subLocked: suma SUB params z listsum=true i locked=true
@@ -161,6 +204,7 @@ module.exports = {
   HKL_ORG_ID,
   orderHasSubPrices,
   calcSubTotals,
+  calcClientDiscountTotal,
   resolveDiscountBaseTotal,
   resolveSubPricePdfView,
   buildPdfSendDataTotals

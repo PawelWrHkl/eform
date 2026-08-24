@@ -44,7 +44,9 @@
 		"polish_tooltip": "Polnisch",
 		"german_tooltip": "Deutsch",
 		"french_tooltip": "Französisch",
-		"netherlands_tooltip": "Niederländisch"
+		"netherlands_tooltip": "Niederländisch",
+		"group_word": "Gruppe",
+		"registered_client": "Registrierter Kunde"
 	},
 	"edit_order": {
 		"title": "Bestellung bearbeiten",
@@ -202,7 +204,8 @@
 		"manual_override": "Manuell eingeben",
 		"client_discount_label": "Kundenrabatt",
 		"value_after_discount_label": "Wert nach Rabatt",
-		"client_discount_unlock": "Passwort eingeben, um den Rabatt zu sehen"
+		"client_discount_unlock": "Passwort eingeben, um den Rabatt zu sehen",
+		"show_discounted_price": "Preis nach Rabatt anzeigen"
 	},
 	"employee": {
 		"panel_title": "Mitarbeiterverwaltung",

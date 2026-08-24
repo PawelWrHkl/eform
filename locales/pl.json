@@ -44,7 +44,9 @@
 		"polish_tooltip": "Polski",
 		"german_tooltip": "Niemiecki",
 		"french_tooltip": "Francuski",
-		"netherlands_tooltip": "Niderlandzki"
+		"netherlands_tooltip": "Niderlandzki",
+		"group_word": "Grupa",
+		"registered_client": "Klient zarejestrowany"
 	},
 	"edit_order": {
 		"title": "Edytuj zamówienie",
@@ -206,7 +208,8 @@
 		"manual_override": "Wpisz ręcznie",
 		"client_discount_label": "Rabat klienta",
 		"value_after_discount_label": "Wartość po rabacie",
-		"client_discount_unlock": "Podaj hasło, aby zobaczyć rabat"
+		"client_discount_unlock": "Podaj hasło, aby zobaczyć rabat",
+		"show_discounted_price": "Pokaż cenę po rabacie"
 	},
 	"mail": {
 		"order_confirm": "mail.order_confirm",

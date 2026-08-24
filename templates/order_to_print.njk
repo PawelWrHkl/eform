@@ -223,7 +223,11 @@
                                     <td>{{ pdfCell(rowObj.item.comment) }}</td>
                                 </tr>
                                 <tr class="print-price-row">
-                                    {% if not clientView %}
+                                    {# ⚠️ Konto podrzędne grupy (`group_user`) traktujemy tu jak widok klienta:
+                                       NIE dostaje cen katalogowych (`table.headers2`), tylko własne ceny
+                                       `SUB___` niżej. Bez tego druk/PDF pokazywał mu „CENA HKL" i wartości
+                                       zakupu grupy. #}
+                                    {% if not clientView and not isGroupShop %}
                                     {% for header in table.headers2 %}
                                         {% if not(header in rowObj.item.lockedParams) %}
                                             <td class="print-price" colspan="2">
@@ -233,7 +237,7 @@
                                         {% endif %}
                                     {% endfor %}
                                     {% endif %}
-                                    {% if clientView or showBoth %}
+                                    {% if clientView or showBoth or isGroupShop %}
                                     {% for entry in rowObj.item.subParamValues %}
                                         {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}
                                             <td class="print-price" colspan="2">
@@ -244,7 +248,7 @@
                                     {% endfor %}
                                     {% endif %}
                                 </tr>
-                                {% if prices and not clientView %}
+                                {% if prices and not clientView and not isGroupShop %}
                                     <tr class="print-price-row">
                                         {% for header in table.headers1 %}
                                             {% if header in rowObj.item.lockedParams %}
@@ -290,7 +294,10 @@
             <div class="print-total-items">
                 {{ __('order.total_items') }}: <span class="pdf-val">{{ globalIndex - 1 }}</span>
             </div>
-            {% if prices and sendData and sendData.total %}
+            {# ⚠️ Konto podrzędne grupy (`group_user`) NIE MOŻE widzieć sumy katalogowej
+   (to cena zakupu grupy) — ani na ekranie, ani w druku/PDF generowanym z tego
+   szablonu. Dostaje wyłącznie swoją sumę (`totalPrice.sub`) niżej. #}
+{% if prices and sendData and sendData.total and not isGroupShop %}
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
@@ -298,7 +305,7 @@
                         </span>
                     </div>
                 </div>
-            {% elif totalPrice and not clientView %}
+            {% elif totalPrice and not clientView and not isGroupShop %}
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
@@ -307,6 +314,17 @@
                             {% else %}
                                 Według cennika
                             {% endif %}
+                        </span>
+                    </div>
+                </div>
+            {% elif isGroupShop and totalPrice and totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                {# Konto podrzędne dostaje w druku tę samą sumę, którą widzi na ekranie
+                   przed kłódką: sumę „WARTOŚĆ BR.[€]" swoich pozycji. Wartość po rabacie
+                   zostaje pod kłódką na ekranie i nie idzie do wydruku. #}
+                <div id='total-container' style='padding-right: 10%;'>
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total price-label col-3 text-center'>
+                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}&#8364;</span>
                         </span>
                     </div>
                 </div>
@@ -319,7 +337,7 @@
                     </div>
                 </div>
             {% endif %}
-            {% if prices and sendData and sendData.total_hidden %}
+            {% if prices and sendData and sendData.total_hidden and not isGroupShop %}
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>

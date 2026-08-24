@@ -130,13 +130,32 @@ export function applyClientDiscount(values, displayValues) {
     const factor = clientDiscountFactor();
     registerClientDiscountKeys();
 
-    // Podstawa rabatu: WYŁĄCZNIE cena klienta z łańcucha SUB___. Brak tych
-    // parametrów (np. organizacja HKL, gdzie SUB___ nie występuje) = nie ma
-    // czego rabatować — pokazujemy sam procent i nie ruszamy żadnej sumy.
-    const rawSubNet = values['SUB___SUMA_BRUTTO'] !== undefined
-        ? values['SUB___SUMA_BRUTTO']
-        : values['SUB___WARTOSC_KONCOWA'];
-    const netValue = parseFloat(rawSubNet);
+    // Podstawa rabatu: KOŃCOWA cena klienta, czyli dokładnie ta liczba, z której
+    // `form.js getTotal()` buduje `total_sub` — OSTATNI wiersz `listsum` z
+    // łańcucha SUB___ (semantyka „ostatni wygrywa", identyczna jak tam).
+    // ⚠️ Wcześniej brana była `SUB___SUMA_BRUTTO`, czyli cena PRZED rabatem
+    // cennikowym silnika (`SUB___CENA_RABAT` → `SUB___WARTOSC_KONCOWA`). Na
+    // prawdziwych danych (grupa Lipka, rabat cennikowy 60%) dawało to „wartość
+    // po rabacie" równą `WARTOSC_KONCOWA`, a więc rozjazd z zapisaną sumą
+    // klienta: 273 → pokazywane 109,20 przy zapisanym 43,68.
+    let netValue = NaN;
+    if (displayValues) {
+        for (const [key, entry] of displayValues) {
+            if (!entry || !entry.listsum) continue;
+            const isSubRow = entry.sub === true || (typeof key === 'string' && key.startsWith('SUB___'));
+            if (!isSubRow) continue;
+            const candidate = parseFloat(values[key]);
+            if (Number.isFinite(candidate)) netValue = candidate;
+        }
+    }
+    if (!Number.isFinite(netValue)) {
+        // Brak wierszy `listsum` (np. świeży formularz przed pierwszym
+        // przeliczeniem) — bierzemy końcową cenę klienta, a dopiero potem sumę.
+        const rawSubNet = values['SUB___WARTOSC_KONCOWA'] !== undefined
+            ? values['SUB___WARTOSC_KONCOWA']
+            : values['SUB___SUMA_BRUTTO'];
+        netValue = parseFloat(rawSubNet);
+    }
 
     const afterDiscount = Number.isFinite(netValue)
         ? parseFloat((netValue * factor).toFixed(2))

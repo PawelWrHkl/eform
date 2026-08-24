@@ -353,24 +353,54 @@ unlockBtns.forEach(unlockBtn => {
   });
 });
 
-// --- Kłódka rabatu klienta grupy -------------------------------------------
-// Grupa i klient końcowy (`group_user`) nie mają zwykłej kłódki cenowej — ta
-// przechodzi przez `/user/auth/check-password`, które sprawdza hasło konta z
-// sesji, a konto podrzędne dzieli sesję z grupą-matką i po prostu nie zna jej
-// hasła. Dlatego rabat ma własną kłódkę: wiersze renderują się ukryte
-// (`client-discount-row d-none`, templates/order.njk), a odsłonięcie wymaga
-// PODANIA HASŁA TEGO KONTA (`/user/auth/check-login-password` — dla konta
-// podrzędnego sprawdza `group_user.password`, dla pozostałych `user.password`).
-// ⚠️ Schowanie z powrotem hasła nie wymaga, a poprawne hasło obowiązuje tylko do
-// przeładowania strony — nic nie zapisujemy w sesji, żeby ukryta cena nie
-// zostawała odsłonięta „na później".
-const clientDiscountToggleBtns = document.querySelectorAll('[id="clientDiscountToggleBtn"]');
+// --- „Pokaż cenę po rabacie" (grupa i klient końcowy) ----------------------
+// JEDEN przycisk zamiast dwóch (`clientDiscountToggleBtn` + `unlockSubBtn`):
+// odsłania NARAZ wiersz cen SUB i wiersz rabatu klienta. Dla tych ról
+// `unlockSubBtn` (przełącznik cen SUB przez sesję + reload) nie jest już
+// renderowany — całość dzieje się w DOM, bez przeładowania.
+//
+// ⚠️ Odsłonięcie wymaga HASŁA TEGO KONTA
+// (`/user/auth/check-login-password` — dla konta podrzędnego sprawdza
+// `group_user.password`, dla pozostałych `user.password`; zwykła kłódka cenowa
+// pyta o hasło konta z sesji, którego klient końcowy nie zna). Schowanie hasła
+// nie wymaga, a zgoda obowiązuje tylko do przeładowania strony — nic nie
+// zapisujemy w sesji, żeby ukryta cena nie została odsłonięta „na później".
+const showDiscountPriceBtns = document.querySelectorAll('[id="showDiscountPriceBtn"]');
 let clientDiscountUnlocked = false;
+// Zapamiętujemy TYLKO te wiersze, które sami odsłoniliśmy — inaczej schowanie
+// wyłączyłoby też ceny SUB, które dla konta podrzędnego są widoczne domyślnie
+// (inline `display` z szablonu).
+const revealedPriceRows = [];
 
-function setClientDiscountVisible(visible) {
-  document.querySelectorAll('.client-discount-row')
-    .forEach(row => row.classList.toggle('d-none', !visible));
-  clientDiscountToggleBtns.forEach(b => b.classList.toggle('active', visible));
+function priceRowsVisible() {
+  return revealedPriceRows.length > 0;
+}
+
+function revealPriceRows() {
+  // 1) wszystko oznaczone jako „do odsłonięcia kłódką": wiersze rabatu przy
+  //    pozycjach ORAZ suma klienta po rabacie w stopce (`#total-container`).
+  document.querySelectorAll('.client-discount-row.d-none').forEach(row => {
+    row.classList.remove('d-none');
+    revealedPriceRows.push({ row, mode: 'class' });
+  });
+  // 2) wiersze cen SUB, które są ukryte w CSS (brak inline `display`).
+  document.querySelectorAll('.sub-params-row, .mobile-sub-params').forEach(row => {
+    if (row.classList.contains('client-discount-row')) return;
+    if (!row.style.display) {
+      row.style.display = row.classList.contains('mobile-sub-params') ? 'block' : 'table-row';
+      revealedPriceRows.push({ row, mode: 'style' });
+    }
+  });
+  showDiscountPriceBtns.forEach(b => b.classList.add('active'));
+}
+
+function hidePriceRows() {
+  revealedPriceRows.forEach(({ row, mode }) => {
+    if (mode === 'class') row.classList.add('d-none');
+    else row.style.display = '';
+  });
+  revealedPriceRows.length = 0;
+  showDiscountPriceBtns.forEach(b => b.classList.remove('active'));
 }
 
 async function checkLoginPassword(password) {
@@ -388,19 +418,16 @@ async function checkLoginPassword(password) {
   }
 }
 
-clientDiscountToggleBtns.forEach(btn => {
+showDiscountPriceBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    const rows = document.querySelectorAll('.client-discount-row');
-    if (!rows.length) return;
-
     // widoczne → chowamy bez pytania o hasło
-    if (!rows[0].classList.contains('d-none')) {
-      setClientDiscountVisible(false);
+    if (priceRowsVisible()) {
+      hidePriceRows();
       return;
     }
     // hasło podane już wcześniej na tej stronie → nie pytamy drugi raz
     if (clientDiscountUnlocked) {
-      setClientDiscountVisible(true);
+      revealPriceRows();
       return;
     }
 
@@ -426,7 +453,7 @@ clientDiscountToggleBtns.forEach(btn => {
             }
             if (await checkLoginPassword(value)) {
               clientDiscountUnlocked = true;
-              setClientDiscountVisible(true);
+              revealPriceRows();
             } else {
               showToast('error', `${t('order.invalid_password')}`);
             }

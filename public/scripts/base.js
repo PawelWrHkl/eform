@@ -137,8 +137,10 @@ export async function getUserName() {
 
     setTimeout(() => {
 
+        const { userLabel, subAccountLabel } = resolveUserInfoLabels();
+
         const shopInfo = data.shopName
-            ? `</br><p class='pt-2'>Filia: </br> ${escapeHtml(data.shopName)}</p>`
+            ? `</br><p class='pt-2'>${subAccountLabel}: </br> ${escapeHtml(data.shopName)}</p>`
             : '';
 
         // Konto podrzędne grupy typu `client` (`window.hideParentUserInfo`,
@@ -150,13 +152,31 @@ export async function getUserName() {
         if (userInfoEl) {
             userInfoEl.innerHTML = window.hideParentUserInfo
                 ? shopInfo.replace(/^<\/br>/, '')
-                : `${t('base.user')}: </br> ${escapeHtml(data.name)}
+                : `${userLabel}: </br> ${escapeHtml(data.name)}
         ${shopInfo}
         </br> <p class='pt-2'>Mail: </br> ${escapeHtml(data.email)}</p>  ${contextInfo}`;
         }
         getEmp();
     }, 100);
     return data;
+}
+
+/**
+ * Etykiety w navbarowym bloku `user-info`.
+ *
+ * Dla grupy typu `client` (`user.role = 'group'` + `user.group_type = 'client'`,
+ * patrz services/groupType.js) nazwa konta to nazwa GRUPY, a konto podrzędne to
+ * zarejestrowany klient — nie „użytkownik" i nie „filia", bo tamto nazewnictwo
+ * należy do klasycznej grupy ze sklepami. Dotyczy obu sesji: samej grupy i jej
+ * konta podrzędnego (`window.groupType` niesie typ grupy-MATKI).
+ */
+export function resolveUserInfoLabels() {
+    const isClientGroup = window.groupType === 'client' && (window.isGroup || window.isGroupShop);
+    return {
+        userLabel: isClientGroup ? `${t('base.group_word')}` : `${t('base.user')}`,
+        // „Filia" zostaje literałem dla grupy ze sklepami — tak było przed zmianą.
+        subAccountLabel: isClientGroup ? `${t('base.registered_client')}` : 'Filia'
+    };
 }
 
 // ─── Recent users helpers (fetched from DB via API) ─────────────────────────
