@@ -1,5 +1,7 @@
 node_modules/
 .env
+.env.production
+tmp/db-schema-sync/
 git-instrukcje.txt
 git_auto_commit.sh
 .dockerignore

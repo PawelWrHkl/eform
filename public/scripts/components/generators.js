@@ -496,8 +496,20 @@ export async function generatePdf(isShort = false, lang = null) {
     console.log('Has prices access:', hasPricesAccess, 'isShort:', isShort);
 
     let downloadUrl = `/orders/orderpdf/${orderId}/${hasPricesAccess ? 'true' : 'false'}/${isShort ? 'true' : 'false'}`;
+    // Stan kłódki "Pokaż cenę po rabacie" (order.js revealPriceRows/hidePriceRows)
+    // — czysto przeglądarkowy, więc PDF musi go dostać jako parametr requestu,
+    // inaczej dla grupy typu `client` zawsze wracałby do stanu "schowane"
+    // (services/subPrices.js resolveGroupClientPdfPriceView).
+    const params = new URLSearchParams();
+    if (window.__clientDiscountPriceVisible) {
+      params.set('discountUnlocked', 'true');
+    }
     if (lang) {
-      downloadUrl += `?lang=${encodeURIComponent(lang)}`;
+      params.set('lang', lang);
+    }
+    const queryString = params.toString();
+    if (queryString) {
+      downloadUrl += `?${queryString}`;
     }
     console.log('Generating PDF from URL:', downloadUrl);
     const response = await fetch(downloadUrl);

@@ -394,11 +394,12 @@ html.nav-collapsed #order-nav {
 }
 
 .sub-params-container {
+    display: flex;
     flex-wrap: wrap;
-    align-items:flex-start;
-    gap: 8px 16px;
+    align-items: stretch;
+    gap: 8px;
     border-radius: var(--radius-sm);
-    padding: 8px 12px;
+    padding: 10px 12px;
     font-family: var(--font-sans);
     font-size: var(--text-sm);
     width: fit-content;
@@ -407,9 +408,14 @@ html.nav-collapsed #order-nav {
 
 /* SUB___ — teal accent */
 .sub-params-row .sub-params-container {
-    background: rgba(107, 157, 173, 0.10);
+    background: rgba(107, 117, 173, 0.1);
     border: 1px solid rgba(107, 157, 173, 0.32);
     border-left: 4px solid var(--brand-accent, #6b9dad);
+}
+
+.sub-params-row .sub-param-item {
+    background: rgba(107, 157, 173, 0.08);
+    border-color: rgba(107, 157, 173, 0.28);
 }
 
 /* Ceny katalogowe (price-row) — slate / brand primary */
@@ -417,6 +423,10 @@ html.nav-collapsed #order-nav {
     background: rgb(252, 252, 252);
     border: 1px solid rgba(94, 110, 130, 0.28);
     border-left: 4px solid var(--brand-primary, #5e6e82);
+}
+.price-row:not(.sub-params-locked-row) .sub-param-item {
+    background: rgba(94, 110, 130, 0.06);
+    border-color: rgba(94, 110, 130, 0.22);
 }
 .p-price{
     background-color: rgb(226, 226, 226) !important;
@@ -432,6 +442,11 @@ html.nav-collapsed #order-nav {
     border-left: 4px solid hsl(40 32% 58%);
 }
 
+.sub-params-row.sub-params-locked-row .sub-param-item {
+    background: hsl(46 45% 98%);
+    border-color: hsl(43 30% 82%);
+}
+
 /* Ceny locked — neutralny grafit */
 .price-row.sub-params-locked-row .sub-params-container {
     background: var(--bg-surface-sunken);
@@ -439,16 +454,41 @@ html.nav-collapsed #order-nav {
     border-left: 4px solid var(--text-tertiary);
 }
 
-.sub-param-item {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
+.price-row.sub-params-locked-row .sub-param-item {
+    background: var(--bg-surface-solid);
+    border-color: var(--border-default);
 }
 
-/* Legacy .gold — bez żółtego tła na chipach SUB */
-.sub-param-item.gold,
-.mobile-sub-param-item.gold {
-    background-color: transparent !important;
+/* Rabat klienta grupy — osobny (bursztynowy) akcent, żeby wiersz nie mylił się
+   ani z cenami SUB (turkus), ani z cenami "złotymi"/locked (przygaszony żółty). */
+.sub-params-row.client-discount-row .sub-params-container {
+    background: hsl(28 75% 95%);
+    border: 1px solid hsl(28 55% 78%);
+    border-left: 4px solid hsl(28 70% 50%);
+}
+
+.sub-params-row.client-discount-row .sub-param-item {
+    background: hsl(28 80% 98%);
+    border-color: hsl(28 45% 82%);
+}
+
+.sub-params-row.client-discount-row .sub-param-label {
+    color: hsl(28 55% 32%);
+}
+
+/* Każdy parametr jako osobna, czytelna "karta" — własne tło, obramowanie
+   i zaokrąglenie, żeby kolejne pary etykieta/wartość nie zlewały się w jeden
+   ciąg tekstu wewnątrz wspólnego kontenera wiersza. */
+.sub-param-item {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 5px 10px;
+    border-radius: calc(var(--radius-sm) - 2px);
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface-solid);
+    line-height: 1.2;
 }
 
 .sub-param-label {
@@ -487,6 +527,11 @@ html.nav-collapsed #order-nav {
     border-left: 4px solid var(--brand-accent, #6b9dad);
 }
 
+.mobile-sub-params:not(.mobile-item-prices) .mobile-sub-param-item {
+    background: rgba(107, 157, 173, 0.08);
+    border-color: rgba(107, 157, 173, 0.28);
+}
+
 /* Mobile ceny katalogowe */
 .mobile-sub-params.mobile-item-prices {
     background: var(--brand-primary-light);
@@ -494,12 +539,21 @@ html.nav-collapsed #order-nav {
     border-left: 4px solid var(--brand-primary, #5e6e82);
 }
 
+.mobile-sub-params.mobile-item-prices .mobile-sub-param-item {
+    background: rgba(94, 110, 130, 0.06);
+    border-color: rgba(94, 110, 130, 0.22);
+}
+
 .mobile-sub-param-item {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
+    padding: 7px 10px;
     margin-bottom: 6px;
+    border-radius: calc(var(--radius-sm) - 2px);
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface-solid);
 }
 
 .mobile-sub-param-item:last-child {
@@ -548,11 +602,40 @@ html.nav-collapsed #order-nav {
     margin-top: 8px;
 }
 
+.mobile-sub-params-locked:not(.mobile-item-prices) .mobile-sub-param-item {
+    background: hsl(46 45% 98%);
+    border-color: hsl(43 30% 82%);
+}
+
 .mobile-sub-params-locked.mobile-item-prices {
     background: var(--bg-surface-sunken) !important;
     border: 1px solid var(--border-strong) !important;
     border-left: 4px solid var(--text-tertiary) !important;
     margin-top: 8px;
+}
+
+.mobile-sub-params-locked.mobile-item-prices .mobile-sub-param-item {
+    background: var(--bg-surface-solid);
+    border-color: var(--border-default);
+}
+
+/* Rabat klienta grupy (mobile) — ten sam bursztynowy akcent co w wersji
+   desktopowej; każdy parametr to własna karta, więc oddzielna kreska nie
+   jest już potrzebna. */
+.mobile-sub-params.client-discount-row {
+    background: hsl(28 75% 95%) !important;
+    border: 1px solid hsl(28 55% 78%) !important;
+    border-left: 4px solid hsl(28 70% 50%) !important;
+    margin-top: 8px;
+}
+
+.mobile-sub-params.client-discount-row .mobile-sub-param-item {
+    background: hsl(28 80% 98%);
+    border-color: hsl(28 45% 82%);
+}
+
+.mobile-sub-params.client-discount-row .mobile-sub-param-item strong {
+    color: hsl(28 55% 32%);
 }
 
 .mobile-sub-params-locked .mobile-sub-param-item strong {
@@ -769,6 +852,16 @@ html.nav-collapsed #order-nav {
     background: var(--color-info-bg);
     border: none;
     box-shadow: 0 3px 5px var(--brand-primary-glow);
+}
+
+/* Suma "Wartość po rabacie" — ten sam bursztynowy akcent co wiersz rabatu
+   klienta przy pozycji (.client-discount-row), żeby kolor był spójny między
+   stopką a wierszem, z którego ta suma się liczy. */
+.total-price.client-discount-row .total {
+    background: hsl(28 75% 95%);
+    color: hsl(28 55% 32%);
+    border: 1px solid hsl(28 55% 78%);
+    box-shadow: none;
 }
 
 .content .container .text-center.py-5 {

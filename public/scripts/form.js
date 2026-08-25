@@ -872,14 +872,21 @@ export function getTotal(displayValues) {
       }
     }
   }
-  // ⚠️ Rabat klienta grupy wchodzi TYLKO tutaj — do zapisywanej sumy klienta
-  // (`order_item.total_price_sub`). Widoczne wiersze cen zostają nietknięte
-  // (rabat ma być ukryty i pokazywany osobnym, zablokowanym wierszem), więc
-  // mnożymy dopiero przy budowaniu sum do zapisu. Suma katalogowa
-  // (`total`/`total_hidden`) rabatu nie dotyczy.
-  const discountFactor = clientDiscountFactorForTotals();
-  if (discountFactor !== 1 && Number.isFinite(totalObj['total_sub'])) {
-    totalObj['total_sub'] = parseFloat((totalObj['total_sub'] * discountFactor).toFixed(2));
+  // ⚠️ Suma klienta zapisywana w pozycji (`order_item.total_price_sub`) MUSI być
+  // tą samą liczbą, którą widok pokazuje jako „Wartość po rabacie" — inaczej
+  // stopka zamówienia rozjeżdża się z wierszem przy pozycji (tak było: 14,27 w
+  // bazie przy 40,77 na ekranie). Dlatego bierzemy wprost wiersz rabatu
+  // (`pricesCalculator.js` liczy go od `SUB___SUMA_BRUTTO`), a mnożnik stosujemy
+  // tylko wtedy, gdy tego wiersza nie ma (np. ekran bez pól rabatu).
+  const discountRow = displayValues.get('SUB___WARTOSC_PO_RABACIE');
+  const discountRowValue = discountRow ? parseFloat(discountRow.option_value) : NaN;
+  if (Number.isFinite(discountRowValue)) {
+    totalObj['total_sub'] = discountRowValue;
+  } else {
+    const discountFactor = clientDiscountFactorForTotals();
+    if (discountFactor !== 1 && Number.isFinite(totalObj['total_sub'])) {
+      totalObj['total_sub'] = parseFloat((totalObj['total_sub'] * discountFactor).toFixed(2));
+    }
   }
 
   return totalObj;

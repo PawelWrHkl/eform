@@ -92,6 +92,13 @@
             font-size: 14px !important;
             padding-bottom: 10px !important;
         }
+        /* Rabat klienta grupy — bursztynowy akcent, ten sam co na ekranie
+           (`.client-discount-row`, public/styles/order_details.css).
+           Specificity musi bić `.print-price-row td` (szare tło wiersza cen)
+           — sam `.print-discount-price` by przegrał. */
+        .print-price-row td.print-discount-price {
+            background-color: hsl(28 75% 95%) !important;
+        }
         .print-total-price {
             display: flex;
             justify-content: flex-end;
@@ -188,6 +195,8 @@
             </div>
             {% set clientView = clientView | default(false) %}
             {% set showBoth = showBoth | default(false) %}
+            {% set showClientDiscount = showClientDiscount | default(false) %}
+            {% set hideClientVat = hideClientVat | default(false) %}
             {% set globalIndex = 1 %}
             {% for table in cleanOrderItems %}
                 <div class="print-table-container">
@@ -229,7 +238,13 @@
                                        zakupu grupy. #}
                                     {% if not clientView and not isGroupShop %}
                                     {% for header in table.headers2 %}
-                                        {% if not(header in rowObj.item.lockedParams) %}
+                                        {# ⚠️ VAT katalogowy (organizacje HKL: klucze `VAT`/`WARTOSC_VAT`/
+                                           `WARTOSC_BRUTTO` bez prefiksu `SUB___`, patrz pricesCalculator.js
+                                           `isHklOrg`) idzie tu jak zwykły parametr — grupa typu `client`
+                                           nie ma go widzieć, tak jak wersji SUB niżej. #}
+                                        {% set headerKey = table.headerKeys2[loop.index0] or '' %}
+                                        {% set isVatRow = hideClientVat and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
+                                        {% if not(header in rowObj.item.lockedParams) and not isVatRow %}
                                             <td class="print-price" colspan="2">
                                                 <span class="print-price-label">{{ header }}:</span>
                                                 <b>{{ pdfCellBold(rowObj.row.row2[header]) }}</b>
@@ -239,8 +254,24 @@
                                     {% endif %}
                                     {% if clientView or showBoth or isGroupShop %}
                                     {% for entry in rowObj.item.subParamValues %}
-                                        {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}
+                                        {# ⚠️ VAT nie jest `locked`, więc bez tego warunku wychodziłby razem
+                                           z resztą SUB — grupa typu `client` nie ma go widzieć w PDF, tak
+                                           jak na ekranie (`templates/order.njk`). #}
+                                        {% set isVatRow = hideClientVat and (entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO') %}
+                                        {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not isVatRow %}
                                             <td class="print-price" colspan="2">
+                                                <span class="print-price-label">{{ entry.display }}:</span>
+                                                <b>{{ pdfCellBold(entry.value) }}</b>
+                                            </td>
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% endif %}
+                                    {# Rabat klienta grupy — kłódka "Pokaż cenę po rabacie" (order.njk),
+                                       rozstrzygnięta server-side przy generowaniu PDF (routes/orders.js). #}
+                                    {% if showClientDiscount and rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 %}
+                                    {% for entry in rowObj.item.clientDiscountValues %}
+                                        {% if entry.value and entry.value != '-' and entry.value != '' %}
+                                            <td class="print-price print-discount-price" colspan="2">
                                                 <span class="print-price-label">{{ entry.display }}:</span>
                                                 <b>{{ pdfCellBold(entry.value) }}</b>
                                             </td>
@@ -362,6 +393,15 @@
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>
                             {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.subLocked }}&#8364; netto</span>
+                        </span>
+                    </div>
+                </div>
+            {% endif %}
+            {% if showClientDiscount and totalPrice and totalPrice.afterClientDiscount %}
+                <div id='total-container' style='padding-right: 10%;'>
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total price-label print-discount-price col-3 text-center'>
+                            {{ __('form.value_after_discount_label') }}: <span class="pdf-val">{{ totalPrice.afterClientDiscount }}&#8364;</span>
                         </span>
                     </div>
                 </div>

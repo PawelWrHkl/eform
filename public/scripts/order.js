@@ -392,6 +392,11 @@ function revealPriceRows() {
     }
   });
   showDiscountPriceBtns.forEach(b => b.classList.add('active'));
+  // Czytane przez generatePdf() (components/generators.js) w chwili kliknięcia
+  // print-buttona — PDF ma pokazać dokładnie to, co widać na ekranie w tej
+  // chwili (routes/orders.js `discountUnlocked`, services/subPrices.js
+  // `resolveGroupClientPdfPriceView`).
+  window.__clientDiscountPriceVisible = true;
 }
 
 function hidePriceRows() {
@@ -401,6 +406,7 @@ function hidePriceRows() {
   });
   revealedPriceRows.length = 0;
   showDiscountPriceBtns.forEach(b => b.classList.remove('active'));
+  window.__clientDiscountPriceVisible = false;
 }
 
 async function checkLoginPassword(password) {

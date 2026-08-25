@@ -75,6 +75,7 @@ const {
     calcClientDiscountTotal,
     calcSubTotals,
     resolveSubPricePdfView,
+    resolveGroupClientPdfPriceView,
     buildPdfSendDataTotals
 } = require('../services/subPrices');
 
@@ -824,10 +825,46 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
         totalPrice.afterClientDiscount = clientDiscountTotals.found ? clientDiscountTotals.total : null;
 
+        // Każda grupa (matka LUB jej konto podrzędne, typ `shop` LUB `client`):
+        // tryb cen w PDF nie idzie przez `resolveSubPricePdfView` (ten zna tylko
+        // stary toggle `showSubParams`, o kłódce „Pokaż cenę po rabacie" nic nie
+        // wie), tylko przez `resolveGroupClientPdfPriceView` sterowane stanem
+        // TEJ kłódki, odczytanym z przeglądarki w chwili kliknięcia
+        // print-buttona (public/scripts/order.js `priceRowsVisible()` →
+        // generators.js → tu). ⚠️ Gate to `isGroup or isGroupShop`, BEZ
+        // `isGroupClientType` — tak samo jak `templates/order.njk` pokazuje
+        // kłódkę i steruje `.price-row`/`.sub-params-row` każdej grupie, nie
+        // tylko typu `client`. Wcześniejsza wersja wymagała `isGroupClientType`
+        // tutaj i przy jakimkolwiek rozjeździe tej flagi z sesją cichcem wracała
+        // do `resolveSubPricePdfView` — stąd PDF pokazywał inny zestaw cen (i
+        // nieprzefiltrowany VAT) niż ekran. Typ grupy wchodzi TYLKO do
+        // `showClientDiscount` (rabat istnieje wyłącznie dla `client`).
+        const discountUnlocked = req.query.discountUnlocked === 'true';
+        const isGroupPdf = !!(res.locals.isGroup || res.locals.isGroupShop);
+        const isGroupClientPdf = isGroupPdf && !!res.locals.isGroupClientType;
+        let effectiveClientView = isClientView;
+        let effectiveShowBoth = showBothInPdf;
+        let showClientDiscount = false;
+        if (isGroupPdf) {
+            const groupView = resolveGroupClientPdfPriceView({
+                isGroupShop: res.locals.isGroupShop,
+                discountUnlocked,
+                isGroupClientType: res.locals.isGroupClientType
+            });
+            effectiveClientView = groupView.clientView;
+            effectiveShowBoth = groupView.showBoth;
+            showClientDiscount = groupView.showClientDiscount;
+        }
+        // VAT katalogowy i SUB (`VAT`/`SUB___VAT`/…): konto podrzędne go nie widzi
+        // NIEZALEŻNIE od typu grupy (tak jak dziś na ekranie, `order.njk`
+        // `isVatRow`), grupa-matka dopiero dla typu `client` — na jej prośbę
+        // (grupa `shop` nie miała tego wcześniej ukrytego, więc nie chowamy).
+        const hideClientVat = !!res.locals.isGroupShop || isGroupClientPdf;
+
         if (shouldShowPrices) {
             Object.assign(sendData, buildPdfSendDataTotals({
-                isClientView,
-                showBoth: showBothInPdf,
+                isClientView: effectiveClientView,
+                showBoth: effectiveShowBoth,
                 orderItems,
                 totalPrice,
                 translate: __
@@ -835,7 +872,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         } else {
             // Visible total mirrors page behaviour — always shown; hidden/gold prices excluded
             sendData.total_hidden = null;
-            if (isClientView) {
+            if (effectiveClientView) {
                 sendData.total = totalPrice.subVisible && totalPrice.subVisible !== 0
                     ? `${__('order.total')}: ${totalPrice.subVisible}€` : null;
             } else if (totalPrice?.visible && Number(totalPrice.visible) !== 0) {
@@ -843,6 +880,15 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
             } else {
                 sendData.total = null;
             }
+        }
+
+        // Suma „Wartość po rabacie" dla `order-pdf.njk` (PDF długi) — ten szablon
+        // dostaje sumy tylko przez `sendData`, nie ma bezpośredniego dostępu do
+        // `totalPrice` jak `order_to_print.njk`/`order_to_print_short.njk`.
+        if (showClientDiscount && totalPrice.afterClientDiscount) {
+            sendData.total_client_discount = `${__('form.value_after_discount_label')}: ${totalPrice.afterClientDiscount}€`;
+        } else {
+            sendData.total_client_discount = null;
         }
 
         const currentUser = ownerService.getCurrentUser(req);
@@ -858,7 +904,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         if (!isShort) {
             // Ujednolicona logika PDF — ten sam template (order-pdf.njk) co w sendMail
             const orderIdx = await db.getUserOrderId(req.params.orderId);
-            pdfBuffer = await generatePdf(order.orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, shouldShowPrices, maxProdDays, true, isClientView, showBothInPdf, discountInfo);
+            pdfBuffer = await generatePdf(order.orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, shouldShowPrices, maxProdDays, true, effectiveClientView, effectiveShowBoth, discountInfo, { showClientDiscount, hideClientVat });
         } else {
             // Short PDF — osobny template order_to_print_short.njk
             let logoDataUri = null;
@@ -894,8 +940,11 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
                 sendData: sendData,
                 totalPrice: totalPrice,
                 maxProdDays,
-                clientView: isClientView,
-                showBoth: showBothInPdf,
+                clientView: effectiveClientView,
+                showBoth: effectiveShowBoth,
+                showClientDiscount,
+                hideClientVat,
+                isGroupShop: res.locals.isGroupShop,
                 hasSubPrices,
                 discountInfo,
             });

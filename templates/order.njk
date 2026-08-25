@@ -20,6 +20,11 @@
                     <button class="modern-back-btn" onclick="window.history.back()">
                     {% endblock %}
                     {% block content %}
+                    {# Konto podrzędne grupy nie widzi VAT-u zawsze, grupa-matka typu `client`
+                       też (na jej prośbę) — jedna zmienna, żeby oba miejsca renderu (tabela
+                       tutaj i ukryty `{% include 'order_to_print.njk' %}` niżej, źródło
+                       eksportu do Excela) zgadzały się ze sobą. #}
+                    {% set hideClientVat = isGroupShop or (isGroup and isGroupClientType) %}
                     <div class="content  col-9 center-content">
                         <div id='order-nav' class='bg-white'>
                             <div class="order-nav-main">
@@ -278,7 +283,13 @@
                                                                                                                 <td colspan="100%" class="sub-params-cell">
                                                                                                                     <div class="sub-params-container">
                                                                                                                         {% for header in table.headers2 %}
-                                                                                                                            {% if not(header in rowObj.item.lockedParams) %}
+                                                                                                                            {# VAT katalogowy (organizacje HKL: klucze `VAT`/`WARTOSC_VAT`/`WARTOSC_BRUTTO`
+                                                                                                                               bez prefiksu `SUB___`) — konto podrzędne go nie widzi zawsze, grupa-matka
+                                                                                                                               typu `client` też (na jej prośbę). Klucz odzyskujemy z `headerKeys2`
+                                                                                                                               (`display||key`), bo pętla ma tu tylko etykietę wyświetlaną. #}
+                                                                                                                            {% set headerKey = table.headerKeys2[loop.index0] or '' %}
+                                                                                                                            {% set isVatRow = (isGroupShop or (isGroup and isGroupClientType)) and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
+                                                                                                                            {% if not(header in rowObj.item.lockedParams) and not isVatRow %}
                                                                                                                                 {% set value = rowObj.row.row2[header] %}
                                                                                                                                 {% if value and value != '-' and value != '' %}
                                                                                                                                     <span class="sub-param-item">
@@ -304,11 +315,14 @@
                                                                                                                                        zobaczyć po kliknięciu kłódki — renderujemy ukryty, odsłania
                                                                                                                                        `showDiscountPriceBtn` (public/scripts/order.js). #}
                                                                                                                                     {% set isClientDiscountRow = entry.key == 'SUB___RABAT_KLIENTA' or entry.key == 'SUB___WARTOSC_PO_RABACIE' %}
-                                                                                                                                    {# ⚠️ TYMCZASOWO: konto podrzędne grupy (`group_user`) nie widzi VAT-u —
-                                                                                                                                       ani w konfiguracji pozycji (form.js nie tworzy pól), ani tutaj. Pozycje
-                                                                                                                                       zapisane wcześniej mają te wiersze w bazie, więc pomijamy je przy renderze. #}
+                                                                                                                                    {# ⚠️ Konto podrzędne grupy (`group_user`) nie widzi VAT-u — ani w
+                                                                                                                                       konfiguracji pozycji (form.js nie tworzy pól), ani tutaj. Grupa-matka
+                                                                                                                                       typu `client` też nie (na jej prośbę — kłódka odsłania SUB, ale nie VAT).
+                                                                                                                                       Pozycje zapisane wcześniej mają te wiersze w bazie, więc pomijamy je
+                                                                                                                                       przy renderze. #}
+                                                                                                                                    {% set hideVatFromRole = isGroupShop or (isGroup and isGroupClientType) %}
                                                                                                                                     {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
-                                                                                                                                    {% if (not isGroupShop or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgView and prices)) %}
+                                                                                                                                    {% if (not hideVatFromRole or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgView and prices)) %}
                                                                                                                                     <span class="sub-param-item{% if entry.locked %} gold{% endif %}">
                                                                                                                                         <span class="sub-param-label">{{ entry.display }}:</span>
                                                                                                                                         <b class="sub-param-value">{{ entry.value }}</b>
@@ -426,7 +440,9 @@
                                                                                                                     {% if table.headers2.length > 0 and not isGroupShop and not (isClient and itemHasSubPrices) and not hidePrices and not (hasSubPriceToggle and itemHasSubPrices and not showCatalogPrices) %}
                                                                                                                         <div class="mobile-sub-params mobile-item-prices">
                                                                                                                             {% for header in table.headers2 %}
-                                                                                                                            {% if not(header in rowObj.item.lockedParams) %}
+                                                                                                                            {% set headerKey = table.headerKeys2[loop.index0] or '' %}
+                                                                                                                            {% set isVatRow = (isGroupShop or (isGroup and isGroupClientType)) and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
+                                                                                                                            {% if not(header in rowObj.item.lockedParams) and not isVatRow %}
                                                                                                                                     <div class="mobile-sub-param-item">
                                                                                                                                         <strong>{{ header }}:</strong>
                                                                                                                                         <b class="sub-param-value">{{ rowObj.row.row2[header] | applyFactor(priceFactor) or '-' }}</b>
@@ -450,11 +466,11 @@
                                                                                                                                         {# Jak w wersji desktopowej: wiersze rabatu klienta renderują się dla grupy
                                                                                                                                            i klienta końcowego, ale ukryte — odsłania je kłódka. #}
                                                                                                                                         {% set isClientDiscountRow = entry.key == 'SUB___RABAT_KLIENTA' or entry.key == 'SUB___WARTOSC_PO_RABACIE' %}
-                                                                                                                                        {# ⚠️ TYMCZASOWO: konto podrzędne grupy (`group_user`) nie widzi VAT-u —
-                                                                                                                                           ani w konfiguracji pozycji (form.js nie tworzy pól), ani tutaj. Pozycje
-                                                                                                                                           zapisane wcześniej mają te wiersze w bazie, więc pomijamy je przy renderze. #}
+                                                                                                                                        {# Jak w wersji desktopowej: konto podrzędne i grupa-matka typu `client`
+                                                                                                                                           nie widzą VAT-u. #}
+                                                                                                                                        {% set hideVatFromRoleM = isGroupShop or (isGroup and isGroupClientType) %}
                                                                                                                                         {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
-                                                                                                                                        {% if (not isGroupShop or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgViewM and prices)) %}
+                                                                                                                                        {% if (not hideVatFromRoleM or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgViewM and prices)) %}
                                                                                                                                         <div class="mobile-sub-param-item{% if entry.locked %} gold{% endif %}">
                                                                                                                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                                                                                                                         </div>
@@ -487,13 +503,14 @@
                                                                                                                             {% endif %}
                                                                                                                         {% endif %}
                                                                                                                         <div class="mobile-item-actions">
-                                                                                                                            <div
-                                                                                                                                {# Pozycje zamówienia klienta grupy: bez przenoszenia, duplikowania,
-                                                                                                                                   edycji i usuwania — grupa-matka typu `client` ma sam podgląd
-                                                                                                                                   (utils/orderStatusGuard.js). #}
-                                                                                                                                {% if not clientOwnedOrder %}
-                                                                                                                                class="position-controls d-flex flex-column align-items-start me-2"
-                                                                                                                                style="display: inline-flex !important; flex-direction: row !important;">
+                                                                                                                            {# ⚠️ `{% if %}` NIE MOŻE obejmować atrybutów otwartego `<div` — przy
+                                                                                                                               zamówieniu klienta (`clientOwnedOrder`) znikało `class=…>` i tag zostawał
+                                                                                                                               niedomknięty. Przeglądarka wciągała wtedy dalszy HTML w atrybuty, całe
+                                                                                                                               zagnieżdżenie się rozjeżdżało i blok sum lądował WEWNĄTRZ listy mobilnej
+                                                                                                                               (`display:none` na desktopie) — czyli suma znikała z widoku. #}
+                                                                                                                            <div class="position-controls d-flex flex-column align-items-start me-2"
+                                                                                                                                 style="display: inline-flex !important; flex-direction: row !important;">
+                                                                                                                            {% if not clientOwnedOrder %}
                                                                                                                                 <button class="btn move-up-btn has-tooltip" data-tooltip="{{ __('order.move_up') }}" data-id="{{ rowObj.item.id }}" onclick="event.stopPropagation()">
                                                                                                                                     <svg viewbox="0 0 16 16">
                                                                                                                                         <path
@@ -510,7 +527,9 @@
                                                                                                                                                 10.293V4.5A.5.5 0 0 1 8 4z"/>
                                                                                                                                     </svg>
                                                                                                                                 </button>
+                                                                                                                            {% endif %}
                                                                                                                             </div>
+                                                                                                                            {% if not clientOwnedOrder %}
                                                                                                                             <button class="action-btn action-btn-duplicate duplicate-btn" data-id='{{ rowObj.item.id }}' onclick="event.stopPropagation()">
                                                                                                                                 {{ __('order.duplicate') }}
                                                                                                                             </button>

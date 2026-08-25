@@ -110,6 +110,22 @@ body {
     padding: 2px 4px 10px !important;
 }
 
+/* Rabat klienta grupy — bursztynowy akcent, ten sam co na ekranie
+   (`.client-discount-row`, public/styles/order_details.css), żeby PDF nie
+   wyglądał jak zwykła cena SUB. */
+.price.discount {
+    background-color: hsl(28 75% 95%) !important;
+}
+
+.price-label.discount {
+    color: hsl(28 55% 32%) !important;
+}
+
+.total-price.discount {
+    background-color: hsl(28 75% 95%) !important;
+    color: hsl(28 55% 32%) !important;
+}
+
 #table tbody td.row-comment {
     background-color: rgba(206, 198, 199, 0.658) !important;
     color: rgb(0, 0, 0) !important;

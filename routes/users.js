@@ -13,6 +13,7 @@ const { updateClients } = require('../services/dbUserSync');
 const { get } = require('lodash');
 const hashUser = require('../utils/hashUser').hashUser;
 const { log } = require('../utils/logging');
+const { getActiveGroupShopId } = require('../services/groupContext');
 
 let clientsUpdateRunning = false;
 
@@ -284,8 +285,15 @@ router.get('/name', requireLogin, async (req, res) => {
     let shopName = null;
     let email = mailAdresses?.user_email || '';
 
-    if (req.session.user?.isGroupShop && req.session.user?.groupShopId) {
-        const shop = await db.getGroupUserById(req.session.user.groupShopId);
+    // `isGroupShop` łapie tylko konto podrzędne zalogowane samo — grupa-matka
+    // pracująca w kontekście wybranego konta (dropdown przy zakładaniu
+    // zamówienia, `services/groupContext.js`) miała tu zawsze `shopName = null`,
+    // więc navbar pokazywał starą treść mimo wybranego „zarejestrowanego klienta".
+    const activeGroupShopId = req.session.user?.isGroupShop
+        ? req.session.user.groupShopId
+        : getActiveGroupShopId(req);
+    if (activeGroupShopId) {
+        const shop = await db.getGroupUserById(activeGroupShopId);
         shopName = shop?.name || shop?.ident || req.session.user.shopName || null;
         email = shop?.email || email;
     }

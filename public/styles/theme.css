@@ -1392,11 +1392,61 @@ dialog,
     background-color: rgba(94, 110, 130, 0.25) !important;
 }
 
+/* Karty parametrów (chipy) — dopasowane tło/obramowanie do każdego wariantu wiersza */
+[data-theme="dark"] .sub-params-row .sub-param-item,
+[data-theme="dark"] .mobile-sub-params:not(.mobile-item-prices) .mobile-sub-param-item {
+    background: rgba(107, 157, 173, 0.10) !important;
+    border-color: rgba(107, 157, 173, 0.32) !important;
+}
+
+[data-theme="dark"] .price-row:not(.sub-params-locked-row) .sub-param-item,
+[data-theme="dark"] .mobile-sub-params.mobile-item-prices .mobile-sub-param-item {
+    background: rgba(94, 110, 130, 0.18) !important;
+    border-color: rgba(94, 110, 130, 0.35) !important;
+}
+
 [data-theme="dark"] .sub-params-row.sub-params-locked-row .sub-params-container,
 [data-theme="dark"] .mobile-sub-params-locked:not(.mobile-item-prices) {
     background: rgba(180, 140, 60, 0.12) !important;
     border-color: rgba(180, 140, 60, 0.30) !important;
     border-left-color: rgba(180, 140, 60, 0.55) !important;
+}
+
+[data-theme="dark"] .sub-params-row.sub-params-locked-row .sub-param-item,
+[data-theme="dark"] .mobile-sub-params-locked:not(.mobile-item-prices) .mobile-sub-param-item {
+    background: rgba(180, 140, 60, 0.10) !important;
+    border-color: rgba(180, 140, 60, 0.28) !important;
+}
+
+[data-theme="dark"] .price-row.sub-params-locked-row .sub-param-item,
+[data-theme="dark"] .mobile-sub-params-locked.mobile-item-prices .mobile-sub-param-item {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-color: var(--border-strong) !important;
+}
+
+/* Rabat klienta grupy — bursztyn, odróżniony od żółtego "locked" powyżej */
+[data-theme="dark"] .sub-params-row.client-discount-row .sub-params-container,
+[data-theme="dark"] .mobile-sub-params.client-discount-row {
+    background: rgba(214, 110, 40, 0.14) !important;
+    border-color: rgba(214, 110, 40, 0.35) !important;
+    border-left-color: rgba(214, 110, 40, 0.65) !important;
+}
+
+[data-theme="dark"] .sub-params-row.client-discount-row .sub-param-label,
+[data-theme="dark"] .mobile-sub-params.client-discount-row .mobile-sub-param-item strong {
+    color: hsl(28 70% 72%) !important;
+}
+
+[data-theme="dark"] .sub-params-row.client-discount-row .sub-param-item,
+[data-theme="dark"] .mobile-sub-params.client-discount-row .mobile-sub-param-item {
+    background: rgba(214, 110, 40, 0.10) !important;
+    border-color: rgba(214, 110, 40, 0.4) !important;
+}
+
+[data-theme="dark"] .total-price.client-discount-row .total {
+    background: rgba(214, 110, 40, 0.14) !important;
+    border-color: rgba(214, 110, 40, 0.35) !important;
+    color: hsl(28 70% 72%) !important;
 }
 
 /* ============================================

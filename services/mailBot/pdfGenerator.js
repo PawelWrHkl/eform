@@ -129,6 +129,12 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
   // `order-pdf.njk` wiersz cen (`headers2`) i wiersz `SUB___` są bramkowane
   // wyłącznie przez `clientView`/`showBoth`, nie przez `prices`.
   const withoutPrices = options.withoutPrices === true;
+  const showClientDiscount = options.showClientDiscount === true && !withoutPrices;
+  // Grupa typu `client` (matka LUB konto podrzędne) nie ma dostać rozbicia VAT
+  // (`SUB___VAT`/`SUB___WARTOSC_VAT`/`SUB___WARTOSC_BRUTTO`) w PDF-ie — te pola
+  // nie są `locked`, więc bez tej flagi wychodziły razem z resztą SUB, gdy
+  // `showBoth`/`clientView` je odsłaniało (routes/orders.js `isGroupClientPdf`).
+  const hideClientVat = options.hideClientVat === true;
   log('zaczynam', logoPath)
   const logoBase64 = fs.readFileSync(logoPath, { encoding: 'base64' });
   const logoDataUri = `data:image/png;base64,${logoBase64}`;
@@ -188,6 +194,8 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     showGoldPrices: showGoldPrices && !withoutPrices,
     clientView: clientView,
     showBoth: showBoth && !withoutPrices,
+    showClientDiscount: showClientDiscount,
+    hideClientVat: hideClientVat,
     discountInfo: withoutPrices ? null : discountInfo,
     withoutPrices: withoutPrices
   };
@@ -195,7 +203,7 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
   if (withoutPrices && renderContext.sendData) {
     // Sumy idą do szablonu przez `sendData` — czyścimy je tutaj, żeby żaden
     // wariant wołającego (mail, korekta, import) nie przemycił kwoty w stopce.
-    renderContext.sendData = { ...renderContext.sendData, total: null, total_hidden: null };
+    renderContext.sendData = { ...renderContext.sendData, total: null, total_hidden: null, total_client_discount: null };
   }
 
   const html = env.render('order-pdf.njk', renderContext);
@@ -272,6 +280,8 @@ function renderOrderPdfHtml({
   showGoldPrices = true,
   clientView = false,
   showBoth = false,
+  showClientDiscount = false,
+  hideClientVat = false,
   // ⚠️ Ta funkcja renderuje TEN SAM szablon co wysyłka maila i służy testom
   // oraz podglądom — musi znać tę samą flagę, inaczej test „bez cen" przechodzi
   // na dokumencie, który w mailu wygląda inaczej.
@@ -292,7 +302,7 @@ function renderOrderPdfHtml({
     orderDetails,
     cleanOrderItems,
     logoPath: 'data:image/png;base64,test',
-    sendData: withoutPrices && sendData ? { ...sendData, total: null, total_hidden: null } : sendData,
+    sendData: withoutPrices && sendData ? { ...sendData, total: null, total_hidden: null, total_client_discount: null } : sendData,
     orderNr,
     prices,
     maxProdDays,
@@ -300,6 +310,8 @@ function renderOrderPdfHtml({
     showGoldPrices: showGoldPrices && !withoutPrices,
     clientView,
     showBoth: showBoth && !withoutPrices,
+    showClientDiscount: showClientDiscount && !withoutPrices,
+    hideClientVat,
     withoutPrices
   });
 }

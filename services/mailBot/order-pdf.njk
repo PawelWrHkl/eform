@@ -57,7 +57,15 @@
               {% if not clientView and not withoutPrices %}
               <tr>
                 {% for header in table.headers2 %}
-                  {% if (not(header in rowObj.item.lockedParams)) %}
+                  {# ⚠️ VAT katalogowy (organizacje HKL: klucze bez prefiksu `SUB___` —
+                     `VAT`/`WARTOSC_VAT`/`WARTOSC_BRUTTO`, patrz pricesCalculator.js
+                     `isHklOrg`) idzie tą samą ścieżką co zwykłe parametry, nie przez
+                     `subParamValues` — grupa typu `client` nie ma go widzieć, tak jak
+                     wersji SUB niżej. Klucz odzyskujemy z `headerKeys2` (`display||key`),
+                     bo pętla ma tu tylko etykietę wyświetlaną. #}
+                  {% set headerKey = table.headerKeys2[loop.index0] or '' %}
+                  {% set isVatRow = hideClientVat and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
+                  {% if (not(header in rowObj.item.lockedParams)) and not isVatRow %}
                     <td class="price" colspan="2">
                       <span class="price-label">{{ header }}:</span>
                       <b>{{ pdfCellBold(rowObj.row.row2[header]) }}</b>
@@ -69,7 +77,12 @@
               {% if (clientView or showBoth) and not withoutPrices %}
               <tr>
                 {% for entry in rowObj.item.subParamValues %}
-                  {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}
+                  {# ⚠️ VAT (`SUB___VAT`/`SUB___WARTOSC_VAT`/`SUB___WARTOSC_BRUTTO`) NIE jest
+                     `locked`, więc bez tego warunku wychodziłby razem z resztą SUB — grupa
+                     typu `client` (matka i konto podrzędne) nie ma go widzieć w PDF, tak jak
+                     na ekranie (`templates/order.njk`). #}
+                  {% set isVatRow = hideClientVat and (entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO') %}
+                  {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not isVatRow %}
                     <td class="price" colspan="2">
                       <span class="price-label">{{ entry.display }}:</span>
                       <b>{{ pdfCellBold(entry.value) }}</b>
@@ -110,6 +123,22 @@
                 {% endfor %}
               </tr>
               {% endif %}
+              {# Rabat klienta grupy — ten sam warunek co odsłonięcie kłódką
+                 "Pokaż cenę po rabacie" na ekranie (`order.njk`), tyle że tu
+                 stan kłódki jest już rozstrzygnięty server-side w chwili
+                 generowania PDF (`routes/orders.js` → `showClientDiscount`). #}
+              {% if showClientDiscount and rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 %}
+              <tr>
+                {% for entry in rowObj.item.clientDiscountValues %}
+                  {% if entry.value and entry.value != '-' and entry.value != '' %}
+                    <td class="price discount" colspan="2">
+                      <span class="price-label discount">{{ entry.display }}:</span>
+                      <b>{{ pdfCellBold(entry.value) }}</b>
+                    </td>
+                  {% endif %}
+                {% endfor %}
+              </tr>
+              {% endif %}
               {% if rowObj.item.comment %}
               <tr>
                 <td class="row-comment" colspan="999"><span class="price-label">{{ __('order.comment') }}:</span> <span class="pdf-val">{{ rowObj.item.comment }}</span></td>
@@ -139,6 +168,13 @@
         <div id='total-container'>
           <div class="total-price">
             {{ __('order.total_hidden') }}: <span class="pdf-val">{{ sendData.total_hidden | replace(__('order.total_hidden') + ': ', '') }}</span>
+          </div>
+        </div>
+      {% endif %}
+      {% if sendData.total_client_discount %}
+        <div id='total-container'>
+          <div class="total-price discount">
+            {{ sendData.total_client_discount }}
           </div>
         </div>
       {% endif %}

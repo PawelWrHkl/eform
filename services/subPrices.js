@@ -147,10 +147,60 @@ function resolveSubPricePdfView(req, hasSubPrices) {
   const isGroup = sessionUser?.isGroup || contextUser?.isGroup || false;
   const groupShowBoth = isGroup && showSubActive && hasSubPrices;
 
-  const isClientView = (isPureClient || (hasSubToggle && !showSubActive)) && hasSubPrices;
+  // ⚠️ Konto podrzędne grupy (`group_user`) NIE MOŻE nigdy dostać cen
+  // katalogowych w PDF/mailu — to cena zakupu grupy (patrz WYCIEK,
+  // PROJECT_OVERVIEW.md). Bez tego forsowania `isClientView` wychodziło
+  // `false` (isGroupShop jest wykluczone z `isPureClient`, a `hasSubToggle`
+  // wymaga ownera/admina), więc `order-pdf.njk` (PDF długi + mail — w
+  // przeciwieństwie do `order_to_print.njk`, który ma na to osobny,
+  // ręczny warunek) renderował mu blok cen katalogowych.
+  const isGroupShopSession = !!sessionUser?.isGroupShop;
+
+  const isClientView = isGroupShopSession
+    || ((isPureClient || (hasSubToggle && !showSubActive)) && hasSubPrices);
   const showBoth = (hasSubToggle && showSubActive && hasSubPrices) || groupShowBoth;
 
   return { isClientView, showBoth, hasSubToggle, isPureClient, showSubActive, nonHklOrg };
+}
+
+/**
+ * Tryb cen w PDF dla KAŻDEJ grupy (`role = 'group'` lub jej konto podrzędne,
+ * typu `shop` LUB `client`) — sterowany kłódką "Pokaż cenę po rabacie"
+ * (`showDiscountPriceBtn`, public/scripts/order.js), NIE starym togglem
+ * `showSubParams` z `resolveSubPricePdfView` (ten o nowej kłódce nic nie wie,
+ * bo to czysto przeglądarkowy stan DOM — patrz komentarz przy wywołaniu w
+ * routes/orders.js).
+ *
+ * ⚠️ Celowo NIE jest to gated przez `isGroupClientType` — `templates/order.njk`
+ * pokazuje kłódkę i steruje `.price-row`/`.sub-params-row` warunkiem
+ * `isGroup or isGroupShop` BEZ WZGLĘDU na typ grupy (`shop` też). Wcześniejsza
+ * wersja wymagała `isGroupClientType` po stronie `routes/orders.js` do
+ * odpalenia tej funkcji — jeśli ta flaga z jakiegoś powodu nie zgadzała się
+ * z tym, co widać na ekranie, PDF cichcem wracał do STAREGO
+ * `resolveSubPricePdfView` (inny mechanizm, inny toggle) i rozjeżdżał się
+ * z ekranem dokładnie tak, jak się rozjechał (SUB zamiast katalogowych, VAT
+ * nieprzefiltrowany). Jedyna część specyficzna dla `client` to rabat —
+ * `isGroupClientType` wchodzi TYLKO do `showClientDiscount`.
+ *
+ * Reguły:
+ * - grupa-matka + kłódka schowana    → tylko katalogowe (jak na ekranie),
+ * - grupa-matka + kłódka odsłonięta  → katalogowe + SUB (+ rabat, jeśli `client`),
+ * - konto podrzędne (`group_user`)   → NIGDY katalogowych; kłódka dokłada SUB
+ *   locked (+ rabat, jeśli `client`).
+ */
+function resolveGroupClientPdfPriceView({ isGroupShop, discountUnlocked, isGroupClientType }) {
+  const unlocked = !!discountUnlocked;
+  return {
+    // `clientView` ukrywa katalogowe (patrz `order_to_print.njk`/`order-pdf.njk`
+    // `{% if not clientView %}`) — konto podrzędne ma je ukryte zawsze, grupa-
+    // -matka widzi katalogowe zawsze (kłódka ich nigdy nie chowa na ekranie).
+    clientView: !!isGroupShop,
+    // `showBoth` DOKŁADA sub obok katalogowych — tylko grupie-matce po kłódce.
+    showBoth: !isGroupShop && unlocked,
+    // Rabat klienta grupy istnieje tylko dla `group_type = 'client'`
+    // (`group_user.discount_percent`) — grupa `shop` nie ma czego odsłaniać.
+    showClientDiscount: unlocked && !!isGroupClientType
+  };
 }
 
 /**
@@ -207,5 +257,6 @@ module.exports = {
   calcClientDiscountTotal,
   resolveDiscountBaseTotal,
   resolveSubPricePdfView,
+  resolveGroupClientPdfPriceView,
   buildPdfSendDataTotals
 };

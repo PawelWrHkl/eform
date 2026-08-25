@@ -118,9 +118,7 @@ async function jsonTextBackToMap(orderItems) {
       const display = param && param.param_description ? param.param_description : key;
       const headerKey = display + "||" + key;
       const rowStr = (param && param.row !== undefined) ? String(param.row) : '1';
-      if (rowStr === '0') {
-        continue;
-      }
+
       let value = "-";
       if (param && typeof param === 'object') {
 
@@ -141,6 +139,15 @@ async function jsonTextBackToMap(orderItems) {
         // scalar itself as the option value to avoid `in`-operator crashes.
         value = String(param);
       }
+
+      // ⚠️ Rabat klienta grupy (`LEGACY_CLIENT_DISCOUNT_KEYS`/`SUB___` poniżej)
+      // MUSI być sprawdzony PRZED `rowStr === '0'` — te pola nie idą do żadnej
+      // tabeli parametrów (own logic: `isZeroRabatDisplayValue`/`value !== '-'`),
+      // więc ich `row` bywa `'0'` (spoza layoutu formularza) i ogólny skip niżej
+      // wycinałby je po cichu z `clientDiscountValues`, mimo że
+      // `services/subPrices.js calcClientDiscountTotal` (czyta ten sam
+      // `json_parameters_desc` bez względu na `row`) sumę i tak by policzył —
+      // suma w stopce zgadzałaby się, a wiersz przy pozycji by zniknął.
 
       // Pozycje zapisane PRZED zmianą nazw kluczy (2026-08-21) mają rabat pod
       // `RABAT_KLIENTA`/`WARTOSC_PO_RABACIE`, bez prefiksu `SUB___` — bez tego
@@ -178,6 +185,10 @@ async function jsonTextBackToMap(orderItems) {
             item.clientDiscountValues.push(subEntry);
           }
         }
+        continue;
+      }
+
+      if (rowStr === '0') {
         continue;
       }
 
