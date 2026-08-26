@@ -192,6 +192,24 @@ class OrderSender {
 
     }
 
+    // Admin-only lokalny zapis kopii JSON — bez FTP i bez maila potwierdzenia,
+    // pomija też ignore_mail_list.json (tu nie ma żadnej wysyłki do pominięcia).
+    async saveJsonOnly() {
+        try {
+            const shortJsonPath = path.join(shortJsonDir, `${process.env.NODE_ENV}_${this.fileName}`);
+            await fs.promises.mkdir(path.dirname(shortJsonPath), { recursive: true });
+            await fs.promises.writeFile(shortJsonPath, JSON.stringify(this.shortItems, null, 2), 'utf-8');
+        }
+        catch (err) {
+            log(`Failed to save short JSON file: ${err.message}`);
+        }
+
+        const filePath = this.fullPath;
+        await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.promises.writeFile(filePath, JSON.stringify(this.data, null, 2), 'utf-8');
+        log(`File saved successfully: ${filePath}`);
+    }
+
     attachSlopePhoto(item, idx) {
         const slopeVals = item?.parameters_short?.data?.WYMIAROWANIE_SLOPOW;
         let dimensions = [];

@@ -1690,4 +1690,37 @@ router.post('/order/:orderId/send-to-production', requireLogin, async (req, res)
 });
 
 
+// Admin-only: lokalna kopia JSON zamówienia do /out — bez maila potwierdzenia
+// i bez FTP, w odróżnieniu od pełnej wysyłki (/send/:orderId) i od
+// /send-to-production (który generuje PDF produkcyjny i wysyła mail).
+router.post('/order/:orderId/admin-save-json', requireLogin, async (req, res) => {
+    if (!req.session.user?.isAdmin) {
+        return res.status(403).json({ success: false, message: 'Brak uprawnień' });
+    }
+    try {
+        const id = req.params.orderId;
+        let { orderDetails, orderItems } = await db.getOrderDataToSend(id);
+
+        if (!orderItems || orderItems.length === 0) {
+            return res.status(400).json({ success: false, message: 'Nie możesz wysłać pustego zamówienia' });
+        }
+
+        const statusChanged = await db.changeOrderStatus(id, 'sent');
+        if (!statusChanged) {
+            return res.status(400).json({ success: false, message: 'Nie możesz wysłać pustego zamówienia' });
+        }
+
+        ({ orderDetails, orderItems } = await db.getOrderDataToSend(id));
+
+        const sender = new OrderSender.OrderSender(req, orderDetails, orderItems);
+        await sender.init();
+        await sender.saveJsonOnly();
+
+        return res.json({ success: true, message: 'Zapisano lokalną kopię JSON', redirect: `/orders/history/order/${id}` });
+    } catch (error) {
+        log('Error saving admin JSON copy:', error);
+        return res.status(500).json({ success: false, message: 'Błąd serwera' });
+    }
+});
+
 module.exports = router;

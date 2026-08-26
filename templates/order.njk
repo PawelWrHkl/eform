@@ -694,6 +694,12 @@
                                                                                                             &#9881;
                                                                                                             {% if orderDetails.status == 'sent' %}Cofnij do aktywnych{% else %}Oznacz jako wysłane{% endif %}
                                                                                                         </button>
+                                                                                                        <button class="btn btn-sm admin-save-json-btn"
+                                                                                                            style="background:#cfe2ff;border:1px solid #0d6efd;color:#084298;font-size:0.8rem;"
+                                                                                                            data-order-id="{{ orderDetails.id }}"
+                                                                                                            onclick="adminSaveJson(this)">
+                                                                                                            &#128190; Zapisz kopię JSON
+                                                                                                        </button>
                                                                                                     </div>
                                                                                                 {% endif %}
                                                                                             {% endblock %}
@@ -804,6 +810,34 @@
                                                                         } catch (e) {
                                                                             alert('Błąd połączenia');
                                                                             btn.disabled = false;
+                                                                        }
+                                                                    }
+
+                                                                    async function adminSaveJson(btn) {
+                                                                        if (!confirm('Zapisać lokalną kopię JSON zamówienia w /out? Status zostanie zmieniony na „wysłane" — bez maila i bez FTP.')) {
+                                                                            return;
+                                                                        }
+                                                                        const originalText = btn.innerHTML;
+                                                                        btn.disabled = true;
+                                                                        btn.innerHTML = 'Zapisywanie…';
+                                                                        try {
+                                                                            const orderId = btn.dataset.orderId;
+                                                                            const res = await fetch(`/orders/order/${orderId}/admin-save-json`, {
+                                                                                method: 'POST',
+                                                                                headers: { 'Content-Type': 'application/json' }
+                                                                            });
+                                                                            const data = await res.json();
+                                                                            if (data.success) {
+                                                                                location.href = data.redirect || `/orders/history/order/${orderId}`;
+                                                                            } else {
+                                                                                alert('Błąd: ' + (data.message || 'Nieznany błąd'));
+                                                                                btn.disabled = false;
+                                                                                btn.innerHTML = originalText;
+                                                                            }
+                                                                        } catch (e) {
+                                                                            alert('Błąd połączenia');
+                                                                            btn.disabled = false;
+                                                                            btn.innerHTML = originalText;
                                                                         }
                                                                     }
 
