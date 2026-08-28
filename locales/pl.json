@@ -567,6 +567,7 @@
 		"context_active": "Pracujesz jako",
 		"context_exit": "Wyjdź z kontekstu",
 		"context_enter": "Wejdź w kontekst",
+		"sf_tax_id": "NIP",
 		"sf_discount": "Rabat klienta (%)",
 		"sf_discount_hint": "Doliczany automatycznie po przeliczeniu ceny pozycji tego klienta. 0 = brak rabatu.",
 		"col_discount": "Rabat",

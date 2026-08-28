@@ -16,15 +16,20 @@ const KRZYSIEK = 'krzysztof.krawczyk@hkl.eu';
 
 test('polityka z wiersza user: wartości z bazy w naturalnych typach', () => {
   // Tak wygląda wiersz klienta TCN: tinyint 1, język wielkimi literami.
-  const p = policyFromUserRow({ ab_type: 'without_price', ab_lang: 'NL', client_ab: 1, delivery_delay: 10 });
-  assert.deepEqual(p, { withoutPrices: true, abLang: 'nl', clientAb: true, deliveryDelay: 10 });
+  const p = policyFromUserRow({ ab_type: 'without_price', ab_lang: 'NL', client_ab: 1, delivery_delay: 10, extra_ab_mail: 'extra@hkl.eu' });
+  assert.deepEqual(p, { withoutPrices: true, abLang: 'nl', clientAb: true, deliveryDelay: 10, extraAbMail: 'extra@hkl.eu' });
 });
 
 test('polityka z wiersza user: brak ustawień = zachowanie dotychczasowe', () => {
-  const puste = { withoutPrices: false, abLang: null, clientAb: false, deliveryDelay: 0 };
-  assert.deepEqual(policyFromUserRow({ ab_type: null, ab_lang: null, client_ab: null, delivery_delay: null }), puste);
+  const puste = { withoutPrices: false, abLang: null, clientAb: false, deliveryDelay: 0, extraAbMail: null };
+  assert.deepEqual(policyFromUserRow({ ab_type: null, ab_lang: null, client_ab: null, delivery_delay: null, extra_ab_mail: null }), puste);
   assert.deepEqual(policyFromUserRow({}), puste);
   assert.deepEqual(policyFromUserRow(null), puste);
+});
+
+test('polityka z wiersza user: pusty extra_ab_mail (spacje) traktowany jak brak', () => {
+  const p = policyFromUserRow({ extra_ab_mail: '   ' });
+  assert.equal(p.extraAbMail, null);
 });
 
 test('polityka z wiersza user: literówka w kolumnie nie wysadza wysyłki', () => {
@@ -39,11 +44,12 @@ test('polityka po orderId: jedno zapytanie po właścicielu zamówienia', async 
   let sql = null;
   let params = null;
   const p = await resolveOrderAbPolicy(202, {
-    selectQuery: async (q, d) => { sql = q; params = d; return [{ ab_type: 'without_price', ab_lang: 'NL', client_ab: 1, delivery_delay: 10 }]; }
+    selectQuery: async (q, d) => { sql = q; params = d; return [{ ab_type: 'without_price', ab_lang: 'NL', client_ab: 1, delivery_delay: 10, extra_ab_mail: 'extra@hkl.eu' }]; }
   });
   assert.deepEqual(params, [202]);
   assert.match(sql, /JOIN `user` u ON u\.id = o\.user_id/, 'liczy się właściciel zamówienia');
-  assert.deepEqual(p, { withoutPrices: true, abLang: 'nl', clientAb: true, deliveryDelay: 10 });
+  assert.match(sql, /u\.extra_ab_mail/, 'dodatkowy odbiorca musi wejść do zapytania');
+  assert.deepEqual(p, { withoutPrices: true, abLang: 'nl', clientAb: true, deliveryDelay: 10, extraAbMail: 'extra@hkl.eu' });
 });
 
 test('polityka po orderId: błąd bazy nie blokuje potwierdzenia', async () => {
@@ -52,7 +58,7 @@ test('polityka po orderId: błąd bazy nie blokuje potwierdzenia', async () => {
     selectQuery: async () => { throw new Error('brak połączenia'); },
     log: (...a) => zalogowane.push(a.join(' '))
   });
-  assert.deepEqual(p, { withoutPrices: false, abLang: null, clientAb: false, deliveryDelay: 0 });
+  assert.deepEqual(p, { withoutPrices: false, abLang: null, clientAb: false, deliveryDelay: 0, extraAbMail: null });
   assert.equal(zalogowane.length, 1, 'awaria musi zostawić ślad w logu');
 });
 
@@ -114,6 +120,24 @@ test('produkcja bez client_ab: odbiorcą organizacja, klient w BCC', () => {
   assert.equal(r.mainRecipient, 'org@hkl.eu');
   // EXTRA_MAIL jest tablicą z .env — musi zostać spłaszczona, nie wklejona jako tablica
   assert.deepEqual(r.bccList, ['klient@example.nl', 'szef@hkl.eu', 'extra1@hkl.eu', 'extra2@hkl.eu', PAWEL]);
+});
+
+test('extra_ab_mail: dodatkowy odbiorca dopisany do BCC obok pozostałych adresów', () => {
+  const r = resolveConfirmationRecipients({
+    env: 'production', clientAb: false, confirmationEmail: 'klient@example.nl',
+    organizationEmail: 'org@hkl.eu', organizationEmail2: 'szef@hkl.eu',
+    extraAbMail: 'wlasciciel-ab@hkl.eu'
+  });
+  assert.equal(r.mainRecipient, 'org@hkl.eu');
+  assert.deepEqual(r.bccList, ['klient@example.nl', 'szef@hkl.eu', PAWEL, 'wlasciciel-ab@hkl.eu']);
+});
+
+test('extra_ab_mail: brak wartości nie dodaje śmiecia do BCC', () => {
+  const r = resolveConfirmationRecipients({
+    env: 'production', clientAb: false, confirmationEmail: null,
+    organizationEmail: 'org@hkl.eu', organizationEmail2: null, extraMail: false, extraAbMail: null
+  });
+  assert.equal(r.bcc, PAWEL);
 });
 
 test('puste adresy nie tworzą śmieci w nagłówku BCC', () => {

@@ -94,6 +94,7 @@ async function addGroupUser(data) {
         city = '',
         phone = '',
         email = '',
+        taxId = '',
         discountPercent = 0
     } = data;
 
@@ -113,12 +114,12 @@ async function addGroupUser(data) {
     const query = `
         INSERT INTO group_user
             (user_id, ident, pin, password, plain, name, street, zip, city, phone, email, tax_id, discount_percent)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     try {
         const result = await insertQuery(query, [
             parentUserId, ident, pin, hashedPassword, password,
-            name, street, zip, city, phone, email, normalizeDiscountPercent(discountPercent)
+            name, street, zip, city, phone, email, taxId, normalizeDiscountPercent(discountPercent)
         ]);
         return { success: true, id: result[0]?.insertId, ident, pin };
     } catch (err) {
@@ -137,7 +138,8 @@ async function updateGroupUser(id, data) {
         zip = '',
         city = '',
         phone = '',
-        email = ''
+        email = '',
+        taxId = ''
     } = data;
 
     // Rabat aktualizujemy TYLKO gdy wołający go podał — grupa typu `shop` nie
@@ -147,14 +149,14 @@ async function updateGroupUser(id, data) {
 
     const query = hasDiscount
         ? `UPDATE group_user
-           SET name = ?, street = ?, zip = ?, city = ?, phone = ?, email = ?, discount_percent = ?
+           SET name = ?, street = ?, zip = ?, city = ?, phone = ?, email = ?, tax_id = ?, discount_percent = ?
            WHERE id = ?`
         : `UPDATE group_user
-           SET name = ?, street = ?, zip = ?, city = ?, phone = ?, email = ?
+           SET name = ?, street = ?, zip = ?, city = ?, phone = ?, email = ?, tax_id = ?
            WHERE id = ?`;
     const params = hasDiscount
-        ? [name, street, zip, city, phone, email, normalizeDiscountPercent(data.discountPercent), id]
-        : [name, street, zip, city, phone, email, id];
+        ? [name, street, zip, city, phone, email, taxId, normalizeDiscountPercent(data.discountPercent), id]
+        : [name, street, zip, city, phone, email, taxId, id];
 
     await updateQuery(query, params);
     return { success: true };

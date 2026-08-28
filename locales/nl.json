@@ -557,6 +557,7 @@
 		"context_active": "Je werkt als",
 		"context_exit": "Context verlaten",
 		"context_enter": "Context openen",
+		"sf_tax_id": "BTW-nummer",
 		"sf_discount": "Klantkorting (%)",
 		"sf_discount_hint": "Wordt automatisch toegepast na het berekenen van de prijs van de positie van deze klant. 0 = geen korting.",
 		"col_discount": "Korting",

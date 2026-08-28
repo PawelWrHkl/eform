@@ -63,7 +63,7 @@ router.get('/shops/new', async (req, res, next) => {
 router.post('/shops', async (req, res, next) => {
     try {
         const currentUser = ownerService.getCurrentUser(req);
-        const { password, street, zip, city, phone, email } = req.body;
+        const { password, street, zip, city, phone, email, tax_id } = req.body;
 
         const preview = await db.previewNewGroupUser(currentUser.userId);
 
@@ -100,6 +100,7 @@ router.post('/shops', async (req, res, next) => {
             city: (city || '').trim(),
             phone: (phone || '').trim(),
             email: (email || '').trim(),
+            taxId: (tax_id || '').trim(),
             discountPercent: acceptsDiscount ? req.body.discountPercent : 0
         });
 
@@ -148,7 +149,7 @@ router.post('/shops/:id', async (req, res, next) => {
             return res.redirect('/group/panel?tab=shops&error=notfound');
         }
 
-        const { password, street, zip, city, phone, email } = req.body;
+        const { password, street, zip, city, phone, email, tax_id } = req.body;
 
         // `discountPercent: undefined` = nie ruszaj rabatu (grupa typu `shop`
         // nie ma tego pola) — patrz db/group.js updateGroupUser.
@@ -161,6 +162,7 @@ router.post('/shops/:id', async (req, res, next) => {
             city: (city || '').trim(),
             phone: (phone || '').trim(),
             email: (email || '').trim(),
+            taxId: (tax_id || '').trim(),
             discountPercent: acceptsDiscount ? (req.body.discountPercent ?? 0) : undefined
         });
 
@@ -203,6 +205,7 @@ router.post('/shops/:id/discount', async (req, res, next) => {
             city: shop.city || '',
             phone: shop.phone || '',
             email: shop.email || '',
+            taxId: shop.tax_id || '',
             discountPercent: req.body.discountPercent ?? 0
         });
 
@@ -413,7 +416,8 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
             confirmationEmail,
             organizationEmail: mail.organization_email,
             organizationEmail2: mail.organization_email2,
-            extraMail
+            extraMail,
+            extraAbMail: abPolicy.extraAbMail
         });
 
         mailBot.sendMail(

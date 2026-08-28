@@ -162,7 +162,8 @@ async function submitCorrection(req, orderId, prices) {
         confirmationEmail,
         organizationEmail: mail.organization_email,
         organizationEmail2: mail.organization_email2,
-        extraMail
+        extraMail,
+        extraAbMail: abPolicy.extraAbMail
     });
 
     mailBot.sendCorrectionMail(

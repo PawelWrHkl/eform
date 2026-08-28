@@ -29,17 +29,18 @@ const { isWithoutPrices, resolveAbLang, isClientAb } = require('./abType');
  * @property {string|null} abLang wymuszony język potwierdzenia (`ab_lang`)
  * @property {boolean} clientAb potwierdzenie wprost do klienta (`client_ab`)
  * @property {number} deliveryDelay dni doliczane do czasu produkcji
+ * @property {string|null} extraAbMail dodatkowy odbiorca BCC (`extra_ab_mail`)
  */
 
 /** Polityka „nic nie wymuszamy" — zachowanie jak przed wprowadzeniem kolumn. */
 function domyslnaPolityka() {
-  return { withoutPrices: false, abLang: null, clientAb: false, deliveryDelay: 0 };
+  return { withoutPrices: false, abLang: null, clientAb: false, deliveryDelay: 0, extraAbMail: null };
 }
 
 /**
  * Złożenie polityki z surowego wiersza `user`.
  *
- * @param {{ab_type?: any, ab_lang?: any, client_ab?: any, delivery_delay?: any}|null} row
+ * @param {{ab_type?: any, ab_lang?: any, client_ab?: any, delivery_delay?: any, extra_ab_mail?: any}|null} row
  * @returns {AbPolicy}
  */
 function policyFromUserRow(row) {
@@ -47,11 +48,13 @@ function policyFromUserRow(row) {
   // Lazy require z tego samego powodu co niżej: `productionDays` wciąga
   // warstwę bazy, a ten moduł ma dać się wczytać bez otwierania puli MySQL.
   const { resolveDeliveryDelay } = require('./productionDays');
+  const extraAbMail = typeof row.extra_ab_mail === 'string' ? row.extra_ab_mail.trim() : '';
   return {
     withoutPrices: isWithoutPrices(row.ab_type),
     abLang: resolveAbLang(row.ab_lang),
     clientAb: isClientAb(row.client_ab),
-    deliveryDelay: resolveDeliveryDelay(row.delivery_delay)
+    deliveryDelay: resolveDeliveryDelay(row.delivery_delay),
+    extraAbMail: extraAbMail || null
   };
 }
 
@@ -72,7 +75,7 @@ async function resolveOrderAbPolicy(orderId, deps = {}) {
   const zapytaj = deps.selectQuery || require('../db/core').selectQuery;
   try {
     const rows = await zapytaj(
-      'SELECT u.ab_type, u.ab_lang, u.client_ab, u.delivery_delay ' +
+      'SELECT u.ab_type, u.ab_lang, u.client_ab, u.delivery_delay, u.extra_ab_mail ' +
       'FROM `order` o JOIN `user` u ON u.id = o.user_id WHERE o.id = ?',
       [orderId]
     );
@@ -105,6 +108,7 @@ async function resolveOrderAbPolicy(orderId, deps = {}) {
  * @param {string|null} [p.organizationEmail]
  * @param {string|null} [p.organizationEmail2]
  * @param {string|string[]|false} [p.extraMail] `EXTRA_MAIL` z `.env`
+ * @param {string|null} [p.extraAbMail] dodatkowy odbiorca BCC (`user.extra_ab_mail`)
  * @returns {{mainRecipient: string|null, bccList: string[], bcc: string}}
  */
 function resolveConfirmationRecipients({
@@ -113,7 +117,8 @@ function resolveConfirmationRecipients({
   confirmationEmail = null,
   organizationEmail = null,
   organizationEmail2 = null,
-  extraMail = false
+  extraMail = false,
+  extraAbMail = null
 } = {}) {
   const SKRZYNKA_DEV = 'pawel.woroniecki@hkl.eu';
   const SKRZYNKA_DEV_BCC = 'krzysztof.krawczyk@hkl.eu';
@@ -135,6 +140,7 @@ function resolveConfirmationRecipients({
       : [confirmationEmail, organizationEmail2, extraMail, SKRZYNKA_DEV];
   }
 
+  bccList.push(extraAbMail);
   bccList = bccList.filter(Boolean).flat();
   return { mainRecipient, bccList, bcc: bccList.join(', ') };
 }

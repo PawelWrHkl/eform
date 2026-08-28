@@ -142,6 +142,16 @@
                                 </div>
 
                                 <div class="col-md-6">
+                                    <label for="tax_id" class="form-label">{{ __('group.sf_tax_id') }}</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="tax_id"
+                                           name="tax_id"
+                                           maxlength="30"
+                                           value="{{ shop.tax_id or '' }}">
+                                </div>
+
+                                <div class="col-md-6">
                                     <label for="phone" class="form-label">{{ __('group.sf_phone') }}</label>
                                     <input type="tel"
                                            class="form-control"

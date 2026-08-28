@@ -216,7 +216,8 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
       confirmationEmail,
       organizationEmail: mail.organization_email,
       organizationEmail2: mail.organization_email2,
-      extraMail
+      extraMail,
+      extraAbMail: abPolicy.extraAbMail
     });
     if (abPolicy.clientAb) logger(`[client_ab] zamówienie ${orderId}: potwierdzenie dla klienta (${mainRecipient})`);
 

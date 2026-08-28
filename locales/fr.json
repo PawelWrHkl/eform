@@ -557,6 +557,7 @@
 		"context_active": "Vous travaillez comme",
 		"context_exit": "Quitter le contexte",
 		"context_enter": "Entrer dans le contexte",
+		"sf_tax_id": "N° TVA",
 		"sf_discount": "Remise client (%)",
 		"sf_discount_hint": "Appliquée automatiquement après le calcul du prix de la position de ce client. 0 = aucune remise.",
 		"col_discount": "Remise",

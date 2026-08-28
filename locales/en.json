@@ -562,6 +562,7 @@
 		"context_active": "Working as",
 		"context_exit": "Exit context",
 		"context_enter": "Enter context",
+		"sf_tax_id": "VAT ID",
 		"sf_discount": "Client discount (%)",
 		"sf_discount_hint": "Applied automatically after the position price is calculated for this client. 0 = no discount.",
 		"col_discount": "Discount",

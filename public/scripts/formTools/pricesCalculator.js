@@ -7,10 +7,22 @@ import { shouldHideRegularPriceRow } from "./createForm.js";
 import { formatVatRateLabel } from "./vatLabel.js";
 import { getEnvVersion } from "../getEnv.js";
 
-let _isTestEnv = false;
+// Specyfikacja ceny (_S) pokazuje się na WSZYSTKICH wersjach poza produkcyjną
+// — sama widoczność w podglądzie zamówienia i tak jest zablokowana za `entry.locked`
+// (przycisk kłódki w order.njk), to tylko decyduje, czy dane w ogóle powstają.
+// ⚠️ `getEnvVersion()` odpytuje `/env` asynchronicznie, więc flaga na starcie
+// strony bywa jeszcze `false` — SESSION_STORAGE_KEY cache'uje ostatni wynik per
+// karta przeglądarki, żeby KOLEJNE przeliczenia w tej samej sesji nie czekały
+// na fetch i nie gubiły wiersza `_S` przy pierwszym, szybkim przeliczeniu.
+const SESSION_STORAGE_KEY = 'eform_isNonProdEnv';
+let _isNonProdEnv = false;
+try {
+    _isNonProdEnv = sessionStorage.getItem(SESSION_STORAGE_KEY) === '1';
+} catch (_) { /* prywatna karta / storage wyłączony — zostaje false */ }
 getEnvVersion().then(v => {
-    _isTestEnv = (v === 'Testowa');
-    console.log('Wersja środowiska:', v, '| _isTestEnv:', _isTestEnv);
+    _isNonProdEnv = !!v && v !== 'Produkcyjna';
+    console.log('Wersja środowiska:', v, '| _isNonProdEnv:', _isNonProdEnv);
+    try { sessionStorage.setItem(SESSION_STORAGE_KEY, _isNonProdEnv ? '1' : '0'); } catch (_) { /* ignore */ }
 });
 function formatNumberForDisplay(value) {
     const num = parseFloat(value);
@@ -394,7 +406,7 @@ export function calculateFromScript(param, values, inputs, displayValues, groupN
                         values[scriptParamName] = scriptValue;
 
                         // If param ends with _S and no input exists, create a hidden clone from the parent param
-                        const isNewSuffix = _isTestEnv && !inputs[scriptParamName] && scriptParamName.endsWith('_S');
+                        const isNewSuffix = _isNonProdEnv && !inputs[scriptParamName] && scriptParamName.endsWith('_S');
                         if (isNewSuffix) {
                             const parentName = scriptParamName.slice(0, -2);
                             const parentInput = inputs[parentName];

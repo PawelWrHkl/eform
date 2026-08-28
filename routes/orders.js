@@ -1281,7 +1281,8 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             confirmationEmail,
             organizationEmail: mail.organization_email,
             organizationEmail2: mail.organization_email2,
-            extraMail
+            extraMail,
+            extraAbMail: abPolicy.extraAbMail
         });
         if (abPolicy.clientAb) log(`[client_ab] zamówienie ${id}: potwierdzenie dla klienta (${mainRecipient})`);
 

@@ -557,6 +557,7 @@
 		"context_active": "Du arbeitest als",
 		"context_exit": "Kontext verlassen",
 		"context_enter": "In den Kontext wechseln",
+		"sf_tax_id": "USt-IdNr.",
 		"sf_discount": "Kundenrabatt (%)",
 		"sf_discount_hint": "Wird automatisch nach der Preisberechnung der Position dieses Kunden angewendet. 0 = kein Rabatt.",
 		"col_discount": "Rabatt",

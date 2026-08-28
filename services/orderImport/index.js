@@ -230,28 +230,25 @@ async function processOneFile(fileName) {
         log(`WARN: import OK but recalculate error for order ${importResult.orderId}: ${recalcErr.message}`);
       }
 
-      
-//       AUTOMATYCZNA WYSYŁKA PO IMPORTOWANIU ZAMÓWIENIA WYŁĄCZONA, BO CZĘSTO WYSYŁA SIĘ NIEPRAWIDŁOWE DANE (np. z niepoprawnym adresem e-mail klienta) I TRZEBA RĘCZNIE POPRAWIĆ ZAMÓWIENIE PRZED WYSYŁKĄ
-//       try {
-//         const { sendImportedOrder } = require('./sendAfterImport');
-//         const sendResult = await sendImportedOrder({
-//           orderId: importResult.orderId,
-//           user: resolved.user,
-//           lang: resolved.lang
-//         });
-//         result.sent = !!sendResult.sent;
-//         if (sendResult.skipped) {
-//           result.sendError = `skipped: ${sendResult.skipped}`;
-//           log(`WARN: import OK but send skipped for order ${importResult.orderId}: ${sendResult.skipped}`);
-//         } else if (sendResult.error) {
-//           result.sendError = sendResult.error;
-//           log(`WARN: import OK but send failed for order ${importResult.orderId}: ${sendResult.error}`);
-//         }
-//       } catch (sendErr) {
-//         result.sendError = sendErr.message;
-//         log(`WARN: import OK but send error for order ${importResult.orderId}: ${sendErr.message}`);
-//       }
-// // 
+      try {
+        const { sendImportedOrder } = require('./sendAfterImport');
+        const sendResult = await sendImportedOrder({
+          orderId: importResult.orderId,
+          user: resolved.user,
+          lang: resolved.lang
+        });
+        result.sent = !!sendResult.sent;
+        if (sendResult.skipped) {
+          result.sendError = `skipped: ${sendResult.skipped}`;
+          log(`WARN: import OK but send skipped for order ${importResult.orderId}: ${sendResult.skipped}`);
+        } else if (sendResult.error) {
+          result.sendError = sendResult.error;
+          log(`WARN: import OK but send failed for order ${importResult.orderId}: ${sendResult.error}`);
+        }
+      } catch (sendErr) {
+        result.sendError = sendErr.message;
+        log(`WARN: import OK but send error for order ${importResult.orderId}: ${sendErr.message}`);
+      }
 
 
       await cache.moveToProcessed(localPath);
