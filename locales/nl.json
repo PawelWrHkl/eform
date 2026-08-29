@@ -205,7 +205,8 @@
 		"client_discount_label": "Klantkorting",
 		"value_after_discount_label": "Waarde na korting",
 		"client_discount_unlock": "Voer je wachtwoord in om de korting te zien",
-		"show_discounted_price": "Prijs na korting weergeven"
+		"show_discounted_price": "Prijs na korting weergeven",
+		"hide_discounted_price": "Prijs na korting verbergen"
 	},
 	"employee": {
 		"panel_title": "Medewerkersbeheer",

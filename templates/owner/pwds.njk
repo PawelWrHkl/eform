@@ -11,15 +11,30 @@ window.location.href='/'
         <div class="container my-5 mobile-rm-card">
             <h2 class="text-center mb-4 fw-bold">{{ __('pwds.title') or 'Hasła klientów' }}</h2>
 
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                 <div class="input-group" style="max-width: 350px;">
                     <input type="text" id="pwd-search" class="form-control"
                         placeholder="{{ __('form.search_input_placeholder') or 'Szukaj klienta...' }}"
                         autocomplete="off">
                 </div>
-                <span id="pwd-count" class="text-muted"></span>
+                <div class="btn-group btn-group-sm" role="group" id="pwd-sort-group">
+                    <button type="button" class="btn btn-outline-secondary active" data-sort="alpha">
+                        {{ __('pwds.sort_alpha') or 'A-Z' }}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-sort="recent">
+                        {{ __('pwds.sort_recent') or 'Ostatnio używane' }}
+                    </button>
+                </div>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="pwd-recent-only">
+                    <label class="form-check-label" for="pwd-recent-only">
+                        {{ __('pwds.recent_only') or 'Tylko ostatnie 10' }}
+                    </label>
+                </div>
+                <span id="pwd-count" class="text-muted ms-auto"></span>
             </div>
 
+            {% set recentIdents = recentIdents or [] %}
             {% if users and users.length > 0 %}
             <div class="table-responsive">
                 <table class="table table-hover table-bordered" id="pwd-table">
@@ -34,9 +49,15 @@ window.location.href='/'
                     </thead>
                     <tbody id="pwd-tbody">
                         {% for user in users %}
-                        <tr class="pwd-row">
-                            <td>{{ loop.index }}</td>
-                            <td class="pwd-ident">{{ user.ident }}</td>
+                        {% set recentIndex = recentIdents.indexOf(user.ident) %}
+                        <tr class="pwd-row" data-recent-index="{{ recentIndex }}">
+                            <td class="pwd-index">{{ loop.index }}</td>
+                            <td class="pwd-ident">
+                                {{ user.ident }}
+                                {% if recentIndex > -1 %}
+                                <span class="badge bg-light text-secondary border pwd-recent-badge" title="{{ __('pwds.recent_badge_title') or 'Ostatnio wybrany klient' }}">★</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="pwd-pin">{{ user.pin }}</span>

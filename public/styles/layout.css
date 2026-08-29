@@ -674,6 +674,22 @@
 		color: var(--text-on-brand);
 	}
 
+	/* Kopiuj ofertę — przezroczyste tło (obrys zamiast wypełnienia, jak
+	   `.action-btn-edit`), a `box-sizing: border-box` (reset globalny w
+	   `theme.css`) trzyma tę samą wysokość co delete/edit/send mimo
+	   dodanego obramowania — nic nie trzeba doliczać ręcznie. */
+	.action-btn-copy {
+		background: transparent;
+		border: 1.5px solid var(--border-default);
+		color: var(--text-primary);
+	}
+
+	.action-btn-copy:hover {
+		background: var(--bg-hover);
+		border-color: var(--brand-primary);
+		color: var(--brand-primary);
+	}
+
 	.action-btn.p-1 {
 		padding: 8px;
 		min-width: 38px;

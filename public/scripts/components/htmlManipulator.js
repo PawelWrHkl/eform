@@ -114,11 +114,14 @@ export function createInfoDialog({
         createElement('input', { type: input.type, class: ['dialog-inputs'], id: input.id }, inputDiv)
     }
     if (checkbox) {
+        // ⚠️ `for` MUSI wskazywać na `checkbox.id` (nie stały `dialog-checkbox`,
+        // jak było wcześniej) — inaczej klik w SAM TEKST etykiety (naturalny
+        // odruch) nic nie robi, bo `for` nie trafia w żaden istniejący `id`.
+        // Kwadracik działał, ale użytkownik klikający napis myślał, że
+        // zaznaczył checkbox, a on zostawał odznaczony.
         const checkboxDiv = createElement('div', { id: 'diag-checkbox-container', class: ['mt-4', 'ms-3'] }, dialog)
         createElement('input', { type: 'checkbox', class: ['dialog-checkbox', 'form-check-input', 'p-1'], id: checkbox.id }, checkboxDiv)
-        createElement('label', { for: 'dialog-checkbox', class: ['dialog-checbox-label', 'mb-1', 'ms-2'], text: checkbox.name }, checkboxDiv)
-
-
+        createElement('label', { for: checkbox.id, class: ['dialog-checbox-label', 'mb-1', 'ms-2'], text: checkbox.name }, checkboxDiv)
     }
     createElement("p", { class: ["text-center"], html: message }, dialog);
 

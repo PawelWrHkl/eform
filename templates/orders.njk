@@ -107,6 +107,8 @@
                               {% if not isEmployee %}
                                 {% block buttons_space %}
                                   <td class='buttons'>
+                                    <button class="action-btn action-btn-copy p-1 stop-propagation copy-order-btn has-tooltip" data-tooltip="{{ __('orders.copy_offer') }}" type="button" data-id="{{ order.id }}" onclick="event.stopPropagation()">
+                                      <img src="/img/duplicate.png" alt="{{ __('orders.copy_offer') }}"></button>
                                     {% if not clientOwned %}
                                     <button class="action-btn action-btn-delete p-1 delete-position-btn stop-propagation has-tooltip" data-tooltip="{{ __('orders.delete_order') }}" id="delete-order-btn" data-href='/orders/order/{{ order.id }}/delete' type='button' onclick="event.stopPropagation()" '>
                                       <img src="/img/delete.png" alt="{{ __('order.delete') }}" style="height: 24px;"/>
@@ -129,6 +131,8 @@
                                     {% endblock buttons_space %}
                                   {% elif isEmployee and employeePermissions and employeePermissions.can_send_orders and not clientOwned %}
                                     <td class='buttons'>
+                                      <button class="action-btn action-btn-copy p-1 stop-propagation copy-order-btn has-tooltip" data-tooltip="{{ __('orders.copy_offer') }}" type="button" data-id="{{ order.id }}" onclick="event.stopPropagation()">
+                                        <img src="/img/duplicate.png" alt="{{ __('orders.copy_offer') }}"></button>
                                       <button class="action-btn action-btn-send p-1 stop-propagation send-order-btn has-tooltip" data-tooltip="{{ __('orders.send_order_tooltip') }}" type="button" id='send-order' data-id="{{ order.id }}">
                                         <img src="/img/send.png" alt="{{ __('orders.send') }}"></button>
                                     </td>
@@ -154,6 +158,9 @@
                                 <div class="mobile-order-commission">{{ order.commision }}</div>
                                 {% block mobile_order_actions %}
                                   <div class="mobile-order-actions">
+                                    <button class="action-btn action-btn-copy copy-order-btn stop-propagation" type="button" data-id="{{ order.id }}" onclick="event.stopPropagation()">
+                                      {{ __('orders.copy_offer') }}
+                                    </button>
                                     {% if not isEmployee and not clientOwned %}
                                     <button
                                       class="action-btn action-btn-delete delete-position-btn stop-propagation"

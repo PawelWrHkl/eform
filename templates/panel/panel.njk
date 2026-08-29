@@ -1,0 +1,204 @@
+{% extends "base.njk" %}
+{% block title %}{{ __('panel.title') }}{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="/styles/panel.css">
+{% endblock %}
+
+{% block key_nav %}
+    window.history.back()
+{% endblock %}
+
+{% block back_link %}
+    <button class="modern-back-btn" onclick="window.history.back()">
+{% endblock %}
+
+{% block content %}
+    <div class="content col-12 center-content">
+        <div class="panel-wrap">
+
+            <header class="panel-header">
+                <div class="panel-avatar">{{ (user.client_name or user.ident or '?') | truncate(1, true, '') | upper }}</div>
+                <div class="panel-header-text">
+                    <h1 class="panel-title">{{ __('panel.title') }}</h1>
+                    {% if user %}
+                        <p class="panel-subtitle">{{ user.client_name }}{% if user.ident %} · {{ user.ident }}{% endif %}</p>
+                    {% endif %}
+                </div>
+            </header>
+
+            {% if error %}
+                <div class="panel-alert panel-alert-error" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>
+                        {% if error == 'wrong_current' %}{{ __('panel.password_error_wrong_current') }}
+                        {% elif error == 'mismatch' %}{{ __('panel.password_error_mismatch') }}
+                        {% elif error == 'too_short' %}{{ __('panel.password_error_too_short') }}
+                        {% elif error == 'missing' %}{{ __('panel.password_error_missing') }}
+                        {% else %}{{ __('panel.password_error_server') }}{% endif %}
+                    </span>
+                </div>
+            {% endif %}
+            {% if success %}
+                <div class="panel-alert panel-alert-success" role="status">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span>{{ __('panel.password_success') }}</span>
+                </div>
+            {% endif %}
+
+            <div class="panel-body">
+            <section class="panel-card">
+                {% if tab == 'data' %}
+                    {% if user %}
+                        <h2 class="panel-section-title">{{ __('panel.tab_data') }}</h2>
+                        <p class="panel-section-hint">{{ __('base.user_data') }}</p>
+                        <p class="panel-section-hint panel-readonly-note">{{ __('panel.data_readonly_note') }}</p>
+                        <div class="panel-grid">
+                            <div class="panel-field span-2">
+                                <label>{{ __('panel.account_name') }}</label>
+                                <input type="text" class="form-control" value="{{ user.client_name }}" readonly disabled>
+                            </div>
+                            <div class="panel-field span-2">
+                                <label>{{ __('base.nip') }}</label>
+                                <input type="text" class="form-control" value="{{ user.tax_id }}" readonly disabled>
+                            </div>
+                            <div class="panel-field span-2">
+                                <label>{{ __('base.street') }}</label>
+                                <input type="text" class="form-control" value="{{ user.street }}" readonly disabled>
+                            </div>
+                            <div class="panel-field">
+                                <label>{{ __('new-order.zip') }}</label>
+                                <input type="text" class="form-control" value="{{ user.zip }}" readonly disabled>
+                            </div>
+                            <div class="panel-field">
+                                <label>{{ __('base.city_country') }}</label>
+                                <input type="text" class="form-control" value="{{ user.city }}" readonly disabled>
+                            </div>
+                            <div class="panel-field span-2">
+                                <label>E-mail</label>
+                                <input type="email" class="form-control" value="{{ user.email }}" readonly disabled>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="panel-empty">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            <p class="panel-empty-title">{{ __('base.no_user_data') }}</p>
+                        </div>
+                    {% endif %}
+
+                {% elif tab == 'password' %}
+                    <h2 class="panel-section-title">{{ __('panel.tab_password') }}</h2>
+                    <p class="panel-section-hint">{{ __('panel.password_hint') }}</p>
+                    <form method="POST" action="/panel/password" id="panel-password-form" novalidate>
+                        <div class="panel-grid">
+                            <div class="panel-field span-2 panel-password-field">
+                                <label for="currentPassword">{{ __('panel.current_password') }}</label>
+                                <input type="password" class="form-control" id="currentPassword" name="currentPassword" autocomplete="current-password" required>
+                                <button type="button" class="panel-eye-toggle" data-toggle-for="currentPassword" aria-label="{{ __('group.sf_password_toggle') }}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                            <div class="panel-field panel-password-field">
+                                <label for="newPassword">{{ __('panel.new_password') }}</label>
+                                <input type="password" class="form-control" id="newPassword" name="newPassword" minlength="5" autocomplete="new-password" required>
+                                <button type="button" class="panel-eye-toggle" data-toggle-for="newPassword" aria-label="{{ __('group.sf_password_toggle') }}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                                <p class="panel-hint">{{ __('panel.password_error_too_short') }}</p>
+                            </div>
+                            <div class="panel-field panel-password-field">
+                                <label for="confirmPassword">{{ __('panel.confirm_password') }}</label>
+                                <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" minlength="5" autocomplete="new-password" required>
+                                <button type="button" class="panel-eye-toggle" data-toggle-for="confirmPassword" aria-label="{{ __('group.sf_password_toggle') }}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                                <p class="panel-match-hint" id="panel-match-hint"></p>
+                            </div>
+                        </div>
+                        <div class="panel-actions">
+                            <button type="submit" class="btn-primary">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                {{ __('panel.change_password_btn') }}
+                            </button>
+                        </div>
+                    </form>
+
+                {% elif tab == 'catalogs' %}
+                    <h2 class="panel-section-title">{{ __('panel.tab_catalogs') }}</h2>
+                    <p class="panel-section-hint">{{ __('panel.catalogs_hint') }}</p>
+                    {% if catalogs and catalogs | length > 0 %}
+                        <div class="panel-catalog-list">
+                            {% for file in catalogs %}
+                                <div class="panel-catalog-item">
+                                    <div class="panel-catalog-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                    </div>
+                                    <div class="panel-catalog-meta">
+                                        <div class="panel-catalog-name">{{ file.name }}</div>
+                                        <div class="panel-catalog-size">{{ (file.size / 1024) | round(1) }} KB</div>
+                                    </div>
+                                    <a class="panel-catalog-download btn-primary" href="/panel/catalogs/download/{{ file.name }}">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        {{ __('panel.catalog_download') }}
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="panel-empty">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                            <p class="panel-empty-title">{{ __('panel.catalogs_empty') }}</p>
+                        </div>
+                    {% endif %}
+
+                {% elif tab == 'personalization' %}
+                    <span class="panel-soon-badge">{{ __('panel.tab_personalization') }}</span>
+                    <h2 class="panel-section-title">{{ __('panel.personalization_coming_soon') }}</h2>
+                    <p class="panel-section-hint">{{ __('panel.personalization_hint') }}</p>
+                    <div class="panel-theme-preview" aria-hidden="true">
+                        <div class="panel-theme-swatch steel"><span class="dot"></span>Steel</div>
+                        <div class="panel-theme-swatch sunset"><span class="dot"></span>Sunset</div>
+                        <div class="panel-theme-swatch forest"><span class="dot"></span>Forest</div>
+                    </div>
+                {% endif %}
+            </section>
+
+            <nav class="panel-tabs" aria-label="{{ __('panel.title') }}">
+                <a href="/panel?tab=data" class="panel-tab{% if tab == 'data' %} active{% endif %}"{% if tab == 'data' %} aria-current="page"{% endif %}>
+                    <span class="panel-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                    <span class="panel-tab-text">
+                        <span class="panel-tab-label">{{ __('panel.tab_data') }}</span>
+                        <span class="panel-tab-desc">{{ __('panel.tab_data_desc') }}</span>
+                    </span>
+                </a>
+                <a href="/panel?tab=password" class="panel-tab{% if tab == 'password' %} active{% endif %}"{% if tab == 'password' %} aria-current="page"{% endif %}>
+                    <span class="panel-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                    <span class="panel-tab-text">
+                        <span class="panel-tab-label">{{ __('panel.tab_password') }}</span>
+                        <span class="panel-tab-desc">{{ __('panel.tab_password_desc') }}</span>
+                    </span>
+                </a>
+                <a href="/panel?tab=catalogs" class="panel-tab{% if tab == 'catalogs' %} active{% endif %}"{% if tab == 'catalogs' %} aria-current="page"{% endif %}>
+                    <span class="panel-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+                    <span class="panel-tab-text">
+                        <span class="panel-tab-label">{{ __('panel.tab_catalogs') }}</span>
+                        <span class="panel-tab-desc">{{ __('panel.tab_catalogs_desc') }}</span>
+                    </span>
+                </a>
+                <a href="/panel?tab=personalization" class="panel-tab{% if tab == 'personalization' %} active{% endif %}"{% if tab == 'personalization' %} aria-current="page"{% endif %}>
+                    <span class="panel-tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></span>
+                    <span class="panel-tab-text">
+                        <span class="panel-tab-label">{{ __('panel.tab_personalization') }}</span>
+                        <span class="panel-tab-desc">{{ __('panel.tab_personalization_desc') }}</span>
+                    </span>
+                </a>
+            </nav>
+            </div>
+
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/scripts/panel/panel.js"></script>
+{% endblock %}

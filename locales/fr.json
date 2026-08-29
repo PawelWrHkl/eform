@@ -205,7 +205,8 @@
 		"client_discount_label": "Remise client",
 		"value_after_discount_label": "Valeur après remise",
 		"client_discount_unlock": "Saisissez votre mot de passe pour voir la remise",
-		"show_discounted_price": "Afficher le prix après remise"
+		"show_discounted_price": "Afficher le prix après remise",
+		"hide_discounted_price": "Masquer le prix après remise"
 	},
 	"employee": {
 		"panel_title": "Gestion des employés",

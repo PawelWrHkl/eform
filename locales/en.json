@@ -211,7 +211,8 @@
 		"client_discount_label": "Client discount",
 		"value_after_discount_label": "Value after discount",
 		"client_discount_unlock": "Enter your password to see the discount",
-		"show_discounted_price": "Show discounted price"
+		"show_discounted_price": "Show discounted price",
+		"hide_discounted_price": "Hide discounted price"
 	},
 	"employee": {
 		"panel_title": "Employee Management",

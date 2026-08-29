@@ -3303,3 +3303,16 @@ fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: 
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-08-28 10:35:01 - Start ===
 === 2026-08-28 10:35:01 - Dodawanie zmian do commita ===
+[main b41f8f9] Automatic commit 2026-08-28 10:35
+ 22 files changed, 8858 insertions(+), 53 deletions(-)
+ create mode 100644 24---
+ create mode 100644 25---
+ create mode 100644 HEAD---
+=== 2026-08-28 10:35:03 - Wysyłanie do origin/main ===
+remote: Permission to PawelWoronieckiHkl/eform.git denied to PawelWrHkl.
+fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: The requested URL returned error: 403
+=== 2026-08-28 12:00:01 - Start ===
+=== 2026-08-28 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-08-29 10:35:01 - Start ===
+=== 2026-08-29 10:35:01 - Dodawanie zmian do commita ===

@@ -209,7 +209,8 @@
 		"client_discount_label": "Rabat klienta",
 		"value_after_discount_label": "Wartość po rabacie",
 		"client_discount_unlock": "Podaj hasło, aby zobaczyć rabat",
-		"show_discounted_price": "Pokaż cenę po rabacie"
+		"show_discounted_price": "Pokaż cenę po rabacie",
+		"hide_discounted_price": "Ukryj cenę po rabacie"
 	},
 	"mail": {
 		"order_confirm": "mail.order_confirm",

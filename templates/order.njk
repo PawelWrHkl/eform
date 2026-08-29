@@ -52,8 +52,8 @@
                                                    (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
                                                    (przełącznik cen SUB przez sesję) jest dla tych ról ukryty niżej. #}
                                                 {% if (isGroup or isGroupShop) and not hidePrices %}
-                                                    <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-tooltip="{{ __('form.show_discounted_price') }}">
-                                                        <img src="/img/padlock.png" alt="padlock icon" class='icon'>
+                                                    <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
+                                                        <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
                                                     </button>
                                                 {% endif %}
                                                 {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient and (not hasSubPriceToggle or showCatalogPrices) %}
@@ -127,8 +127,8 @@
                                                                        (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
                                                                        (przełącznik cen SUB przez sesję) jest dla tych ról ukryty niżej. #}
                                                                     {% if (isGroup or isGroupShop) and not hidePrices %}
-                                                                        <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-tooltip="{{ __('form.show_discounted_price') }}">
-                                                                            <img src="/img/padlock.png" alt="padlock icon" class='icon'>
+                                                                        <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
+                                                                            <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
                                                                         </button>
                                                                     {% endif %}
                                                                     {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient and (not hasSubPriceToggle or showCatalogPrices) %}
@@ -305,7 +305,7 @@
                                                                                                             {% endif %}
                                                                                                             {% if (isGroup or isGroupShop or canViewSubPrices or viewAsOrganization or (isClient and itemHasSubPrices)) and rowObj.item.subParamValues and rowObj.item.subParamValues.length > 0 %}
                                                                                                                 {% set isOrgView = isOrgAccount or viewAsOrganization %}
-                                                                                                                <tr class="sub-params-row"{% if isGroupShop or (isClient and itemHasSubPrices) or (hasSubPriceToggle and itemHasSubPrices) or (isGroup and showSub) %} style="display: table-row;"{% endif %}>
+                                                                                                                <tr class="sub-params-row"{% if isGroupShop or (isClient and itemHasSubPrices) or (hasSubPriceToggle and itemHasSubPrices) or (isGroup and showSub) or (isGroup and discountPricesUnlocked) %} style="display: table-row;"{% endif %}>
                                                                                                                     <td colspan="100%" class="sub-params-cell">
                                                                                                                         <div class="sub-params-container">
                                                                                                                             {% for entry in rowObj.item.subParamValues %}
@@ -322,7 +322,7 @@
                                                                                                                                        przy renderze. #}
                                                                                                                                     {% set hideVatFromRole = isGroupShop or (isGroup and isGroupClientType) %}
                                                                                                                                     {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
-                                                                                                                                    {% if (not hideVatFromRole or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgView and prices)) %}
+                                                                                                                                    {% if (not hideVatFromRole or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgView and prices) or ((isGroup or isGroupShop) and discountPricesUnlocked)) %}
                                                                                                                                     <span class="sub-param-item{% if entry.locked %} gold{% endif %}">
                                                                                                                                         <span class="sub-param-label">{{ entry.display }}:</span>
                                                                                                                                         <b class="sub-param-value">{{ entry.value }}</b>
@@ -334,11 +334,13 @@
                                                                                                                     </td>
                                                                                                                 </tr>
 {# Rabat klienta grupy w OSOBNYM wierszu pod cenami SUB — odsłaniany kłódką
-   (`showDiscountPriceBtn`, public/scripts/order.js). ⚠️ `d-none` niesie
-   `!important`, więc po jego zdjęciu potrzebny jest własny inline
-   `display: table-row` — sam `.sub-params-row` jest w CSS ukryty. #}
+   (`showDiscountPriceBtn`, public/scripts/order.js), stan czytany serwerowo
+   z `discountPricesUnlocked` (server.js, `req.session.user.showDiscountPrices`
+   /`showDiscountPricesOnce`). ⚠️ `d-none` niesie `!important`, więc gdy nie
+   jest dodane, potrzebny jest własny inline `display: table-row` — sam
+   `.sub-params-row` jest w CSS ukryty. #}
 {% if rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 and (isGroup or isGroupShop) and not hidePrices %}
-    <tr class="sub-params-row client-discount-row d-none" style="display: table-row;">
+    <tr class="sub-params-row client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}" style="display: table-row;">
         <td colspan="100%" class="sub-params-cell">
             <div class="sub-params-container">
                 {% for entry in rowObj.item.clientDiscountValues %}
@@ -460,7 +462,7 @@
                                                                                                                         {% endif %}
                                                                                                                         {% if (isGroup or isGroupShop or canViewSubPrices or viewAsOrganization or (isClient and itemHasSubPrices)) and rowObj.item.subParamValues and rowObj.item.subParamValues.length > 0 %}
                                                                                                                             {% set isOrgViewM = isOrgAccount or viewAsOrganization %}
-                                                                                                                            <div class="mobile-sub-params"{% if isGroupShop or (isClient and itemHasSubPrices) or (hasSubPriceToggle and itemHasSubPrices) or (isGroup and showSub) %} style="display: block;"{% endif %}>
+                                                                                                                            <div class="mobile-sub-params"{% if isGroupShop or (isClient and itemHasSubPrices) or (hasSubPriceToggle and itemHasSubPrices) or (isGroup and showSub) or (isGroup and discountPricesUnlocked) %} style="display: block;"{% endif %}>
                                                                                                                                 {% for entry in rowObj.item.subParamValues %}
                                                                                                                                     {% if entry.value and entry.value != '-' and entry.value != '' %}
                                                                                                                                         {# Jak w wersji desktopowej: wiersze rabatu klienta renderują się dla grupy
@@ -470,7 +472,7 @@
                                                                                                                                            nie widzą VAT-u. #}
                                                                                                                                         {% set hideVatFromRoleM = isGroupShop or (isGroup and isGroupClientType) %}
                                                                                                                                         {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
-                                                                                                                                        {% if (not hideVatFromRoleM or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgViewM and prices)) %}
+                                                                                                                                        {% if (not hideVatFromRoleM or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgViewM and prices) or ((isGroup or isGroupShop) and discountPricesUnlocked)) %}
                                                                                                                                         <div class="mobile-sub-param-item{% if entry.locked %} gold{% endif %}">
                                                                                                                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                                                                                                                         </div>
@@ -480,7 +482,7 @@
                                                                                                                             </div>
 {# Jak w wersji desktopowej: rabat w osobnym bloku pod cenami SUB. #}
 {% if rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 and (isGroup or isGroupShop) and not hidePrices %}
-    <div class="mobile-sub-params client-discount-row d-none" style="display: block;">
+    <div class="mobile-sub-params client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}" style="display: block;">
         {% for entry in rowObj.item.clientDiscountValues %}
             {% if entry.value and entry.value != '-' and entry.value != '' %}
                 <div class="mobile-sub-param-item gold">
@@ -595,7 +597,7 @@
                                                                                                                    zgadza się z tym, co widać przy pozycjach. Ukryta do kliknięcia kłódki
                                                                                                                    „Pokaż cenę po rabacie" (`client-discount-row`, public/scripts/order.js). #}
                                                                                                                 {% if totalPrice.afterClientDiscount %}
-                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center client-discount-row d-none">
+                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}">
                                                                                                                         <span class='total price-label sub-total col-3 text-center'>
                                                                                                                             {{ __('form.value_after_discount_label') }}: {{ totalPrice.afterClientDiscount | applyFactor(priceFactor) }}&#8364;
                                                                                                                         </span>

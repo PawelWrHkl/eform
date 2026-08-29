@@ -15,6 +15,7 @@ const invoiceRoutes = require('./services/invoices/http/routes');
 const invoicePanelRoutes = require('./services/invoices/http/panel');
 const orgCustomersRoutes = require('./routes/orgCustomers');
 const clientTermsRoutes = require('./routes/clientTerms');
+const userPanelRoutes = require('./routes/userPanel');
 // Znacznik wersji zasobów: zmienia się przy każdym starcie procesu, czyli po
 // każdym wdrożeniu (`update.sh` restartuje kontener, `--watch` proces hosta).
 const ASSET_VERSION = Date.now().toString(36);
@@ -171,6 +172,16 @@ app.use((req, res, next) => {
 		typeof u.organization === 'string' &&
 		u.ident.toLowerCase() === u.organization.toLowerCase()
 	);
+	// Kłódka rabatu grupy/klienta (`showDiscountPriceBtn`, public/scripts/order.js):
+	// dokładnie ten sam wzorzec co stare `showPrices`/`showPricesOnce`
+	// (`/user/auth/check-password`, `/orders/lock`) — para flag na
+	// `session.user`, ustawiana przez `routes/orders.js` `/discount-lock`.
+	// Liczone tu, globalnie, PRZED wejściem do jakiejkolwiek oferty, więc
+	// `templates/order.njk` (i pochodne: `order_prices.njk`, `order_sent*.njk`)
+	// mają gotową wartość bez ręcznego przekazywania jej w każdym `res.render`.
+	res.locals.discountPricesUnlocked = !!(
+		req.session?.user?.showDiscountPrices || req.session?.user?.showDiscountPricesOnce
+	);
 	next();
 });
 
@@ -264,6 +275,7 @@ app.use(addOrganizationsForAdmin);
 const { enforceAccessLock } = require('./middleware/accessLock');
 app.use(enforceAccessLock);
 app.use('/user', userRoutes);
+app.use('/panel', userPanelRoutes);
 app.use('/admin', adminRoutes);
 app.use('/group', groupRoutes);
 app.use('/', mainRoutes);

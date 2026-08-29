@@ -14,6 +14,7 @@ const { get } = require('lodash');
 const hashUser = require('../utils/hashUser').hashUser;
 const { log } = require('../utils/logging');
 const { getActiveGroupShopId } = require('../services/groupContext');
+const { GROUP_TYPE_CLIENT } = require('../services/groupType');
 
 let clientsUpdateRunning = false;
 
@@ -59,7 +60,10 @@ router.get("/org-pwd", requireLogin, requireOwner, async (req, res, next) => {
         const orgInfo = await db.getOrgInfo(orgId);
         const orgIdent = orgInfo ? orgInfo.ident.toLowerCase() : 'default';
 
-        res.render("owner/pwds.njk", { users, orgIdent });
+        const recentClients = await db.getRecentClients(req.session.user.userId);
+        const recentIdents = recentClients.map(c => c.ident);
+
+        res.render("owner/pwds.njk", { users, orgIdent, recentIdents });
     } catch (err) {
         log('Error loading passwords page:', err);
         next(err);
@@ -168,7 +172,15 @@ router.post('/update-user', requireLogin, async (req, res) => {
 
         await db.updateUserData(pin, trimmedData);
 
-        return res.redirect('/');
+        // Formularz w panelu użytkownika (`templates/panel/panel.njk`) chce
+        // wrócić na swoją zakładkę zamiast na stronę główną — walidacja
+        // ogranicza się do ścieżki wewnętrznej (`/coś`, nie `//host` ani
+        // `http://...`), żeby to pole z formularza nie stało się open redirectem.
+        const { redirectTo } = req.body;
+        const isSafeInternalPath = typeof redirectTo === 'string'
+            && redirectTo.startsWith('/')
+            && !redirectTo.startsWith('//');
+        return res.redirect(isSafeInternalPath ? redirectTo : '/');
     } catch (err) {
         log('Error updating user:', err);
         return res.status(500).render('edit_user.njk', {
@@ -336,6 +348,18 @@ router.post("/auth/check-login-password", requireLogin, async (req, res) => {
         const password = req.body?.password;
         if (!password) {
             return res.json({ success: false });
+        }
+
+        // Admin w kontekście grupy-matki typu `client` (np. wgląd w Lipkę) nie zna
+        // hasła klienta — kłódka rabatu przyjmuje wtedy dowolne (niepuste) hasło,
+        // żeby admin mógł podejrzeć widok bez znajomości hasła klienta. Dotyczy
+        // TYLKO grupy-matki (nie konta podrzędnego — `getActiveGroupShopId`
+        // wskazuje wtedy wybrany sklep i tam nadal wymagamy prawdziwego hasła).
+        const contextUser = req.session.context_user;
+        if (req.session.user?.isAdmin && contextUser?.isGroup
+            && contextUser.groupType === GROUP_TYPE_CLIENT
+            && !getActiveGroupShopId(req)) {
+            return res.json({ success: true });
         }
 
         if (req.session.user?.isGroupShop) {

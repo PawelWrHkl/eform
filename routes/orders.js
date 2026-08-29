@@ -487,6 +487,13 @@ router.get("/history", requireLogin, loadEmployeePermissions, filterPriceData, f
 
 router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmployeePermissions, filterPriceData, async (req, res) => {
 
+    // Kłódka rabatu bez „zapamiętaj" odsłania tylko JEDNO wejście do oferty —
+    // `discountPricesUnlocked` (server.js) już przeczytało flagę do rendera
+    // tego requestu, więc można ją tu bezpiecznie zgasić (patrz `/discount-lock`).
+    if (req.session.user?.showDiscountPricesOnce) {
+        req.session.user.showDiscountPricesOnce = false;
+    }
+
     const { orderDetails, orderItems } = await db.getOrderWithItems(req.params.orderId);
 
     if (orderDetails?.status === 'correction' && !req.session.user?.isAdmin) {
@@ -578,6 +585,13 @@ router.get("/add-order", requireLogin, async (req, res) => {
 
 
 router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwnership, loadEmployeePermissions, filterPriceData, async (req, res) => {
+    // Kłódka rabatu bez „zapamiętaj" odsłania tylko JEDNO wejście do oferty —
+    // `discountPricesUnlocked` (server.js) już przeczytało flagę do rendera
+    // tego requestu, więc można ją tu bezpiecznie zgasić (patrz `/discount-lock`).
+    if (req.session.user?.showDiscountPricesOnce) {
+        req.session.user.showDiscountPricesOnce = false;
+    }
+
     // Admin opening an order directly (not via "Zamówienia klienta" first) has
     // no session.context_user set, so isGroup/canViewSubPrices/viewAsOrganization
     // (services/subPriceContext.js, consumed by templates/order.njk's SUB-total
@@ -830,7 +844,8 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         // stary toggle `showSubParams`, o kłódce „Pokaż cenę po rabacie" nic nie
         // wie), tylko przez `resolveGroupClientPdfPriceView` sterowane stanem
         // TEJ kłódki, odczytanym z przeglądarki w chwili kliknięcia
-        // print-buttona (public/scripts/order.js `priceRowsVisible()` →
+        // print-buttona (public/scripts/order.js `window.__clientDiscountPriceVisible`,
+        // ustawiane serwerowym `discountPricesUnlocked` przy starcie strony →
         // generators.js → tu). ⚠️ Gate to `isGroup or isGroupShop`, BEZ
         // `isGroupClientType` — tak samo jak `templates/order.njk` pokazuje
         // kłódkę i steruje `.price-row`/`.sub-params-row` każdej grupie, nie
@@ -1384,6 +1399,36 @@ router.post('/toggle-sub', requireLogin, async (req, res) => {
         return res.json({ status: 'success', refresh: true });
     } catch (err) {
         log(err);
+    }
+});
+
+// Kłódka rabatu grupy/klienta (`showDiscountPriceBtn`, public/scripts/order.js)
+// — DOKŁADNIE ten sam wzorzec co `/lock` powyżej: para flag na
+// `req.session.user` (`showDiscountPrices`/`showDiscountPricesOnce`, jak stare
+// `showPrices`/`showPricesOnce` z `/user/auth/check-password`), przeładowanie
+// strony po zapisie, a sam widok (`templates/order.njk`) czyta stan z
+// globalnego `res.locals.discountPricesUnlocked` (server.js) — czyli sprawdzany
+// PRZED wejściem do KAŻDEJ oferty, nie tylko tej, na której kliknięto kłódkę.
+// `status: true` odsłania — `remember: true` na stałe (do wylogowania/ręcznej
+// blokady), `remember: false` tylko na to jedno wejście (`...Once`, zużywane w
+// `/order/:orderId` i `/history/order/:orderId` poniżej). `status: false` chowa
+// obie flagi na dobre.
+router.post('/discount-lock', requireLogin, async (req, res) => {
+    try {
+        const { status, remember } = req.body;
+        if (req.session?.user) {
+            if (status) {
+                req.session.user.showDiscountPrices = !!remember;
+                req.session.user.showDiscountPricesOnce = !remember;
+            } else {
+                req.session.user.showDiscountPrices = false;
+                req.session.user.showDiscountPricesOnce = false;
+            }
+        }
+        return res.json({ status: 'success', refresh: true });
+    } catch (err) {
+        log(err);
+        return res.status(500).json({ status: 'error' });
     }
 });
 

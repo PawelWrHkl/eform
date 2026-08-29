@@ -1,24 +1,82 @@
 (function () {
     var searchInput = document.getElementById('pwd-search');
-    var rows = document.querySelectorAll('.pwd-row');
     var countEl = document.getElementById('pwd-count');
+    var recentOnlyCheckbox = document.getElementById('pwd-recent-only');
+    var sortGroup = document.getElementById('pwd-sort-group');
+    var tbody = document.getElementById('pwd-tbody');
+    var currentSort = 'alpha';
 
-    function updateCount() {
-        var visible = document.querySelectorAll('.pwd-row:not([style*="display: none"])').length;
-        countEl.textContent = visible + ' / ' + rows.length;
+    function getRows() {
+        return tbody ? Array.prototype.slice.call(tbody.querySelectorAll('.pwd-row')) : [];
     }
-    updateCount();
+
+    function sortRows(rows) {
+        rows.sort(function (a, b) {
+            if (currentSort === 'recent') {
+                var ai = parseInt(a.getAttribute('data-recent-index'), 10);
+                var bi = parseInt(b.getAttribute('data-recent-index'), 10);
+                if (ai === -1) ai = Number.MAX_SAFE_INTEGER;
+                if (bi === -1) bi = Number.MAX_SAFE_INTEGER;
+                if (ai !== bi) return ai - bi;
+            }
+            var aIdent = a.querySelector('.pwd-ident').textContent.trim().toLowerCase();
+            var bIdent = b.querySelector('.pwd-ident').textContent.trim().toLowerCase();
+            return aIdent.localeCompare(bIdent);
+        });
+        return rows;
+    }
+
+    function applyFilterAndSort() {
+        var q = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        var recentOnly = recentOnlyCheckbox && recentOnlyCheckbox.checked;
+        var rows = sortRows(getRows());
+
+        rows.forEach(function (row) {
+            tbody.appendChild(row);
+        });
+
+        var visibleCount = 0;
+        var idx = 0;
+        rows.forEach(function (row) {
+            var ident = row.querySelector('.pwd-ident').textContent.toLowerCase();
+            var isRecent = row.getAttribute('data-recent-index') !== '-1';
+            var matchesSearch = ident.includes(q);
+            var matchesRecent = !recentOnly || isRecent;
+            var visible = matchesSearch && matchesRecent;
+            row.style.display = visible ? '' : 'none';
+            if (visible) {
+                idx++;
+                var indexCell = row.querySelector('.pwd-index');
+                if (indexCell) indexCell.textContent = idx;
+                visibleCount++;
+            }
+        });
+
+        if (countEl) countEl.textContent = visibleCount + ' / ' + rows.length;
+    }
 
     if (searchInput) {
-        searchInput.addEventListener('input', function () {
-            var q = this.value.toLowerCase().trim();
-            rows.forEach(function (row) {
-                var ident = row.querySelector('.pwd-ident').textContent.toLowerCase();
-                row.style.display = ident.includes(q) ? '' : 'none';
+        searchInput.addEventListener('input', applyFilterAndSort);
+    }
+
+    if (recentOnlyCheckbox) {
+        recentOnlyCheckbox.addEventListener('change', applyFilterAndSort);
+    }
+
+    if (sortGroup) {
+        sortGroup.querySelectorAll('button[data-sort]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                currentSort = this.getAttribute('data-sort');
+                sortGroup.querySelectorAll('button[data-sort]').forEach(function (b) {
+                    b.classList.remove('active');
+                });
+                this.classList.add('active');
+                applyFilterAndSort();
             });
-            updateCount();
         });
     }
+
+    applyFilterAndSort();
 
     document.querySelectorAll('.pwd-toggle-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {

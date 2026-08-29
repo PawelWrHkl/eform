@@ -205,7 +205,8 @@
 		"client_discount_label": "Kundenrabatt",
 		"value_after_discount_label": "Wert nach Rabatt",
 		"client_discount_unlock": "Passwort eingeben, um den Rabatt zu sehen",
-		"show_discounted_price": "Preis nach Rabatt anzeigen"
+		"show_discounted_price": "Preis nach Rabatt anzeigen",
+		"hide_discounted_price": "Preis nach Rabatt ausblenden"
 	},
 	"employee": {
 		"panel_title": "Mitarbeiterverwaltung",

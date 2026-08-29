@@ -353,61 +353,36 @@ unlockBtns.forEach(unlockBtn => {
   });
 });
 
-// --- „Pokaż cenę po rabacie" (grupa i klient końcowy) ----------------------
-// JEDEN przycisk zamiast dwóch (`clientDiscountToggleBtn` + `unlockSubBtn`):
-// odsłania NARAZ wiersz cen SUB i wiersz rabatu klienta. Dla tych ról
-// `unlockSubBtn` (przełącznik cen SUB przez sesję + reload) nie jest już
-// renderowany — całość dzieje się w DOM, bez przeładowania.
+// --- „Pokaż cenę po rabacie" (grupa i klient końcowy) -----------------------
+// Serwerowa flaga sesji (`req.session.user.showDiscountPrices` /
+// `showDiscountPricesOnce`, dokładnie ta sama para co stary `showPrices` /
+// `showPricesOnce` z `/user/auth/check-password` + `/orders/lock`) —
+// `routes/orders.js` sprawdza ją PRZED wejściem do oferty (globalny middleware
+// `res.locals.discountPricesUnlocked`, server.js) i `templates/order.njk`
+// renderuje wiersze cen SUB/rabatu już odsłonięte albo ukryte — bez żadnej
+// manipulacji DOM po stronie klienta. Klik przycisku zawsze kończy się
+// przeładowaniem strony (jak stary `unlockBtn`/`lock()`), więc widok jest
+// zawsze zgodny z tym, co naprawdę wie serwer, także po przejściu do innej
+// oferty.
 //
 // ⚠️ Odsłonięcie wymaga HASŁA TEGO KONTA
 // (`/user/auth/check-login-password` — dla konta podrzędnego sprawdza
 // `group_user.password`, dla pozostałych `user.password`; zwykła kłódka cenowa
-// pyta o hasło konta z sesji, którego klient końcowy nie zna). Schowanie hasła
-// nie wymaga, a zgoda obowiązuje tylko do przeładowania strony — nic nie
-// zapisujemy w sesji, żeby ukryta cena nie została odsłonięta „na później".
+// pyta o hasło konta z sesji, którego klient końcowy nie zna. Wyjątek: admin w
+// kontekście grupy-matki typu `client` — tam kłódka przyjmuje dowolne hasło).
+// Checkbox „zapamiętaj" ustawia `showDiscountPrices` (trwałe, aż do
+// wylogowania/ręcznej blokady) zamiast `showDiscountPricesOnce` (tylko ta
+// jedna strona po przeładowaniu).
+// Stan czytany BEZPOŚREDNIO z atrybutu wyrenderowanego przez serwer
+// (`data-unlocked`, templates/order.njk — `discountPricesUnlocked` z
+// `res.locals`, server.js) — żadnego JS-owego globala z tym stanem robionego
+// „na zapas" przy starcie skryptu, tylko odczyt DOM w chwili kliknięcia.
 const showDiscountPriceBtns = document.querySelectorAll('[id="showDiscountPriceBtn"]');
-let clientDiscountUnlocked = false;
-// Zapamiętujemy TYLKO te wiersze, które sami odsłoniliśmy — inaczej schowanie
-// wyłączyłoby też ceny SUB, które dla konta podrzędnego są widoczne domyślnie
-// (inline `display` z szablonu).
-const revealedPriceRows = [];
-
-function priceRowsVisible() {
-  return revealedPriceRows.length > 0;
-}
-
-function revealPriceRows() {
-  // 1) wszystko oznaczone jako „do odsłonięcia kłódką": wiersze rabatu przy
-  //    pozycjach ORAZ suma klienta po rabacie w stopce (`#total-container`).
-  document.querySelectorAll('.client-discount-row.d-none').forEach(row => {
-    row.classList.remove('d-none');
-    revealedPriceRows.push({ row, mode: 'class' });
-  });
-  // 2) wiersze cen SUB, które są ukryte w CSS (brak inline `display`).
-  document.querySelectorAll('.sub-params-row, .mobile-sub-params').forEach(row => {
-    if (row.classList.contains('client-discount-row')) return;
-    if (!row.style.display) {
-      row.style.display = row.classList.contains('mobile-sub-params') ? 'block' : 'table-row';
-      revealedPriceRows.push({ row, mode: 'style' });
-    }
-  });
-  showDiscountPriceBtns.forEach(b => b.classList.add('active'));
-  // Czytane przez generatePdf() (components/generators.js) w chwili kliknięcia
-  // print-buttona — PDF ma pokazać dokładnie to, co widać na ekranie w tej
-  // chwili (routes/orders.js `discountUnlocked`, services/subPrices.js
-  // `resolveGroupClientPdfPriceView`).
-  window.__clientDiscountPriceVisible = true;
-}
-
-function hidePriceRows() {
-  revealedPriceRows.forEach(({ row, mode }) => {
-    if (mode === 'class') row.classList.add('d-none');
-    else row.style.display = '';
-  });
-  revealedPriceRows.length = 0;
-  showDiscountPriceBtns.forEach(b => b.classList.remove('active'));
-  window.__clientDiscountPriceVisible = false;
-}
+// generatePdf() (components/generators.js) i tak musi znać ten stan w chwili
+// kliknięcia print-buttona (routes/orders.js `discountUnlocked`,
+// services/subPrices.js `resolveGroupClientPdfPriceView`) — jeden atrybut
+// wystarcza za oba przypadki, więc czytamy ten sam `data-unlocked`.
+window.__clientDiscountPriceVisible = showDiscountPriceBtns[0]?.dataset.unlocked === 'true';
 
 async function checkLoginPassword(password) {
   try {
@@ -424,16 +399,29 @@ async function checkLoginPassword(password) {
   }
 }
 
+async function setDiscountPricesLock(status, remember) {
+  try {
+    const response = await fetch('/orders/discount-lock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, remember: !!remember })
+    });
+    const result = await response.json();
+    if (result.status === 'success') {
+      window.location.reload();
+    }
+  } catch (err) {
+    console.warn(err);
+  }
+}
+
 showDiscountPriceBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    // widoczne → chowamy bez pytania o hasło
-    if (priceRowsVisible()) {
-      hidePriceRows();
-      return;
-    }
-    // hasło podane już wcześniej na tej stronie → nie pytamy drugi raz
-    if (clientDiscountUnlocked) {
-      revealPriceRows();
+    // odsłonięte → chowamy bez pytania o hasło. Odczyt z `data-unlocked` w
+    // chwili kliknięcia (nie z zapamiętanej wcześniej zmiennej), żeby zawsze
+    // odzwierciedlać to, co faktycznie wyrenderował serwer.
+    if (btn.dataset.unlocked === 'true') {
+      setDiscountPricesLock(false);
       return;
     }
 
@@ -458,8 +446,8 @@ showDiscountPriceBtns.forEach(btn => {
               return;
             }
             if (await checkLoginPassword(value)) {
-              clientDiscountUnlocked = true;
-              revealPriceRows();
+              const remember = !!document.getElementById('discount-remember')?.checked;
+              await setDiscountPricesLock(true, remember);
             } else {
               showToast('error', `${t('order.invalid_password')}`);
             }
@@ -468,6 +456,7 @@ showDiscountPriceBtns.forEach(btn => {
       ],
       parent,
       input: { name: `${t('login.password_label')}`, id: 'client-discount-password', type: 'password' },
+      checkbox: { name: `${t('order.remember')}`, id: 'discount-remember' },
       // Wąski, prawie kwadratowy monit — styl w public/styles/dialog.css
       className: 'compact-dialog'
     });

@@ -1085,6 +1085,58 @@ dialog::backdrop {
     ;
 }
 
+/* Panel użytkownika — w tym samym rzędzie co theme-toggle, ale jako pigułka
+   z widocznym napisem (nie sam gołosłowny gest ikony), żeby było od razu
+   jasne, gdzie to prowadzi, bez polegania na hoverze/tooltipie. */
+#user-panel-header-btn {
+    position: relative;
+    z-index: 200;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 18px 0 14px;
+    border-radius: var(--radius-full);
+    background: var(--brand-gradient);
+    background-size: 200% 200%;
+    color: var(--text-on-brand) !important;
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    white-space: nowrap;
+    text-decoration: none !important;
+    box-shadow: var(--shadow-sm), 0 2px 10px var(--brand-primary-glow);
+    margin-bottom: 15px;
+    margin-right: 10px;
+    vertical-align: middle;
+    transition: all var(--transition-fast);
+}
+
+#user-panel-header-btn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+#user-panel-header-btn:hover {
+    animation: gradient-shift 3s ease infinite;
+    transform: scale(1.04);
+    box-shadow: var(--shadow-md), 0 4px 20px var(--brand-primary-glow);
+    color: var(--text-on-brand) !important;
+}
+
+@media (max-width: 480px) {
+    #user-panel-header-btn span {
+        display: none;
+    }
+
+    #user-panel-header-btn {
+        width: 40px;
+        padding: 0;
+        justify-content: center;
+    }
+}
+
 /* ============================================
    BADGES — Pill badges
    ============================================ */
