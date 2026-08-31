@@ -679,6 +679,7 @@
 	   `theme.css`) trzyma tę samą wysokość co delete/edit/send mimo
 	   dodanego obramowania — nic nie trzeba doliczać ręcznie. */
 	.action-btn-copy {
+		width: 38px;
 		background: transparent;
 		border: 1.5px solid var(--border-default);
 		color: var(--text-primary);

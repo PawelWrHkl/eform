@@ -372,9 +372,9 @@
 .copy-order-btn {
   position: relative;
   right: 1.5%;
-  top: 5px;
+  top: 1px;
   border: 1px solid rgb(207, 207, 207) !important;
-  width: 100px !important;
+  width: 45px !important;
   padding: 2px !important;
 }
 
