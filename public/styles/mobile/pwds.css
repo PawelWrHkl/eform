@@ -1,0 +1,351 @@
+/* Paginacja - obowiązuje na wszystkich szerokościach, tabela haseł liczy
+   tysiące rekordów więc strona zawsze pokazuje tylko jedną porcję wyników. */
+.pwd-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
+}
+.pwd-pagination .pwd-page-btn {
+    min-width: 44px;
+    min-height: 38px;
+    border-radius: 10px;
+}
+.pwd-page-info {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #6c757d);
+    min-width: 64px;
+    text-align: center;
+}
+
+@media (max-width: 767.98px) {
+    .content:has(#pwd-mobile-list) {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    .content:has(#pwd-mobile-list) > .container {
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+        margin-top: 12px !important;
+    }
+    .content:has(#pwd-mobile-list) h2 {
+        font-size: 1.2rem;
+        text-align: left !important;
+        margin-bottom: 14px !important;
+    }
+
+    /* Toolbar: search + sort + filter, stacked, full-width, touch-friendly */
+    .content:has(#pwd-mobile-list) .d-flex.flex-wrap.align-items-center.gap-2.mb-3 {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    #pwd-search {
+        max-width: 100% !important;
+        width: 100%;
+        height: 44px;
+        border-radius: 12px;
+        font-size: 0.95rem;
+    }
+    .content:has(#pwd-mobile-list) .input-group {
+        max-width: 100% !important;
+        width: 100%;
+    }
+    #pwd-sort-group {
+        display: flex;
+        width: 100%;
+    }
+    #pwd-sort-group .btn {
+        flex: 1 1 50%;
+        height: 40px;
+        border-radius: 10px !important;
+    }
+    #pwd-sort-group .btn:first-child {
+        margin-right: 6px;
+    }
+    .content:has(#pwd-mobile-list) .form-check.form-switch {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 !important;
+    }
+    #pwd-count {
+        margin-left: 0 !important;
+        text-align: left;
+        font-size: 0.82rem;
+    }
+
+    /* Card list */
+    .pwd-mobile-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-bottom: 110px;
+    }
+    .pwd-card {
+        background: var(--bg-surface, #fff);
+        border: 1px solid var(--border-default, #e9e9ec);
+        border-radius: 16px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 12px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+    }
+    .pwd-card-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        cursor: pointer;
+        list-style: none;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+    }
+    .pwd-card-header::-webkit-details-marker {
+        display: none;
+    }
+    .pwd-card-header::marker {
+        content: '';
+    }
+    .pwd-card[open] .pwd-card-header {
+        border-bottom: 1px solid var(--border-default, #f0f0f2);
+    }
+    .pwd-chevron {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        color: var(--text-secondary, #9a9aa2);
+        margin-left: auto;
+        transition: transform 0.2s ease;
+    }
+    .pwd-card .pwd-recent-badge + .pwd-chevron {
+        margin-left: 6px;
+    }
+    .pwd-card[open] .pwd-chevron {
+        transform: rotate(180deg);
+    }
+    .pwd-card-body {
+        padding: 4px 14px 12px;
+    }
+    .pwd-card:not([open]) .pwd-card-body {
+        display: none;
+    }
+    .pwd-card-avatar {
+        flex-shrink: 0;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: var(--primary, #0d6efd);
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .pwd-card .pwd-ident {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: var(--text, #1a1a1a);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .pwd-card .pwd-recent-badge {
+        flex-shrink: 0;
+        margin-left: auto;
+        font-size: 0.9rem;
+        color: #e5a02c;
+    }
+
+    .pwd-card-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 9px 0;
+    }
+    .pwd-card-row + .pwd-card-row {
+        border-top: 1px solid var(--border-default, #f3f3f5);
+    }
+    .pwd-card-label {
+        flex-shrink: 0;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-secondary, #9a9aa2);
+        width: 52px;
+    }
+    .pwd-card-value-group {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        min-width: 0;
+        flex: 1;
+    }
+    .pwd-card .pwd-pin,
+    .pwd-card .pwd-value {
+        font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-size: 0.98rem;
+        letter-spacing: 0.02em;
+        color: var(--text, #1a1a1a);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .pwd-icon-btn {
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        border-radius: 12px;
+        border: 1px solid var(--border-default, #e2e2e6);
+        background: var(--bg-body, #f7f7f9);
+        color: var(--text-secondary, #55555c);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        position: relative;
+        transition: background 0.18s ease, border-color 0.18s ease, transform 0.1s ease, color 0.18s ease;
+    }
+    .pwd-icon-btn:active {
+        transform: scale(0.92);
+    }
+    .pwd-icon-btn .pwd-icon {
+        width: 19px;
+        height: 19px;
+    }
+
+    /* Copy button: icon + checkmark cross-fade */
+    .copy-btn.pwd-icon-btn .pwd-icon-check {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.6);
+        opacity: 0;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .copy-btn.pwd-icon-btn.copied {
+        background: var(--color-success, #17a673);
+        border-color: var(--color-success, #17a673);
+        color: #fff;
+    }
+    .copy-btn.pwd-icon-btn.copied > svg:not(.pwd-icon-check) {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    .copy-btn.pwd-icon-btn.copied .pwd-icon-check {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    .copy-btn.pwd-icon-btn > svg:not(.pwd-icon-check) {
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    /* Show/hide password toggle: eye <-> eye-off cross-fade */
+    .pwd-toggle-btn.pwd-icon-btn .pwd-icon-eye-off {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.6);
+        opacity: 0;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .pwd-toggle-btn.pwd-icon-btn .pwd-icon-eye {
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .pwd-toggle-btn.pwd-icon-btn.revealed {
+        background: var(--bg-active, #eef2ff);
+        border-color: var(--primary, #0d6efd);
+        color: var(--primary, #0d6efd);
+    }
+    .pwd-toggle-btn.pwd-icon-btn.revealed .pwd-icon-eye {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    .pwd-toggle-btn.pwd-icon-btn.revealed .pwd-icon-eye-off {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    /* Copy login + password together */
+    .pwd-copy-all-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        height: 42px;
+        margin-top: 4px;
+        border: none;
+        border-radius: 12px;
+        background: var(--primary, #0d6efd);
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.92rem;
+        position: relative;
+        transition: background 0.18s ease, transform 0.1s ease;
+    }
+    .pwd-copy-all-btn:active {
+        transform: scale(0.98);
+    }
+    .pwd-copy-all-btn .pwd-icon {
+        width: 17px;
+        height: 17px;
+        flex-shrink: 0;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .pwd-copy-all-btn .pwd-icon-check {
+        position: absolute;
+        left: 14px;
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    .pwd-copy-all-btn.copied {
+        background: var(--color-success, #17a673);
+    }
+    .pwd-copy-all-btn.copied .pwd-icon:not(.pwd-icon-check) {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    .pwd-copy-all-btn.copied .pwd-icon-check {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    .pwd-card-footer {
+        margin-top: 6px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border-default, #f3f3f5);
+    }
+    .pwd-send-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 42px;
+        border-radius: 12px;
+        background: var(--primary, #0d6efd);
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.92rem;
+        text-decoration: none;
+        transition: transform 0.1s ease, opacity 0.15s ease;
+    }
+    .pwd-send-btn:active {
+        transform: scale(0.98);
+        opacity: 0.9;
+    }
+    .pwd-no-email {
+        display: block;
+        text-align: center;
+        font-size: 0.85rem;
+        color: var(--text-secondary, #9a9aa2);
+        padding: 8px 0;
+    }
+}

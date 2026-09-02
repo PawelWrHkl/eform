@@ -7,6 +7,7 @@ const statusesQueries = require('./statuses');
 const addressQueries = require('./address');
 const groupQueries = require('./group');
 const orgCustomerQueries = require('./orgCustomers');
+const rememberTokenQueries = require('./rememberTokens');
 
 
 module.exports = {
@@ -18,6 +19,7 @@ module.exports = {
   ...statusesQueries,
   ...addressQueries,
   ...groupQueries,
+  ...rememberTokenQueries,
   // Moduł „Klienci organizacji" — rozłożony płasko (brak kolizji nazw,
   // sprawdzone) i dodatkowo pod własnym kluczem, żeby wołający mógł wprost
   // pokazać, z której warstwy korzysta: `db.orgCustomers.listCustomers(...)`.

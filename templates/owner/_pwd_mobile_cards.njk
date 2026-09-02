@@ -1,0 +1,81 @@
+{% for user in users %}
+{% set recentIndex = recentIdents.indexOf(user.ident) %}
+<details class="pwd-card pwd-row" data-recent-index="{{ recentIndex }}">
+    <summary class="pwd-card-header">
+        <span class="pwd-card-avatar" aria-hidden="true">{{ user.ident | first | upper }}</span>
+        <span class="pwd-ident">{{ user.ident }}</span>
+        {% if recentIndex > -1 %}
+        <span class="pwd-recent-badge" title="{{ __('pwds.recent_badge_title') or 'Ostatnio wybrany klient' }}">★</span>
+        {% endif %}
+        <svg class="pwd-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </summary>
+    <div class="pwd-card-body">
+
+    <div class="pwd-card-row pwd-field">
+        <span class="pwd-card-label">{{ __('pwds.login_label') or 'Login' }}</span>
+        <div class="pwd-card-value-group">
+            <span class="pwd-pin">{{ user.pin }}</span>
+            <button type="button" class="pwd-icon-btn copy-btn" data-copy="pin" aria-label="Kopiuj login">
+                <svg class="pwd-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="8" y="8" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4H6.5A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+                <svg class="pwd-icon pwd-icon-check" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 13l4.5 4.5L19 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="pwd-card-row pwd-field">
+        <span class="pwd-card-label">{{ __('login.password_label') or 'Hasło' }}</span>
+        <div class="pwd-card-value-group">
+            <span class="pwd-value" data-revealed="false">••••••••</span>
+            <input type="hidden" class="pwd-hidden" value="{{ user.password }}">
+            <button type="button" class="pwd-icon-btn pwd-toggle-btn" aria-label="Pokaż hasło">
+                <svg class="pwd-icon pwd-icon-eye" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+                <svg class="pwd-icon pwd-icon-eye-off" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M3 3l18 18M10.6 10.7a3 3 0 0 0 4.2 4.2M6.5 6.7C4 8.3 2 12 2 12s3.6 7 10 7c1.7 0 3.2-.4 4.5-1.1M9.9 5.2c.7-.1 1.4-.2 2.1-.2 6.4 0 10 7 10 7-.5.9-1.5 2.5-3 3.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <button type="button" class="pwd-icon-btn copy-btn" data-copy="password" aria-label="Kopiuj hasło">
+                <svg class="pwd-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="8" y="8" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4H6.5A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+                <svg class="pwd-icon pwd-icon-check" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 13l4.5 4.5L19 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <button type="button" class="pwd-copy-all-btn copy-all-btn" aria-label="Kopiuj login i hasło">
+        <svg class="pwd-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="8" y="8" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4H6.5A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+        <svg class="pwd-icon pwd-icon-check" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 13l4.5 4.5L19 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="copy-btn-text">{{ __('pwds.copy_all') or 'Kopiuj login i hasło' }}</span>
+    </button>
+
+    <div class="pwd-card-footer">
+        {% if user.email %}
+        <a href="mailto:{{ user.email }}?subject={{ __('pwds.' + orgIdent + '_mail_title') | urlencode }}&body={{ __('pwds.' + orgIdent + '_mail_hello') | urlencode }}%0A%0A{{ __('pwds.' + orgIdent + '_mail_content') | urlencode }}%0A%0A{{ __('pwds.mail_body_pin') | urlencode }}%3A%20{{ user.pin }}%0A{{ __('pwds.mail_body_password') | urlencode }}%3A%20{{ user.password }}%0A%0A{{ __('pwds.' + orgIdent + '_mail_regards') | urlencode }}"
+            class="pwd-send-btn">
+            {{ __('pwds.send_to_client') }}
+        </a>
+        {% else %}
+        <span class="pwd-no-email">{{ __('pwds.no_email') or 'Brak email' }}</span>
+        {% endif %}
+    </div>
+    </div>
+</details>
+{% endfor %}

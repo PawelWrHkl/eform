@@ -1,0 +1,11 @@
+{% if totalPages > 1 %}
+<nav class="pwd-pagination" aria-label="Strony">
+    <button type="button" class="btn btn-sm btn-outline-secondary pwd-page-btn" data-page="{{ page - 1 }}" {% if page <= 1 %}disabled{% endif %}>
+        &lsaquo;
+    </button>
+    <span class="pwd-page-info">{{ page }} / {{ totalPages }}</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary pwd-page-btn" data-page="{{ page + 1 }}" {% if page >= totalPages %}disabled{% endif %}>
+        &rsaquo;
+    </button>
+</nav>
+{% endif %}

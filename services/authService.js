@@ -11,6 +11,33 @@ const { rejectIfBlockedForLogin } = require('./accessLockAuth');
 const { syncUserCountry } = require('./dbUserSync');
 const { normalizeGroupType } = require('./groupType');
 
+// Wspólny budowniczy sesji ownera/admina — używany zarówno przy świeżym
+// logowaniu hasłem, jak i przy odtwarzaniu sesji z długowiecznego tokenu
+// "zapamiętaj mnie" (patrz middleware/rememberMe.js), żeby nie duplikować
+// listy pól sesji w dwóch miejscach.
+async function buildOwnerSession(req, pin, password) {
+    const owner = await db.getOwner(pin);
+    if (!owner) return false;
+
+    const userId = await db.getUserId(pin);
+    req.session.user = { userId, pin, password, showPrices: false, organization: (owner.orgIdent).toUpperCase(), orgId: owner.orgId, ident: owner.userIdent };
+    req.session.user.isOwner = await isOwner(owner);
+    const role = await db.getUserRole(pin);
+    req.session.user.isAdmin = role === "admin";
+    req.session.user.isGroup = role === "group";
+    // Odmiana modułu grupowego (`shop`/`client`) — decyduje wyłącznie
+    // o treści panelu grupy, patrz services/groupType.js.
+    req.session.user.groupType = req.session.user.isGroup
+        ? normalizeGroupType(await db.getUserGroupType(pin))
+        : null;
+
+    if (req.session.user.isAdmin) {
+        req.session.user.isOwner = true;
+    }
+
+    return true;
+}
+
 async function handleAuthLogin(req, res, next, pin, password) {
     try {
         if (await rejectIfBlockedForLogin(req, res, pin)) {
@@ -20,23 +47,19 @@ async function handleAuthLogin(req, res, next, pin, password) {
         const isEmployeeLogin = await checkEmployeePassword(pin, password);
         if (isValid) {
             const isFirst = await checkFirstLogon(pin)
-            let owner = await db.getOwner(pin);
 
-            if (!owner) {
+            const built = await buildOwnerSession(req, pin, password);
+            if (!built) {
                 return res.render("login.njk", { message: "login.incorrect_data" });
             }
 
-            const userId = await db.getUserId(pin)
-            req.session.user = { userId, pin, password, showPrices: false, organization: (owner.orgIdent).toUpperCase(), orgId: owner.orgId, ident: owner.userIdent };
-            req.session.user.isOwner = await isOwner(owner);
-            const role = await db.getUserRole(pin);
-            req.session.user.isAdmin = role === "admin";
-            req.session.user.isGroup = role === "group";
-            // Odmiana modułu grupowego (`shop`/`client`) — decyduje wyłącznie
-            // o treści panelu grupy, patrz services/groupType.js.
-            req.session.user.groupType = req.session.user.isGroup
-                ? normalizeGroupType(await db.getUserGroupType(pin))
-                : null;
+            if (req.session.user.isAdmin) {
+                // Admini dostają długą sesję domyślnie, bez checkboxa - patrz
+                // middleware/rememberMe.js. Wymaga late require, żeby nie
+                // tworzyć cyklu z rememberMe.js (rememberMe -> authService -> rememberMe).
+                const { issueRememberCookie } = require('../middleware/rememberMe');
+                await issueRememberCookie(req, res, pin);
+            }
 
             await logService.logUserLogin(pin, await db.getUserIdent(pin));
             // Fire-and-forget: refreshes user.country from contractors.txt's "kraj"
@@ -54,10 +77,6 @@ async function handleAuthLogin(req, res, next, pin, password) {
                 langManager.setLang(lang, res)
             }
             req.session.mustAcceptRODO = isFirst;
-
-            if (req.session.user.isAdmin) {
-                req.session.user.isOwner = true;
-            }
 
             return res.redirect("/");
 
@@ -207,4 +226,4 @@ async function handleGroupShopLogin(req, res, next, login, password) {
     }
 }
 
-module.exports = { checkPassword, checkFirstLogon, checkEmployeePassword, checkGroupShopPassword, handleAuthLogin, handleGroupShopLogin };
+module.exports = { checkPassword, checkFirstLogon, checkEmployeePassword, checkGroupShopPassword, handleAuthLogin, handleGroupShopLogin, buildOwnerSession };

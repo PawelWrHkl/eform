@@ -51,21 +51,73 @@ router.get("/login", (req, res) => {
     res.render("login.njk", { message: req.query.message || undefined });
 });
 
+const PWD_PAGE_SIZE = 50;
+
+// Wspólny resolver dla /org-pwd (pierwsze renderowanie SSR) i /org-pwd/search
+// (AJAX search/paginacja) - tabela haseł liczy tysiące rekordów, więc obie
+// ścieżki muszą pobierać z bazy tylko jedną stronę wyników, nigdy wszystko naraz.
+async function resolvePwdUsers(req, { q = '', sort = 'alpha', recentOnly = false, page = 1 } = {}) {
+    const orgId = req.session.user.orgId;
+    const isAdmin = req.session.user.isAdmin || false;
+    const search = (q || '').trim();
+
+    const recentClients = await db.getRecentClients(req.session.user.userId);
+    const recentIdents = recentClients.map(c => c.ident);
+
+    // "Ostatnio używane" i filtr "tylko ostatnie 10" operują z założenia na
+    // małym, ograniczonym zbiorze (patrz db.getRecentClients) - paginacja tu
+    // niepotrzebna.
+    if (sort === 'recent' || recentOnly) {
+        const users = await db.getUsersFromUsrtblpsswdByIdents(orgId, isAdmin, recentIdents, search);
+        return { users, recentIdents, total: users.length, page: 1, totalPages: 1 };
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const offset = (pageNum - 1) * PWD_PAGE_SIZE;
+    const { rows, total } = await db.getUsersFromUsrtblpsswdPage(orgId, isAdmin, search, PWD_PAGE_SIZE, offset);
+    const totalPages = Math.max(1, Math.ceil(total / PWD_PAGE_SIZE));
+    return { users: rows, recentIdents, total, page: pageNum, totalPages };
+}
+
+function renderPartial(res, view, locals) {
+    return new Promise((resolve, reject) => {
+        res.render(view, locals, (err, html) => (err ? reject(err) : resolve(html)));
+    });
+}
+
 router.get("/org-pwd", requireLogin, requireOwner, async (req, res, next) => {
     try {
-        const orgId = req.session.user.orgId;
-        const isAdmin = req.session.user.isAdmin || false;
-        const users = await db.getUsersFromUsrtblpsswd(orgId, isAdmin);
+        const { users, recentIdents, total, page, totalPages } = await resolvePwdUsers(req, {});
 
-        const orgInfo = await db.getOrgInfo(orgId);
+        const orgInfo = await db.getOrgInfo(req.session.user.orgId);
         const orgIdent = orgInfo ? orgInfo.ident.toLowerCase() : 'default';
 
-        const recentClients = await db.getRecentClients(req.session.user.userId);
-        const recentIdents = recentClients.map(c => c.ident);
-
-        res.render("owner/pwds.njk", { users, orgIdent, recentIdents });
+        res.render("owner/pwds.njk", { users, orgIdent, recentIdents, total, page, totalPages });
     } catch (err) {
         log('Error loading passwords page:', err);
+        next(err);
+    }
+});
+
+router.get("/org-pwd/search", requireLogin, requireOwner, async (req, res, next) => {
+    try {
+        const { q, sort, page } = req.query;
+        const recentOnly = req.query.recentOnly === '1';
+
+        const { users, recentIdents, total, page: pageNum, totalPages } = await resolvePwdUsers(req, { q, sort, recentOnly, page });
+
+        const orgInfo = await db.getOrgInfo(req.session.user.orgId);
+        const orgIdent = orgInfo ? orgInfo.ident.toLowerCase() : 'default';
+
+        const [rowsHtml, cardsHtml, paginationHtml] = await Promise.all([
+            renderPartial(res, 'owner/_pwd_table_rows.njk', { users, orgIdent, recentIdents }),
+            renderPartial(res, 'owner/_pwd_mobile_cards.njk', { users, orgIdent, recentIdents }),
+            renderPartial(res, 'owner/_pwd_pagination.njk', { page: pageNum, totalPages }),
+        ]);
+
+        res.json({ rowsHtml, cardsHtml, paginationHtml, total, pageCount: users.length, isEmpty: users.length === 0 });
+    } catch (err) {
+        log('Error searching passwords:', err);
         next(err);
     }
 });
@@ -235,7 +287,9 @@ router.get('/logo', requireLogin, async (req, res) => {
 })
 
 
-router.post("/logout", requireLogin, (req, res) => {
+router.post("/logout", requireLogin, async (req, res) => {
+    const { clearRememberCookie } = require('../middleware/rememberMe');
+    await clearRememberCookie(req, res);
     req.session.destroy((err) => {
         if (err) return res.redirect("/");
         // ⚠️ Wcześniej dev/test/archive przekierowywały na SZTYWNY adres

@@ -1,0 +1,46 @@
+{% for user in users %}
+{% set recentIndex = recentIdents.indexOf(user.ident) %}
+<tr class="pwd-row" data-recent-index="{{ recentIndex }}">
+    <td class="pwd-index">{{ loop.index }}</td>
+    <td class="pwd-ident">
+        {{ user.ident }}
+        {% if recentIndex > -1 %}
+        <span class="badge bg-light text-secondary border pwd-recent-badge" title="{{ __('pwds.recent_badge_title') or 'Ostatnio wybrany klient' }}">★</span>
+        {% endif %}
+    </td>
+    <td>
+        <div class="d-flex align-items-center gap-2 pwd-field">
+            <span class="pwd-pin">{{ user.pin }}</span>
+            <button type="button" class="btn btn-sm btn-outline-dark copy-btn" data-copy="pin" aria-label="Kopiuj login">
+                <span class="copy-btn-text">{{ __('pwds.copy') or 'Kopiuj' }}</span>
+            </button>
+        </div>
+    </td>
+    <td>
+        <div class="d-flex align-items-center gap-2 pwd-field">
+            <span class="pwd-value" data-revealed="false">••••••••</span>
+            <input type="hidden" class="pwd-hidden" value="{{ user.password }}">
+            <button type="button" class="btn btn-sm btn-outline-secondary pwd-toggle-btn" aria-label="Pokaż hasło">
+                {{ __('pwds.show') or 'Pokaż' }}
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-dark copy-btn"
+                data-copy="password" aria-label="Kopiuj hasło">
+                <span class="copy-btn-text">{{ __('pwds.copy') or 'Kopiuj' }}</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-primary copy-all-btn" aria-label="Kopiuj login i hasło">
+                <span class="copy-btn-text">{{ __('pwds.copy_all') or 'Kopiuj oba' }}</span>
+            </button>
+        </div>
+    </td>
+    <td class="pwd-send-cell">
+        {% if user.email %}
+        <a href="mailto:{{ user.email }}?subject={{ __('pwds.' + orgIdent + '_mail_title') | urlencode }}&body={{ __('pwds.' + orgIdent + '_mail_hello') | urlencode }}%0A%0A{{ __('pwds.' + orgIdent + '_mail_content') | urlencode }}%0A%0A{{ __('pwds.mail_body_pin') | urlencode }}%3A%20{{ user.pin }}%0A{{ __('pwds.mail_body_password') | urlencode }}%3A%20{{ user.password }}%0A%0A{{ __('pwds.' + orgIdent + '_mail_regards') | urlencode }}"
+            class="btn btn-sm btn-outline-secondary send-mail-btn">
+            {{ __('pwds.send_to_client') }}
+        </a>
+        {% else %}
+        <span class="text-muted">{{ __('pwds.no_email') or 'Brak email' }}</span>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}

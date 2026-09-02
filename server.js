@@ -120,6 +120,9 @@ else {
 		}
 	}));
 }
+const { restoreFromRememberCookie } = require('./middleware/rememberMe');
+app.use(restoreFromRememberCookie);
+
 const { getClientIp } = require('./utils/getClientIp');
 app.use((req, res, next) => {
 	if (req.session?.user?.pin) {

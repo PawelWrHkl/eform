@@ -81,6 +81,53 @@ async function getUsersFromUsrtblpsswd(orgId, isAdmin = false) {
     return await selectQuery(query, [orgId]);
 }
 
+// Strona wyników przeglądania A-Z, z opcjonalnym wyszukiwaniem po ident -
+// używana przez /user/org-pwd, gdzie tabela haseł liczy tysiące rekordów i
+// renderowanie wszystkich naraz zabija wydajność strony (patrz routes/users.js).
+async function getUsersFromUsrtblpsswdPage(orgId, isAdmin, search, limit, offset) {
+    const orgFilter = isAdmin ? '' : 'WHERE u.organization_id = ?';
+    const searchFilter = search ? `${orgFilter ? 'AND' : 'WHERE'} up.ident LIKE ?` : '';
+    const params = [];
+    if (!isAdmin) params.push(orgId);
+    if (search) params.push(`%${search}%`);
+
+    const countQuery = `SELECT COUNT(*) as total
+        FROM eform.usrtblpsswd up
+        JOIN eform.\`user\` u ON u.ident = up.ident
+        ${orgFilter} ${searchFilter}`;
+    const countResult = await selectQuery(countQuery, params);
+    const total = countResult && countResult[0] ? countResult[0].total : 0;
+
+    const rowsQuery = `SELECT up.ident, u.pin, up.password, u.email
+        FROM eform.usrtblpsswd up
+        JOIN eform.\`user\` u ON u.ident = up.ident
+        ${orgFilter} ${searchFilter}
+        ORDER BY up.ident
+        LIMIT ? OFFSET ?`;
+    const rows = await selectQuery(rowsQuery, [...params, limit, offset]);
+    return { rows: rows || [], total };
+}
+
+// Zbiór ograniczony do konkretnych identów (ostatnio używani klienci) -
+// z założenia mały (patrz db.getRecentClients), więc bez paginacji.
+async function getUsersFromUsrtblpsswdByIdents(orgId, isAdmin, idents, search) {
+    if (!idents || idents.length === 0) return [];
+    const orgFilter = isAdmin ? '' : 'AND u.organization_id = ?';
+    const searchFilter = search ? 'AND up.ident LIKE ?' : '';
+    const placeholders = idents.map(() => '?').join(',');
+    const params = [...idents];
+    if (!isAdmin) params.push(orgId);
+    if (search) params.push(`%${search}%`);
+
+    const query = `SELECT up.ident, u.pin, up.password, u.email
+        FROM eform.usrtblpsswd up
+        JOIN eform.\`user\` u ON u.ident = up.ident
+        WHERE up.ident IN (${placeholders}) ${orgFilter} ${searchFilter}
+        ORDER BY up.ident`;
+    const rows = await selectQuery(query, params);
+    return rows || [];
+}
+
 async function updatePasswordInUsrtblpsswd(ident, password) {
     const query = `INSERT INTO eform.usrtblpsswd (ident, password) VALUES (?, ?)
         ON DUPLICATE KEY UPDATE password = VALUES(password)`;
@@ -602,6 +649,8 @@ module.exports = {
     getUserRole,
     getUserGroupType,
     getUsersFromUsrtblpsswd,
+    getUsersFromUsrtblpsswdPage,
+    getUsersFromUsrtblpsswdByIdents,
     getIntroNeeded,
     setIntroNeeded,
     enableIntroNeeded,

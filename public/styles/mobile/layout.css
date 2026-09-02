@@ -1,3 +1,6 @@
+.mobile-pwd-fab {
+    display: none;
+}
 @media (max-width: 767.98px) {
     html,
     body {
@@ -313,6 +316,30 @@
     }
     .rm-p-5 {
         padding: 0 !important;
+    }
+    .mobile-pwd-fab {
+        display: flex !important;
+        position: fixed !important;
+        bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+        right: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: var(--primary, #0d6efd);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        align-items: center;
+        justify-content: center;
+        z-index: 1100;
+        transition: transform 0.15s ease, background 0.2s ease;
+    }
+    .mobile-pwd-fab:active {
+        transform: scale(0.92);
+    }
+    .mobile-pwd-fab .nav-icon {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        filter: brightness(0) invert(1);
     }
     @media (max-width: 767.98px) {
         html body main dialog#delete-dialog[open]::backdrop {

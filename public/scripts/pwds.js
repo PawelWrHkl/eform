@@ -4,97 +4,107 @@
     var recentOnlyCheckbox = document.getElementById('pwd-recent-only');
     var sortGroup = document.getElementById('pwd-sort-group');
     var tbody = document.getElementById('pwd-tbody');
-    var currentSort = 'alpha';
+    var mobileList = document.getElementById('pwd-mobile-list');
+    var paginationContainer = document.getElementById('pwd-pagination-container');
+    var emptyEl = document.getElementById('pwd-empty');
 
-    function getRows() {
-        return tbody ? Array.prototype.slice.call(tbody.querySelectorAll('.pwd-row')) : [];
-    }
+    var state = { q: '', sort: 'alpha', recentOnly: false, page: 1 };
+    var currentAbortController = null;
 
-    function sortRows(rows) {
-        rows.sort(function (a, b) {
-            if (currentSort === 'recent') {
-                var ai = parseInt(a.getAttribute('data-recent-index'), 10);
-                var bi = parseInt(b.getAttribute('data-recent-index'), 10);
-                if (ai === -1) ai = Number.MAX_SAFE_INTEGER;
-                if (bi === -1) bi = Number.MAX_SAFE_INTEGER;
-                if (ai !== bi) return ai - bi;
-            }
-            var aIdent = a.querySelector('.pwd-ident').textContent.trim().toLowerCase();
-            var bIdent = b.querySelector('.pwd-ident').textContent.trim().toLowerCase();
-            return aIdent.localeCompare(bIdent);
-        });
-        return rows;
-    }
+    // Tabela haseł liczy tysiące rekordów - reder wszystkiego naraz w DOM
+    // zabijał wydajność strony. Zamiast tego serwer zwraca jedną stronę
+    // wyników (patrz routes/users.js: GET /user/org-pwd/search), a ten skrypt
+    // podmienia tylko zawartość kontenerów.
+    function fetchAndRender() {
+        if (currentAbortController) currentAbortController.abort();
+        currentAbortController = new AbortController();
 
-    function applyFilterAndSort() {
-        var q = searchInput ? searchInput.value.toLowerCase().trim() : '';
-        var recentOnly = recentOnlyCheckbox && recentOnlyCheckbox.checked;
-        var rows = sortRows(getRows());
-
-        rows.forEach(function (row) {
-            tbody.appendChild(row);
+        var params = new URLSearchParams({
+            q: state.q,
+            sort: state.sort,
+            recentOnly: state.recentOnly ? '1' : '0',
+            page: state.page,
         });
 
-        var visibleCount = 0;
-        var idx = 0;
-        rows.forEach(function (row) {
-            var ident = row.querySelector('.pwd-ident').textContent.toLowerCase();
-            var isRecent = row.getAttribute('data-recent-index') !== '-1';
-            var matchesSearch = ident.includes(q);
-            var matchesRecent = !recentOnly || isRecent;
-            var visible = matchesSearch && matchesRecent;
-            row.style.display = visible ? '' : 'none';
-            if (visible) {
-                idx++;
-                var indexCell = row.querySelector('.pwd-index');
-                if (indexCell) indexCell.textContent = idx;
-                visibleCount++;
-            }
-        });
-
-        if (countEl) countEl.textContent = visibleCount + ' / ' + rows.length;
+        fetch('/user/org-pwd/search?' + params.toString(), { signal: currentAbortController.signal })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (tbody) tbody.innerHTML = data.rowsHtml;
+                if (mobileList) mobileList.innerHTML = data.cardsHtml;
+                if (paginationContainer) paginationContainer.innerHTML = data.paginationHtml;
+                if (emptyEl) emptyEl.hidden = !data.isEmpty;
+                if (countEl) countEl.textContent = data.pageCount + ' / ' + data.total;
+            })
+            .catch(function (err) {
+                if (err.name !== 'AbortError') {
+                    if (typeof toastr !== 'undefined') toastr.error('Błąd wczytywania listy');
+                }
+            });
     }
+
+    function debounce(fn, delay) {
+        var timer = null;
+        return function () {
+            clearTimeout(timer);
+            timer = setTimeout(fn, delay);
+        };
+    }
+
+    var debouncedFetch = debounce(function () {
+        state.page = 1;
+        fetchAndRender();
+    }, 250);
 
     if (searchInput) {
-        searchInput.addEventListener('input', applyFilterAndSort);
+        searchInput.addEventListener('input', function () {
+            state.q = searchInput.value.trim();
+            debouncedFetch();
+        });
     }
 
     if (recentOnlyCheckbox) {
-        recentOnlyCheckbox.addEventListener('change', applyFilterAndSort);
+        recentOnlyCheckbox.addEventListener('change', function () {
+            state.recentOnly = recentOnlyCheckbox.checked;
+            state.page = 1;
+            fetchAndRender();
+        });
     }
 
     if (sortGroup) {
         sortGroup.querySelectorAll('button[data-sort]').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                currentSort = this.getAttribute('data-sort');
+                state.sort = this.getAttribute('data-sort');
+                state.page = 1;
                 sortGroup.querySelectorAll('button[data-sort]').forEach(function (b) {
                     b.classList.remove('active');
                 });
                 this.classList.add('active');
-                applyFilterAndSort();
+                fetchAndRender();
             });
         });
     }
 
-    applyFilterAndSort();
-
-    document.querySelectorAll('.pwd-toggle-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var td = this.closest('td');
-            var span = td.querySelector('.pwd-value');
-            var hidden = td.querySelector('.pwd-hidden');
-            var revealed = span.getAttribute('data-revealed') === 'true';
-            if (revealed) {
-                span.textContent = '••••••••';
-                span.setAttribute('data-revealed', 'false');
-                this.textContent = window.t('pwds.show') || 'Pokaż';
-            } else {
-                span.textContent = hidden.value;
-                span.setAttribute('data-revealed', 'true');
-                this.textContent = window.t('pwds.hide') || 'Ukryj';
-            }
+    if (paginationContainer) {
+        paginationContainer.addEventListener('click', function (e) {
+            var btn = e.target.closest('.pwd-page-btn');
+            if (!btn || btn.disabled) return;
+            var page = parseInt(btn.getAttribute('data-page'), 10);
+            if (!page || page < 1) return;
+            state.page = page;
+            fetchAndRender();
+            var listTop = tbody ? tbody.closest('.table-responsive') : null;
+            (listTop || mobileList || document.body).scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
-    });
+    }
+
+    // Pierwsza strona jest już wyrenderowana przez serwer (SSR) - nie ma
+    // potrzeby odpytywać /search zaraz po załadowaniu, dopiero przy pierwszej
+    // interakcji użytkownika (szukanie, sortowanie, filtr, strona).
+
+    // Poniższe obsługują pokaż/ukryj hasło i kopiowanie - przez delegację
+    // zdarzeń na dokumencie, żeby działały też dla wierszy wstawionych przez
+    // fetchAndRender() (bez potrzeby ponownego podpinania listenerów po
+    // każdej wymianie zawartości).
 
     function fallbackCopy(text) {
         var ta = document.createElement('textarea');
@@ -107,32 +117,75 @@
         document.body.removeChild(ta);
     }
 
-    function copyToClipboard(text) {
+    function markCopied(btn) {
+        var textEl = btn.querySelector('.copy-btn-text');
+        var originalText = textEl ? textEl.textContent : null;
+        btn.classList.add('copied');
+        if (textEl) textEl.textContent = window.t('pwds.copied_short') || 'Skopiowano';
+        setTimeout(function () {
+            btn.classList.remove('copied');
+            if (textEl && originalText !== null) textEl.textContent = originalText;
+        }, 1400);
+    }
+
+    function copyToClipboard(text, btn) {
         var msg = window.t('pwds.copied') || 'Skopiowano do schowka';
+        var onDone = function () {
+            if (typeof toastr !== 'undefined') toastr.success(msg);
+            if (btn) markCopied(btn);
+        };
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(function () {
-                if (typeof toastr !== 'undefined') toastr.success(msg);
-            }).catch(function () {
+            navigator.clipboard.writeText(text).then(onDone).catch(function () {
                 fallbackCopy(text);
-                if (typeof toastr !== 'undefined') toastr.success(msg);
+                onDone();
             });
         } else {
             fallbackCopy(text);
-            if (typeof toastr !== 'undefined') toastr.success(msg);
+            onDone();
         }
     }
 
-    document.querySelectorAll('.copy-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var td = this.closest('td');
-            var type = this.getAttribute('data-copy');
-            var text;
-            if (type === 'pin') {
-                text = td.querySelector('.pwd-pin').textContent.trim();
+    document.addEventListener('click', function (e) {
+        var toggleBtn = e.target.closest('.pwd-toggle-btn');
+        if (toggleBtn) {
+            var field = toggleBtn.closest('.pwd-field');
+            var span = field.querySelector('.pwd-value');
+            var hidden = field.querySelector('.pwd-hidden');
+            var revealed = span.getAttribute('data-revealed') === 'true';
+            var isIconBtn = toggleBtn.classList.contains('pwd-icon-btn');
+            if (revealed) {
+                span.textContent = '••••••••';
+                span.setAttribute('data-revealed', 'false');
+                toggleBtn.classList.remove('revealed');
+                toggleBtn.setAttribute('aria-label', 'Pokaż hasło');
+                if (!isIconBtn) toggleBtn.textContent = window.t('pwds.show') || 'Pokaż';
             } else {
-                text = td.querySelector('.pwd-hidden').value;
+                span.textContent = hidden.value;
+                span.setAttribute('data-revealed', 'true');
+                toggleBtn.classList.add('revealed');
+                toggleBtn.setAttribute('aria-label', 'Ukryj hasło');
+                if (!isIconBtn) toggleBtn.textContent = window.t('pwds.hide') || 'Ukryj';
             }
-            copyToClipboard(text);
-        });
+            return;
+        }
+
+        var copyAllBtn = e.target.closest('.copy-all-btn');
+        if (copyAllBtn) {
+            var row = copyAllBtn.closest('.pwd-row');
+            var pin = row.querySelector('.pwd-pin').textContent.trim();
+            var password = row.querySelector('.pwd-hidden').value;
+            copyToClipboard('Login: ' + pin + '\nHasło: ' + password, copyAllBtn);
+            return;
+        }
+
+        var copyBtn = e.target.closest('.copy-btn');
+        if (copyBtn) {
+            var copyField = copyBtn.closest('.pwd-field');
+            var type = copyBtn.getAttribute('data-copy');
+            var text = type === 'pin'
+                ? copyField.querySelector('.pwd-pin').textContent.trim()
+                : copyField.querySelector('.pwd-hidden').value;
+            copyToClipboard(text, copyBtn);
+        }
     });
 })();
