@@ -3362,3 +3362,21 @@ fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: 
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-09-02 10:35:01 - Start ===
 === 2026-09-02 10:35:01 - Dodawanie zmian do commita ===
+[main 75ba0a4] Automatic commit 2026-09-02 10:35
+ 18 files changed, 10957 insertions(+), 218 deletions(-)
+ create mode 100644 db/rememberTokens.js
+ create mode 100644 middleware/rememberMe.js
+ create mode 100644 migrations/add_remember_tokens.sql
+ rewrite public/scripts/pwds.js (63%)
+ create mode 100644 public/styles/mobile/pwds.css
+ create mode 100644 templates/owner/_pwd_mobile_cards.njk
+ create mode 100644 templates/owner/_pwd_pagination.njk
+ create mode 100644 templates/owner/_pwd_table_rows.njk
+=== 2026-09-02 10:35:02 - Wysyłanie do origin/main ===
+remote: Permission to PawelWoronieckiHkl/eform.git denied to PawelWrHkl.
+fatal: brak dostępu do „https://github.com/PawelWoronieckiHkl/eform.git/”: The requested URL returned error: 403
+=== 2026-09-02 12:00:01 - Start ===
+=== 2026-09-02 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-09-03 10:35:01 - Start ===
+=== 2026-09-03 10:35:01 - Dodawanie zmian do commita ===
