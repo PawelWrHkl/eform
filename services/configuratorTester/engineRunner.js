@@ -30,7 +30,10 @@ function decodePositionRow(row) {
   const shortJson = safeJsonParse(row.parameters_short, {});
   const version = row.ver || shortJson.VERSION || shortJson.version;
   const lang = row.lang || 'pl';
-  return { groupNumber, version, lang, values, displayValues };
+  // Price scripts are per client (prod.txt PARAM_SCRIPTS → param-CENA-<LETTER>.js),
+  // so without the owner's identity the engine cannot resolve this position's
+  // own price list and silently prices it from a different variant.
+  return { groupNumber, version, lang, values, displayValues, orgIdent: row.org_ident, userIdent: row.user_ident };
 }
 
 /**
@@ -40,12 +43,12 @@ function decodePositionRow(row) {
  * as its own reference point instead of an external truth table (Faza 2).
  */
 async function recomputeFromPositionRow(row) {
-  const { groupNumber, version, lang, values, displayValues } = decodePositionRow(row);
+  const { groupNumber, version, lang, values, displayValues, orgIdent, userIdent } = decodePositionRow(row);
   if (!groupNumber || !version) {
     return { ok: false, error: `pozycja #${row.id}: brak groupNumber/version do przeliczenia`, positionId: row.id, groupNumber };
   }
 
-  const result = await formEngine.calculatePrices({ groupNumber, version, lang, values, displayValues, singlePass: true });
+  const result = await formEngine.calculatePrices({ groupNumber, version, lang, values, displayValues, singlePass: true, orgIdent, userIdent });
 
   return {
     ok: true,
@@ -86,12 +89,12 @@ async function recomputeTwice(row) {
  *
  * @returns {Promise<{ok:true, accepted:boolean}|{ok:false, error:string}>}
  */
-async function checkBoundaryAcceptance({ groupNumber, version, lang, baseValues, fieldName, testValue }) {
+async function checkBoundaryAcceptance({ groupNumber, version, lang, baseValues, fieldName, testValue, orgIdent, userIdent }) {
   if (!groupNumber || !version) {
     return { ok: false, error: 'checkBoundaryAcceptance: brak groupNumber/version' };
   }
 
-  const env = await formEngine.bootEngine({ lang: lang || 'pl' });
+  const env = await formEngine.bootEngine({ lang: lang || 'pl', orgIdent, userIdent });
   try {
     const initialDisplayValues = new env.window.Map();
     await env.window.__engine.generateForm(version, groupNumber, Object.assign({}, baseValues), initialDisplayValues, true, lang || 'pl', false);
@@ -109,13 +112,37 @@ async function checkBoundaryAcceptance({ groupNumber, version, lang, baseValues,
     // observe every intermediate step.
     await formEngine.cascadeSinglePass(env.window, baseValues, groupNumber);
 
-    const overriddenValues = Object.assign({}, env.window.formValues, { [fieldName]: testValue });
-    await formEngine.cascadeSinglePass(env.window, { [fieldName]: testValue }, groupNumber);
+    // Fire updateProcedure at THIS field, not via cascadeSinglePass: that
+    // helper validates whichever param it picks as the cascade entry point, so
+    // our field's inputFlags entry could stay at its initial `false` — which is
+    // indistinguishable from a real rejection and produced false P1s.
+    const input = env.window.formInputs[fieldName];
+    env.window.formValues[fieldName] = testValue;
+    if (input && 'value' in input) {
+      try { input.value = testValue; } catch (_e) { /* read-only */ }
+    }
+    await env.window.__engine.updateProcedure({
+      params: env.window.params || [],
+      inputs: env.window.formInputs || {},
+      values: env.window.formValues,
+      displayValues: env.window.formDisplayValues,
+      allOptionsByParameter: env.window.allOptionsByParameter || {},
+      options: {},
+      name: fieldName,
+      value: testValue,
+      groupNumber,
+      tagName: (input && input.tagName) || 'INPUT',
+      filters: {},
+      calculatedParams: {},
+      flags: { updateInputs: true, validate: true, buildValues: true, updateStates: true, percent: true }
+    });
 
-    const accepted = env.window.inputFlags ? env.window.inputFlags[fieldName] !== false : null;
-    if (accepted === null) {
+    const overriddenValues = Object.assign({}, env.window.formValues);
+    const flag = env.window.inputFlags ? env.window.inputFlags[fieldName] : undefined;
+    if (flag === undefined) {
       return { ok: false, error: `brak informacji o walidacji pola ${fieldName} (inputFlags nie ustawione)` };
     }
+    const accepted = flag !== false;
 
     return { ok: true, accepted, fieldName, testValue, finalValues: overriddenValues };
   } catch (err) {
@@ -131,8 +158,8 @@ async function checkBoundaryAcceptance({ groupNumber, version, lang, baseValues,
  * test cases by swapping ONE field for a different legal value rather than
  * inventing values from nothing.
  */
-async function getAvailableOptionValues({ groupNumber, version, lang, baseValues, fieldName }) {
-  const env = await formEngine.bootEngine({ lang: lang || 'pl' });
+async function getAvailableOptionValues({ groupNumber, version, lang, baseValues, fieldName, orgIdent, userIdent }) {
+  const env = await formEngine.bootEngine({ lang: lang || 'pl', orgIdent, userIdent });
   try {
     await env.window.__engine.generateForm(version, groupNumber, Object.assign({}, baseValues), new env.window.Map(), true, lang || 'pl', false);
     const options = (env.window.allOptionsByParameter && env.window.allOptionsByParameter[fieldName]) || [];

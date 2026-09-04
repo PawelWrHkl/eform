@@ -166,7 +166,14 @@ test('importResolvedOrder runs the full pipeline with stubs', async () => {
   assert.equal(calls.items[0].department, 'JALOEZIEËN');
   assert.equal(calls.items[0].groupName, 'COSIFLOR');
   assert.equal(calls.items[0].amount, 3);
-  assert.deepEqual(calls.items[0].jsonValues, { KOLOR: 'Black', ILOSC: 3 });
+  // The persisted values carry the engine's description/alias mirror keys
+  // alongside the imported params — they are created empty and filled in by the
+  // form pipeline, so assert the payload content plus their presence rather
+  // than an exact-shape match that breaks whenever a mirror key is added.
+  assert.equal(calls.items[0].jsonValues.KOLOR, 'Black');
+  assert.equal(calls.items[0].jsonValues.ILOSC, 3);
+  assert.equal(calls.items[0].jsonValues.KOLOR___DESCRIPTION, '');
+  assert.equal(calls.items[0].jsonValues.ILOSC___DESCRIPTION, '');
   assert.match(calls.items[0].jsonValuesToDisplay, /Color/);
   assert.match(calls.items[0].jsonValuesToDisplay, /Quantity/);
 });

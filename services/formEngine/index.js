@@ -346,7 +346,11 @@ function collectFormMeta(window) {
       NAME: param && param.NAME,
       LISTROW: param && param.LISTROW,
       LISTSUM: param && param.LISTSUM,
-      FORMROW: param && param.FORMROW
+      FORMROW: param && param.FORMROW,
+      // Which price script this param resolves to. 'true' means "take it from
+      // the client's prod.txt PARAM_SCRIPTS mapping" (see dataLoader.selectPrices);
+      // anything else IS the variant token itself, e.g. 'A' or 'Cmul1.2'.
+      SCRIPTS: param && param.SCRIPTS
     })).filter((param) => param.NAME),
     lockedParams: Array.isArray(window.lockedParams) ? [...window.lockedParams] : [],
     subParams: Array.isArray(window.subParams) ? [...window.subParams] : [],
@@ -425,13 +429,16 @@ function stubDisplayEntries(values) {
 async function calculatePrices(opts) {
   const {
     groupNumber, version, lang, values = {}, displayValues = null, uid, singlePass = false,
-    orgIdent, userIdent
+    orgIdent, userIdent, isGroup, isGroupShop
   } = opts || {};
   if (!groupNumber || !version) {
     throw new Error('formEngine.calculatePrices: groupNumber and version are required');
   }
 
-  const env = await bootEngine({ lang: lang || 'pl', uid, orgIdent, userIdent });
+  // isGroup/isGroupShop gate whether SUB___* (client-facing) params are built
+  // at all — see form.js buildHtml. Callers that need those prices must ask for
+  // them explicitly; the default stays as it was.
+  const env = await bootEngine({ lang: lang || 'pl', uid, orgIdent, userIdent, isGroup, isGroupShop });
 
   try {
     const initialDisplayValues = displayValues

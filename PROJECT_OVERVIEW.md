@@ -284,6 +284,72 @@ Moduł w `services/invoices/` (własne README z pełną architekturą). Wystawia
 - **Panel ownera** — `/invoices` (lista + tworzenie z zamówienia) i `/invoices/profile` (dane sprzedawcy, bank, numeracja, motyw, stopki): `http/panel.js` + `templates/owner/invoices.njk`, `templates/owner/invoice_profile.njk`, `public/scripts/owner/invoices.js`, `public/styles/invoices.css`. Link w `base.njk` dla owner/admin. Etykiety z `i18n/panel.json` (nie z `locales/` — te idą z `/mnt/eform/languages`).
 - ⚠️ **Waluta**: wyłącznie EUR (`DOCUMENT_CURRENCY` w `main.js`); parametr `currency` w API jest ignorowany.
 
+### configuratorTester — automatyczny tester konfiguratora
+Moduł w `services/configuratorTester/` + `scripts/runConfiguratorTest.js` (jednorazowo,
+`npm run configtest:run`) i `scripts/configuratorTesterDaemon.js` (daemon nocny,
+`npm run configtest:daemon`). Realizuje `Efora_automatyczny_tester_konfiguratora.pdf`: przechodzi
+przez aktywne grupy asortymentowe, odtwarza konfiguracje **prawdziwym silnikiem**
+(`services/formEngine`, nigdy własną kopią logiki cenowej) i raportuje błędy P1 mailem.
+- **`index.js`** — `runFullSuite`/`runQuickSuite`; iteruje po grupach, zwalnia po każdej cache
+  arkuszy i realm JSDOM, zapisuje raport JSON i wysyła maila.
+- **`groupDiscovery.js`** — lista aktywnych grup z `${dataDir}/data/<lang>/group.txt` (ten sam
+  plik, co `FormsManager.getAvailableForms()` w przeglądarce). Realnie 15 grup.
+- **`positionsSource.js`** — **tylko SELECT-y** na `order_item` (+ `user`/`organization` po
+  identy klienta, bo cennik jest per klient). Mediana wymiarów i częstości wartości pól służą
+  jako realistyczne wartości domyślne dla generatora.
+- **`engineRunner.js`** — jedyne miejsce wołające `formEngine`; przelicza pozycję bez zapisu do
+  bazy (w przeciwieństwie do `formEngine.recalculatePosition`).
+- **`formWalker.js`** — „wirtualny klient": prowadzi silnik pole po polu (`cascadeSinglePass`),
+  odczytując dostępne opcje po każdym wyborze. Wykrywa `KONFIGURATOR_NIE_PUSZCZA_DALEJ`.
+  ⚠️ Pełną konfigurację „od zera" z ceną liczymy tylko dla grup **bez historii zamówień** —
+  dobór wartości pole-po-polu ignoruje korelacje między polami (KOLOR × KOLOR_SYSTE) i na
+  grupach z historią dawał ~78% fałszywych alarmów.
+- **`excelTruthTable/`** — **niezależna tabela prawdy** z arkuszy `/mnt/eformconf/*#<grupa>#*.xlsm`
+  (patrz sekcja niżej). Porównanie „cennik vs silnik" wychwytuje rozjazd wgranych
+  `param-*.js` z arkuszem źródłowym.
+- **`assertions.js`** — czyste funkcje → `Finding[]`. P1: `BRAK_CENY`, `CENA_ZANIZONA`,
+  `KONFIGURATOR_NIE_PUSZCZA_DALEJ`; HIGH: `CENA_NIEZGODNA_Z_CENNIKIEM`,
+  `CENA_BEZ_PODSTAWY_W_CENNIKU`, `KOSZYK_NIESPOJNY`; MEDIUM (świadomie nie-P1, bo sygnał
+  niepewny): `CENA_POCHODNA_DO_SPRAWDZENIA`, `BRAK_DANYCH_REFERENCYJNYCH`,
+  `WALIDACJA_WYMIARU_DO_SPRAWDZENIA`.
+- **`reportBuilder.js`/`outputStore.js`/`mailer.js`/`logger.js`** — raport JSON pod
+  `config.configTestOutputDir` (`<ROOT_DIR>/configtest-output`), mail wzorem `importMailer.js`
+  (adresat **wyłącznie** `CONFIGTEST_NOTIFY_EMAIL` — świadomie BEZ fallbacku na `EXTRA_MAIL`,
+  żeby nie wysyłać raportów na adres importu), log w `configtest/configtest.log`.
+- **Nowe env**: `CONFIGTEST_NOTIFY_EMAIL`, `CONFIGTEST_INTERVAL_SEC`, `CONFIGTEST_NIGHTLY_HOUR`,
+  `CONFIGTEST_RANDOM_CASES`, `CONFIGTEST_OUTPUT_DIR`, `EFORMCONF_DIR`.
+- ⚠️ Skrypty npm mają `--max-old-space-size=4096`: parsowanie arkuszy + JSDOM to ~1,5 GB szczytu
+  na grupę.
+
+#### Jak czytany jest cennik źródłowy (`excelTruthTable/`)
+Odtworzone i **zweryfikowane 1:1 z wygenerowanymi `param-*.js`** (te są wynikiem tej samej
+kompilacji z arkusza), na realnych zamówieniach grup 71/43/39/24/75 — zgodność co do grosza:
+```
+dla każdej sekcji S arkusza (PGE, PG0…, AO40PGE…, TCND…, MLPG1…):
+    n = warunek1(S) + warunek2(S)      // tkanina główna + dodatkowa → 0/1/2
+    v = wartość S:  skalar  |  tabela 1D (po szerokości)  |  tabela 2D (szerokość × wysokość)
+                    bucketowanie W GÓRĘ (if(x<=bound)), NIE interpolacja
+cena = (Σ v*n) * mul * f              // mul z nazwy skryptu, f = dopłata per uid (nie w arkuszu)
+```
+- **Litera bloku kolumn** (A/B/C/D/E/I/J/K) = wariant cennika **klienta**, nie atrybut produktu.
+  Kolejność rozwiązywania: `param.SCRIPTS` z `param.txt` **wygrywa**, chyba że ma wartość
+  `'true'` — wtedy dopiero mapowanie `PARAM_SCRIPTS` z `prod.txt`
+  (`dataLoader.selectPrices()`; reużywamy `formEngine/clientScripts.js`).
+- **Sekcja** = rodzina modelu + grupa cenowa koloru, wybierana formułami `Kiedy-występuje`
+  (`WSROD(MODEL,…)` + `ZAWIERA(KOLOR_OPIS,"#N")`, gdzie `#N` pochodzi z opisu koloru w
+  `paramdict.txt`, np. „Prijsgroep #4"). Formuły ewaluuje **prawdziwy**
+  `window.FormulaHandler.evaluateFormula`; dialekt nazw arkusza (`_OPIS`, `_TYTUL`) tłumaczymy na
+  silnikowy (`___DESCRIPTION`, `___TITLE`) — tak samo robi kompilator.
+- **Skala szerokości jest per sekcja**, w wierszu jej etykiety (nie w wierszu 2 arkusza!).
+  **Wysokość** czytamy z pierwszej kolumny bloku (osi), nigdy z pozycji wiersza.
+- Liczby bywają zapisane **tekstem** (`"98,59"`) — akceptowane; komórki z formułą
+  (`ROUND(CENA*0.1,2)`) są ewaluowane, a wynik oznaczany `derived` (nigdy P1, bo sięga po
+  wartości pośrednie silnika).
+- `SUB___*` (ceny klienta) czytają **ten sam arkusz** co parametr bazowy, inną literą bloku;
+  pola te nie powstają bez `isGroup` (pass-through w `formEngine.calculatePrices`).
+  `CENA_RABAT` nie ma arkusza — cała definicja to liczba w nazwie skryptu
+  (`param-CENA_RABAT-0.55.js`).
+
 ### mailBot — e‑mail / powiadomienia
 - **`mailBot.js`** — transporter Nodemailer (SMTP home.pl), renderuje szablony Nunjucks i wysyła stylizowane maile z PDF (`contentDisposition: 'inline'`) + bliźniaczym załącznikiem `.html` (`options.htmlContent`) + logo (cid) + załączniki. Eksportuje `sendMail` (fire‑and‑forget), `sendMailAsync` (promise), `sendCorrectionMail` (`correctionMailTemplate.njk`), `buildMailOptions`. Ostatni parametr wszystkich trzech = `options` (`{ htmlContent }`). Temat z klucza i18n + numer + klient.
 - **`importMailer.js`** — samodzielny mailer wysyłający HTML tabelę (PL) po imporcie do `IMPORT_NOTIFY_EMAIL`/`EXTRA_MAIL`. Osobny transporter, nigdy nie rzuca.
@@ -362,6 +428,8 @@ Moduł w `services/invoices/` (własne README z pełną architekturą). Wystawia
 
 > Dopisuj tutaj każdą istotną zmianę: `YYYY-MM-DD — opis — pliki`.
 
+- **2026-09-04** — Nowy moduł **`services/configuratorTester/`** (+ `scripts/runConfiguratorTest.js`, `scripts/configuratorTesterDaemon.js`, `npm run configtest:run|configtest:daemon`): automatyczny tester konfiguratora wg `Efora_automatyczny_tester_konfiguratora.pdf` — przechodzi po aktywnych grupach, odtwarza konfiguracje **prawdziwym** silnikiem (`services/formEngine`, zero kopii logiki cenowej) i raportuje P1 mailem (`CONFIGTEST_NOTIFY_EMAIL`, świadomie bez fallbacku na `EXTRA_MAIL`). Zawiera **niezależną tabelę prawdy** czytającą arkusze `/mnt/eformconf/*#<grupa>#*.xlsm` — pełna semantyka cennika odtworzona i zweryfikowana 1:1 z wygenerowanymi `param-*.js` na realnych zamówieniach grup 71/43/39/24/75 (zgodność co do grosza): suma sekcji × krotność (0/1/2 dla tkaniny głównej/dodatkowej), bucketowanie w górę zamiast interpolacji, skala szerokości **per sekcja** (nie z wiersza 2), wysokość z kolumny osi bloku, litera bloku = wariant cennika klienta (`param.SCRIPTS` wygrywa, `'true'` → mapowanie z `prod.txt`), liczby bywają tekstem, komórki-formuły oznaczane `derived`. Dodatkowo w `services/formEngine/index.js`: wyeksportowane `replayValues`/`cascadeSinglePass` (wydzielone z gałęzi `singlePass`), pass-through `isGroup`/`isGroupShop` (bez nich `SUB___*` w ogóle nie powstają) oraz `SCRIPTS` w `formMeta`. Pliki: `services/configuratorTester/**`, `services/formEngine/index.js`, `config.js` (`configTestOutputDir`), `package.json`. ⚠️ Trzy pułapki potwierdzone empirycznie i obsłużone: (1) porównywanie przeliczenia ze ceną zapisaną ma sens **tylko** przy tej samej wersji cennika (`order_item.ver`) — stare zamówienia legalnie liczą się dziś inaczej albo na 0; (2) `window.inputFlags` po syntetycznym `updateProcedure` NIE jest wiarygodnym sygnałem przyjęcia/odrzucenia wymiaru (stąd tylko MEDIUM); (3) dobór wartości pole-po-polu ignoruje korelacje między polami, więc pełna konfiguracja „od zera" liczona jest tylko dla grup bez historii zamówień. Skrypty npm mają `--max-old-space-size=4096` (parsowanie arkuszy + JSDOM ≈ 1,5 GB szczytu na grupę).
+- **2026-09-04** — Naprawiono 4 czerwone testy w `services/orderImport` (czerwone od 9516d2e, 13.08): `orderedParamNames` (`displayValueBuilder.js`) zasiewa wiersze m.in. z `formMeta.params` i `importValues`, więc niezerowa **zaimportowana dopłata dostaje wiersz** (na `row: '0'`, bo param jest w `skipCountParams`), a parametr obecny tylko w `values` też jest opisywany ze słownika. Testy oczekiwały przeciwnie; rozstrzygnięto na rzecz kodu, bo przechodzący test-sąsiad (`omits zero DOPLATA and matching SUB___ surcharge fields`) opisuje dokładnie tę logikę, a cały moduł importu istnieje po to, by nie tracić wierszy i nie kończyć na cenie 0. Zaktualizowano oczekiwania + nazwę testu, która twierdziła coś odwrotnego; `jsonValues` sprawdzane po treści, nie po dokładnym kształcie (niesie klucze-lustra `___DESCRIPTION`). `npm test` → 467/467. Pliki: `services/orderImport/__tests__/displayValueBuilder.test.js`, `services/orderImport/__tests__/orderImporter.test.js`.
 - **2026-07-21** — Utworzenie tego dokumentu (pełna analiza projektu na moduły i funkcjonalności).
 - **2026-07-27** — `admin_edit_form.js` (`forceRecalculation`): zerowanie/wykluczanie parametrów kalkulowanych przed wymuszeniem przeliczenia teraz używa `isCalculatedParam` (SOURCE lub FORMULA) zamiast pola `SCRIPTS`/`FORMULA` — dotychczasowy warunek pomijał parametry cenowe, które odwołują się do skryptu wyłącznie przez `SOURCE` (typowy przypadek), przez co stare zapisane ceny mogły przetrwać przeliczenie zamiast być zawsze nadpisane. Plik: `public/scripts/admin/admin_edit_form.js`.
 - **2026-07-27** — Naprawiono błąd wyboru kolekcji cenowej podczas admin-redit: trasa `GET /position/:positionId/admin-redit/` nigdy nie ustawiała kontekstu klienta zamówienia (`ownerService.setContextUserByIdent`), więc `FormsManager`/`getOwner()` w przeglądarce dostawał kontekst admina zamiast właściciela zamówienia (np. TCN) i wybierał złą, domyślną kolekcję aliasów/skryptów cenowych (np. PG3 zamiast PG4 dedykowanej dla klienta) — dawało to kilkukrotnie zawyżone ceny SUB przy przeliczaniu zaimportowanej pozycji. Fix: przed renderem pobieramy `db.getOrderOwnerIdent(orderId)` i wołamy `ownerService.setContextUserByIdent(req, ownerIdent)`, analogicznie do `routes/orders.js` (`/userOrders`, `/order/:orderId/send-to-production`). Plik: `routes/positions.js`.

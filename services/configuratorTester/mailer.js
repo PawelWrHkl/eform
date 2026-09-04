@@ -64,9 +64,11 @@ function buildHtml(report, reportFilePath) {
   ${statusLine}
   ${skippedNote}
   <p style="color:#888;font-size:12px;">
-    Uwaga (Faza 1): porównanie cen jest liczone względem ostatnio zapisanej pozycji tej samej grupy,
-    a nie względem niezależnego cennika Excel z /mnt/eformconf — ta warstwa jest planowana na Fazę 2.
-    Pełny raport JSON: ${escHtml(reportFilePath)}
+    Ceny są porównywane z niezależnym cennikiem źródłowym z /mnt/eformconf (arkusz per grupa,
+    wariant cennika wg klienta z prod.txt). Wpisy <strong>BRAK_DANYCH_REFERENCYJNYCH</strong> oznaczają,
+    że dla danej konfiguracji nie dało się ustalić ceny wzorcowej — nie są błędem wyceny.
+    Wpisy <strong>WALIDACJA_WYMIARU_DO_SPRAWDZENIA</strong> to sygnał orientacyjny wymagający ręcznego
+    potwierdzenia w przeglądarce. Pełny raport JSON: ${escHtml(reportFilePath)}
   </p>
   ${findings.length ? `<table style="width:100%;border-collapse:collapse;margin-top:16px;">
     <thead>

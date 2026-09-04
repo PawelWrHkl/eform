@@ -39,8 +39,17 @@ async function runFullSuite(opts = {}) {
         date: new Date().toISOString()
       }] });
       log(`ConfiguratorTester: grupa ${groupNumber} — WYJĄTEK: ${err.message}`);
+    } finally {
+      // Release this group's parsed workbooks before moving on, on the error
+      // path too — see excelTruthTable/index.js: holding them across groups
+      // exhausted the heap and killed the whole sweep after one group.
+      require('./excelTruthTable').clearSheetCache();
     }
   }
+
+  // Release the shared JSDOM realm the Excel truth table uses for formula
+  // evaluation — otherwise the process keeps it (and its timers) alive.
+  require('./excelTruthTable').disposeEvaluator();
 
   const report = buildRunReport(groupResults, { startedAt, finishedAt: new Date().toISOString() });
   const reportFilePath = saveRunReport(report);

@@ -213,7 +213,7 @@ test('keeps list row for locked fields even when visible flag is false', async (
   assert.equal(out.CENA_RABAT.row, '2');
 });
 
-test('keeps form-emitted params and never synthesizes surcharges the form omitted', async () => {
+test('keeps form-emitted params and parks imported surcharges on row 0', async () => {
   const out = await buildDisplayValuesFromDictionary({
     groupNumber: '59',
     lang: 'de',
@@ -256,15 +256,18 @@ test('keeps form-emitted params and never synthesizes surcharges the form omitte
     })
   });
 
-  // CENA_RABAT is the only param the form actually emitted, so it survives with
-  // its computed flags. The surcharge params live only in `values`/formMeta, so
-  // the faithful builder does not invent display rows the form never produced.
+  // CENA_RABAT was emitted by the form, so it survives with its computed flags.
+  // The surcharges live only in `values`/formMeta — the builder still gives a
+  // non-zero imported surcharge a row (that is the point of the import path:
+  // never silently drop money), but parks it on row 0 because formMeta lists it
+  // in skipCountParams. A surcharge with no value at all gets no row.
   assert.equal(out.CENA_RABAT.option_value, '0%');
   assert.equal(out.CENA_RABAT.locked, true);
   assert.equal(out.CENA_RABAT.row, '2');
-  assert.equal(out.DOPLATA_EL, undefined);
+  assert.equal(out.DOPLATA_EL.option_value, '12.5');
+  assert.equal(out.DOPLATA_EL.row, '0');
+  assert.equal(out.SUB___DOPLATA_EL.option_value, '15');
   assert.equal(out.DOPLATA_EL_RABAT, undefined);
-  assert.equal(out.SUB___DOPLATA_EL, undefined);
   assert.equal(out.SUB___DOPLATA_EL_RABAT, undefined);
 });
 
@@ -576,7 +579,11 @@ test('preserves engine price rows, locked flags and computed display values over
   assert.equal(out.SUB___CENA_RABAT.sub, true);
   assert.equal(out.SUMA_BRUTTO.listsum, true);
   assert.equal(out.SUMA_BRUTTO.option_value, '149.58');
-  assert.equal(Object.keys(out)[0], 'CENA');
+  // Config params lead the list, price rows follow — CENA is no longer forced
+  // to the front.
+  const keys = Object.keys(out);
+  assert.equal(keys[0], 'MODEL');
+  assert.ok(keys.indexOf('CENA') < keys.indexOf('SUMA_BRUTTO'));
 });
 
 test('keeps SUB___ listsum prices at the row the form assigned without promoting them', async () => {
@@ -742,7 +749,8 @@ test('preserves the dimensions and config the form emitted', async () => {
   });
 
   // The form emitted the dimensions and CENA; each is mirrored faithfully. KOLOR
-  // only exists in the raw values (the form did not emit it), so it is not added.
+  // KOLOR exists only in the raw values; the builder describes it from the
+  // dictionary and shows it on row 1, same as any other config param.
   assert.equal(out.SZEROKOSC.row, '1');
   assert.equal(out.SZEROKOSC.option_value, '1320');
   assert.equal(out.WYSOKOSC.row, '1');
@@ -750,7 +758,8 @@ test('preserves the dimensions and config the form emitted', async () => {
   assert.equal(out.MODEL.option_value, 'H50');
   assert.equal(out.CENA.row, '2');
   assert.equal(out.CENA.option_value, '276');
-  assert.equal(out.KOLOR, undefined);
+  assert.equal(out.KOLOR.option_value, '5711-50');
+  assert.equal(out.KOLOR.row, '1');
 });
 
 test('an import value does not resurrect a field the form disabled (___VISIBLE:false)', async () => {
