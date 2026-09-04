@@ -124,6 +124,74 @@ async function replayValues({ window, values }) {
   }
 }
 
+/**
+ * Pre-seed `values` into window.formValues/inputs, then fire ONE
+ * updateProcedure on the first real param with a value — this cascades
+ * through the full dependency graph (form.js' updateProcedure re-derives
+ * dependent fields/options/validators/prices as it goes), then waits for
+ * `finishFlag` exactly like the frontend's waitForCalculations(). Extracted
+ * from calculatePrices()'s singlePass branch so callers that need the LIVE
+ * `window` afterwards (e.g. services/configuratorTester reading
+ * window.inputFlags for boundary acceptance) can reuse the exact same cheap
+ * cascade instead of the much costlier per-key replayValues() loop.
+ */
+async function cascadeSinglePass(window, values, groupNumber) {
+  const params = window.params || [];
+  const inputs = window.formInputs || {};
+
+  for (const [name, value] of Object.entries(values)) {
+    if (name === 'uid') continue;
+    window.formValues[name] = value;
+    const input = inputs[name];
+    if (input && 'value' in input) {
+      try { input.value = value == null ? '' : value; } catch (_e) { /* read-only */ }
+    }
+  }
+
+  let firstName = null;
+  for (const p of params) {
+    const n = p && p.NAME;
+    if (!n || n.includes('___')) continue;
+    if (!inputs[n]) continue;
+    if (window.formValues[n] === undefined || window.formValues[n] === '') continue;
+    firstName = n;
+    break;
+  }
+
+  if (firstName) {
+    await window.__engine.updateProcedure({
+      params,
+      inputs,
+      values: window.formValues,
+      displayValues: window.formDisplayValues,
+      allOptionsByParameter: window.allOptionsByParameter || {},
+      options: {},
+      name: firstName,
+      value: window.formValues[firstName],
+      groupNumber,
+      tagName: inputs[firstName]?.tagName || 'INPUT',
+      filters: {},
+      calculatedParams: {},
+      flags: {
+        updateInputs: true,
+        validate: true,
+        buildValues: true,
+        updateStates: true,
+        percent: true
+      }
+    });
+  }
+
+  const waitStart = Date.now();
+  while (Date.now() - waitStart < 10000) {
+    const queueEmpty = !window.calculationQueue || window.calculationQueue.length === 0;
+    const finished = window.finishFlag === true;
+    if (queueEmpty && finished) break;
+    if (queueEmpty && (Date.now() - waitStart > 3000)) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 function displayValuesToObject(displayValues) {
   const out = {};
   if (!displayValues) return out;
@@ -381,69 +449,7 @@ async function calculatePrices(opts) {
     );
 
     if (singlePass) {
-      // Single-pass mode: pre-seed all values, then fire ONE updateProcedure
-      // on the first parameter. This cascades through the full dependency graph.
-      // Then wait for finishFlag (set 1300ms after calculationQueue empties)
-      // exactly like the frontend recalculateOrder.js does.
-      const params = env.window.params || [];
-      const inputs = env.window.formInputs || {};
-
-      // Pre-seed formValues
-      for (const [name, value] of Object.entries(values)) {
-        if (name === 'uid') continue;
-        env.window.formValues[name] = value;
-        const input = inputs[name];
-        if (input && 'value' in input) {
-          try { input.value = value == null ? '' : value; } catch (_e) {}
-        }
-      }
-
-      // Find first real param with a value
-      let firstName = null;
-      for (const p of params) {
-        const n = p && p.NAME;
-        if (!n || n.includes('___')) continue;
-        if (!inputs[n]) continue;
-        if (env.window.formValues[n] === undefined || env.window.formValues[n] === '') continue;
-        firstName = n;
-        break;
-      }
-
-      if (firstName) {
-        await env.window.__engine.updateProcedure({
-          params,
-          inputs,
-          values: env.window.formValues,
-          displayValues: env.window.formDisplayValues,
-          allOptionsByParameter: env.window.allOptionsByParameter || {},
-          options: {},
-          name: firstName,
-          value: env.window.formValues[firstName],
-          groupNumber,
-          tagName: inputs[firstName]?.tagName || 'INPUT',
-          filters: {},
-          calculatedParams: {},
-          flags: {
-            updateInputs: true,
-            validate: true,
-            buildValues: true,
-            updateStates: true,
-            percent: true
-          }
-        });
-      }
-
-      // Wait for finishFlag — same as frontend waitForCalculations()
-      // finishFlag is set via setTimeout 1300ms after calculationQueue empties
-      const waitStart = Date.now();
-      while (Date.now() - waitStart < 10000) {
-        const queueEmpty = !env.window.calculationQueue || env.window.calculationQueue.length === 0;
-        const finished = env.window.finishFlag === true;
-        if (queueEmpty && finished) break;
-        // Also accept: queue empty for >2s (scripts may have already completed)
-        if (queueEmpty && (Date.now() - waitStart > 3000)) break;
-        await new Promise((r) => setTimeout(r, 50));
-      }
+      await cascadeSinglePass(env.window, values, groupNumber);
     } else {
       await replayValues({ window: env.window, values });
     }
@@ -611,8 +617,14 @@ module.exports = {
   calculatePrices,
   recalculatePosition,
   getFormMeta,
-  // Lower-level helpers exposed for tests / advanced callers.
+  // Lower-level helpers exposed for tests / advanced callers (e.g.
+  // services/configuratorTester, which needs the live `window` — with its
+  // runtime-populated window.inputFlags/window.inputsValidators — before it's
+  // disposed, so it drives bootEngine()+replayValues() directly instead of
+  // going through the disposed-on-return calculatePrices()).
   bootEngine,
+  replayValues,
+  cascadeSinglePass,
   displayValuesToWireFormat,
   stubDisplayEntries
 };

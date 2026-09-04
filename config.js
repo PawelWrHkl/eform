@@ -13,6 +13,8 @@ module.exports = {
   usersPath: path.join(ROOT_DIR, 'data/data'),
   outputData: process.env.OUTPUT_DIR || '/mnt/eform/datatest/out',
   shortJsonDir: path.join(ROOT_DIR, 'json_short'),
+  // Automatyczny tester konfiguratora (services/configuratorTester) — raporty JSON per przebieg.
+  configTestOutputDir: process.env.CONFIGTEST_OUTPUT_DIR || path.join(ROOT_DIR, 'configtest-output'),
   availabeLanguages: ['pl', 'en', 'de', 'fr', 'nl'],
   defaultLanguage: 'en',
   logsDir: path.join(process.env.LOG_PATH || '/mnt/eform/log/datadev'),

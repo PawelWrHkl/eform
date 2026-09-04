@@ -12,7 +12,9 @@
 		"import:daemon": "node scripts/orderImportDaemon.js",
 		"import:restart": "sudo systemctl restart eform-import.service",
 		"import:status": "systemctl status eform-import.service --no-pager",
-		"import:logs": "journalctl -u eform-import.service -n 50 --no-pager -f"
+		"import:logs": "journalctl -u eform-import.service -n 50 --no-pager -f",
+		"configtest:run": "node scripts/runConfiguratorTest.js",
+		"configtest:daemon": "node scripts/configuratorTesterDaemon.js"
 	},
 	"keywords": [],
 	"author": "Pawel Woroniecki",
