@@ -18,7 +18,13 @@ function log(...args) {
   const line = `[${new Date().toISOString()}] ${message}`;
   console.log(line);
   fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
-  fs.appendFile(LOG_PATH, line + '\n', () => {});
+  // Synchronous on purpose: the CLI ends with process.exit(), which discards
+  // pending async writes — the mail-delivery line was silently lost from the
+  // log of a full run that way, leaving no record of whether the report was
+  // actually sent.
+  try {
+    fs.appendFileSync(LOG_PATH, line + '\n');
+  } catch (_err) { /* log nie może wywrócić przebiegu */ }
 }
 
 module.exports = { log, LOG_PATH };

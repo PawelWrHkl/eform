@@ -6,6 +6,8 @@
 
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const nodemailer = require('nodemailer');
 const { log } = require('./logger');
 
@@ -55,6 +57,37 @@ function buildHtml(report, reportFilePath) {
 
   const rows = findings.map(findingRow).join('');
 
+  // Which groups were actually covered. "sprawdzono 15 grup" on its own does
+  // not tell a reader whether THEIR product line was tested.
+  const groupRows = (report.groups || []).map((g) => {
+    const status = g.skipped
+      ? '<span style="color:#888;">pominięta</span>'
+      : (g.findings === 0
+        ? '<span style="color:#1a7a1a;">✅ czysto</span>'
+        : `<span style="color:#c0392b;">${g.findings} zgł. (P1: ${g.byPriority.P1 || 0})</span>`);
+    return `
+      <tr>
+        <td style="padding:4px 8px;border:1px solid #ccc;">${escHtml(g.groupNumber)}</td>
+        <td style="padding:4px 8px;border:1px solid #ccc;">${status}</td>
+        <td style="padding:4px 8px;border:1px solid #ccc;">${g.positionsChecked != null ? escHtml(g.positionsChecked) : '—'}</td>
+        <td style="padding:4px 8px;border:1px solid #ccc;font-size:12px;color:#666;">${escHtml(g.reason || '')}</td>
+      </tr>`;
+  }).join('');
+
+  const groupsTable = groupRows ? `
+  <h3 style="margin-top:24px;font-size:15px;">Sprawdzone grupy asortymentowe</h3>
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:#f0f0f0;">
+        <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Grupa</th>
+        <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Wynik</th>
+        <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Sprawdzonych pozycji</th>
+        <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Uwagi</th>
+      </tr>
+    </thead>
+    <tbody>${groupRows}</tbody>
+  </table>` : '';
+
   return `<!DOCTYPE html>
 <html lang="pl">
 <head><meta charset="UTF-8"><title>Raport testera konfiguratora</title></head>
@@ -68,8 +101,10 @@ function buildHtml(report, reportFilePath) {
     wariant cennika wg klienta z prod.txt). Wpisy <strong>BRAK_DANYCH_REFERENCYJNYCH</strong> oznaczają,
     że dla danej konfiguracji nie dało się ustalić ceny wzorcowej — nie są błędem wyceny.
     Wpisy <strong>WALIDACJA_WYMIARU_DO_SPRAWDZENIA</strong> to sygnał orientacyjny wymagający ręcznego
-    potwierdzenia w przeglądarce. Pełny raport JSON: ${escHtml(reportFilePath)}
+    potwierdzenia w przeglądarce. Pełny raport JSON jest <strong>załączony do tej wiadomości</strong>
+    (kopia na serwerze: ${escHtml(reportFilePath)}).
   </p>
+  ${groupsTable}
   ${findings.length ? `<table style="width:100%;border-collapse:collapse;margin-top:16px;">
     <thead>
       <tr style="background:#f0f0f0;">
@@ -109,9 +144,19 @@ async function sendTestReport(report, reportFilePath) {
   }
 
   const { totalFindings, byPriority } = report;
+  const groupCount = (report.groups || []).length;
   const subject = totalFindings === 0
-    ? `[Tester konfiguratora] ✅ 0 błędów — ${new Date().toLocaleDateString('pl-PL')}`
-    : `[Tester konfiguratora] ❌ ${totalFindings} błędów (P1: ${byPriority.P1 || 0}) — ${new Date().toLocaleDateString('pl-PL')}`;
+    ? `[Tester konfiguratora] ✅ 0 błędów, ${groupCount} grup — ${new Date().toLocaleDateString('pl-PL')}`
+    : `[Tester konfiguratora] ❌ ${totalFindings} zgłoszeń (P1: ${byPriority.P1 || 0}) z ${groupCount} grup — ${new Date().toLocaleDateString('pl-PL')}`;
+
+  // Attach the report itself: the recipients do not have shell access to the
+  // host, so a path under /mnt/eform is of no use to them on its own.
+  const attachments = [];
+  try {
+    if (reportFilePath && fs.existsSync(reportFilePath)) {
+      attachments.push({ filename: path.basename(reportFilePath), path: reportFilePath, contentType: 'application/json' });
+    }
+  } catch (_err) { /* brak załącznika nie może blokować wysyłki */ }
 
   try {
     await transporter.sendMail({
@@ -119,6 +164,7 @@ async function sendTestReport(report, reportFilePath) {
       to,
       subject,
       html: buildHtml(report, reportFilePath),
+      attachments
     });
     log(`ConfiguratorTester mailer: report sent to ${to} (${totalFindings} findings)`);
   } catch (err) {
