@@ -312,6 +312,18 @@ przez aktywne grupy asortymentowe, odtwarza konfiguracje **prawdziwym silnikiem*
   `CENA_BEZ_PODSTAWY_W_CENNIKU`, `KOSZYK_NIESPOJNY`; MEDIUM (świadomie nie-P1, bo sygnał
   niepewny): `CENA_POCHODNA_DO_SPRAWDZENIA`, `BRAK_DANYCH_REFERENCYJNYCH`,
   `WALIDACJA_WYMIARU_DO_SPRAWDZENIA`.
+- **`browserRunner.js`** — warstwa **przeglądarkowa** (Playwright), włączana flagą `--browser`.
+  Otwiera istniejącą pozycję przez `/position/:id/admin-redit/` i sprawdza to, czego bezgłowy
+  silnik nie widzi: czy formularz się w ogóle zbudował, czy przeliczanie się kończy, czy widoczne
+  pola cenowe pokazują wartość > 0, czy przycisk zapisu nie jest zablokowany. Każdy problem
+  dokumentuje zrzutem ekranu. ⚠️ **Nigdy nie klika zapisu** — nie zapisuje niczego do bazy.
+  ⚠️ Dwie pułapki potwierdzone testami: konto `ADMIN_PIN` (ident SZEF) widzi **zero grup**
+  (`prod.txt` przypisuje produkty do konkretnych klientów), dlatego nie da się nim konfigurować
+  „od zera" — trasa admin-redit sama ustawia kontekst właściciela zamówienia; oraz lista działów
+  w `main.js` wypełnia się **asynchronicznie**, więc odczyt opcji zaraz po pojawieniu się selecta
+  widzi tylko placeholder.
+- **`htmlReport.js`** — samodzielny raport HTML obok JSON-a (zrzuty linkowane relatywnie, więc
+  raport i katalog `screenshots/` można skopiować razem).
 - **`reportBuilder.js`/`outputStore.js`/`mailer.js`/`logger.js`** — raport JSON pod
   `config.configTestOutputDir` (`<ROOT_DIR>/configtest-output`), mail wzorem `importMailer.js`
   (adresat **wyłącznie** `CONFIGTEST_NOTIFY_EMAIL` — świadomie BEZ fallbacku na `EXTRA_MAIL`,

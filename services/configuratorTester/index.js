@@ -11,6 +11,7 @@ const { listActiveGroups } = require('./groupDiscovery');
 const { runGroupSuite } = require('./caseGenerator');
 const { buildRunReport } = require('./reportBuilder');
 const { saveRunReport } = require('./outputStore');
+const { saveHtmlReport } = require('./htmlReport');
 const { sendTestReport } = require('./mailer');
 const { log } = require('./logger');
 
@@ -21,12 +22,48 @@ const { log } = require('./logger');
  * @param {number} [opts.seed]
  * @param {string[]} [opts.onlyGroups] - restrict to these group numbers (quick test)
  */
+/** Where the browser pass points, for the report's own audit trail. */
+function runBrowserChecksTarget() {
+  try { return require('./browserRunner').APP_URL; } catch (_e) { return 'nieznany adres'; }
+}
+
 async function runFullSuite(opts = {}) {
   const startedAt = new Date().toISOString();
   const allGroups = listActiveGroups().map((g) => g.groupNumber);
   const groupNumbers = opts.onlyGroups && opts.onlyGroups.length ? opts.onlyGroups : allGroups;
 
   const groupResults = [];
+
+  // Browser pass (Playwright over the real UI) — opt-in, because it needs a
+  // reachable eForm instance and Chromium. See browserRunner.js for why it is
+  // read-only.
+  if (opts.browser) {
+    const path = require('path');
+    const { configTestOutputDir } = require('../../config');
+    const { runBrowserChecks } = require('./browserRunner');
+    const screenshotDir = path.join(configTestOutputDir, startedAt.slice(0, 10), 'screenshots');
+    // One real position per group — the admin-redit view sets that order
+    // owner's context itself, which is the only way to get a fully populated
+    // configurator in the browser (see browserRunner.openPositionInBrowser).
+    const { getRecentPositions } = require('./positionsSource');
+    const browserPositions = [];
+    for (const groupNumber of groupNumbers) {
+      const rows = await getRecentPositions(groupNumber, 1);
+      if (rows.length) browserPositions.push({ groupNumber, positionId: rows[0].id });
+    }
+    const browserResult = await runBrowserChecks({ positions: browserPositions, screenshotDir });
+    if (browserResult.skipped) {
+      log(`ConfiguratorTester: test w przeglądarce pominięty — ${browserResult.skipped}`);
+    }
+    groupResults.push({
+      groupNumber: 'przeglądarka',
+      skipped: !!browserResult.skipped,
+      findings: browserResult.findings,
+      positionsChecked: browserResult.checked,
+      reason: browserResult.skipped || `Test interfejsu w przeglądarce (${runBrowserChecksTarget()}).`
+    });
+  }
+
   for (const groupNumber of groupNumbers) {
     try {
       const result = await runGroupSuite(groupNumber, opts);
@@ -53,9 +90,10 @@ async function runFullSuite(opts = {}) {
 
   const report = buildRunReport(groupResults, { startedAt, finishedAt: new Date().toISOString() });
   const reportFilePath = saveRunReport(report);
+  const htmlReportPath = saveHtmlReport(report, reportFilePath);
   await sendTestReport(report, reportFilePath);
 
-  return { report, reportFilePath };
+  return { report, reportFilePath, htmlReportPath };
 }
 
 /** Quick test for a subset of groups (e.g. "po każdej zmianie" from the PDF harmonogram). */
