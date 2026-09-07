@@ -13,3 +13,29 @@
 [2026-09-04T13:52:16.289Z] ConfiguratorTester: grupa 24 — 0 błędów
 [2026-09-04T13:52:33.138Z] ConfiguratorTester: grupa 73 — 0 błędów
 [2026-09-04T13:52:46.468Z] ConfiguratorTester: grupa 11 — 0 błędów
+[2026-09-07T07:49:28.571Z] ConfiguratorTester (przeglądarka): sprawdzono 0/1 grup, zgłoszeń: 1
+[2026-09-07T07:49:42.855Z] ConfiguratorTester: grupa 71 — 0 błędów
+[2026-09-07T07:49:42.875Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T07:51:31.569Z] ConfiguratorTester (przeglądarka): sprawdzono 0/1 grup, zgłoszeń: 1
+[2026-09-07T07:51:45.195Z] ConfiguratorTester: grupa 71 — 0 błędów
+[2026-09-07T07:51:45.224Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T07:52:24.128Z] ConfiguratorTester (przeglądarka): sprawdzono 0/1 grup, zgłoszeń: 1
+[2026-09-07T07:52:37.732Z] ConfiguratorTester: grupa 71 — 0 błędów
+[2026-09-07T07:52:37.754Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T07:52:59.508Z] ConfiguratorTester (przeglądarka): sprawdzono 0/1 grup, zgłoszeń: 1
+[2026-09-07T07:53:13.284Z] ConfiguratorTester: grupa 71 — 0 błędów
+[2026-09-07T07:53:13.318Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T07:53:41.689Z] ConfiguratorTester (przeglądarka): sprawdzono 0/1 grup, zgłoszeń: 1
+[2026-09-07T07:53:55.438Z] ConfiguratorTester: grupa 71 — 0 błędów
+[2026-09-07T07:53:55.503Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T07:54:23.113Z] ConfiguratorTester (przeglądarka): sprawdzono 0/1 grup, zgłoszeń: 1
+[2026-09-07T07:54:39.159Z] ConfiguratorTester: grupa 39 — 0 błędów
+[2026-09-07T07:54:39.182Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T07:57:51.868Z] ConfiguratorTester (przeglądarka): sprawdzono 0/2 pozycji, zgłoszeń: 2
+[2026-09-07T07:58:08.086Z] ConfiguratorTester: grupa 39 — 0 błędów
+[2026-09-07T07:58:21.302Z] ConfiguratorTester: grupa 71 — 0 błędów
+[2026-09-07T07:58:21.344Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T07:59:04.022Z] ConfiguratorTester (przeglądarka): sprawdzono 2/2 pozycji, zgłoszeń: 0
+[2026-09-07T07:59:20.057Z] ConfiguratorTester: grupa 39 — 0 błędów
+[2026-09-07T07:59:33.165Z] ConfiguratorTester: grupa 71 — 0 błędów
+[2026-09-07T07:59:33.190Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
