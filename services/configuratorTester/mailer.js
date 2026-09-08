@@ -47,6 +47,13 @@ function findingRow(f) {
 function buildHtml(report, reportFilePath) {
   const { totalFindings, byPriority, groupsChecked, groupsSkipped, findings } = report;
 
+  const t = report.totals || {};
+  const coverage = t.positionsChecked
+    ? `<p style="color:#333;">Zakres sprawdzenia: <strong>${t.positionsChecked}</strong> pozycji z ${t.positionsTotal},
+       <strong>${t.comparedToPriceList}</strong> porównań z cennikiem źródłowym,
+       ${t.comparedToStored} z ceną zapisaną w zamówieniu, ${t.cartChecked} kontroli powtarzalności${t.failed ? `, ${t.failed} nie dało się przeliczyć` : ''}.</p>`
+    : '';
+
   const statusLine = totalFindings === 0
     ? `<p style="color:#1a7a1a;font-weight:bold;">✅ Brak błędów — sprawdzono ${groupsChecked} grup.</p>`
     : `<p style="color:#c0392b;font-weight:bold;">❌ Wykryto ${totalFindings} błędów (P1: ${byPriority.P1 || 0}, HIGH: ${byPriority.HIGH || 0}, MEDIUM: ${byPriority.MEDIUM || 0}) na ${groupsChecked} sprawdzonych grup.</p>`;
@@ -95,6 +102,7 @@ function buildHtml(report, reportFilePath) {
   <h2 style="border-bottom:2px solid #444;padding-bottom:8px;">🤖 Raport automatycznego testera konfiguratora Efora</h2>
   <p style="color:#555;">Data: <strong>${new Date(report.finishedAt).toLocaleString('pl-PL')}</strong></p>
   ${statusLine}
+  ${coverage}
   ${skippedNote}
   <p style="color:#888;font-size:12px;">
     Ceny są porównywane z niezależnym cennikiem źródłowym z /mnt/eformconf (arkusz per grupa,

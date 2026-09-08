@@ -20,12 +20,15 @@
 
 'use strict';
 
-const { getRecentPositions, getFieldValueFrequencies, getTypicalNumericValue, mostPopularValue } = require('./positionsSource');
+const { getRecentPositions, dedupePositions, countGroupPositions, getFieldValueFrequencies, getTypicalNumericValue, mostPopularValue } = require('./positionsSource');
 const engineRunner = require('./engineRunner');
 const assertions = require('./assertions');
 const formWalker = require('./formWalker');
 const formEngine = require('../formEngine');
 const excelTruthTable = require('./excelTruthTable');
+const deployedScript = require('./deployedScript');
+const { runRangeSweep, runOptionSweep } = require('./rangeSweep');
+const { getLastCheckedPositionId, setLastCheckedPositionId } = require('./runState');
 
 const DIMENSION_FIELDS = ['SZEROKOSC', 'WYSOKOSC'];
 // Price params cross-checked against the authoring workbook. CENA is the base
@@ -34,6 +37,10 @@ const DIMENSION_FIELDS = ['SZEROKOSC', 'WYSOKOSC'];
 // CENA/DOPLATA are the organization's prices, SUB___* the client-facing ones
 // (same sheets, different block letter), CENA_RABAT a flat per-client constant.
 const REFERENCE_PRICE_PARAMS = ['CENA', 'DOPLATA', 'SUB___CENA', 'SUB___DOPLATA', 'CENA_RABAT'];
+// Params whose dimension table is worth sweeping end to end. CENA_RABAT and the
+// SUB___ variants read the same tables (or a flat constant), so sweeping them
+// would re-walk the same grid for no new information.
+const RANGE_SWEEP_PARAMS = ['CENA', 'DOPLATA'];
 
 function shuffle(arr, rng) {
   const copy = arr.slice();
@@ -55,34 +62,74 @@ function mulberry32(seed) {
   };
 }
 
-async function runBasicAndCartCases(groupNumber, positions) {
+/**
+ * Check EVERY position we pulled, not just the newest one.
+ *
+ * Two kinds of comparison, with deliberately different scope, because the
+ * engine has no notion of historical price lists — resourceLoader maps
+ * `/data/...` straight onto today's files, so an old position is always
+ * recomputed with TODAY's dictionaries and price scripts:
+ *
+ *  - **engine vs source price list (Excel)** — both sides use today's data, so
+ *    this is version-proof and runs on every position. If a configuration no
+ *    longer resolves at all (a discontinued colour, say), the workbook reports
+ *    no matching section and the engine returns 0 — they agree, no finding.
+ *  - **recompute vs the price stored on the order** — only meaningful when the
+ *    position was priced with the price list that is live now, otherwise a
+ *    legitimate price change looks exactly like an error.
+ *
+ * Cart-consistency doubles the engine cost per position, so it runs on the
+ * first `cartCheckLimit` positions of each group rather than all of them.
+ */
+async function runPositionChecks(groupNumber, positions, { currentVersion, cartCheckLimit = 3 } = {}) {
   const findings = [];
-  for (const row of positions) {
-    const recompute = await engineRunner.recomputeFromPositionRow(row);
+  const stats = { checked: 0, failed: 0, comparedToPriceList: 0, comparedToStored: 0, cartChecked: 0, scriptsRun: 0 };
 
-    // A position saved under an OLDER price-list version cannot be judged by
-    // today's data: its model/colour may no longer exist in the current
-    // dictionaries, so a 0 recompute is expected, not a defect. Verified on the
-    // full sweep — every single BRAK_CENY it reported was a stale-version
-    // position (e.g. ver 0.3.23 vs current 0.3.53). Engine ERRORS are still
-    // surfaced regardless of version.
-    findings.push(...assertions.checkPriceExists(recompute));
+  for (let i = 0; i < positions.length; i++) {
+    const row = positions[i];
+    const recompute = await engineRunner.recomputeFromPositionRow(row, { isGroup: true });
 
-    // "Recomputed lower than what was saved" only means something when the
-    // position was priced with the SAME price list that is live now. Price
-    // lists get republished (new `ver`), and a legitimate price change then
-    // looks exactly like underpricing — verified on real orders, where the
-    // engine and the workbook agreed to the cent while both differed from the
-    // older stored value. The Excel reference check below is the version-proof
-    // signal; this one is only trustworthy on same-version positions.
-    findings.push(...assertions.checkPriceNotUnderpriced(recompute));
+    if (!recompute.ok) {
+      stats.failed += 1;
+      findings.push(...assertions.checkPriceExists(recompute));
+      continue;
+    }
+    stats.checked += 1;
 
-    const twice = await engineRunner.recomputeTwice(row);
-    findings.push(...assertions.checkCartConsistency(twice));
+    const reference = await runReferencePriceCase(groupNumber, row, recompute);
+    stats.comparedToPriceList += reference.compared;
+    stats.scriptsRun += reference.scriptsRun;
+    findings.push(...reference.findings);
 
-    findings.push(...await runReferencePriceCase(groupNumber, row, recompute));
+    // Comparing the recompute with the price stored on the order needs BOTH
+    // sides to be trustworthy: the same price-list version (otherwise a
+    // legitimate price change looks like an error) and a recompute that agrees
+    // with the deployed script (otherwise the harness's own unsettled-axis
+    // problem would be reported as underpricing — see
+    // checkEngineMatchesDeployedScript).
+    // A KNOWN, matching version is required — not merely "not contradicted".
+    // Treating an unknown current version as permission compared positions
+    // priced by an older price list against today's, which is how #6070/#6071
+    // (group 11, ver 0.3.39/0.3.40, stored 180.00) and #7087 (group 14, saved
+    // with an empty WYSOKOSC) became P1 "BRAK_CENY": the engine AND the
+    // deployed script both price them at 0 today, so the stored price is
+    // simply history, not evidence of a defect.
+    if (currentVersion && String(row.ver) === String(currentVersion) && reference.engineMatchesScript) {
+      stats.comparedToStored += 1;
+      findings.push(...assertions.checkPriceExists(recompute));
+      findings.push(...assertions.checkPriceNotUnderpriced(recompute));
+    }
+
+    if (i < cartCheckLimit) {
+      const twice = await engineRunner.recomputeTwice(row);
+      stats.cartChecked += 1;
+      findings.push(...assertions.checkCartConsistency(twice));
+    }
   }
-  return findings;
+
+  // Two of these describe the group rather than each position; one line each
+  // instead of one per position/param (see summariseGroupDiagnostics).
+  return { findings: assertions.summariseGroupDiagnostics(findings, { groupNumber }), stats };
 }
 
 /**
@@ -93,25 +140,13 @@ async function runBasicAndCartCases(groupNumber, positions) {
  * BRAK_DANYCH_REFERENCYJNYCH, never guessed).
  */
 async function runReferencePriceCase(groupNumber, row, recompute) {
-  if (!recompute.ok || !row.org_ident || !row.user_ident) return [];
+  if (!recompute.ok || !row.org_ident || !row.user_ident) return { findings: [], compared: 0, scriptsRun: 0, engineMatchesScript: true };
   const values = recompute.result && recompute.result.values;
-  if (!values) return [];
+  if (!values) return { findings: [], compared: 0, scriptsRun: 0, engineMatchesScript: true };
 
-  // SUB___* (client-facing) params are only BUILT when the form thinks a group
-  // user is looking (form.js buildHtml), so they need one extra pass with
-  // isGroup — verified not to change the organization's own CENA/DOPLATA.
-  let subValues = null;
-  if (REFERENCE_PRICE_PARAMS.some((p) => p.startsWith('SUB___'))) {
-    const { version, lang, values: inputValues, orgIdent, userIdent } = engineRunner.decodePositionRow(row);
-    try {
-      const subCalc = await formEngine.calculatePrices({
-        groupNumber, version, lang, values: inputValues, singlePass: true, orgIdent, userIdent, isGroup: true
-      });
-      subValues = subCalc.values;
-    } catch (_err) {
-      subValues = null;
-    }
-  }
+  // One recompute serves every param: it already ran with isGroup, so SUB___*
+  // (client-facing) prices exist alongside the organization's own.
+  const subValues = values;
 
   const metaParams = (recompute.result.formMeta && recompute.result.formMeta.params) || [];
   const scriptsOf = (name) => {
@@ -120,6 +155,12 @@ async function runReferencePriceCase(groupNumber, row, recompute) {
   };
 
   const findings = [];
+  let compared = 0;
+  let scriptsRun = 0;
+  // Does the recompute agree with the script the portal serves? Everything
+  // that leans on the ENGINE's number (rather than the script's) is only
+  // meaningful while it does.
+  let engineMatchesScript = true;
   for (const paramName of REFERENCE_PRICE_PARAMS) {
     const source = paramName.startsWith('SUB___') ? subValues : values;
     if (!source) continue;
@@ -145,11 +186,48 @@ async function runReferencePriceCase(groupNumber, row, recompute) {
     // not a defect — don't repeat it for every position.
     if (reference.kind === 'no-sheet') continue;
 
+    compared += 1;
+
+    // Compare the price list against the DEPLOYED script rather than the
+    // headless engine wherever that script can be run: the engine settles its
+    // formula params after the pricing cascade, so for groups whose price sheet
+    // is indexed by such a param it prices off an unsettled axis (group 73 —
+    // five false P1s). The script is what the portal actually serves, so a
+    // workbook/script difference is the real "cennik nie trafił do
+    // konfiguratora" signal, and the engine's own disagreement with its script
+    // is a separate, MEDIUM, harness-level report.
+    const deployed = deployedScript.runDeployedScript({
+      groupNumber,
+      lang: recompute.lang,
+      orgIdent: row.org_ident,
+      userIdent: row.user_ident,
+      paramName,
+      scriptsField: scriptsOf(paramName),
+      values: source
+    });
+
+    if (deployed.ok) {
+      scriptsRun += 1;
+      const drift = assertions.checkEngineMatchesDeployedScript({
+        groupNumber, positionId: row.id, paramName, enginePrice, scriptPrice: deployed.value, scriptFile: deployed.file
+      });
+      if (drift.length) engineMatchesScript = false;
+      findings.push(...drift);
+    }
+
     findings.push(...assertions.checkAgainstReferencePrice({
-      groupNumber, positionId: row.id, paramName, enginePrice, reference
+      groupNumber,
+      positionId: row.id,
+      paramName,
+      actualPrice: deployed.ok ? deployed.value : enginePrice,
+      source: deployed.ok ? 'wdrożony skrypt' : 'silnik',
+      // The per-customer surcharge is not in the workbook, so the reference has
+      // to be scaled by whatever the script says it applied.
+      referenceFactor: deployed.ok ? deployed.factor : 1,
+      reference
     }));
   }
-  return findings;
+  return { findings, compared, scriptsRun, engineMatchesScript };
 }
 
 async function runBoundaryCases(groupNumber, positions) {
@@ -186,7 +264,7 @@ async function runBoundaryCases(groupNumber, positions) {
   return findings;
 }
 
-async function runCombinationAndRandomCases(groupNumber, positions, { count = 5, seed = Date.now() } = {}) {
+async function runCombinationAndRandomCases(groupNumber, positions, { count = 5, seed = Date.now(), currentVersion } = {}) {
   const rng = mulberry32(seed);
   const findings = [];
   const samples = shuffle(positions, rng).slice(0, count);
@@ -206,6 +284,11 @@ async function runCombinationAndRandomCases(groupNumber, positions, { count = 5,
     const mutatedRow = Object.assign({}, row, {
       json_parameters: JSON.stringify(Object.assign({}, values, { [fieldName]: alternative }))
     });
+
+    // Same version rule as the position pass: `checkPriceExists` compares
+    // against the price stored on the ORIGINAL position, which only means
+    // anything if that position was priced with the price list live now.
+    if (!currentVersion || String(row.ver) !== String(currentVersion)) continue;
 
     const recompute = await engineRunner.recomputeFromPositionRow(mutatedRow);
     // ONLY "does it still price at all". Deliberately NOT
@@ -310,81 +393,207 @@ async function runFreshVariantCases(groupNumber, version, lang, baseValues, { co
 }
 
 /**
+ * Self-generated configurations across the price list's whole dimension range,
+ * and past its edges (rangeSweep.js) — the brief's "mnóstwo pozycji w zakresie
+ * i poza zakresem cenników".
+ *
+ * Swept from several DIFFERENT base configurations rather than one, because the
+ * sheet is sectioned by model family and colour price group: sweeping one base
+ * would visit one section's table thoroughly and never touch the others. Bases
+ * are picked by distinct MODEL from the deduplicated positions, so each is a
+ * combination a real client has actually ordered and therefore prices at all.
+ *
+ * Only the axis values move per case, so no engine recompute is needed inside
+ * the sweep — one settled base costs ~2.5 s, each case after that ~0.1 s.
+ */
+async function runPriceListRangeSweep(groupNumber, positions) {
+  const maxBases = Number(process.env.CONFIGTEST_RANGE_BASES_PER_GROUP) || 3;
+  const maxCases = Number(process.env.CONFIGTEST_RANGE_CASES_PER_GROUP) || 400;
+  // groupProcess kills a group at 15 minutes and group 43 hit that ceiling
+  // mid-sweep, losing its entire report. Budget the sweep as a whole and split
+  // it across the tables it visits, so a slow group covers fewer cells instead
+  // of costing itself everything.
+  const groupBudgetMs = Number(process.env.CONFIGTEST_RANGE_GROUP_BUDGET_MS) || 4 * 60 * 1000;
+
+  const bases = [];
+  const seenModels = new Set();
+  for (const row of positions) {
+    if (bases.length >= maxBases) break;
+    if (!row.org_ident || !row.user_ident) continue;
+    const decoded = engineRunner.decodePositionRow(row);
+    const model = String(decoded.values.MODEL ?? '');
+    if (seenModels.has(model)) continue;
+    seenModels.add(model);
+    bases.push(row);
+  }
+
+  const findings = [];
+  let cases = 0;
+  let inRange = 0;
+  let outOfRange = 0;
+  let optionCases = 0;
+  let unpriceableOptions = 0;
+  let ranOutOfTime = false;
+  // The budget covers both sweeps per table: dimensions and options.
+  const perTableBudgetMs = Math.max(15000, Math.floor(groupBudgetMs / Math.max(1, bases.length * RANGE_SWEEP_PARAMS.length * 2)));
+
+  for (const row of bases) {
+    const settled = await engineRunner.recomputeFromPositionRow(row, { isGroup: true });
+    if (!settled.ok) continue;
+    const values = settled.result.values;
+    const metaParams = (settled.result.formMeta && settled.result.formMeta.params) || [];
+
+    for (const paramName of RANGE_SWEEP_PARAMS) {
+      if (values[paramName] === undefined) continue;
+      const meta = metaParams.find((p) => p.NAME === paramName);
+      const result = await runRangeSweep({
+        groupNumber,
+        lang: settled.lang,
+        orgIdent: row.org_ident,
+        userIdent: row.user_ident,
+        baseValues: values,
+        paramName,
+        scriptsField: meta ? meta.SCRIPTS : undefined,
+        maxCases,
+        budgetMs: perTableBudgetMs
+      });
+      findings.push(...result.findings);
+      cases += result.cases;
+      inRange += result.inRange;
+      outOfRange += result.outOfRange;
+      if (result.ranOutOfTime) ranOutOfTime = true;
+
+      // Same base, the other axis of the configuration space: the fabrics,
+      // colours and models the price sheet is sectioned by. History covers a
+      // handful of those; the configurator offers hundreds.
+      const optionResult = await runOptionSweep({
+        groupNumber,
+        lang: settled.lang,
+        orgIdent: row.org_ident,
+        userIdent: row.user_ident,
+        baseValues: values,
+        version: settled.version,
+        paramName,
+        scriptsField: meta ? meta.SCRIPTS : undefined,
+        maxCases,
+        budgetMs: perTableBudgetMs
+      });
+      findings.push(...optionResult.findings);
+      cases += optionResult.cases;
+      optionCases += optionResult.cases;
+      unpriceableOptions += optionResult.unpriceable.length;
+      if (optionResult.ranOutOfTime) ranOutOfTime = true;
+    }
+  }
+
+  return {
+    findings,
+    cases,
+    inRange,
+    outOfRange,
+    optionCases,
+    unpriceableOptions,
+    reason: cases
+      ? `Wygenerowano ${cases} własnych konfiguracji z ${bases.length} baz: ${inRange} w zakresie wymiarów cennika, ${outOfRange} poza zakresem, ${optionCases} po opcjach (tkaniny/kolory/modele)${unpriceableOptions ? `, z tego ${unpriceableOptions} bez ceny` : ''}`
+        + `${ranOutOfTime ? ` (przegląd przerwany budżetem czasu ${Math.round(perTableBudgetMs / 1000)} s na tabelę — odwiedzone komórki są rozłożone po całej tabeli)` : ''}.`
+      : 'Przegląd zakresu cennika nie dał się wykonać dla tej grupy (brak tabeli wymiarów w cenniku).'
+  };
+}
+
+/**
  * Run all 4 test kinds for one group.
  * @param {string} groupNumber
  * @param {object} [opts]
- * @param {number} [opts.seedPositions] how many recent positions to pull as seeds
+ * @param {number} [opts.seedPositions] how many recent positions to pull as
+ *   seeds; 0 (CONFIGTEST_POSITIONS_PER_GROUP=0) means EVERY saved position.
+ *   Budget roughly 2.5 s per position — the whole database is ~6 200 positions.
  * @param {number} [opts.randomCasesCount]
  * @param {number} [opts.seed] PRNG seed for the random/kombinacji sampling
  */
 async function runGroupSuite(groupNumber, opts = {}) {
-  const { seedPositions = 5, randomCasesCount = 5, seed } = opts;
-
-  const allPositions = await getRecentPositions(groupNumber, seedPositions);
+  const configured = process.env.CONFIGTEST_POSITIONS_PER_GROUP;
+  const {
+    seedPositions = configured === undefined || configured === '' ? 25 : Number(configured),
+    randomCasesCount = 5,
+    onlyNew = false,
+    seed
+  } = opts;
 
   const findings = [];
-  // Blocked-field detection has no cross-field-correlation problem (see
-  // runFreshBasicCase's doc comment) — runs unconditionally. The fresh
-  // config's PRICE is only trustworthy as a P1 signal when there is no real
-  // historical position to test against instead.
-  // Only positions priced with the CURRENTLY deployed price list can be judged
-  // against today's data — an older `ver` legitimately recomputes to a
-  // different number, or to 0 when its model/colour no longer exists. Filtering
-  // once here (rather than gating each check) is what finally stopped stale
-  // positions leaking in through the mutation pass.
+  // Nightly runs check what came in since last time; the mark only moves
+  // forward, so a position is never checked twice and never skipped (runState).
+  const sinceId = onlyNew ? getLastCheckedPositionId(groupNumber) : null;
+  const fetched = await getRecentPositions(groupNumber, seedPositions, { sinceId });
+  // Exact repeats cost a full engine recompute each and prove nothing new.
+  const { positions, duplicates } = dedupePositions(fetched);
+  const counted = await countGroupPositions(groupNumber).catch(() => null);
+
+  // The price-list sweep runs even when no new order arrived: the workbooks in
+  // /mnt/eformconf change on their own, and that is the failure the brief cares
+  // about most. It only needs SOME priceable configuration to start from, so
+  // fall back to the newest positions when there is nothing new to check.
+  const rangeBases = positions.length ? positions : dedupePositions(await getRecentPositions(groupNumber, 5)).positions;
+
   const currentVersion = await (async () => {
     const { getAppVersion } = require('../../db/positions');
     try { return await getAppVersion(groupNumber, process.env.NODE_ENV || 'dev'); } catch (_e) { return null; }
   })();
-  const positions = currentVersion
-    ? allPositions.filter((row) => String(row.ver) === String(currentVersion))
-    : allPositions;
-  const hasHistory = positions.length > 0;
 
-  const basicCase = await runFreshBasicCase(groupNumber, { checkPrice: !hasHistory && allPositions.length === 0 });
+  // Blocked-field detection needs no history at all; the from-scratch price
+  // check stays off unless the group has no positions to compare against
+  // (see runFreshBasicCase for why it is too noisy otherwise). It keys off
+  // whether the group has ANY history — not off whether anything is new — or
+  // an incremental run with no new orders would switch it on every night and
+  // report a P1 for a group that is perfectly fine.
+  const basicCase = await runFreshBasicCase(groupNumber, { checkPrice: rangeBases.length === 0 });
   findings.push(...basicCase.findings);
 
-  if (!hasHistory) {
-    if (allPositions.length > 0) {
-      // History exists but all of it predates the current price list: nothing
-      // comparable to check, and the from-scratch price check is too noisy to
-      // substitute for it (see runFreshBasicCase). Blocked-field detection above
-      // still ran.
-      return {
-        groupNumber,
-        skipped: false,
-        positionsChecked: 0,
-        reason: `Wszystkie ${allPositions.length} ostatnich pozycji pochodzi z innej wersji cennika niż aktualna (${currentVersion}) — porównania cen pominięte.`,
-        findings
-      };
-    }
-    if (!basicCase.walkerResult) {
-      return { groupNumber, skipped: findings.length === 0, reason: `Nie udało się ustalić wersji formularza dla grupy ${groupNumber}.`, findings };
-    }
-    // Only explore variants of a base configuration that is itself valid and
-    // priced — mutating an already-broken base (BRAK_CENY on the basic case)
-    // just reproduces the same root cause on every variant instead of
-    // surfacing anything new, inflating the report with uninformative repeats.
+  if (positions.length === 0) {
     if (basicCase.hasPrice) {
       findings.push(...await runFreshVariantCases(
         groupNumber, basicCase.version, basicCase.lang, basicCase.walkerResult.values,
         { count: randomCasesCount, seed }
       ));
     }
+    const rangeOnly = await runPriceListRangeSweep(groupNumber, rangeBases);
+    findings.push(...rangeOnly.findings);
     return {
       groupNumber,
       skipped: false,
       positionsChecked: 0,
-      reason: 'Brak zapisanych pozycji dla tej grupy — test podstawowy/kombinacji oparty wyłącznie o formWalker.js "od zera" (Faza 2), bez porównania z historią.',
+      stats: { rangeCases: rangeOnly.cases, rangeInRange: rangeOnly.inRange, rangeOutOfRange: rangeOnly.outOfRange, rangeOptionCases: rangeOnly.optionCases },
+      reason: `${sinceId ? `Brak nowych pozycji od #${sinceId}` : 'Brak zapisanych pozycji'} — sprawdzono konfigurację zbudowaną od zera. ${rangeOnly.reason}`,
       findings
     };
   }
 
-  findings.push(...await runBasicAndCartCases(groupNumber, [positions[0]]));
-  findings.push(...await runBoundaryCases(groupNumber, [positions[0]]));
-  findings.push(...await runCombinationAndRandomCases(groupNumber, positions, { count: randomCasesCount, seed }));
+  const sweep = await runPositionChecks(groupNumber, positions, { currentVersion });
+  findings.push(...sweep.findings);
 
-  return { groupNumber, skipped: false, positionsChecked: positions.length, findings };
+  findings.push(...await runBoundaryCases(groupNumber, [positions[0]]));
+  findings.push(...await runCombinationAndRandomCases(groupNumber, positions, { count: randomCasesCount, seed, currentVersion }));
+
+  const range = await runPriceListRangeSweep(groupNumber, rangeBases);
+  findings.push(...range.findings);
+
+  // Only after the position checks actually ran: marking positions as done on
+  // a failed or interrupted pass would hide them from every future run.
+  if (fetched.length) setLastCheckedPositionId(groupNumber, Math.max(...fetched.map((r) => Number(r.id) || 0)));
+
+  const s = sweep.stats;
+  s.rangeCases = range.cases;
+  s.rangeInRange = range.inRange;
+  s.rangeOutOfRange = range.outOfRange;
+  s.rangeOptionCases = range.optionCases;
+  return {
+    groupNumber,
+    skipped: false,
+    positionsChecked: s.checked,
+    positionsTotal: fetched.length,
+    stats: Object.assign({ duplicates }, s, counted ? { positionsInDb: counted.total, positionsReachable: counted.reachable } : {}),
+    reason: `Sprawdzono ${s.checked} z ${fetched.length} pozycji${duplicates ? ` (${duplicates} pominięto jako identyczne konfiguracje)` : ''}${counted && counted.total > counted.reachable ? `; grupa ma ${counted.total} pozycji, z czego ${counted.total - counted.reachable} bez powiązanego zamówienia lub klienta — dla nich nie da się ustalić wariantu cennika` : ''}: ${s.comparedToPriceList} porównań z cennikiem źródłowym, ${s.comparedToStored} z ceną zapisaną (wersja aktualna ${currentVersion || '—'}), ${s.cartChecked} kontroli powtarzalności, ${s.scriptsRun} porównań z wdrożonym skryptem cenowym. ${range.reason}`,
+    findings
+  };
 }
 
 module.exports = { runGroupSuite };

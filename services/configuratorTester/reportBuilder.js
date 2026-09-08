@@ -23,6 +23,8 @@ function buildRunReport(groupResults, { startedAt, finishedAt } = {}) {
         return acc;
       }, {}),
       positionsChecked: gr.positionsChecked,
+      positionsTotal: gr.positionsTotal,
+      stats: gr.stats,
       reason: gr.reason
     });
     if (gr.skipped) {
@@ -32,14 +34,46 @@ function buildRunReport(groupResults, { startedAt, finishedAt } = {}) {
     findings.push(...(gr.findings || []));
   }
 
+  // The same defect surfaced twice per position (once for CENA, once for
+  // SUB___CENA, with identical numbers), doubling every count in the e-mail.
+  const seen = new Set();
+  const deduped = [];
+  for (const f of findings) {
+    const key = [f.code, f.priority, f.groupNumber, f.positionId, f.expected, f.actual].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(f);
+  }
+  findings.length = 0;
+  findings.push(...deduped);
+
   const byPriority = { P1: 0, HIGH: 0, MEDIUM: 0 };
   for (const f of findings) {
     byPriority[f.priority] = (byPriority[f.priority] || 0) + 1;
   }
 
+  const totals = groups.reduce((acc, g) => {
+    const st = g.stats || {};
+    acc.positionsChecked += g.positionsChecked || 0;
+    acc.positionsTotal += g.positionsTotal || 0;
+    acc.comparedToPriceList += st.comparedToPriceList || 0;
+    acc.comparedToStored += st.comparedToStored || 0;
+    acc.cartChecked += st.cartChecked || 0;
+    acc.scriptsRun += st.scriptsRun || 0;
+    acc.duplicates += st.duplicates || 0;
+    acc.rangeCases += st.rangeCases || 0;
+    acc.rangeInRange += st.rangeInRange || 0;
+    acc.rangeOutOfRange += st.rangeOutOfRange || 0;
+    acc.rangeOptionCases += st.rangeOptionCases || 0;
+    acc.positionsInDb += st.positionsInDb || 0;
+    acc.failed += st.failed || 0;
+    return acc;
+  }, { positionsChecked: 0, positionsTotal: 0, comparedToPriceList: 0, comparedToStored: 0, cartChecked: 0, scriptsRun: 0, duplicates: 0, positionsInDb: 0, rangeCases: 0, rangeInRange: 0, rangeOutOfRange: 0, rangeOptionCases: 0, failed: 0 });
+
   return {
     startedAt: startedAt || new Date().toISOString(),
     finishedAt: finishedAt || new Date().toISOString(),
+    totals,
     groupsChecked: groupResults.length - skippedGroups.length,
     groupsSkipped: skippedGroups,
     groups,

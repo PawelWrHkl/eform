@@ -211,15 +211,26 @@ function parseSections(sheet) {
     // data range covers every row of the section; we just harvest the two
     // applicability formulas out of column B along the way.
     const conditions = [];
+    // Each section declares its OWN axes in the `Os-x`/`Os-y` rows, and they do
+    // not always mean width and height: group 73's PG sections use
+    // `SZEROKOSC_POTRZEBNA/10` (required width) on the X axis. Hardcoding
+    // SZEROKOSC/WYSOKOSC read the wrong cell and produced 32 bogus
+    // "cena zaniżona" P1s, while the engine was right all along.
+    let axisX = null;
+    let axisY = null;
     for (let r = row + 1; r < nextRow; r++) {
       const metaLabel = cellText(sheet.getRow(r).getCell(1));
-      if (!metaLabel || !metaLabel.trim().toLowerCase().startsWith('kiedy')) continue;
+      if (!metaLabel) continue;
+      const normalized = metaLabel.trim().toLowerCase();
       const formulaCell = sheet.getRow(r).getCell(2);
       const formula = formulaCell.formula || (formulaCell.value && formulaCell.value.formula);
-      if (formula) conditions.push(formula);
+      if (!formula) continue;
+      if (normalized.startsWith('kiedy')) conditions.push(formula);
+      else if (normalized === 'os-x') axisX = formula;
+      else if (normalized === 'os-y') axisY = formula;
     }
 
-    sections.push({ label, headerRow: row, conditions, dataStartRow: row + 1, dataEndRow: nextRow - 1 });
+    sections.push({ label, headerRow: row, conditions, axisX, axisY, dataStartRow: row + 1, dataEndRow: nextRow - 1 });
   }
 
   return sections;

@@ -66,6 +66,35 @@ function resolveCell(sheet, row, col, evaluateNumber) {
   return { value: evaluated, formula };
 }
 
+/**
+ * Coordinates for ONE section, from the axis formulas it declares itself
+ * (`Os-x`/`Os-y`). They are usually SZEROKOSC/10 and WYSOKOSC/10, but not
+ * always — group 73 indexes by `SZEROKOSC_POTRZEBNA/10`, and reading width
+ * instead landed on a completely different cell.
+ *
+ * A declared axis formula that will not evaluate to a number returns `null`,
+ * NOT the plain dimension. Falling back used to look harmless and was the
+ * single worst source of false alarms this tester produced: group 73's
+ * `SZEROKOSC_POTRZEBNA` is undefined for MODEL=FLEX in a headless recompute, so
+ * the fallback priced position #6376 at width 200 cm (80.78) while the deployed
+ * script priced the same values at its own coordinate (42.34) — reported as 14
+ * P1 "CENA_ZANIZONA". In the real browser that position settles the axis at
+ * 4120 and workbook, script and screen all agree on 166.61. Not knowing the
+ * coordinate has to mean "no reference", never "use a different one".
+ */
+function sectionAxes(section, widthCm, heightCm, evaluateNumber) {
+  const evaluate = (formula, fallback) => {
+    if (!formula) return fallback;
+    if (typeof evaluateNumber !== 'function') return null;
+    const value = evaluateNumber(formula);
+    return Number.isFinite(value) ? value : null;
+  };
+  return {
+    x: evaluate(section.axisX, widthCm),
+    y: evaluate(section.axisY, heightCm)
+  };
+}
+
 function sectionValue(sheet, block, section, widthCm, heightCm, evaluateNumber) {
   // Shape is decided PER SECTION, PER BLOCK by excelParser.classifySection() —
   // one sheet mixes flat surcharges, width-only tables and full width×height
@@ -82,10 +111,18 @@ function sectionValue(sheet, block, section, widthCm, heightCm, evaluateNumber) 
     return { value: cell.value, widthBound: null, heightBound: null, formula: cell.formula };
   }
 
-  const widthEntry = ceilingBucket(shape.widths, widthCm, (w) => w.widthCm);
+  const axes = sectionAxes(section, widthCm, heightCm, evaluateNumber);
+  if (axes.x === null) {
+    return { value: null, reason: `nie da się ustalić osi X sekcji ${section.label} (formuła ${section.axisX}) dla tej konfiguracji` };
+  }
+  if (shape.kind === 'grid2d' && axes.y === null) {
+    return { value: null, reason: `nie da się ustalić osi Y sekcji ${section.label} (formuła ${section.axisY}) dla tej konfiguracji` };
+  }
+
+  const widthEntry = ceilingBucket(shape.widths, axes.x, (w) => w.widthCm);
   if (!widthEntry) {
     const max = shape.widths[shape.widths.length - 1].widthCm;
-    return { value: null, reason: `szerokość ${widthCm}cm powyżej zakresu tabeli (max ${max}cm, sekcja ${section.label})` };
+    return { value: null, reason: `wartość osi X ${axes.x} powyżej zakresu tabeli (max ${max}, sekcja ${section.label})` };
   }
 
   let row;
@@ -95,10 +132,10 @@ function sectionValue(sheet, block, section, widthCm, heightCm, evaluateNumber) 
     row = shape.dataRow;
     if (!row) return { value: null, reason: `sekcja ${section.label} nie ma wiersza danych w bloku ${block.letter}` };
   } else {
-    const heightEntry = ceilingBucket(shape.heightRows, heightCm, (h) => h.heightCm);
+    const heightEntry = ceilingBucket(shape.heightRows, axes.y, (h) => h.heightCm);
     if (!heightEntry) {
       const max = shape.heightRows.length ? shape.heightRows[shape.heightRows.length - 1].heightCm : null;
-      return { value: null, reason: `wysokość ${heightCm}cm powyżej zakresu tabeli (max ${max}cm, sekcja ${section.label})` };
+      return { value: null, reason: `wartość osi Y ${axes.y} powyżej zakresu tabeli (max ${max}, sekcja ${section.label})` };
     }
     row = heightEntry.row;
     heightBound = heightEntry.heightCm;
@@ -161,8 +198,14 @@ function computePrice({ sheet, letter, multiplier = 1, widthMm, heightMm, evalua
   }
 
   if (contributions.length === 0) {
+    // "We could not work out WHERE to look" is a different statement from "the
+    // price list has nothing here", and only the latter says anything about the
+    // configurator. Keep them apart so the assertion layer can refuse to make
+    // a price claim on the first (see sectionAxes).
+    const axisUnknown = gaps.length > 0 && gaps.every((g) => /nie da się ustalić osi/.test(g.reason || ''));
     return {
       found: false,
+      ...(axisUnknown ? { kind: 'unknown-axis' } : {}),
       reason: gaps.length
         ? `pasujące sekcje nie mają danych dla tych wymiarów: ${gaps.map((g) => g.reason).join('; ')}`
         : 'żadna sekcja cennika nie pasuje do tej konfiguracji'
@@ -190,4 +233,4 @@ function computePrice({ sheet, letter, multiplier = 1, widthMm, heightMm, evalua
   };
 }
 
-module.exports = { computePrice, ceilingBucket, sectionValue };
+module.exports = { computePrice, ceilingBucket, sectionValue, sectionAxes };

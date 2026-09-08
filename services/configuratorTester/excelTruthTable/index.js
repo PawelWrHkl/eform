@@ -21,6 +21,13 @@ const { parsePriceSheet } = require('./excelParser');
 const { resolvePriceVariant, constantFromVariant, parseVariantToken } = require('./priceVariant');
 const { computePrice } = require('./truthTableLookup');
 
+// Excel/DSL function names and literals that look like param names but are not.
+const FORMULA_KEYWORDS = new Set([
+  'AND', 'OR', 'NOT', 'IF', 'IFS', 'WSROD', 'ZAWIERA', 'HASLO', 'USTAW', 'ROUND',
+  'ROUNDUP', 'ROUNDDOWN', 'MIN', 'MAX', 'SUM', 'ABS', 'INT', 'TRUE', 'FALSE',
+  'NULL', 'LEFT', 'RIGHT', 'MID', 'LEN', 'TEXT', 'VALUE', 'CONCATENATE'
+]);
+
 /**
  * The workbook's formulas use the authoring dialect (`KOLOR_ALIAS_OPIS`,
  * `..._TYTUL`) while the engine's values use `___DESCRIPTION`/`___TITLE`. The
@@ -86,6 +93,37 @@ function disposeEvaluator() {
   evaluatorLang = null;
 }
 
+// Variables the formula handler and the parser set up themselves, and which a
+// context must therefore never blank out.
+const RESERVED_IDENTIFIERS = new Set(['TRUE', 'FALSE', 'NULL', 'MIN', 'MAX', 'MIN2', 'MAX2', 'DOM', 'UID']);
+
+/**
+ * Neutralise variables left over from a previous evaluation.
+ *
+ * `public/scripts/formula.js` evaluates against a MODULE-LEVEL parser and only
+ * ever calls `parser.setVariable()` for the keys of the context it is given —
+ * it never clears the rest. With one long-lived evaluator realm (getEvaluator)
+ * that makes values leak between positions: group 73's #6376 has no
+ * `SZEROKOSC_POTRZEBNA` at all, so its `Os-x` formula `SZEROKOSC_POTRZEBNA/10`
+ * resolved against a value left behind by an earlier position, priced the
+ * workbook at a coordinate the deployed script never used, and produced five
+ * P1 "CENA_ZANIZONA" that vanish when the same position is checked on its own.
+ *
+ * The fix uses nothing but the public function: every identifier the formula
+ * mentions is added to the context, `undefined` when we genuinely do not have
+ * it. `setVariable(key, undefined)` makes the parser report `#NAME?`, which
+ * `sectionAxes` already treats as "coordinate unknown" — the honest answer.
+ */
+function withDeclaredIdentifiers(context, formula) {
+  const declared = context;
+  for (const match of String(formula || '').matchAll(/\b([A-Z][A-Z0-9_]{1,})\b/g)) {
+    const name = match[1];
+    if (FORMULA_KEYWORDS.has(name) || RESERVED_IDENTIFIERS.has(name)) continue;
+    if (!(name in declared)) declared[name] = undefined;
+  }
+  return declared;
+}
+
 /**
  * Reference price for one configuration.
  *
@@ -140,7 +178,9 @@ async function getReferencePrice({ groupNumber, lang = 'pl', orgIdent, userIdent
   const context = withAuthoringDialect(values);
   const evaluateCondition = (formula) => {
     try {
-      const result = env.window.FormulaHandler.evaluateFormula(formula, context, 'formula');
+      const result = env.window.FormulaHandler.evaluateFormula(
+        formula, withDeclaredIdentifiers(context, formula), 'formula'
+      );
       return result === true || result === 1 || result === '1';
     } catch (_err) {
       return false;
@@ -155,7 +195,9 @@ async function getReferencePrice({ groupNumber, lang = 'pl', orgIdent, userIdent
   // hiding here.
   const evaluateNumber = (formula) => {
     try {
-      const result = env.window.FormulaHandler.evaluateFormula(formula, context, 'formula');
+      const result = env.window.FormulaHandler.evaluateFormula(
+        formula, withDeclaredIdentifiers(context, formula), 'formula'
+      );
       return parseFloat(result);
     } catch (_err) {
       return NaN;
@@ -171,7 +213,126 @@ async function getReferencePrice({ groupNumber, lang = 'pl', orgIdent, userIdent
     evaluateCondition,
     evaluateNumber
   });
+  // computePrice's own kind (e.g. 'unknown-axis') wins — Object.assign order
+  // matters here, it must not be flattened into a plain 'no-match'.
   return computed.found ? computed : Object.assign({ kind: 'no-match' }, computed);
 }
 
-module.exports = { getReferencePrice, withAuthoringDialect, disposeEvaluator, clearSheetCache };
+/**
+ * The dimension grid the price list itself defines for ONE configuration —
+ * i.e. which widths and heights it actually has prices for.
+ *
+ * This is the independent MIN/MAX source the boundary tests always lacked.
+ * `window.inputsValidators` was the original plan, but it was verified empty
+ * for SZEROKOSC/WYSOKOSC even after three cascades, so the engine cannot be
+ * asked what the legal range is. The workbook can: the section's width scale
+ * and height axis ARE the range, per model family and colour price group.
+ *
+ * Union across every section that applies, because a configuration legitimately
+ * sums several (a two-fabric product matches its section twice) and a price
+ * exists wherever any of them covers the point.
+ *
+ * @returns {Promise<{ok:true, widthsCm:number[], heightsCm:number[], letter:string, sections:string[]}
+ *   |{ok:false, reason:string, kind?:string}>}
+ */
+async function getDimensionGrid({ groupNumber, lang = 'pl', orgIdent, userIdent, paramName = 'CENA', values, scriptsField }) {
+  const variant = parseVariantToken(scriptsField)
+    || resolvePriceVariant({ groupNumber, lang, orgIdent, userIdent, paramName });
+  if (!variant) {
+    return { ok: false, kind: 'no-variant', reason: `brak wariantu cennika (${paramName}) dla klienta ${orgIdent}/${userIdent}` };
+  }
+  if (constantFromVariant(variant) !== null) {
+    return { ok: false, kind: 'constant', reason: `${paramName} to stała z nazwy skryptu, nie tabela wymiarów` };
+  }
+
+  const sheet = await getSheet(groupNumber, paramName.replace(/^SUB___/, ''));
+  if (!sheet.ok) return { ok: false, kind: 'no-sheet', reason: sheet.reason };
+
+  const block = sheet.blocks.find((b) => b.letter === variant.letter);
+  if (!block) return { ok: false, kind: 'no-block', reason: `arkusz nie ma bloku ${variant.letter}` };
+
+  const env = await getEvaluator(lang);
+  const context = withAuthoringDialect(values);
+  const matches = (formula) => {
+    try {
+      const result = env.window.FormulaHandler.evaluateFormula(
+        formula, withDeclaredIdentifiers(context, formula), 'formula'
+      );
+      return result === true || result === 1 || result === '1';
+    } catch (_err) {
+      return false;
+    }
+  };
+
+  const widths = new Set();
+  const heights = new Set();
+  const sections = [];
+  const axisVars = { x: new Set(), y: new Set() };
+  // Which params the section gates actually read. Sweeping any other field
+  // cannot change which cell is looked up, so this is what makes an option
+  // sweep targeted instead of a guess (`WSROD(MODEL,…)`,
+  // `ZAWIERA(KOLOR_OPIS,"#2")` → MODEL, KOLOR).
+  const conditionParams = new Set();
+  const collectParams = (formula) => {
+    for (const match of String(formula || '').matchAll(/\b([A-Z][A-Z0-9_]{2,})\b/g)) {
+      const name = match[1];
+      if (FORMULA_KEYWORDS.has(name)) continue;
+      // The gates read the description mirrors; the field itself is what a
+      // sweep can set, so map them back.
+      conditionParams.add(name.replace(/(_ALIAS)?(_OPIS|___DESCRIPTION|_TYTUL|___TITLE)$/, ''));
+    }
+  };
+
+  for (const section of sheet.sections) {
+    if (!section.conditions.length) continue;
+    if (!section.conditions.some(matches)) continue;
+    for (const condition of section.conditions) collectParams(condition);
+
+    const shape = (section.shapeByBlock && section.shapeByBlock[variant.letter]) || null;
+    // A scalar section has no dimension grid to contribute — it is a flat
+    // surcharge, priced the same at every size.
+    if (!shape || shape.kind === 'scalar') continue;
+
+    sections.push(section.label);
+    for (const w of shape.widths || []) widths.add(w.widthCm);
+    for (const h of shape.heightRows || []) heights.add(h.heightCm);
+
+    // Which VALUE moves the lookup along each axis. Usually SZEROKOSC/WYSOKOSC,
+    // but not always: group 73's CENA sheet is indexed by
+    // `SZEROKOSC_POTRZEBNA/10`, so changing SZEROKOSC alone leaves the lookup
+    // on the same cell. A caller sweeping the table has to know which param to
+    // move.
+    const axisVar = (formula) => {
+      const m = /^\s*([A-Z0-9_]+)\s*\/\s*10\s*$/.exec(String(formula || ''));
+      return m ? m[1] : null;
+    };
+    const xVar = axisVar(section.axisX);
+    const yVar = axisVar(section.axisY);
+    if (xVar) axisVars.x.add(xVar);
+    if (yVar) axisVars.y.add(yVar);
+  }
+
+  if (!widths.size) {
+    return { ok: false, kind: 'no-grid', reason: 'żadna pasująca sekcja cennika nie ma tabeli wymiarów dla tej konfiguracji' };
+  }
+
+  const asc = (a, b) => a - b;
+  return {
+    ok: true,
+    letter: variant.letter,
+    sections,
+    widthsCm: [...widths].sort(asc),
+    // grid1d sections price by width alone; then there is no height grid and
+    // the caller must not invent one.
+    heightsCm: [...heights].sort(asc),
+    // Only when every matching section agrees on the axis variable — a mixed
+    // answer would mean one value cannot move all of them and the caller must
+    // not pretend otherwise. Defaults to the plain dimension.
+    widthParam: axisVars.x.size === 1 ? [...axisVars.x][0] : 'SZEROKOSC',
+    heightParam: axisVars.y.size === 1 ? [...axisVars.y][0] : 'WYSOKOSC',
+    axisAmbiguous: axisVars.x.size > 1 || axisVars.y.size > 1,
+    conditionParams: [...conditionParams]
+  };
+}
+
+module.exports = { getReferencePrice, getDimensionGrid, withAuthoringDialect, withDeclaredIdentifiers, getEvaluator, disposeEvaluator, clearSheetCache };

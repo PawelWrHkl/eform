@@ -1,27 +1,5 @@
 'use strict';
 
-/**
- * Moduł fakturowania — publiczne API (fasada).
- *
- * Warstwy (Clean Architecture, zależności zawsze do środka):
- *
- *   http/routes.js          ← kontroler HTTP, zna req/res, nic nie liczy
- *        ↓
- *   main.js (InvoiceService) ← przypadki użycia, orkiestracja
- *        ↓
- *   core/*                   ← czysta logika: money, taxRules, calculator,
- *                              numbering, statuses, orderMapper, currency
- *        ↓
- *   db/repository.js         ← jedyne miejsce z SQL-em
- *   render/renderer.js       ← Nunjucks → HTML → PDF
- *
- * Wszystkie zależności zewnętrzne (baza, kursy walut, czas, log) wchodzą przez
- * konstruktor — dzięki temu testy jednostkowe w `__tests__/` nie potrzebują
- * bazy, sieci ani przeglądarki.
- *
- * @typedef {import('./domain/types').Invoice} Invoice
- * @typedef {import('./domain/types').Party} Party
- */
 
 const { DocumentType, InvoiceStatus, TaxCategory, Unit, PaymentMethod, LEGAL_NOTE_KEYS } = require('./domain/constants');
 const money = require('./core/money');
@@ -257,18 +235,13 @@ class InvoiceService {
     });
     this.log(`[invoices] order ${orderId}: cennik ${priceBasis.basis} — ${priceBasis.reason}`);
 
-    // WARSTWA DETALICZNA (poziom 3): wartość widoczna dla odbiorcy końcowego.
-    // ⚠️ Liczona TĄ SAMĄ drogą co podgląd zamówienia (`db.getTotal().visible`
-    // i `subPrices.calcSubTotals().subVisible`), żeby faktura zgadzała się co
-    // do grosza z kwotą, którą klient widział przy zamawianiu. Dla organizacji
-    // HKL jest to `unit_price`, dla pozostałych widoczna wartość `SUB___`.
+
     let retailValueByItemId = null;
     if (priceBasis.useRetailPrices) {
       const isHkl = Number(source.order.organization_id) === Number(HKL_ORG_ID);
       retailValueByItemId = new Map(source.orderItems.map((it) => {
         const visible = isHkl ? Number(it.unit_price) : Number(calcSubTotals([it]).subVisible);
-        // Bez wartości detalicznej zostaje zachowanie sprzed zmiany (cena zakupu),
-        // bo dokument bez kwoty jest gorszy niż dokument po cenie kosztowej.
+
         return [it.id, Number.isFinite(visible) && visible > 0 ? visible : 0];
       }));
     }
@@ -282,10 +255,7 @@ class InvoiceService {
       retailValueByItemId
     });
 
-    // CZĘŚCIOWE FAKTUROWANIE: gdy podano `allocations`, fakturujemy tylko
-    // wskazane partie ilości. Kwota partii to proporcja WARTOŚCI pozycji
-    // (cenniki są progowe — patrz `core/allocations.js`), a reszta groszowa
-    // trafia do ostatniej partii, żeby suma faktur zgadzała się z zamówieniem.
+
     let requestedAllocations = null;
     if (Array.isArray(params.allocations) && params.allocations.length) {
       const orderItemsById = new Map(source.orderItems.map((it) => [Number(it.id), it]));

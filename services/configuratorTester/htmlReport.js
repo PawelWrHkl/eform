@@ -54,7 +54,7 @@ function groupRows(groups) {
       <tr>
         <td>${esc(g.groupNumber)}</td>
         <td>${status}</td>
-        <td>${g.positionsChecked != null ? esc(g.positionsChecked) : '—'}</td>
+        <td>${g.positionsChecked != null ? esc(g.positionsChecked) + (g.positionsTotal ? ' / ' + esc(g.positionsTotal) : '') : '—'}</td>
         <td style="font-size:13px;color:#666;">${esc(g.reason || '')}</td>
       </tr>`;
   }).join('');
@@ -62,6 +62,14 @@ function groupRows(groups) {
 
 function buildHtml(report) {
   const { totalFindings, byPriority = {}, groupsChecked, findings = [], groups = [] } = report;
+  const t = report.totals || {};
+  const generated = t.rangeCases
+    ? `<p>Konfiguracje wygenerowane przez tester: <strong>${t.rangeCases}</strong> — ${t.rangeInRange} w zakresie wymiarów cenników, ${t.rangeOutOfRange} poza zakresem, ${t.rangeOptionCases || 0} po opcjach (tkaniny, kolory, modele).</p>`
+    : '';
+  const coverage = t.positionsChecked
+    ? `<p>Zakres sprawdzenia: <strong>${t.positionsChecked}</strong> pozycji z ${t.positionsTotal}${t.positionsInDb ? ` (baza ma ${t.positionsInDb} pozycji w tych grupach)` : ''}${t.duplicates ? `, ${t.duplicates} pominiętych jako identyczne konfiguracje` : ''}, <strong>${t.comparedToPriceList}</strong> porównań z cennikiem źródłowym, ${t.scriptsRun || 0} z wdrożonym skryptem cenowym, ${t.comparedToStored} z ceną zapisaną, ${t.cartChecked} kontroli powtarzalności${t.failed ? `, ${t.failed} nie dało się przeliczyć` : ''}.</p>`
+    : '';
+
   const headline = totalFindings === 0
     ? `<p style="color:#1a7a1a;font-size:17px;font-weight:bold;">✅ Brak zgłoszeń — sprawdzono ${groupsChecked} grup.</p>`
     : `<p style="color:#c0392b;font-size:17px;font-weight:bold;">❌ ${totalFindings} zgłoszeń — P1: ${byPriority.P1 || 0}, HIGH: ${byPriority.HIGH || 0}, MEDIUM: ${byPriority.MEDIUM || 0} (na ${groupsChecked} grup).</p>`;
@@ -87,10 +95,16 @@ function buildHtml(report) {
   <h1>Raport automatycznego testera konfiguratora Efora</h1>
   <p class="meta">Start: ${esc(report.startedAt)} &nbsp;|&nbsp; Koniec: ${esc(report.finishedAt)}</p>
   ${headline}
+  ${coverage}
+  ${generated}
   <div class="note">
     Ceny porównywane są z niezależnym cennikiem źródłowym z <code>/mnt/eformconf</code> (arkusz per grupa,
-    wariant cennika wg klienta z <code>prod.txt</code>). <strong>BRAK_DANYCH_REFERENCYJNYCH</strong> oznacza, że dla danej
+    wariant cennika wg klienta z <code>prod.txt</code>) — po stronie portalu brany jest wynik
+    <strong>wdrożonego skryptu</strong> <code>param-&lt;PARAMETR&gt;-&lt;wariant&gt;.js</code>, czyli tego, co serwuje
+    aplikacja. <strong>BRAK_DANYCH_REFERENCYJNYCH</strong> oznacza, że dla danej
     konfiguracji nie dało się ustalić ceny wzorcowej — to nie błąd wyceny.
+    <strong>PRZELICZENIE_NIEZGODNE_ZE_SKRYPTEM</strong> dotyczy samego testera (bezgłowe przeliczenie rozjechało się
+    z wdrożonym skryptem), nie ceny widzianej przez klienta.
     <strong>WALIDACJA_WYMIARU_DO_SPRAWDZENIA</strong> i <strong>CENA_POCHODNA_DO_SPRAWDZENIA</strong> to sygnały orientacyjne
     wymagające ręcznego potwierdzenia.
   </div>

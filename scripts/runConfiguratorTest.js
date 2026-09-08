@@ -6,6 +6,7 @@
  *   node scripts/runConfiguratorTest.js                 # wszystkie aktywne grupy
  *   node scripts/runConfiguratorTest.js 43 04            # tylko wskazane grupy
  *   node scripts/runConfiguratorTest.js --browser        # dodatkowo test UI w przeglądarce
+ *   node scripts/runConfiguratorTest.js --nowe           # tylko pozycje nowsze niż ostatni przebieg
  *
  * Logs: configtest/configtest.log
  * Reports: <ROOT_DIR>/configtest-output/<data>/run-<znacznik>.json
@@ -17,12 +18,13 @@ const { runFullSuite, runQuickSuite } = require('../services/configuratorTester'
 const args = process.argv.slice(2);
 const groupNumbers = args.filter((a) => !a.startsWith('--'));
 const browser = args.includes('--browser');
+const onlyNew = args.includes('--nowe') || args.includes('--only-new');
 
 (async () => {
   try {
     const { report, reportFilePath, htmlReportPath } = groupNumbers.length
-      ? await runQuickSuite(groupNumbers, { browser })
-      : await runFullSuite({ browser });
+      ? await runQuickSuite(groupNumbers, { browser, onlyNew })
+      : await runFullSuite({ browser, onlyNew });
 
     console.log(`Sprawdzono grup: ${report.groupsChecked}, pominięto: ${report.groupsSkipped.length}`);
     console.log(`Znaleziono błędów: ${report.totalFindings} (P1: ${report.byPriority.P1 || 0})`);

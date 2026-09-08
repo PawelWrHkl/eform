@@ -6,3 +6,6 @@ git-instrukcje.txt
 git_auto_commit.sh
 .dockerignore
 Dockerfile
+# Znacznik postepu nocnego testera - stan runtime tej maszyny.
+# Skopiowany gdzie indziej kazalby pominac pozycje, ktorych tam nie sprawdzono.
+configtest/state.json

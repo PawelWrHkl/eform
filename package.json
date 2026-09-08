@@ -13,8 +13,11 @@
 		"import:restart": "sudo systemctl restart eform-import.service",
 		"import:status": "systemctl status eform-import.service --no-pager",
 		"import:logs": "journalctl -u eform-import.service -n 50 --no-pager -f",
-		"configtest:run": "node --max-old-space-size=4096 scripts/runConfiguratorTest.js",
-		"configtest:daemon": "node --max-old-space-size=4096 scripts/configuratorTesterDaemon.js"
+		"configtest:run": "node --max-old-space-size=2048 scripts/runConfiguratorTest.js",
+		"configtest:daemon": "node --max-old-space-size=2048 scripts/configuratorTesterDaemon.js",
+		"configtest:stop": "test -f configtest/configtest.pid && kill -TERM $(cat configtest/configtest.pid) && echo zatrzymany || echo 'demon nie chodzi'",
+		"configtest:status": "test -f configtest/configtest.pid && ps -p $(cat configtest/configtest.pid) -o pid,etime,rss,cmd --no-headers || echo 'demon nie chodzi'",
+		"configtest:logs": "tail -n 50 -f configtest/configtest.log"
 	},
 	"keywords": [],
 	"author": "Pawel Woroniecki",

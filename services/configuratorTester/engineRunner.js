@@ -42,13 +42,23 @@ function decodePositionRow(row) {
  * from the PDF brief, using a real historical, human-confirmed configuration
  * as its own reference point instead of an external truth table (Faza 2).
  */
-async function recomputeFromPositionRow(row) {
+async function recomputeFromPositionRow(row, { isGroup = false, withDisplayValues = true } = {}) {
   const { groupNumber, version, lang, values, displayValues, orgIdent, userIdent } = decodePositionRow(row);
   if (!groupNumber || !version) {
     return { ok: false, error: `pozycja #${row.id}: brak groupNumber/version do przeliczenia`, positionId: row.id, groupNumber };
   }
 
-  const result = await formEngine.calculatePrices({ groupNumber, version, lang, values, displayValues, singlePass: true, orgIdent, userIdent });
+  // `isGroup` makes the form build SUB___* (client-facing) params too, so one
+  // pass can serve every price param — verified not to change the
+  // organization's own CENA/DOPLATA.
+  const result = await formEngine.calculatePrices({
+    groupNumber, version, lang, values,
+    // Seeding the saved display values changes the outcome for some groups, so
+    // the caller decides. (The price comparison no longer depends on this: it
+    // reads the deployed script instead — see deployedScript.js.)
+    displayValues: withDisplayValues ? displayValues : null,
+    singlePass: true, orgIdent, userIdent, isGroup
+  });
 
   return {
     ok: true,
@@ -158,6 +168,54 @@ async function checkBoundaryAcceptance({ groupNumber, version, lang, baseValues,
  * test cases by swapping ONE field for a different legal value rather than
  * inventing values from nothing.
  */
+/**
+ * Full option entries for several fields at once, from ONE form build.
+ *
+ * `{ VALUE, DESCRIPTION, ENABLE, PROC, ATTRIBUTES }` — the shape
+ * `window.allOptionsByParameter` holds. The DESCRIPTION is the part that
+ * matters for pricing and is the reason this exists alongside
+ * getAvailableOptionValues(): every price-list section gates on the
+ * description, not the value (`ZAWIERA(KOLOR___DESCRIPTION,"#2")`), and for
+ * group 73's colours it reads literally "PG #2". Because the engine is booted
+ * with the order owner's identity, these descriptions are already the ones
+ * THIS client's dictionary/alias collection gives — so a sweep over options
+ * does not have to re-derive them from the database and risk disagreeing with
+ * what the configurator would show.
+ *
+ * ENABLE comes along because an option is only offered when its formula holds
+ * (`TASMA G01` is `=WSROD(MODEL,"TAPE")`); generating combinations without
+ * honouring it would invent configurations no customer can pick.
+ */
+async function getAvailableOptions({ groupNumber, version, lang, baseValues, fieldNames, orgIdent, userIdent }) {
+  const env = await formEngine.bootEngine({ lang: lang || 'pl', orgIdent, userIdent });
+  try {
+    await env.window.__engine.generateForm(version, groupNumber, Object.assign({}, baseValues), new env.window.Map(), true, lang || 'pl', false);
+    const all = env.window.allOptionsByParameter || {};
+    const result = {};
+    for (const fieldName of fieldNames) {
+      const options = all[fieldName];
+      if (!Array.isArray(options)) continue;
+      result[fieldName] = options
+        .filter((opt) => opt && typeof opt === 'object' && opt.VALUE !== undefined && opt.VALUE !== null && opt.VALUE !== '')
+        .map((opt) => ({
+          value: opt.VALUE,
+          description: opt.DESCRIPTION == null ? '' : opt.DESCRIPTION,
+          enable: opt.ENABLE == null || opt.ENABLE === '<NULL>' ? null : opt.ENABLE,
+          // PROC reconfigures the REST of the form when this option is chosen
+          // (MODEL's is `=AND(USTAW("SZEROKOSC","MIN",300),…)`). Its presence
+          // is the readable signal that swapping this value in a value set is
+          // not equivalent to choosing it in the configurator.
+          proc: opt.PROC == null || opt.PROC === '<NULL>' ? null : opt.PROC
+        }));
+    }
+    return result;
+  } catch (_err) {
+    return {};
+  } finally {
+    env.dispose();
+  }
+}
+
 async function getAvailableOptionValues({ groupNumber, version, lang, baseValues, fieldName, orgIdent, userIdent }) {
   const env = await formEngine.bootEngine({ lang: lang || 'pl', orgIdent, userIdent });
   try {
@@ -178,5 +236,6 @@ module.exports = {
   recomputeFromPositionRow,
   recomputeTwice,
   checkBoundaryAcceptance,
-  getAvailableOptionValues
+  getAvailableOptionValues,
+  getAvailableOptions
 };

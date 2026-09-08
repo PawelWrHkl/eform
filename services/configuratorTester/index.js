@@ -9,11 +9,13 @@
 
 const { listActiveGroups } = require('./groupDiscovery');
 const { runGroupSuite } = require('./caseGenerator');
+const { runGroupInChild, ISOLATE_GROUPS } = require('./groupProcess');
 const { buildRunReport } = require('./reportBuilder');
 const { saveRunReport } = require('./outputStore');
 const { saveHtmlReport } = require('./htmlReport');
 const { sendTestReport } = require('./mailer');
 const { log } = require('./logger');
+const { pruneOutput, rotateLog } = require('./retention');
 
 /**
  * Run the full nightly suite across every active group.
@@ -28,6 +30,24 @@ function runBrowserChecksTarget() {
 }
 
 async function runFullSuite(opts = {}) {
+  try {
+    return await runFullSuiteInner(opts);
+  } catch (err) {
+    // A monitoring tool that dies silently is worse than none: without this,
+    // a failure before the first group (an unreadable group.txt, say) meant no
+    // e-mail at all and nobody knew the tester had stopped working.
+    log(`ConfiguratorTester: przebieg przerwany globalnie — ${err.message}`);
+    await sendFailureReport(err).catch(() => {});
+    throw err;
+  }
+}
+
+async function runFullSuiteInner(opts = {}) {
+  // Housekeeping first, so a long-running daemon never accumulates output or
+  // an unbounded log (see retention.js for the measured numbers).
+  rotateLog();
+  pruneOutput(require('../../config').configTestOutputDir);
+
   const startedAt = new Date().toISOString();
   const allGroups = listActiveGroups().map((g) => g.groupNumber);
   const groupNumbers = opts.onlyGroups && opts.onlyGroups.length ? opts.onlyGroups : allGroups;
@@ -49,7 +69,18 @@ async function runFullSuite(opts = {}) {
     const browserPositions = [];
     for (const groupNumber of groupNumbers) {
       const rows = await getRecentPositions(groupNumber, 1);
-      if (rows.length) browserPositions.push({ groupNumber, positionId: rows[0].id });
+      // The owner's identity travels with the position: the browser pass
+      // compares the on-screen price against the price list, and the price-list
+      // variant is per client (see excelTruthTable/priceVariant.js).
+      if (rows.length) {
+        browserPositions.push({
+          groupNumber,
+          positionId: rows[0].id,
+          orgIdent: rows[0].org_ident,
+          userIdent: rows[0].user_ident,
+          lang: rows[0].lang || 'pl'
+        });
+      }
     }
     const browserResult = await runBrowserChecks({ positions: browserPositions, screenshotDir });
     if (browserResult.skipped) {
@@ -66,7 +97,11 @@ async function runFullSuite(opts = {}) {
 
   for (const groupNumber of groupNumbers) {
     try {
-      const result = await runGroupSuite(groupNumber, opts);
+      // Each group in its own process by default — see groupProcess.js /
+      // scripts/configTestGroupWorker.js for the memory numbers behind it.
+      const result = ISOLATE_GROUPS
+        ? await runGroupInChild(groupNumber, opts)
+        : await runGroupSuite(groupNumber, opts);
       groupResults.push(result);
       log(`ConfiguratorTester: grupa ${groupNumber} — ${result.skipped ? 'pominięta' : `${result.findings.length} błędów`}`);
     } catch (err) {
@@ -79,8 +114,10 @@ async function runFullSuite(opts = {}) {
     } finally {
       // Release this group's parsed workbooks before moving on, on the error
       // path too — see excelTruthTable/index.js: holding them across groups
-      // exhausted the heap and killed the whole sweep after one group.
+      // exhausted the heap and killed the whole sweep after one group. The
+      // compiled price scripts (5-6 MB of generated code each) go the same way.
       require('./excelTruthTable').clearSheetCache();
+      require('./deployedScript').clearScriptCache();
     }
   }
 
@@ -94,6 +131,25 @@ async function runFullSuite(opts = {}) {
   await sendTestReport(report, reportFilePath);
 
   return { report, reportFilePath, htmlReportPath };
+}
+
+/** Tell the recipients the run itself broke — otherwise the failure is silent. */
+async function sendFailureReport(err) {
+  const report = buildRunReport([{
+    groupNumber: '—',
+    skipped: false,
+    findings: [{
+      priority: 'P1',
+      code: 'PRZEBIEG_TESTERA_PRZERWANY',
+      groupNumber: null,
+      positionId: null,
+      message: `Przebieg testera przerwał się przed zakończeniem: ${err.message}. Raport jest niepełny — nie traktuj braku zgłoszeń jako potwierdzenia, że konfigurator działa.`,
+      date: new Date().toISOString()
+    }]
+  }], {});
+  const reportFilePath = saveRunReport(report);
+  saveHtmlReport(report, reportFilePath);
+  await sendTestReport(report, reportFilePath);
 }
 
 /** Quick test for a subset of groups (e.g. "po każdej zmianie" from the PDF harmonogram). */
