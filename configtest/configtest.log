@@ -105,3 +105,39 @@
 [2026-09-08T06:41:27.309Z] ConfiguratorTester daemon started pid=613529 node=v23.10.0 nightlyHour=2 checkInterval=300s
 [2026-09-08T06:41:44.274Z] ConfiguratorTester daemon stopping (SIGTERM)
 [2026-09-08T06:42:18.914Z] ConfiguratorTester daemon started pid=627850 node=v23.10.0 nightlyHour=2 checkInterval=300s
+[2026-09-08T12:04:45.484Z] ConfiguratorTester (symulacja): grupa 71 — NIEZDANE: walidacja aplikacji odrzuca: SZEROKOSC, WYSOKOSC, DLUGOSC_STER, MODEL, KOLOR, KOLOR_SYSTE, MONTAZ, DODATKI; żadne pole cenowe nie pokazuje wartości > 0
+[2026-09-08T12:06:26.226Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 18 parametrów aktywnych, cena 447.26.
+[2026-09-08T12:07:04.316Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, cena 179.
+[2026-09-08T12:08:52.073Z] ConfiguratorTester (symulacja): 9 działów, 21 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:09:12.532Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 18 parametrów aktywnych, cena 447.26.
+[2026-09-08T12:09:32.593Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, cena 179.
+[2026-09-08T12:09:47.741Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 13 parametrów aktywnych, cena 19.28.
+[2026-09-08T12:10:13.501Z] ConfiguratorTester (symulacja): zdanych 3/21, zgłoszeń: 18
+[2026-09-08T12:11:29.730Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:11:50.793Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 18 parametrów aktywnych, cena 447.26.
+[2026-09-08T12:12:10.956Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, cena 179.
+[2026-09-08T12:12:25.537Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 13 parametrów aktywnych, cena 19.28.
+[2026-09-08T12:12:51.294Z] ConfiguratorTester (symulacja): grupa 39 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 10 pól wypełnionych, 17 parametrów aktywnych, cena 69.66.
+[2026-09-08T12:15:16.844Z] ConfiguratorTester (symulacja): grupa 04 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 16 parametrów aktywnych, cena 68.7.
+[2026-09-08T12:15:51.868Z] ConfiguratorTester (symulacja): grupa 75 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 19 parametrów aktywnych, cena 71.02.
+[2026-09-08T12:16:21.779Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: pola bez możliwej wartości: CIEZARMAT; cena zastąpiona informacją z cennika (silnik policzył 0): CENA, CENA_SUMA, SUMA_BRUTTO, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-08T12:16:53.861Z] ConfiguratorTester (symulacja): grupa 14 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 12 pól wypełnionych, 19 parametrów aktywnych, cena 755.55.
+[2026-09-08T12:17:00.156Z] ConfiguratorTester (symulacja): grupa 01 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 2 pól wypełnionych, 7 parametrów aktywnych, cena 0.42.
+[2026-09-08T12:17:17.671Z] ConfiguratorTester (symulacja): grupa 80 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 12 parametrów aktywnych, cena 361.
+[2026-09-08T12:17:53.951Z] ConfiguratorTester (symulacja): grupa 24 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 15 pól wypełnionych, 26 parametrów aktywnych, cena 272.21.
+[2026-09-08T12:18:37.967Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: pola bez możliwej wartości: FALA, KOLOR_KUNDE; walidacja aplikacji odrzuca: KOLOR_KUNDE
+[2026-09-08T12:18:56.934Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: walidacja aplikacji odrzuca: WYSOKOSC; cena zastąpiona informacją z cennika (silnik policzył 0): CENA, CENA_SUMA, SUMA_BRUTTO, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-08T12:18:56.996Z] ConfiguratorTester (symulacja): zdanych 10/13, zgłoszeń: 7
+[2026-09-08T12:37:08.152Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:37:28.319Z] ConfiguratorTester (symulacja): grupa 43 — NIEZDANE: zerowe parametry cenowe: DOPLATA_EL, CENA_RABAT, DOPLATA_EL_RABAT
+[2026-09-08T12:37:50.108Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-09-08T12:38:25.458Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:38:46.248Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 179, suma do zapisu 191.2.
+[2026-09-08T12:39:06.675Z] ConfiguratorTester (symulacja): zdanych 1/1, zgłoszeń: 0
+[2026-09-08T12:39:19.623Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:39:51.249Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-08T12:40:01.717Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-09-08T12:40:18.475Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:40:49.631Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-08T12:41:00.471Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-09-08T12:41:57.762Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA

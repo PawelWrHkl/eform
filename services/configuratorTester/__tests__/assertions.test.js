@@ -469,3 +469,67 @@ test('summariseGroupDiagnostics: leaves everything else untouched', () => {
   const findings = [{ code: 'BRAK_CENY', priority: 'P1', positionId: 5, message: 'x' }];
   assert.deepEqual(assertions.summariseGroupDiagnostics(findings, { groupNumber: '11' }), findings);
 });
+
+test('checkAgainstReferencePrice: brak ceny przy cenniku z ceną to P1, nie milczenie', () => {
+  // Grupa 76: cennik 175 (sekcja SPG3), ekran „według cennika" — skrypt cenowy
+  // się nie parsuje. Wcześniej `!Number.isFinite` kończyło sprawdzenie bez
+  // zgłoszenia, więc najpoważniejsza usterka przechodziła niezauważona.
+  const findings = assertions.checkAgainstReferencePrice({
+    groupNumber: '76', paramName: 'CENA', actualPrice: 'według cennika',
+    source: 'konfigurator (symulacja)',
+    reference: { found: true, price: 175, letter: 'A', multiplier: 1, contributions: [{ section: 'SPG3', multiplicity: 1, value: 175 }] }
+  });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].code, 'BRAK_CENY_MIMO_CENNIKA');
+  assert.equal(findings[0].priority, 'P1');
+  assert.equal(findings[0].expected, 175);
+});
+
+test('checkAgainstReferencePrice: brak ceny przy cenniku bez ceny to nadal milczenie', () => {
+  assert.equal(assertions.checkAgainstReferencePrice({
+    groupNumber: '76', paramName: 'DOPLATA', actualPrice: 'według cennika',
+    reference: { found: true, price: 0, letter: 'A', multiplier: 1, contributions: [] }
+  }).length, 0);
+});
+
+test('checkPriceScriptSyntax: zepsuty skrypt przypisany klientowi to P1', () => {
+  // Grupa 76: param-CENA-A.js nie parsuje się (linia 138242) i JEST w prod.txt.
+  // scriptLoader.errorShield() zamienia ten błąd na „według cennika", więc
+  // cena nie powstaje i pozycja zapisuje się bez wartości.
+  const findings = assertions.checkPriceScriptSyntax({
+    groupNumber: '76',
+    checked: 5,
+    brokenFiles: [{ file: 'param-CENA-A.js', error: 'Illegal return statement', line: 138242, inUse: true }]
+  });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].code, 'SKRYPT_CENOWY_NIE_PARSUJE_SIE');
+  assert.equal(findings[0].priority, 'P1');
+  assert.match(findings[0].message, /linia 138242/);
+});
+
+test('checkPriceScriptSyntax: zepsuty, ale nieprzypisany skrypt to HIGH', () => {
+  const findings = assertions.checkPriceScriptSyntax({
+    groupNumber: '02',
+    checked: 40,
+    brokenFiles: [{ file: 'param-CENA-Fmul.js', error: "Unexpected token ';'", line: 103282, inUse: false }]
+  });
+  assert.equal(findings[0].code, 'SKRYPT_CENOWY_NIE_PARSUJE_SIE_NIEUZYWANY');
+  assert.equal(findings[0].priority, 'HIGH');
+});
+
+test('checkPriceScriptSyntax: przypisane i nieprzypisane raportowane osobno', () => {
+  const findings = assertions.checkPriceScriptSyntax({
+    groupNumber: '76',
+    checked: 5,
+    brokenFiles: [
+      { file: 'param-CENA-A.js', error: 'x', line: 1, inUse: true },
+      { file: 'param-STARY.js', error: 'y', line: 2, inUse: false }
+    ]
+  });
+  assert.equal(findings.length, 2);
+  assert.deepEqual(findings.map((f) => f.priority).sort(), ['HIGH', 'P1']);
+});
+
+test('checkPriceScriptSyntax: brak zepsutych to brak zgłoszeń', () => {
+  assert.equal(assertions.checkPriceScriptSyntax({ groupNumber: '43', checked: 30, brokenFiles: [] }).length, 0);
+});

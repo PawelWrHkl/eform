@@ -268,7 +268,25 @@ function checkAgainstReferencePrice(
     })];
   }
 
-  if (!Number.isFinite(engine)) return [];
+  // ⚠️ Cena nieliczbowa NIE jest powodem do milczenia, gdy cennik ma cenę.
+  // Konfigurator pokazuje wtedy „według cennika" (`errorShield`/`checkIfPriceIsCorrect`),
+  // czyli deklaruje, że nie umie wycenić czegoś, co jest w cenniku wycenione.
+  // Zmierzone na grupie 76: cennik 175 (sekcja SPG3), ekran „według cennika",
+  // a skrypt `param-CENA-A.js` w ogóle się nie parsuje. Wcześniej ten warunek
+  // powodował, że porównanie kończyło się bez ani jednego zgłoszenia.
+  if (!Number.isFinite(engine)) {
+    if (!(reference.price > 0)) return [];
+    return [baseFinding({
+      code: 'BRAK_CENY_MIMO_CENNIKA',
+      priority: 'P1',
+      groupNumber,
+      positionId,
+      expected: reference.price,
+      actual: String(actualPrice !== undefined ? actualPrice : enginePrice),
+      priceDiff: parseFloat(reference.price.toFixed(2)),
+      message: `${paramName} dla grupy ${groupNumber}${positionId ? ` (pozycja #${positionId})` : ''}: cennik (${reference.letter}${reference.multiplier !== 1 ? `×${reference.multiplier}` : ''}) mówi ${reference.price}, a ${source} nie podaje ceny w ogóle („${actualPrice !== undefined ? actualPrice : enginePrice}"). Sekcje cennika: ${(reference.contributions || []).map((c) => `${c.section}×${c.multiplicity}=${c.value}`).join(', ')}.`
+    })];
+  }
 
   const diff = reference.price - engine;
   if (Math.abs(diff) <= toleranceEur) return [];
@@ -635,8 +653,157 @@ function summariseGroupDiagnostics(findings, { groupNumber } = {}) {
   return kept;
 }
 
+/**
+ * Wynik symulacji tworzenia pozycji (positionSimulator.js).
+ *
+ * To jest test najbliższy prawdzie o tym, co robi klient: automat przechodzi
+ * konfigurator w prawdziwej przeglądarce, a werdykt „przeszłoby walidację"
+ * wydaje `validateAllFieldsOnSubmit` + `checkFlags` — ten sam kod, który
+ * uruchamia przycisk zapisu. Dlatego niezdana symulacja to P1, nie sygnał
+ * orientacyjny: jeśli automat nie potrafi zbudować wycenialnej pozycji, klient
+ * też nie potrafi.
+ *
+ * Rozdzielone na trzy kody, bo to trzy różne usterki i trzy różne naprawy:
+ *  - pole bez ani jednej opcji → konfigurator nie puszcza dalej,
+ *  - kompletna konfiguracja bez ceny → pozycja za 0,
+ *  - walidacja odrzuca mimo wypełnienia wszystkiego → reguły nie do spełnienia.
+ */
+function checkSimulation(simulation) {
+  if (!simulation) return [];
+  const { groupNumber, departmentNumber } = simulation;
+  const where = `grupa ${groupNumber} (dział ${departmentNumber})`;
+
+  // Symulacja nie doszła do formularza — to fakt o konfiguracji/dostępach, nie
+  // o wycenie, więc nie udajemy, że wiemy, czy pozycja by się policzyła.
+  if (simulation.stage !== 'werdykt') {
+    return [baseFinding({
+      code: 'SYMULACJA_NIE_DOSZLA_DO_FORMULARZA',
+      priority: 'MEDIUM',
+      groupNumber,
+      expected: 'formularz konfiguracji',
+      actual: `przerwane na etapie: ${simulation.stage}`,
+      message: `${where}: symulacja tworzenia pozycji nie dotarła do formularza — ${simulation.reason}`
+    })];
+  }
+
+  if (simulation.ok) return [];
+
+  const findings = [];
+
+  if (simulation.blocked && simulation.blocked.length) {
+    findings.push(baseFinding({
+      code: 'KONFIGURATOR_NIE_PUSZCZA_DALEJ',
+      priority: 'P1',
+      groupNumber,
+      expected: 'każde wymagane pole ma co najmniej jedną wartość do wyboru',
+      actual: simulation.blocked.map((b) => `${b.name}: ${b.reason}`).join('; '),
+      message: `${where}: nie da się dokończyć konfiguracji — ${simulation.blocked.map((b) => `${b.name} (${b.reason})`).join('; ')}. Klient utknie w tym samym miejscu.`
+    }));
+  }
+
+  // ⚠️ Pola, których symulator nie umie prowadzić, to jego ograniczenie — nigdy P1.
+  if (simulation.unsupported && simulation.unsupported.length) {
+    findings.push(baseFinding({
+      code: 'SYMULACJA_NIE_OBSLUGUJE_POLA',
+      priority: 'MEDIUM',
+      groupNumber,
+      expected: 'automat wypełnia każde aktywne pole',
+      actual: simulation.unsupported.map((u) => `${u.name}: ${u.reason}`).join('; '),
+      message: `${where}: symulator nie umie wypełnić pól ${simulation.unsupported.map((u) => u.name).join(', ')} — to brak automatu, nie dowód usterki konfiguratora. Do sprawdzenia ręcznie.`
+    }));
+  }
+
+  // Zerowa cena znaczy coś tylko przy KOMPLETNEJ konfiguracji. Gdy któreś pole
+  // zostało niewypełnione, brak ceny jest spodziewanym skutkiem, nie usterką.
+  const incomplete = simulation.complete === false;
+  if (simulation.pricePlaceholders && simulation.pricePlaceholders.length) {
+    findings.push(baseFinding({
+      code: incomplete ? 'BRAK_CENY_PRZY_NIEKOMPLETNEJ_KONFIGURACJI' : 'BRAK_CENY',
+      priority: incomplete ? 'MEDIUM' : 'P1',
+      groupNumber,
+      expected: 'cena > 0',
+      actual: simulation.pricePlaceholders.map((p) => `${p}="${simulation.prices[p]}"`).join(', '),
+      message: incomplete
+        ? `${where}: cena wyszła 0 (silnik zastąpił pola informacją z cennika), ale konfiguracja NIE jest kompletna — niewypełnione: ${[...(simulation.blocked || []), ...(simulation.unsupported || [])].map((f) => f.name).join(', ')}. Bez ich wypełnienia to nie dowód błędu wyceny.`
+        : `${where}: kompletna konfiguracja (${(simulation.filled || []).map((f) => `${f.name}=${f.value}`).join(', ')}) nie ma ceny — silnik sam zastąpił pola cenowe informacją z cennika, co znaczy, że policzył 0.`
+    }));
+  } else if (!simulation.hasPrice && !incomplete) {
+    findings.push(baseFinding({
+      code: 'BRAK_CENY',
+      priority: 'P1',
+      groupNumber,
+      expected: 'cena > 0',
+      actual: JSON.stringify(simulation.prices || {}),
+      message: `${where}: kompletna konfiguracja (${(simulation.filled || []).map((f) => `${f.name}=${f.value}`).join(', ')}) nie pokazuje żadnej ceny > 0.`
+    }));
+  }
+
+  // Odrzucenie przez walidator raportujemy tylko wtedy, gdy nie wynika już z
+  // pola bez opcji — inaczej to samo zgłoszenie poszłoby dwa razy.
+  const blockedNames = new Set((simulation.blocked || []).map((b) => b.name));
+  const unexplained = (simulation.invalidFields || []).filter((name) => !blockedNames.has(name));
+  if (unexplained.length) {
+    findings.push(baseFinding({
+      code: 'WALIDACJA_ODRZUCA_KONFIGURACJE',
+      priority: 'P1',
+      groupNumber,
+      expected: 'checkFlags() === true po wypełnieniu wszystkich aktywnych pól',
+      actual: unexplained.join(', '),
+      message: `${where}: po wypełnieniu wszystkich pól, które formularz udostępnia, walidacja aplikacji nadal odrzuca: ${unexplained.join(', ')}. Reguł tych pól nie da się spełnić przez konfigurator.`
+    }));
+  }
+
+  return findings;
+}
+
+/**
+ * Skrypt cenowy, którego nie da się sparsować.
+ *
+ * Najcichsza z groźnych usterek: `scriptLoader.errorShield()` zamienia błąd
+ * ładowania skryptu na „według cennika", więc cena po prostu nie powstaje i
+ * pozycja zapisuje się bez wartości — bez żadnego komunikatu dla użytkownika.
+ *
+ * P1, gdy plik jest komuś przypisany w `prod.txt` (psuje wycenę temu klientowi
+ * teraz). HIGH, gdy zepsuty plik istnieje, ale nikt go nie używa — to dług, nie
+ * pożar, ale nadal artefakt buildu, który nie powinien przejść.
+ */
+function checkPriceScriptSyntax({ groupNumber, brokenFiles, checked }) {
+  if (!brokenFiles || !brokenFiles.length) return [];
+
+  const inUse = brokenFiles.filter((f) => f.inUse);
+  const unused = brokenFiles.filter((f) => !f.inUse);
+  const describe = (f) => `${f.file}${f.line ? ` (linia ${f.line})` : ''}: ${f.error}`;
+  const findings = [];
+
+  if (inUse.length) {
+    findings.push(baseFinding({
+      code: 'SKRYPT_CENOWY_NIE_PARSUJE_SIE',
+      priority: 'P1',
+      groupNumber,
+      expected: 'każdy przypisany skrypt cenowy daje się sparsować',
+      actual: inUse.map((f) => f.file).join(', '),
+      message: `Grupa ${groupNumber}: ${inUse.length} z ${checked} skryptów cenowych NIE DAJE SIĘ SPARSOWAĆ, a są przypisane klientom w prod.txt — ${inUse.map(describe).join('; ')}. Przeglądarka nie wykona takiego pliku, więc scriptLoader.errorShield() podstawia „według cennika": cena nie powstaje, a pozycja zapisuje się bez wartości.`
+    }));
+  }
+
+  if (unused.length) {
+    findings.push(baseFinding({
+      code: 'SKRYPT_CENOWY_NIE_PARSUJE_SIE_NIEUZYWANY',
+      priority: 'HIGH',
+      groupNumber,
+      expected: 'każdy skrypt cenowy daje się sparsować',
+      actual: unused.map((f) => f.file).join(', '),
+      message: `Grupa ${groupNumber}: ${unused.length} skryptów cenowych nie daje się sparsować, ale żaden klient ich nie używa — ${unused.map(describe).join('; ')}. Nie psuje wycen dziś; psułoby od razu po przypisaniu.`
+    }));
+  }
+
+  return findings;
+}
+
 module.exports = {
   isBlankPrice,
+  checkPriceScriptSyntax,
+  checkSimulation,
   summariseGroupDiagnostics,
   checkUnpriceableOptions,
   checkInRangePrice,
