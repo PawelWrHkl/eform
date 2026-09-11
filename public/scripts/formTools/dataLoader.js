@@ -153,6 +153,18 @@ export class DataLoader {
             attributes = this.normalizeAttributes(attributes);
           }
 
+          // <PARAM>_INFO — opis/plik przypisany do KONKRETNEJ WARTOSCI slownika
+          // (odpowiednik param.INFO z param.txt, tylko per wartosc). Kolumna jest
+          // nowa i nie ma jej jeszcze we wszystkich paramdictach, wiec brak
+          // kolumny musi dawac null, a nie undefined - createInfoIcon nie rysuje
+          // wtedy nic. \r bo convertDataToObjects czysci go tylko dla param.txt.
+          let info = row[paramName + "_INFO"];
+          if (info === "<NULL>" || info === undefined || info === null) {
+            info = null;
+          } else {
+            info = String(info).replace(/\r/g, "").trim() || null;
+          }
+
           let result = {
             ROW_NUM: row["ROW_NUM"],
             VALUE: value,
@@ -160,6 +172,7 @@ export class DataLoader {
             ENABLE: enable,
             PROC: proc,
             ATTRIBUTES: attributes,
+            INFO: info,
           };
 
           if (!resultList[paramName]) {

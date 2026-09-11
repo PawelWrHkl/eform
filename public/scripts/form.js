@@ -29,7 +29,7 @@ import {
   hideLocked, hideSub, hideParams, shouldHideRegularPriceRow, canUserSeeSubPrices,
   applySubPriceLayoutDuringCalc, showSubPriceRowsImmediately,
   restoreLockedParamsFromDisplayValues, syncLockedParamsFromEnableFormulas,
-  isParamLocked, hideLockedParamRows
+  isParamLocked, hideLockedParamRows, refreshValueInfoIcons
 } from './formTools/createForm.js'
 import { AttrLoader } from "./formTools/storage.js";
 import { Translator } from "./formTools/fileTranslator.js"
@@ -412,6 +412,11 @@ export async function generateForm(
 
   }
 
+  // Start formularza: przy nowej pozycji wartosci pochodza z DEFAULT, przy edycji
+  // z fillFields - w obu przypadkach zadne updateProcedure jeszcze nie poszlo,
+  // wiec ikonki INFO wartosci trzeba wypelnic tutaj.
+  refreshValueInfoIcons(params, values, allOptionsByParameter);
+
   document.getElementById('dialog-confirm').onclick = async () => {
 
     // Coupon fabric exception: when the chosen fabric is a "kupon" fabric, persist a
@@ -547,6 +552,7 @@ export async function updateProcedure({
   fillLocalPositionObject(values, displayValues);
   hideParams(params, inputs)
   fillInputDescription(inputs, params, values, allOptionsByParameter)
+  refreshValueInfoIcons(params, values, allOptionsByParameter)
   console.log('AKTUALNY JSON', values)
   if (spin) {
     stopSpin()

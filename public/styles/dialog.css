@@ -222,6 +222,27 @@ dialog::backdrop {
 	transform: translateX(-50%) rotate(180deg);
 }
 
+/* Stos ikonek informacyjnych kafelka: kupon + INFO konkretnej wartosci slownika.
+   Regula wyzej pozycjonuje KAZDA .param-info-icon w kafelku absolutnie w lewym
+   gornym rogu, wiec wewnatrz stosu trzeba to cofnac - inaczej obie ikonki
+   wyladowalyby dokladnie w tym samym punkcie. */
+.image-box-top .tile-info-stack {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	z-index: 999;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.image-box-top .tile-info-stack .param-info-icon {
+	position: relative;
+	top: auto;
+	left: auto;
+	margin: 0;
+}
+
 .preview-box {
 	position: absolute;
 	top: 5px;

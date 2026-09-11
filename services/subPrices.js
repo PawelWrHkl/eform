@@ -78,7 +78,9 @@ function calcClientDiscountTotal(orderItems) {
 /**
  * Wylicza dwa osobne sumy SUB cen z `orderItems`:
  *  - subVisible: suma SUB params z listsum=true i NIE-locked
- *  - subLocked: suma SUB params z listsum=true i locked=true
+ *  - subLocked: suma SUB params z listsum=true i locked=true, a gdy pozycja ma
+ *    wiersz „Wartość po rabacie" (rabat klienta) — ta kwota ma pierwszeństwo,
+ *    bo to ona idzie do `order_item.total_price_sub`
  * Per pozycja bierzemy ostatnią wartość listsum (overwrite semantics).
  */
 function calcSubTotals(orderItems) {
@@ -101,8 +103,18 @@ function calcSubTotals(orderItems) {
 
     let itemVisible = 0;
     let itemLocked = 0;
+    let itemAfterDiscount = null;
     for (const [key, param] of entries) {
       if (!key || !key.startsWith('SUB___') || !param || typeof param !== 'object') continue;
+
+      // Rabat klienta: kwota po rabacie NIE ma `listsum`, więc pętla poniżej by
+      // ją pominęła — a to ona jest ostateczną wartością pozycji dla klienta.
+      if (key === 'SUB___WARTOSC_PO_RABACIE') {
+        const afterVal = parseFloat(param.option_value);
+        if (isFinite(afterVal)) itemAfterDiscount = afterVal;
+        continue;
+      }
+
       if (!param.listsum) continue;
       const val = parseFloat(param.option_value);
       if (!isFinite(val)) continue;
@@ -112,8 +124,18 @@ function calcSubTotals(orderItems) {
         itemVisible = val;
       }
     }
+
+    // ⚠️ Suma „Razem po rabacie" MUSI być tą samą liczbą, którą zapisano w
+    // `order_item.total_price_sub` — inaczej stopka pokazuje inną kwotę, niż
+    // zamówienie jest warte. Ta sama zasada, którą stosuje `form.js getTotal()`:
+    // gdy istnieje wiersz „Wartość po rabacie", ma pierwszeństwo nad
+    // `SUB___WARTOSC_KONCOWA`.
+    //
+    // Zmierzone na pozycji 7277 (zam. 3078, rabat 1% za korzystanie z serwisu):
+    // WARTOSC_KONCOWA = 113.20, WARTOSC_PO_RABACIE = 112.07, w bazie 112.07 —
+    // a kafelek pokazywał 113.20.
     subVisible += itemVisible;
-    subLocked += itemLocked;
+    subLocked += itemAfterDiscount !== null ? itemAfterDiscount : itemLocked;
   }
   return {
     subVisible: parseFloat(subVisible.toFixed(2)),

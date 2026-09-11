@@ -119,6 +119,7 @@ export function clientDiscountFactor() {
 /** Klucze wierszy rabatu w `displayValues` — z prefiksem SUB___, patrz niżej. */
 const CLIENT_DISCOUNT_KEYS = ['SUB___RABAT_KLIENTA', 'SUB___WARTOSC_PO_RABACIE'];
 
+
 /**
  * ⚠️ Rejestracja w `window.subParams` i `window.lockedParams` jest KONIECZNA:
  * `createForm.js hideSub/hideLocked` przy każdym przeliczeniu przepisuje flagi
@@ -141,6 +142,10 @@ export function applyClientDiscount(values, displayValues) {
     if (!(pct > 0)) return;
     const factor = clientDiscountFactor();
     registerClientDiscountKeys();
+    // Ile z `pct` to bonus za korzystanie z serwisu (0 dla wszystkich poza
+    // nowymi klientami LUXANGMBH) — wstrzykiwane przez routes/orders.js
+    // i routes/positions.js z services/portalUsageDiscount.js.
+    const portalBonusPct = Number(window.portalUsageDiscountPercent) || 0;
 
     // ⚠️ Podstawa rabatu: **`SUB___SUMA_BRUTTO`** — parametr pokazywany przy
     // pozycji jako „WARTOŚĆ BR.[€]" (decyzja właściciela). Rabat klienta liczy
@@ -186,9 +191,22 @@ export function applyClientDiscount(values, displayValues) {
     // ⚠️ `locked: true` — rabat ma być domyślnie UKRYTY i pokazywać się razem z
     // cenami zablokowanymi („złotymi"), czyli po odblokowaniu kłódką
     // (`order.njk`: wiersz SUB renderuje się przy `not entry.locked or prices`).
+    // JEDEN wiersz rabatu, ukryty pod kłódką — nigdy dwa. Bonus 1% za
+    // korzystanie z serwisu jest już wliczony w `pct` po stronie serwera
+    // (services/portalUsageDiscount.js), więc kwota schodzi dokładnie raz;
+    // tutaj zmienia się tylko OPIS, żeby było widać, skąd rabat się bierze.
     const existingDiscount = displayValues.get('SUB___RABAT_KLIENTA') || {};
+    const discountLabel = portalBonusPct <= 0
+        ? t('form.client_discount_label')
+        : (pct > portalBonusPct
+            // Rabat klienta + bonus portalowy w jednym procencie.
+            ? `${t('form.client_discount_label')} (${t('form.portal_usage_discount_label')})`
+            // Cały rabat to bonus portalowy.
+            : t('form.portal_usage_discount_label'));
     displayValues.set('SUB___RABAT_KLIENTA', {
-        param_description: existingDiscount.param_description || t('form.client_discount_label'),
+        // Opis jest wyliczany, nie dziedziczony: `|| existing` zamroziłoby stary
+        // tekst przy kolejnym przeliczeniu, gdyby doszedł rabat klienta.
+        param_description: discountLabel,
         option_value: `${pct}%`,
         option_description: '',
         locked: true,
@@ -207,6 +225,7 @@ export function applyClientDiscount(values, displayValues) {
             row: existingAfter.row || '2'
         });
     }
+
 }
 
 /**

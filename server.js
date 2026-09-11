@@ -24,7 +24,8 @@ const { addOrganizationsForAdmin } = require('./middleware/loginMixture.js');
 const usersDb = require('./db/users.js');
 const groupDb = require('./db/group.js');
 const bodyParser = require("body-parser");
-const { photoPath, dataDir, localesDir, availabeLanguages, defaultLanguage } = require('./config');
+const { ensureInfoFilesDir } = require('./utils/ensureInfoFilesDir');
+const { photoPath, infoFilesDir, dataDir, localesDir, availabeLanguages, defaultLanguage } = require('./config');
 const cookieParser = require('cookie-parser');
 const i18n = require('i18n');
 const nunjucksSetup = require('./nunjucks-setup');
@@ -137,7 +138,14 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use('/data', express.static(dataDir));
 app.use('/photos', express.static(photoPath));
 
+// Katalog załączników INFO (`<photoPath>/files`, pobierane jako /photos/files/…)
+// zakładamy przy starcie, żeby świeże środowisko nie zwracało 404 na pierwszym
+// pliku. Warunki i powód, dla którego NIE jest to zwykłe `mkdir -p`, opisuje
+// utils/ensureInfoFilesDir.js — tam też jest test obu ścieżek.
+ensureInfoFilesDir({ photoPath, infoFilesDir, log });
+
 log('→ dataDir =', dataDir);
+log('→ infoFilesDir =', infoFilesDir);
 
 
 

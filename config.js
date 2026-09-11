@@ -2,16 +2,24 @@ const path = require('path');
 
 // Resolve once so `path.join(undefined, …)` can never throw at module load.
 const ROOT_DIR = process.env.ROOT_DIR || '/mnt/eform';
+const PHOTO_PATH = path.join(ROOT_DIR, 'data');
 
 module.exports = {
   rootDir: ROOT_DIR,
-  dataDir: process.env.DATA_DIR || '/mnt/eform/datatest',
+  dataDir: process.env.DATA_DIR || '/mnt/eform/datadev',
   changesDir: process.env.CHANGES_DIR || path.join(ROOT_DIR, 'data/data/changes'),
   localesDir: process.env.LOCALES_DIR || '/mnt/eform/languages' || path.join(__dirname, 'locales'),
-  photoPath: path.join(ROOT_DIR, 'data'),
+  photoPath: PHOTO_PATH,
+  // Zalaczniki INFO - pliki z zapisu `Opis <karta.pdf>` w `param.INFO` oraz
+  // w kolumnie `<PARAM>_INFO` w paramdict. To strona DYSKOWA adresu
+  // `/photos/files/`, pod ktorym przeglada je przeglądarka: `/photos` jest
+  // zamontowane na `photoPath` (server.js), wiec te dwie rzeczy MUSZA isc
+  // razem - zmiana jednej bez drugiej daje 404 na kazdym zalaczniku. Adres po
+  // stronie klienta trzyma INFO_FILES_URL w public/scripts/components/info.js.
+  infoFilesDir: path.join(PHOTO_PATH, 'files'),
   slopePhotoPath: path.join(ROOT_DIR, 'data/WYMIAROWANIE_SLOPOW/TYP'),
   usersPath: path.join(ROOT_DIR, 'data/data'),
-  outputData: process.env.OUTPUT_DIR || '/mnt/eform/datatest/out',
+  outputData: process.env.OUTPUT_DIR || '/mnt/eform/datadev/out',
   shortJsonDir: path.join(ROOT_DIR, 'json_short'),
   // Automatyczny tester konfiguratora (services/configuratorTester) — raporty JSON per przebieg.
   configTestOutputDir: process.env.CONFIGTEST_OUTPUT_DIR || path.join(ROOT_DIR, 'configtest-output'),

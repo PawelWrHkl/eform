@@ -5,7 +5,7 @@
 	"scripts": {
 		"start": "node --openssl-legacy-provider server.js",
 		"dev": "node --watch server.js",
-		"test": "ROOT_DIR=/tmp/eform-test NODE_ENV=test node --test --test-force-exit \"services/**/__tests__/*.test.js\" \"middleware/**/__tests__/*.test.js\"",
+		"test": "ROOT_DIR=/tmp/eform-test NODE_ENV=test node --test --test-force-exit \"services/**/__tests__/*.test.js\" \"middleware/**/__tests__/*.test.js\" \"utils/**/__tests__/*.test.js\"",
 		"import:orders": "node scripts/runOrderImport.js",
 		"import:preflight": "node scripts/orderImportPreflight.js",
 		"import:repair-prices": "node scripts/repairOrderPrices.js",

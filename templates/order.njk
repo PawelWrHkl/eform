@@ -596,7 +596,10 @@
                                                                                                                    z pozycji (`services/subPrices.js calcClientDiscountTotal`), więc stopka
                                                                                                                    zgadza się z tym, co widać przy pozycjach. Ukryta do kliknięcia kłódki
                                                                                                                    „Pokaż cenę po rabacie" (`client-discount-row`, public/scripts/order.js). #}
-                                                                                                                {% if totalPrice.afterClientDiscount %}
+                                                                                                                {# Tylko gdy podsumowanie NIE pokazuje juz tej samej kwoty: odkad calcSubTotals
+   bierze „Wartosc po rabacie” jako ostateczna wartosc pozycji, subLocked bywa
+   dokladnie ta liczba i bez tego warunku kwota dublowalaby sie w stopce. #}
+{% if totalPrice.afterClientDiscount and totalPrice.afterClientDiscount != totalPrice.subLocked %}
                                                                                                                     <div class="total-price d-flex justify-content-end align-items-center client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}">
                                                                                                                         <span class='total price-label sub-total col-3 text-center'>
                                                                                                                             {{ __('form.value_after_discount_label') }}: {{ totalPrice.afterClientDiscount | applyFactor(priceFactor) }}&#8364;

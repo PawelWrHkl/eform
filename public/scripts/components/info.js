@@ -1,16 +1,27 @@
 import { createElement } from "./htmlManipulator.js";
 import { showToast } from "./toast.js";
 
+/**
+ * Adres, pod ktorym przegladarka pobiera zalaczniki INFO - pliki z zapisu
+ * `Opis <karta.pdf>` w `param.INFO` i w kolumnie `<PARAM>_INFO` w paramdict.
+ *
+ * JEDYNE miejsce z tym adresem po stronie klienta. Odpowiada mu na dysku
+ * `config.infoFilesDir` (= `<photoPath>/files`), bo `/photos` jest zamontowane
+ * na `photoPath` w server.js - te dwie rzeczy trzeba zmieniac razem, inaczej
+ * kazdy zalacznik zwraca 404. Katalog zakladany jest przy starcie serwera.
+ */
+export const INFO_FILES_URL = "/photos/files/";
+
 export function createInfoIcon({
     info,
     parent,
-    rootFilePath = "/photos/files/",
+    rootFilePath = INFO_FILES_URL,
     defaultLabel = "Dodatkowe informacje",
     infoStyle = 'i',
     downloadLabel = "Pobierz",
+    className = null,
 } = {}) {
     const hasInfo = info && info !== "<NULL>" && `${info}`.trim() !== "";
-    console.log('Creating info icon with info:', info);
     if (!hasInfo || !parent) {
         return null;
     }
@@ -20,19 +31,18 @@ export function createInfoIcon({
     const extractedFilePath = bracketMatch ? bracketMatch[1].trim() : null;
 
     const cleanInfoText = rawInfo.replace(/<[^>]+>/g, "").trim();
-    console.log('Clean info text:', cleanInfoText);
     let infoIcon;
     const iconLabel = cleanInfoText || defaultLabel;
     if (infoStyle == 'i') {
         infoIcon = createElement("span", {
-            class: ["param-info-icon"],
+            class: className ? ["param-info-icon", className] : ["param-info-icon"],
             text: "i",
             tabindex: "0",
             "aria-label": iconLabel
         }, parent);
     } else if (infoStyle == 'btn-cupon') {
         infoIcon = createElement("span", {
-            class: ["param-info-cupon"],
+            class: className ? ["param-info-cupon", className] : ["param-info-cupon"],
             text: cleanInfoText,
             tabindex: "0",
             "aria-label": iconLabel
@@ -90,4 +100,25 @@ export function createInfoIcon({
     }
 
     return infoIcon;
+}
+/**
+ * INFO przypisane do KONKRETNEJ WARTOSCI slownika (kolumna <PARAM>_INFO
+ * w paramdict), a nie do parametru - ta sama ikonka "i" z krotkim opisem
+ * i przyciskiem pobrania pliku z zapisu <nazwa.rozszerzenie>.
+ *
+ * Slot jest czyszczony przy kazdym wywolaniu, bo wartosc pola zmienia sie
+ * w trakcie wypelniania formularza, a ikonka ma opisywac wartosc AKTUALNA.
+ * Pusty slot zostaje w DOM - ma zerowa szerokosc i nie rusza layoutu etykiety.
+ */
+export function renderValueInfoIcon(slot, info) {
+    if (!slot) return null;
+    slot.innerHTML = "";
+    return createInfoIcon({
+        info,
+        parent: slot,
+        defaultLabel: t("Dodatkowe informacje"),
+        infoStyle: "i",
+        downloadLabel: t("Pobierz"),
+        className: "value-info-icon"
+    });
 }

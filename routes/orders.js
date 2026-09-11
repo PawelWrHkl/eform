@@ -9,6 +9,8 @@ const orderService = require('../services/orderService.js');
 const ownerService = require('../services/owner.js');
 const { getActiveGroupShopId } = require('../services/groupContext');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
+const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
+const { notifyFirstOrderIfApplicable } = require('../services/portalUsageDiscountMailer');
 const mailBot = require('../services/mailBot/mailBot');
 const path = require('path');
 const OrderSender = require("../services/sendOrderService");
@@ -900,7 +902,10 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         // Suma „Wartość po rabacie" dla `order-pdf.njk` (PDF długi) — ten szablon
         // dostaje sumy tylko przez `sendData`, nie ma bezpośredniego dostępu do
         // `totalPrice` jak `order_to_print.njk`/`order_to_print_short.njk`.
-        if (showClientDiscount && totalPrice.afterClientDiscount) {
+        // Nie dubluj kwoty w mailu: `sendData.total_hidden` powstaje z `subLocked`,
+        // ktory od teraz jest wartoscia PO rabacie klienta (services/subPrices.js).
+        if (showClientDiscount && totalPrice.afterClientDiscount
+            && totalPrice.afterClientDiscount !== totalPrice.subLocked) {
             sendData.total_client_discount = `${__('form.value_after_discount_label')}: ${totalPrice.afterClientDiscount}€`;
         } else {
             sendData.total_client_discount = null;
@@ -1031,9 +1036,13 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
     // Rabat klienta grupy (`group_user.discount_percent`) — liczony z konta
     // podrzędnego przypisanego do ZAMÓWIENIA, więc wychodzi ten sam niezależnie
     // od tego, czy pozycję konfiguruje klient, czy grupa w jego kontekście.
-    const clientDiscountPercent = await resolveClientDiscountForOrder(req.params.orderId);
+    // Do tego ewentualny 1% za korzystanie z serwisu dla nowych klientów
+    // LUXANGMBH — doliczany do TEGO SAMEGO procentu, żeby nie powstał drugi,
+    // równoległy tor rabatowy (services/portalUsageDiscount.js).
+    const { total: clientDiscountPercent, portalBonus: portalUsageDiscountPercent } =
+        await resolveCombinedDiscountForOrder(req.params.orderId);
 
-    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, clientDiscountPercent, ...vatLocals });
+    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, ...vatLocals });
 });
 
 
@@ -1186,6 +1195,11 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             });
         }
 
+        // Nowy klient LUXANGMBH wlasnie wyslal PIERWSZE zamowienie i dostal 1 punkt
+        // procentowy rabatu za korzystanie z serwisu — powiadamiamy handel. Serwis sam
+        // pilnuje jednorazowosci (liczy wyslane zamowienia klienta) i nigdy nie rzuca,
+        // wiec nie moze przewrocic wysylki zamowienia.
+        await notifyFirstOrderIfApplicable(id);
         ({ orderDetails, orderItems } = await db.getOrderDataToSend(id));
 
         const sender = new OrderSender.OrderSender(req, orderDetails, orderItems);
@@ -1756,6 +1770,11 @@ router.post('/order/:orderId/admin-save-json', requireLogin, async (req, res) =>
             return res.status(400).json({ success: false, message: 'Nie możesz wysłać pustego zamówienia' });
         }
 
+        // Nowy klient LUXANGMBH wlasnie wyslal PIERWSZE zamowienie i dostal 1 punkt
+        // procentowy rabatu za korzystanie z serwisu — powiadamiamy handel. Serwis sam
+        // pilnuje jednorazowosci (liczy wyslane zamowienia klienta) i nigdy nie rzuca,
+        // wiec nie moze przewrocic wysylki zamowienia.
+        await notifyFirstOrderIfApplicable(id);
         ({ orderDetails, orderItems } = await db.getOrderDataToSend(id));
 
         const sender = new OrderSender.OrderSender(req, orderDetails, orderItems);

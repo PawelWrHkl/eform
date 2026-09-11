@@ -397,7 +397,8 @@
                     </div>
                 </div>
             {% endif %}
-            {% if showClientDiscount and totalPrice and totalPrice.afterClientDiscount %}
+            {# Ta sama zasada co w order.njk — bez dublowania kwoty z podsumowania. #}
+{% if showClientDiscount and totalPrice and totalPrice.afterClientDiscount and totalPrice.afterClientDiscount != totalPrice.subLocked %}
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label print-discount-price col-3 text-center'>

@@ -10,7 +10,7 @@ import {
   showToastInContainer
 } from '../components/index.js';
 import { createElement } from '../components/htmlManipulator.js'
-import { createInfoIcon } from '../components/info.js';
+import { createInfoIcon, INFO_FILES_URL } from '../components/info.js';
 import { stopSpin, startSpin } from "../components/hourglass.js";
 import { getEnvVersion } from "../getEnv.js";
 import { getUserName } from "../base.js";
@@ -223,8 +223,7 @@ export class DialogManager {
           buttonText = linkHref;
         } else {
 
-          const rootFilePath = '/photos/files/';
-          finalHref = rootFilePath + linkHref;
+          finalHref = INFO_FILES_URL + linkHref;
           buttonText = linkHref;
         }
 
@@ -256,8 +255,7 @@ export class DialogManager {
         buttonText = linkHref;
       } else {
 
-        const rootFilePath = '/photos/files/';
-        finalHref = rootFilePath + linkHref;
+        finalHref = INFO_FILES_URL + linkHref;
         buttonText = linkHref;
       }
 
@@ -812,7 +810,7 @@ export class DialogManager {
     }
     for (const [key, value] of Object.entries(option)) {
 
-      if (['VALUE', 'DESCRIPTION', 'ROW_NUM'].includes(key)) continue;
+      if (['VALUE', 'DESCRIPTION', 'ROW_NUM', 'INFO'].includes(key)) continue;
 
 
       if (value) {
@@ -908,15 +906,36 @@ export class DialogManager {
 
     const filename = imageMap[option.VALUE];
 
+    // Ikonki informacyjne kafelka: kupon (stala tresc dla tkanin kuponowych) oraz
+    // INFO przypisane do TEJ konkretnej wartosci slownika (kolumna <PARAM>_INFO).
+    // Obie ida do wspolnego stosu, bo CSS pozycjonuje .param-info-icon w kafelku
+    // absolutnie w lewym gornym rogu - dwie osobne nachodzilyby na siebie.
     const isCuponOption = option?.IS_CUPON === true || option?.IS_CUPON === 'true';
-    if (isCuponOption) {
-      createInfoIcon({
-        info: t('form.cupon_info'),
-        parent: top,
-        defaultLabel: t('form.cupon_info_label'),
-        infoStyle: 'i',
-        downloadLabel: "Pobierz"
-      });
+    const valueInfo = option?.INFO;
+    const hasValueInfo = valueInfo && valueInfo !== '<NULL>' && String(valueInfo).trim() !== '';
+    if (isCuponOption || hasValueInfo) {
+      const infoStack = createElement('div', { class: ['tile-info-stack'] }, top);
+
+      if (isCuponOption) {
+        createInfoIcon({
+          info: t('form.cupon_info'),
+          parent: infoStack,
+          defaultLabel: t('form.cupon_info_label'),
+          infoStyle: 'i',
+          downloadLabel: "Pobierz"
+        });
+      }
+
+      if (hasValueInfo) {
+        createInfoIcon({
+          info: valueInfo,
+          parent: infoStack,
+          defaultLabel: t('Dodatkowe informacje'),
+          infoStyle: 'i',
+          downloadLabel: t('Pobierz'),
+          className: 'value-info-icon'
+        });
+      }
     }
     if (filename) {
       const imageWrapper = this.createImageWrapper(option, filename);
