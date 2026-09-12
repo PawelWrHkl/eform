@@ -10,7 +10,7 @@ import {
   showToastInContainer
 } from '../components/index.js';
 import { createElement } from '../components/htmlManipulator.js'
-import { createInfoIcon, INFO_FILES_URL } from '../components/info.js';
+import { createInfoIcon, INFO_FILES_URL, valueInfoFilesUrl } from '../components/info.js';
 import { stopSpin, startSpin } from "../components/hourglass.js";
 import { getEnvVersion } from "../getEnv.js";
 import { getUserName } from "../base.js";
@@ -930,6 +930,7 @@ export class DialogManager {
         createInfoIcon({
           info: valueInfo,
           parent: infoStack,
+          rootFilePath: valueInfoFilesUrl(this.groupNumber),
           defaultLabel: t('Dodatkowe informacje'),
           infoStyle: 'i',
           downloadLabel: t('Pobierz'),

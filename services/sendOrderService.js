@@ -7,6 +7,7 @@ const { ordersManager } = require('../utils/saveOrdersOutput');
 const { log } = require('../utils/logging');
 const { formatClientLabel } = require('../utils/formatClient');
 const { getProductionSendSkipClient, isProductionVersion, shouldForceProductionSend } = require('../utils/productionSendGuard');
+const { resolveItemClientDiscount } = require('./subPrices');
 class OrderSender {
 
     constructor(req, order, orderItems, options = {}) {
@@ -60,6 +61,13 @@ class OrderSender {
                 }, {});
 
 
+            // Rabat eForma (rabat klienta + 1% za korzystanie z serwisu) — klucz
+            // pojawia się TYLKO wtedy, gdy pozycja go ma, żeby nie zaśmiecać
+            // JSON-a zerami u wszystkich pozostałych klientów. Sam rabat jest
+            // już wliczony w ceny w `parameters`; to informacja dla odbiorcy,
+            // skąd wzięła się różnica wobec cennika.
+            const eforRabat = resolveItemClientDiscount(item);
+
             this.data.items.push({
                 posid: item?.id ?? 0,
                 orderpos: idx,
@@ -67,6 +75,7 @@ class OrderSender {
                 department: item?.department ?? '',
                 product_description: item?.group_name ?? '',
                 commission: item?.commision ?? "",
+                ...(eforRabat ? { efor_rabat: eforRabat.percent } : {}),
                 parameters: sortedFilteredObj,
                 comment: item.comment,
                 asortment: item.asrotment_group_number,

@@ -29,7 +29,7 @@ import {
   hideLocked, hideSub, hideParams, shouldHideRegularPriceRow, canUserSeeSubPrices,
   applySubPriceLayoutDuringCalc, showSubPriceRowsImmediately,
   restoreLockedParamsFromDisplayValues, syncLockedParamsFromEnableFormulas,
-  isParamLocked, hideLockedParamRows, refreshValueInfoIcons
+  isParamLocked, hideLockedParamRows
 } from './formTools/createForm.js'
 import { AttrLoader } from "./formTools/storage.js";
 import { Translator } from "./formTools/fileTranslator.js"
@@ -412,11 +412,6 @@ export async function generateForm(
 
   }
 
-  // Start formularza: przy nowej pozycji wartosci pochodza z DEFAULT, przy edycji
-  // z fillFields - w obu przypadkach zadne updateProcedure jeszcze nie poszlo,
-  // wiec ikonki INFO wartosci trzeba wypelnic tutaj.
-  refreshValueInfoIcons(params, values, allOptionsByParameter);
-
   document.getElementById('dialog-confirm').onclick = async () => {
 
     // Coupon fabric exception: when the chosen fabric is a "kupon" fabric, persist a
@@ -552,7 +547,6 @@ export async function updateProcedure({
   fillLocalPositionObject(values, displayValues);
   hideParams(params, inputs)
   fillInputDescription(inputs, params, values, allOptionsByParameter)
-  refreshValueInfoIcons(params, values, allOptionsByParameter)
   console.log('AKTUALNY JSON', values)
   if (spin) {
     stopSpin()
@@ -879,19 +873,27 @@ export function getTotal(displayValues) {
     }
   }
   // ⚠️ Suma klienta zapisywana w pozycji (`order_item.total_price_sub`) MUSI być
-  // tą samą liczbą, którą widok pokazuje jako „Wartość po rabacie" — inaczej
-  // stopka zamówienia rozjeżdża się z wierszem przy pozycji (tak było: 14,27 w
-  // bazie przy 40,77 na ekranie). Dlatego bierzemy wprost wiersz rabatu
-  // (`pricesCalculator.js` liczy go od `SUB___SUMA_BRUTTO`), a mnożnik stosujemy
-  // tylko wtedy, gdy tego wiersza nie ma (np. ekran bez pól rabatu).
-  const discountRow = displayValues.get('SUB___WARTOSC_PO_RABACIE');
-  const discountRowValue = discountRow ? parseFloat(discountRow.option_value) : NaN;
-  if (Number.isFinite(discountRowValue)) {
-    totalObj['total_sub'] = discountRowValue;
-  } else {
-    const discountFactor = clientDiscountFactorForTotals();
-    if (discountFactor !== 1 && Number.isFinite(totalObj['total_sub'])) {
-      totalObj['total_sub'] = parseFloat((totalObj['total_sub'] * discountFactor).toFixed(2));
+  // tą samą liczbą, którą widok pokazuje przy pozycji jako „WART. NET. PO
+  // RABACIE" — inaczej stopka zamówienia rozjeżdża się z wierszem pozycji (tak
+  // było: 14,27 w bazie przy 40,77 na ekranie).
+  //
+  // Od 2026-09-11 rabat klienta jest już WLICZONY w `SUB___WARTOSC_KONCOWA`
+  // (`pricesCalculator.js applyClientDiscount`, bo z tego parametru wystawiana
+  // jest faktura), więc bierzemy tę kwotę wprost — pętla wyżej mogłaby ją
+  // nadpisać innym wierszem `listsum`. Mnożnik stosujemy TYLKO tam, gdzie tego
+  // parametru w ogóle nie ma (HKL / ekran bez cen klienta) — inaczej rabat
+  // zszedłby dwa razy.
+  const discountPct = Number(window.clientDiscountPercent) || 0;
+  if (discountPct > 0) {
+    const koncowaRow = displayValues.get('SUB___WARTOSC_KONCOWA');
+    const koncowaValue = koncowaRow ? parseFloat(koncowaRow.option_value) : NaN;
+    if (Number.isFinite(koncowaValue)) {
+      totalObj['total_sub'] = koncowaValue;
+    } else {
+      const discountFactor = clientDiscountFactorForTotals();
+      if (discountFactor !== 1 && Number.isFinite(totalObj['total_sub'])) {
+        totalObj['total_sub'] = parseFloat((totalObj['total_sub'] * discountFactor).toFixed(2));
+      }
     }
   }
 

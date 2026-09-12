@@ -12,6 +12,28 @@ import { showToast } from "./toast.js";
  */
 export const INFO_FILES_URL = "/photos/files/";
 
+/**
+ * Adres zalacznikow INFO **wartosci** (kolumna `<PARAM>_INFO` w paramdict).
+ * W odroznieniu od INFO parametru pliki sa PER GRUPA - ta sama konwencja co
+ * zdjecia wartosci (`/photos/<grupa>/<PARAM>/<plik>`), bo karta techniczna
+ * tkaniny czy modelu nalezy do asortymentu, nie do calej instalacji.
+ *
+ * Na dysku odpowiada temu `<photoPath>/<grupa>/files` - katalog zakladany
+ * leniwie przez serwer przy wejsciu w grupe (routes/positions.js,
+ * `/position/version/:groupNr/` → utils/ensureInfoFilesDir.js).
+ */
+export function valueInfoFilesUrl(groupNumber) {
+    const group = String(groupNumber ?? window.tempGroupNumber ?? "").trim();
+    if (!/^\d{1,6}$/.test(group)) {
+        // Bez numeru grupy nie da sie zlozyc adresu. Nie zgadujemy - globalny
+        // katalog trzyma zalaczniki PARAMETROW i wskazanie go tutaj dawaloby
+        // ciche 404 zamiast czytelnego sladu.
+        console.warn("valueInfoFilesUrl: brak numeru grupy, pomijam adres zalacznika", groupNumber);
+        return null;
+    }
+    return `/photos/${group}/files/`;
+}
+
 export function createInfoIcon({
     info,
     parent,
@@ -62,7 +84,9 @@ export function createInfoIcon({
         }, tooltip);
     }
 
-    if (extractedFilePath) {
+    // Bez prefiksu (valueInfoFilesUrl nie zna numeru grupy) pokazujemy sam opis.
+    // Przycisk z adresem "null/karta.pdf" bylby gorszy niz jego brak.
+    if (extractedFilePath && rootFilePath) {
         const normalizedFilePath = extractedFilePath.replace(/^\/+/, "");
         const encodedFilePath = normalizedFilePath.split("/").map(segment => encodeURIComponent(segment)).join("/");
         const fileUrl = `${rootFilePath}${encodedFilePath}`;
@@ -100,25 +124,4 @@ export function createInfoIcon({
     }
 
     return infoIcon;
-}
-/**
- * INFO przypisane do KONKRETNEJ WARTOSCI slownika (kolumna <PARAM>_INFO
- * w paramdict), a nie do parametru - ta sama ikonka "i" z krotkim opisem
- * i przyciskiem pobrania pliku z zapisu <nazwa.rozszerzenie>.
- *
- * Slot jest czyszczony przy kazdym wywolaniu, bo wartosc pola zmienia sie
- * w trakcie wypelniania formularza, a ikonka ma opisywac wartosc AKTUALNA.
- * Pusty slot zostaje w DOM - ma zerowa szerokosc i nie rusza layoutu etykiety.
- */
-export function renderValueInfoIcon(slot, info) {
-    if (!slot) return null;
-    slot.innerHTML = "";
-    return createInfoIcon({
-        info,
-        parent: slot,
-        defaultLabel: t("Dodatkowe informacje"),
-        infoStyle: "i",
-        downloadLabel: t("Pobierz"),
-        className: "value-info-icon"
-    });
 }

@@ -91,7 +91,14 @@
                 {% endfor %}
               </tr>
               {% endif %}
-              {% if prices and showGoldPrices and not clientView %}
+              {# ⚠️ Ceny „złote" (parametry `locked` BEZ prefiksu SUB___) to ceny
+                 wewnętrzne HKL. Gdy zamówienie ma ceny klienta (`SUB___*`),
+                 nie mają prawa wyjść na dokument — dokładnie tak jak na
+                 ekranie: `order.njk` renderuje wyłącznie
+                 `not(header in lockedParams)`, a `order_prices.njk` pokazuje
+                 je tylko przy `not hasSubPriceToggle`. Bez tego warunku PDF
+                 klienta pokazywał cenę zakupu HKL obok jego własnej. #}
+              {% if prices and showGoldPrices and not clientView and not hasSubPrices %}
               <tr>
                 {% for header in table.headers1 %}
                   {% if (header in rowObj.item.lockedParams) %}
@@ -157,6 +164,15 @@
       <div class="print-total-items">
         {{ __('order.total_items') }}: <span class="pdf-val">{{ totalQuantity if totalQuantity is defined else (globalIndex - 1) }}</span>
       </div>
+      {# Rabat eForma zaraz pod ilością sztuk — ta sama informacja, którą klient
+         widzi przy pozycjach, żeby dało się ją odczytać bez przeglądania całej
+         tabeli (routes/orders.js → `clientDiscountSummary`). #}
+      {% if clientDiscountSummary %}
+        <div class="print-total-items discount">
+          {{ clientDiscountSummary.label or __('form.client_discount_label') }}:
+          <span class="pdf-val">{{ clientDiscountSummary.percent }}</span>
+        </div>
+      {% endif %}
       {% if sendData.total %}
         <div id='total-container'>
           <div class="total-price">

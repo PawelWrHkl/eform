@@ -78,9 +78,12 @@ function calcClientDiscountTotal(orderItems) {
 /**
  * Wylicza dwa osobne sumy SUB cen z `orderItems`:
  *  - subVisible: suma SUB params z listsum=true i NIE-locked
- *  - subLocked: suma SUB params z listsum=true i locked=true, a gdy pozycja ma
- *    wiersz „Wartość po rabacie" (rabat klienta) — ta kwota ma pierwszeństwo,
- *    bo to ona idzie do `order_item.total_price_sub`
+ *  - subLocked: suma SUB params z listsum=true i locked=true — czyli w praktyce
+ *    `SUB___WARTOSC_KONCOWA`, który OD 2026-09-11 niesie już kwotę po rabacie
+ *    klienta (pricesCalculator.js `applyClientDiscount`), więc to dokładnie ta
+ *    liczba, która idzie do `order_item.total_price_sub`. Pozycje zapisane
+ *    WCZEŚNIEJ mają rabat w osobnym wierszu „Wartość po rabacie" — tam ta kwota
+ *    ma pierwszeństwo.
  * Per pozycja bierzemy ostatnią wartość listsum (overwrite semantics).
  */
 function calcSubTotals(orderItems) {
@@ -107,8 +110,10 @@ function calcSubTotals(orderItems) {
     for (const [key, param] of entries) {
       if (!key || !key.startsWith('SUB___') || !param || typeof param !== 'object') continue;
 
-      // Rabat klienta: kwota po rabacie NIE ma `listsum`, więc pętla poniżej by
-      // ją pominęła — a to ona jest ostateczną wartością pozycji dla klienta.
+      // Pozycje sprzed 2026-09-11: rabat miał własny wiersz bez `listsum`, więc
+      // pętla poniżej by go pominęła — a to on był ostateczną wartością pozycji.
+      // Nowe pozycje takiego wiersza nie mają (rabat siedzi w
+      // `SUB___WARTOSC_KONCOWA`), więc ta gałąź dotyczy wyłącznie historii.
       if (key === 'SUB___WARTOSC_PO_RABACIE') {
         const afterVal = parseFloat(param.option_value);
         if (isFinite(afterVal)) itemAfterDiscount = afterVal;
@@ -141,6 +146,87 @@ function calcSubTotals(orderItems) {
     subVisible: parseFloat(subVisible.toFixed(2)),
     subLocked: parseFloat(subLocked.toFixed(2))
   };
+}
+
+/**
+ * Informacja o rabacie eForma do podsumowania dokumentu — procent i opis,
+ * dokładnie takie, jakie klient widział przy pozycji.
+ *
+ * Czytamy `json_parameters_desc` zapisanej pozycji, a nie konfigurację klienta,
+ * bo to wiersz pozycji jest źródłem prawdy: rabat mógł się zmienić po złożeniu
+ * zamówienia, a dokument ma pokazywać stan z chwili zamówienia.
+ *
+ * ⚠️ Opis bierzemy ze wpisu (`param_description`), nie tłumaczymy go tutaj —
+ * `pricesCalculator.js applyClientDiscount` wylicza go w chwili konfiguracji i
+ * to on rozróżnia „rabat klienta" od „1% za korzystanie z serwisu" (a przy obu
+ * naraz — łączy oba teksty).
+ *
+ * Klucz bez prefiksu (`RABAT_KLIENTA`) to zapis sprzed 2026-08-21, patrz
+ * services/orderService.js.
+ *
+ * @returns {{percent:string, label:string}|null}
+ */
+function resolveClientDiscountSummary(orderItems) {
+  if (!Array.isArray(orderItems)) return null;
+  for (const item of orderItems) {
+    const rabat = resolveItemClientDiscount(item);
+    if (rabat) return { percent: rabat.percent, label: rabat.label };
+  }
+  return null;
+}
+
+/**
+ * Rabat eForma JEDNEJ pozycji — procent, jego wartość liczbowa i opis.
+ *
+ * Czytamy najpierw wiersz z `json_parameters_desc` (to, co klient widzi przy
+ * pozycji), a gdy go nie ma — `json_parameters.RABAT_KLIENTA`, które
+ * `pricesCalculator.applyClientDiscount` zapisuje zawsze, nawet na ekranach bez
+ * wierszy rabatu. Dwa źródła, bo pierwsze niesie opis i format („1%"), a drugie
+ * jest pewniejsze.
+ *
+ * ⚠️ To rabat eForma (rabat klienta + bonus za korzystanie z serwisu), NIE
+ * rabat cennikowy `SUB___CENA_RABAT` — ten siedzi w cenie i nie jest osobną
+ * informacją.
+ *
+ * @returns {{percent:string, value:number, label:string|null}|null}
+ */
+function resolveItemClientDiscount(item) {
+  if (!item) return null;
+
+  let parsed = item.json_parameters_desc;
+  try {
+    if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+  } catch {
+    parsed = null;
+  }
+
+  if (parsed) {
+    const entries = parsed instanceof Map
+      ? Array.from(parsed.entries())
+      : (Array.isArray(parsed) ? parsed : Object.entries(parsed));
+
+    for (const [key, param] of entries) {
+      if (key !== 'SUB___RABAT_KLIENTA' && key !== 'RABAT_KLIENTA') continue;
+      const raw = param && typeof param === 'object' ? param.option_value : param;
+      const percent = String(raw == null ? '' : raw).trim();
+      const value = parseFloat(percent);
+      // „0%" to brak rabatu — taki wiersz i tak nie trafia do dokumentu
+      // (orderService.js `isZeroRabatDisplayValue`).
+      if (!percent || !Number.isFinite(value) || value === 0) continue;
+      const label = (param && typeof param === 'object' && param.param_description) || null;
+      return { percent, value, label };
+    }
+  }
+
+  let params = item.json_parameters;
+  try {
+    if (typeof params === 'string') params = JSON.parse(params);
+  } catch {
+    params = null;
+  }
+  const fallback = params && typeof params === 'object' ? parseFloat(params.RABAT_KLIENTA) : NaN;
+  if (!Number.isFinite(fallback) || fallback === 0) return null;
+  return { percent: `${fallback}%`, value: fallback, label: null };
 }
 
 /**
@@ -277,6 +363,8 @@ module.exports = {
   orderHasSubPrices,
   calcSubTotals,
   calcClientDiscountTotal,
+  resolveClientDiscountSummary,
+  resolveItemClientDiscount,
   resolveDiscountBaseTotal,
   resolveSubPricePdfView,
   resolveGroupClientPdfPriceView,

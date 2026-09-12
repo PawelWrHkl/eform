@@ -494,8 +494,10 @@ export async function updateFieldStates(params, inputs, values, displayValues, g
         // Right after prices finish computing (SUB___WARTOSC_KONCOWA has its final
         // value) — before checkIfPriceIsCorrect's placeholder logic — fill the
         // read-only WARTOSC_BRUTTO field with the VAT-adjusted gross value.
-        // Rabat klienta grupy PRZED VAT-em — VAT ma być policzony od kwoty po
-        // rabacie (pricesCalculator.js → applyClientDiscount).
+        // Rabat klienta PRZED VAT-em, bo to `applyClientDiscount` obniża
+        // `SUB___WARTOSC_KONCOWA` i zapamiętuje kwotę sprzed rabatu, której
+        // `applyVatToGrossValue` używa jako podstawy — VAT liczy się od kwoty
+        // PRZED rabatem (decyzja właściciela 2026-08-21).
         applyClientDiscount(values, displayValues);
         applyVatToGrossValue(values, displayValues);
         displayValues = checkIfPriceIsCorrect(values, inputs, displayValues);

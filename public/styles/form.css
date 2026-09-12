@@ -242,22 +242,11 @@ input[type="number"]:focus {
 	outline: none;
 }
 
-/* Ikonka INFO opisujaca WYBRANA WARTOSC (kolumna <PARAM>_INFO w paramdict),
-   stoi w wierszu etykiety obok ikonki INFO samego parametru. Wariant obrysowy,
-   zeby na pierwszy rzut oka bylo widac, ktora opisuje pole, a ktora wartosc. */
-.value-info-slot {
-	display: inline-flex;
-	align-items: center;
-}
-
-/* Pole bez wybranej wartosci (albo wartosc bez INFO) - slot zostaje w DOM,
-   ale nie ma go dodawac do gapu .field-label-row. */
-.value-info-slot:empty {
-	display: none;
-}
-
-/* Ikonka INFO wartosci musi odciac sie od stonowanego --brand-accent, ktory nosi
-   ikonka parametru stojaca obok w tym samym wierszu. Indygo, bo:
+/* Ikonka INFO konkretnej WARTOSCI slownika (kolumna <PARAM>_INFO w paramdict).
+   Wystepuje WYLACZNIE na kafelkach w dialogu wyboru wartosci - w wierszu etykiety
+   pola stoi tylko ikonka parametru i tak ma zostac.
+   Musi odciac sie od stonowanego --brand-accent, ktory nosi ikonka parametru
+   (na kafelku sasiaduje z nia ikonka kuponu). Indygo, bo:
    - bursztyn/--color-warning byl cieply i wybijal sie z chlodnej palety Steel Slate,
    - --brand-primary (#5e6e82) w dark ZNIKA: ma niemal ta sama jasnosc co tlo
      #242840 i wychodzi mniej widoczny od ikonki parametru, czyli odwrotnie
@@ -265,8 +254,7 @@ input[type="number"]:focus {
    Kolor jest literalem, a nie tokenem z theme.css - theme.css nie ma nasyconej
    barwy chlodnej, a dodawanie tam tokenu pod jedna ikonke bylo by rozszerzaniem
    design systemu dla jednego przypadku.
-   Poswiata przez box-shadow, zeby nie ruszac rozmiaru w layoucie. Bez scope na
-   .field-label-row, bo ta sama ikonka stoi tez na kafelku w dialogu wyboru. */
+   Poswiata przez box-shadow, zeby nie ruszac rozmiaru w layoucie. */
 .param-info-icon.value-info-icon {
 	border-color: #6366f1;
 	background-color: #6366f1;

@@ -99,6 +99,11 @@
         .print-price-row td.print-discount-price {
             background-color: hsl(28 75% 95%) !important;
         }
+        /* Ta sama informacja w podsumowaniu, pod ilością sztuk — tu wystarczy
+           sam kolor tekstu, bez tła (nie siedzi w tabeli cen). */
+        .print-total-items.print-discount-price {
+            color: hsl(28 55% 32%) !important;
+        }
         .print-total-price {
             display: flex;
             justify-content: flex-end;
@@ -279,7 +284,10 @@
                                     {% endfor %}
                                     {% endif %}
                                 </tr>
-                                {% if prices and not clientView and not isGroupShop %}
+                                {# ⚠️ Ceny „złote" (parametry `locked` bez SUB___) to ceny wewnętrzne
+                                   HKL — przy zamówieniu z cenami klienta nie idą na wydruk, tak samo
+                                   jak na ekranie (patrz komentarz w services/mailBot/order-pdf.njk). #}
+                                {% if prices and not clientView and not isGroupShop and not hasSubPrices %}
                                     <tr class="print-price-row">
                                         {% for header in table.headers1 %}
                                             {% if header in rowObj.item.lockedParams %}
@@ -325,6 +333,14 @@
             <div class="print-total-items">
                 {{ __('order.total_items') }}: <span class="pdf-val">{{ globalIndex - 1 }}</span>
             </div>
+            {# Rabat eForma zaraz pod ilością sztuk — ta sama informacja co przy
+               pozycjach (routes/orders.js → `clientDiscountSummary`). #}
+            {% if clientDiscountSummary %}
+                <div class="print-total-items print-discount-price">
+                    {{ clientDiscountSummary.label or __('form.client_discount_label') }}:
+                    <span class="pdf-val">{{ clientDiscountSummary.percent }}</span>
+                </div>
+            {% endif %}
             {# ⚠️ Konto podrzędne grupy (`group_user`) NIE MOŻE widzieć sumy katalogowej
    (to cena zakupu grupy) — ani na ekranie, ani w druku/PDF generowanym z tego
    szablonu. Dostaje wyłącznie swoją sumę (`totalPrice.sub`) niżej. #}

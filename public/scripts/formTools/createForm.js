@@ -1,46 +1,10 @@
 import { logFunctionName, searchForParameter } from './formTools.js';
 import { createDialog } from './dialogUtils_copy.js'
 import { isEnabled, createElement } from '../components/htmlManipulator.js';
-import { createInfoIcon, renderValueInfoIcon } from '../components/info.js';
+import { createInfoIcon } from '../components/info.js';
 import { SourceWindow } from './slope.js';
 import { attachmentBehaviorOnClick, changeAttachmentAppearance, resetAttachmentUI } from './attachment.js';
 import { showToast } from '../components/toast.js';
-
-/**
- * Sloty na ikonke INFO wybranej wartosci, jeden na parametr. Trzymane w mapie,
- * a nie wyszukiwane po id, bo nazwy parametrow bywaja niebezpieczne dla
- * selektorow CSS (SUB___, znaki specjalne). Wpisy nadpisuja sie przy kazdym
- * przebudowaniu formularza; osierocone wskazuja na wezly poza DOM i sa nieszkodliwe.
- */
-const valueInfoSlots = new Map();
-
-/**
- * INFO wartosci aktualnie wybranej w parametrze. MULTI trzyma kilka wartosci
- * sklejonych "|" - opisujemy pierwsza. Kolekcje (selectCollections) doklejaja
- * do VALUE sufiks "~N", ktory searchForParameter juz obcina.
- */
-function getValueInfo(allOptionsByParameter, paramName, value) {
-    if (!value || typeof value !== 'string') return null;
-    const single = value.split('|')[0].replace(/~\d+$/, '').trim();
-    if (!single || single === '<NONE>') return null;
-    const option = searchForParameter(single, allOptionsByParameter, paramName);
-    return option?.INFO ?? null;
-}
-
-/**
- * Przerysowuje ikonki INFO wartosci dla calego formularza. Wolane na koncu
- * updateProcedure (czyli po KAZDEJ zmianie pola) i raz po zbudowaniu formularza,
- * bo wartosc parametru zmienia sie takze posrednio - przez formuly, skrypty
- * i resetowanie zaleznosci - a nie tylko przez klikniecie uzytkownika.
- */
-export function refreshValueInfoIcons(params, values, allOptionsByParameter) {
-    if (!params || !values || !allOptionsByParameter) return;
-    for (const param of params) {
-        const slot = valueInfoSlots.get(param?.NAME);
-        if (!slot) continue;
-        renderValueInfoIcon(slot, getValueInfo(allOptionsByParameter, param.NAME, values[param.NAME]));
-    }
-}
 
 export function processCommissionInput(labelValue = false) {
     logFunctionName('processCommissionInput')
@@ -174,14 +138,6 @@ export function createInputField(param, options, groupNumber, filters, allOption
             infoStyle: 'i',
             downloadLabel: t('Pobierz')
         });
-
-        // Druga ikonka w tym samym wierszu - INFO WYBRANEJ WARTOSCI. Pusty slot
-        // powstaje od razu, bo wartosci jeszcze nie ma; wypelnia go
-        // refreshValueInfoIcons() po kazdej zmianie w formularzu.
-        valueInfoSlots.set(param.NAME, createElement('span', {
-            class: ['value-info-slot'],
-            'data-value-info-for': param.NAME
-        }, labelWrapper));
     }
 
     if (param.SOURCE == param.NAME) {

@@ -152,7 +152,7 @@ async function submitCorrection(req, orderId, prices) {
         isClientForPdf,
         showBothForMail,
         null,
-        { withoutPrices }
+        { withoutPrices, hasSubPrices: hasSubPricesMail }
     );
     const orgData = await db.getOrgInfo(req.session.user.organization);
 

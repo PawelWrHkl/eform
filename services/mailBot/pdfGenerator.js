@@ -135,6 +135,13 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
   // nie są `locked`, więc bez tej flagi wychodziły razem z resztą SUB, gdy
   // `showBoth`/`clientView` je odsłaniało (routes/orders.js `isGroupClientPdf`).
   const hideClientVat = options.hideClientVat === true;
+  // Rabat eForma w podsumowaniu (pod ilością sztuk) — `{percent, label}` albo
+  // null. Liczy go `services/subPrices.js resolveClientDiscountSummary` z
+  // zapisanych pozycji; tutaj tylko przekazujemy do szablonu.
+  const clientDiscountSummary = withoutPrices ? null : (options.clientDiscountSummary || null);
+  // Czy zamówienie ma w ogóle ceny klienta (`SUB___*`) — decyduje o tym, czy
+  // wolno wydrukować ceny „złote" (wewnętrzne HKL). Patrz order-pdf.njk.
+  const hasSubPrices = options.hasSubPrices === true;
   log('zaczynam', logoPath)
   const logoBase64 = fs.readFileSync(logoPath, { encoding: 'base64' });
   const logoDataUri = `data:image/png;base64,${logoBase64}`;
@@ -195,6 +202,8 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     clientView: clientView,
     showBoth: showBoth && !withoutPrices,
     showClientDiscount: showClientDiscount,
+    clientDiscountSummary: clientDiscountSummary,
+    hasSubPrices: hasSubPrices,
     hideClientVat: hideClientVat,
     discountInfo: withoutPrices ? null : discountInfo,
     withoutPrices: withoutPrices
@@ -281,6 +290,8 @@ function renderOrderPdfHtml({
   clientView = false,
   showBoth = false,
   showClientDiscount = false,
+  clientDiscountSummary = null,
+  hasSubPrices = false,
   hideClientVat = false,
   // ⚠️ Ta funkcja renderuje TEN SAM szablon co wysyłka maila i służy testom
   // oraz podglądom — musi znać tę samą flagę, inaczej test „bez cen" przechodzi
@@ -311,6 +322,8 @@ function renderOrderPdfHtml({
     clientView,
     showBoth: showBoth && !withoutPrices,
     showClientDiscount: showClientDiscount && !withoutPrices,
+    clientDiscountSummary: withoutPrices ? null : clientDiscountSummary,
+    hasSubPrices,
     hideClientVat,
     withoutPrices
   });

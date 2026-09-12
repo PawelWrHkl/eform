@@ -19,6 +19,7 @@ const { getProductionSendSkipClient, shouldForceProductionSend } = require('../u
 const { groupLabelKey } = require('../services/groupType');
 const { setGroupShopContext, clearGroupShopContext, getGroupShopContext } = require('../services/groupContext');
 const { isClientGroupType } = require('../services/groupType');
+const { orderHasSubPrices } = require('../services/subPrices');
 
 // ── Middleware: wszystkie trasy wymagają zalogowania i roli 'group' ──────────
 
@@ -410,7 +411,7 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
         if (abLang && abLang !== lang) {
             docItems = await translateOrderItems(orderItems, cleanOrderItems, abLang);
         }
-        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, docItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, true, false, false, null, { withoutPrices });
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, docItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, true, false, false, null, { withoutPrices, hasSubPrices: orderHasSubPrices(docItems) });
         const orgData = await db.getOrgInfo(req.session.user.organization);
 
         // ⚠️ Wcześniej ten tor na dev/test wysyłał na PRAWDZIWY adres organizacji

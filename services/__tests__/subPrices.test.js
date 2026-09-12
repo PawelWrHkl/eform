@@ -7,6 +7,8 @@ const {
   orderHasSubPrices,
   calcSubTotals,
   resolveDiscountBaseTotal,
+  resolveClientDiscountSummary,
+  resolveItemClientDiscount,
   resolveSubPricePdfView,
   buildPdfSendDataTotals
 } = require('../subPrices');
@@ -166,4 +168,75 @@ test('resolveDiscountBaseTotal — non-HKL uses SUB subVisible', () => {
 test('resolveDiscountBaseTotal — non-HKL falls back to totals.sub when subTotals missing', () => {
   const base = resolveDiscountBaseTotal(42, { visible: 500, sub: 280 }, null);
   assert.equal(base, 280);
+});
+
+/**
+ * Informacja o rabacie eForma do podsumowania PDF-a z cenami ukrytymi
+ * (`print-button data-lock='true'`) — pod ilością sztuk.
+ */
+test('resolveClientDiscountSummary — bierze procent i opis z wiersza pozycji', () => {
+  const item = {
+    json_parameters_desc: JSON.stringify({
+      SUB___WARTOSC_KONCOWA: { option_value: '112.07', locked: true, listsum: true },
+      SUB___RABAT_KLIENTA: {
+        option_value: '1%',
+        param_description: '1% rabatu do zamówienia z tytułu korzystania z serwisu',
+        locked: true
+      }
+    })
+  };
+  assert.deepEqual(resolveClientDiscountSummary([item]), {
+    percent: '1%',
+    label: '1% rabatu do zamówienia z tytułu korzystania z serwisu'
+  });
+});
+
+test('resolveClientDiscountSummary — klucz sprzed 2026-08-21 (bez SUB___) też się liczy', () => {
+  const item = {
+    json_parameters_desc: JSON.stringify({
+      RABAT_KLIENTA: { option_value: '15%', param_description: 'Rabat klienta' }
+    })
+  };
+  assert.deepEqual(resolveClientDiscountSummary([item]), { percent: '15%', label: 'Rabat klienta' });
+});
+
+test('resolveClientDiscountSummary — zerowy i brakujący rabat dają null', () => {
+  const zerowy = { json_parameters_desc: JSON.stringify({ SUB___RABAT_KLIENTA: { option_value: '0%' } }) };
+  assert.equal(resolveClientDiscountSummary([zerowy]), null);
+  assert.equal(resolveClientDiscountSummary([{ json_parameters_desc: '{}' }]), null);
+  assert.equal(resolveClientDiscountSummary([]), null);
+  assert.equal(resolveClientDiscountSummary(null), null);
+});
+
+/**
+ * Rabat eForma per pozycja — trafia do JSON-a wysyłanego na FTP jako
+ * `efor_rabat` (services/sendOrderService.js).
+ */
+test('resolveItemClientDiscount — czyta wiersz rabatu pozycji', () => {
+  const item = {
+    json_parameters_desc: JSON.stringify({
+      SUB___RABAT_KLIENTA: { option_value: '1%', param_description: '1% za korzystanie z serwisu' }
+    })
+  };
+  assert.deepEqual(resolveItemClientDiscount(item), {
+    percent: '1%', value: 1, label: '1% za korzystanie z serwisu'
+  });
+});
+
+test('resolveItemClientDiscount — bez wiersza schodzi do json_parameters', () => {
+  // Ekrany bez wierszy rabatu (edit_form/admin_edit_form) nie tworzą wiersza,
+  // ale `applyClientDiscount` zawsze zapisuje `RABAT_KLIENTA` w parametrach.
+  const item = { json_parameters: JSON.stringify({ RABAT_KLIENTA: 16 }) };
+  assert.deepEqual(resolveItemClientDiscount(item), { percent: '16%', value: 16, label: null });
+});
+
+test('resolveItemClientDiscount — brak rabatu i zero dają null (klucz nie wejdzie do JSON-a)', () => {
+  assert.equal(resolveItemClientDiscount({ json_parameters: JSON.stringify({ RABAT_KLIENTA: 0 }) }), null);
+  assert.equal(resolveItemClientDiscount({ json_parameters: '{}' }), null);
+  assert.equal(resolveItemClientDiscount({}), null);
+  assert.equal(resolveItemClientDiscount(null), null);
+});
+
+test('resolveItemClientDiscount — uszkodzony JSON nie wywraca wysyłki', () => {
+  assert.equal(resolveItemClientDiscount({ json_parameters_desc: '{zepsute', json_parameters: '{zepsute' }), null);
 });

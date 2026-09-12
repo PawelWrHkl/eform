@@ -3537,3 +3537,27 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-09-11 10:35:01 - Start ===
 === 2026-09-11 10:35:01 - Dodawanie zmian do commita ===
+[feature/configurator-tester f9bb07c] Automatic commit 2026-09-11 10:35
+ 37 files changed, 11247 insertions(+), 4484 deletions(-)
+ delete mode 100755 "pdata/or01_K1__1_20260721_111721(__03__\305\273aluzje_50).txt"
+ delete mode 100755 pdata/or01_K1__1_20260721_111721(__43__Plisy_VS_F).txt
+ delete mode 100755 pdata/or01_K1__1_20260721_111721(__55__DoppelRollo).txt
+ delete mode 100755 pdata/or01_K1__1_20260721_111721(__75__Rollo_Coulise).txt
+ delete mode 100755 pdata/or01_K1__1_20260721_231721(__16__Szyny_Vertikal).txt
+ delete mode 100755 "pdata/or01_K1__1_20260721_231721(__39__\305\273aluzje_16_25).txt"
+ delete mode 100755 "pdata/or01_K1__1_20260721_231721(__59__\305\273aluzje_drewniane_2010).txt"
+ delete mode 100755 pdata/or01_K1__1_20260721_231721(__71__Plisy_EOS).txt
+ create mode 100644 services/__tests__/portalUsageDiscount.test.js
+ create mode 100644 services/portalUsageDiscount.js
+ create mode 100644 services/portalUsageDiscountMailer.js
+ create mode 100644 utils/__tests__/ensureInfoFilesDir.test.js
+ create mode 100644 utils/ensureInfoFilesDir.js
+=== 2026-09-11 10:35:02 - Wysyłanie do origin/main ===
+Everything up-to-date
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-09-11 10:35:03 - Koniec ===
+=== 2026-09-11 12:00:01 - Start ===
+=== 2026-09-11 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-09-12 10:35:01 - Start ===
+=== 2026-09-12 10:35:02 - Dodawanie zmian do commita ===

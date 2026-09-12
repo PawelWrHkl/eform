@@ -16,6 +16,7 @@ const versionManager = require("../services/versionManager")
 const { photoPath, dataDir } = require('../config');
 const { group } = require('console');
 const { fileExists } = require('../utils/fileManager');
+const { ensureGroupInfoFilesDir } = require('../utils/ensureInfoFilesDir');
 const { ordersManager } = require('../utils/saveOrdersOutput.js');
 const { file } = require('pdfkit');
 const { log } = require('../utils/logging');
@@ -525,6 +526,14 @@ router.post('/check-images', requireLogin, async (req, res) => {
 
 router.get('/version/:groupNr/', requireLogin, async (req, res) => {
   const lang = req.getLocale();
+
+  // Jedyny punkt, w ktorym serwer dowiaduje sie o wyborze grupy PRZED zbudowaniem
+  // formularza (main.js: getAppVersion → buildDynamicForm), wiec tutaj zakladamy
+  // katalog zalacznikow INFO wartosci tej grupy: <photoPath>/<grupa>/files.
+  // Leniwie, a nie przy starcie, bo nowe grupy pojawiaja sie bez restartu.
+  // Nie blokuje odpowiedzi: helper nigdy nie rzuca (patrz utils/ensureInfoFilesDir.js).
+  ensureGroupInfoFilesDir({ photoPath, groupNumber: req.params.groupNr, log });
+
   let version = await db.getAppVersion(req.params.groupNr, process.env.NODE_ENV || 'dev');
 
   return res.status(200).json({ version: version })

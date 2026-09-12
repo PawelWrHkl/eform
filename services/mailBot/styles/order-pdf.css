@@ -126,6 +126,11 @@ body {
     color: hsl(28 55% 32%) !important;
 }
 
+/* Informacja o rabacie w podsumowaniu — zaraz pod ilością sztuk. */
+.print-total-items.discount {
+    color: hsl(28 55% 32%) !important;
+}
+
 #table tbody td.row-comment {
     background-color: rgba(206, 198, 199, 0.658) !important;
     color: rgb(0, 0, 0) !important;

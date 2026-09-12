@@ -75,6 +75,7 @@ async function redirectClientGroupOrder(req, res) {
 const {
     orderHasSubPrices,
     calcClientDiscountTotal,
+    resolveClientDiscountSummary,
     calcSubTotals,
     resolveSubPricePdfView,
     resolveGroupClientPdfPriceView,
@@ -651,6 +652,9 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         // które widać przy pozycjach (services/subPrices.js).
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
         totalPrice.afterClientDiscount = clientDiscountTotals.found ? clientDiscountTotals.total : null;
+        // Ukryty `order_to_print.njk` (podgląd wydruku ze strony) pokazuje rabat
+        // pod ilością sztuk tak samo jak PDF — patrz trasa /orderpdf.
+        const clientDiscountSummary = resolveClientDiscountSummary(orderItems);
         const { isClientView, showBoth: showBothInPdf } = resolveSubPricePdfView(req, hasSubPrices);
 
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
@@ -673,7 +677,8 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
                 hidePrices: req.hidePrices,
                 hasSubPrices,
                 clientView: isClientView,
-                showBoth: showBothInPdf
+                showBoth: showBothInPdf,
+                clientDiscountSummary
             });
             req.session.user.showPricesOnce = false;
             return;
@@ -702,7 +707,8 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
                 hasSubPrices,
                 prices: false,
                 clientView: isClientView,
-                showBoth: showBothInPdf
+                showBoth: showBothInPdf,
+                clientDiscountSummary
             });
             return;
         }
@@ -872,6 +878,18 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
             effectiveShowBoth = groupView.showBoth;
             showClientDiscount = groupView.showClientDiscount;
         }
+        // Rabat eForma (rabat klienta + 1% za korzystanie z serwisu) do PDF-a
+        // z cenami ukrytymi — w pozycjach i w podsumowaniu.
+        //
+        // ⚠️ `showClientDiscount` wyżej dotyczy WYŁĄCZNIE grup (tam wiersz rabatu
+        // jest pod kłódką „Pokaż cenę po rabacie", bo należy do grupy-matki, a
+        // nie do jej klienta). Zwykły klient organizacji żadnej kłódki nie ma —
+        // rabat jest jego własny, więc pokazujemy go zawsze, gdy PDF w ogóle
+        // niesie ceny (`print-button data-lock='true'` → `shouldShowPrices`).
+        const clientDiscountSummary = shouldShowPrices ? resolveClientDiscountSummary(orderItems) : null;
+        if (!isGroupPdf && clientDiscountSummary) {
+            showClientDiscount = shouldShowPrices;
+        }
         // VAT katalogowy i SUB (`VAT`/`SUB___VAT`/…): konto podrzędne go nie widzi
         // NIEZALEŻNIE od typu grupy (tak jak dziś na ekranie, `order.njk`
         // `isVatRow`), grupa-matka dopiero dla typu `client` — na jej prośbę
@@ -924,7 +942,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         if (!isShort) {
             // Ujednolicona logika PDF — ten sam template (order-pdf.njk) co w sendMail
             const orderIdx = await db.getUserOrderId(req.params.orderId);
-            pdfBuffer = await generatePdf(order.orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, shouldShowPrices, maxProdDays, true, effectiveClientView, effectiveShowBoth, discountInfo, { showClientDiscount, hideClientVat });
+            pdfBuffer = await generatePdf(order.orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, shouldShowPrices, maxProdDays, true, effectiveClientView, effectiveShowBoth, discountInfo, { showClientDiscount, hideClientVat, clientDiscountSummary, hasSubPrices });
         } else {
             // Short PDF — osobny template order_to_print_short.njk
             let logoDataUri = null;
@@ -963,6 +981,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
                 clientView: effectiveClientView,
                 showBoth: effectiveShowBoth,
                 showClientDiscount,
+                clientDiscountSummary,
                 hideClientVat,
                 isGroupShop: res.locals.isGroupShop,
                 hasSubPrices,
@@ -1299,7 +1318,7 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         if (withoutPrices) log(`[ab_type] zamówienie ${id}: potwierdzenie bez cen (ab_type właściciela)`);
 
         // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
-        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices })
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices, hasSubPrices: hasSubPricesMail })
         const orgData = await db.getOrgInfo(req.session.user.organization)
 
         // Odbiorca i BCC — wspólna reguła dla panelu, importu i wysyłki na
