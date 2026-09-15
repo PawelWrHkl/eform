@@ -97,3 +97,41 @@ test('suma rabatów nie przekracza 100%', async () => {
     const wynik = await resolveCombinedDiscountForOrder(900, { select, resolveBase: async () => 100 });
     assert.equal(wynik.total, 100);
 });
+
+// ── Przełącznik admina (services/portalUsageDiscountSwitch.js) ───────────────
+// Wstrzykiwany przez `deps`, tak samo jak baza i logger — inaczej test zależałby
+// od pliku stanu w `dataDir` wspólnym dla środowiska.
+
+test('wyłączony przełącznik gasi rabat, nie pytając nawet bazy', async () => {
+    const select = fakeSelect([]);
+    const percent = await resolvePortalDiscountForOrder(1, { select, isSwitchEnabled: () => false });
+
+    assert.strictEqual(percent, 0);
+    assert.strictEqual(select.wywolania.length, 0, 'skoro rabatu nie ma, nie ma po co odpytywać bazy');
+});
+
+test('wyłączony przełącznik zostawia sam rabat klienta grupy', async () => {
+    const { total, base, portalBonus } = await resolveCombinedDiscountForOrder(1, {
+        select: fakeSelect([]),
+        resolveBase: async () => 15,
+        isSwitchEnabled: () => false
+    });
+
+    assert.strictEqual(portalBonus, 0);
+    assert.strictEqual(base, 15);
+    assert.strictEqual(total, 15, 'rabat klienta musi zostać nietknięty');
+});
+
+test('włączony przełącznik zachowuje się jak dotąd', async () => {
+    const select = fakeSelect([[{ user_id: 42 }], [{ id: 42 }]]);
+    const percent = await resolvePortalDiscountForOrder(1, { select, isSwitchEnabled: () => true });
+
+    assert.strictEqual(percent, PORTAL_DISCOUNT_PERCENT);
+});
+
+// Przełącznik mówi „czy rozdajemy rabat", a nie „czy ten klient spełnia regułę".
+// Zmieszanie tych dwóch rzeczy zafałszowałoby raporty uprawnionych.
+test('przełącznik NIE dotyka samego uprawnienia klienta', async () => {
+    const select = fakeSelect([[{ id: 42 }]]);
+    assert.strictEqual(await isEligibleUser(42, { select, isSwitchEnabled: () => false }), true);
+});

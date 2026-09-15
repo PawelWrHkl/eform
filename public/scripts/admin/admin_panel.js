@@ -44,6 +44,53 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Rabat 1% za korzystanie z serwisu
+    const portalDiscountBtn = document.getElementById('btn-portal-discount');
+    const portalDiscountStatus = document.getElementById('portal-discount-status');
+    if (portalDiscountBtn) {
+        portalDiscountBtn.addEventListener('click', async function () {
+            const btn = this;
+            // Stan czytany z klasy przycisku, tak samo jak przy blokadzie dostępu:
+            // btn-warning = rabat obecnie włączony (przycisk go wyłącza).
+            const currentlyEnabled = btn.classList.contains('btn-warning');
+            const nextEnabled = !currentlyEnabled;
+
+            if (currentlyEnabled && !confirm('Wyłączyć rabat 1% za korzystanie z serwisu? Nowe wyceny przestaną go naliczać.')) {
+                return;
+            }
+
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/admin/portal-discount', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: nextEnabled })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    if (data.enabled) {
+                        btn.className = 'btn btn-warning text-white';
+                        btn.innerHTML = '<i class="bi bi-toggle-off me-1"></i> Wyłącz rabat';
+                        portalDiscountStatus.className = 'badge bg-success fs-6';
+                        portalDiscountStatus.textContent = 'Rabat włączony';
+                        toastr.success('Rabat 1% włączony — nowe wyceny znów go naliczą.');
+                    } else {
+                        btn.className = 'btn btn-success text-white';
+                        btn.innerHTML = '<i class="bi bi-toggle-on me-1"></i> Włącz rabat';
+                        portalDiscountStatus.className = 'badge bg-danger fs-6';
+                        portalDiscountStatus.textContent = 'Rabat wyłączony';
+                        toastr.warning('Rabat 1% wyłączony. Zamówienia już wysłane zachowują swój rabat.');
+                    }
+                } else {
+                    toastr.error('Nie udało się przełączyć rabatu');
+                }
+            } catch (e) {
+                toastr.error('Błąd połączenia z serwerem');
+            }
+            btn.disabled = false;
+        });
+    }
+
     // Active sessions panel
     const sessionsBtn = document.getElementById('btn-active-sessions');
     if (sessionsBtn) {

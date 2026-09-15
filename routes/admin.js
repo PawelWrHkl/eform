@@ -8,6 +8,7 @@ const reportsDb = require("../db/admin/reports.js");
 const { log } = require('../utils/logging');
 const sessionService = require('../services/sessionService');
 const accessLock = require('../services/accessLock');
+const portalDiscountSwitch = require('../services/portalUsageDiscountSwitch');
 const orderCorrectionsRoutes = require('./admin/orderCorrections');
 const userAdminDb = require('../db/admin/userAdmin');
 const userAdminService = require('../services/admin/userAdminService');
@@ -48,7 +49,35 @@ function requireReportsApiAccess(req, res, next) {
 router.use('/order-corrections', orderCorrectionsRoutes);
 
 router.get('/', requireLogin, requireAdmin, async (req, res) => {
-    res.render('admin/admin_panel.njk', { accessBlocked: accessLock.isBlocked() });
+    res.render('admin/admin_panel.njk', {
+        accessBlocked: accessLock.isBlocked(),
+        portalDiscountEnabled: portalDiscountSwitch.isEnabled()
+    });
+});
+
+/**
+ * Przełącznik rabatu 1% za korzystanie z serwisu
+ * (`services/portalUsageDiscount.js`). Stan trzyma plik w `dataDir`, czytany
+ * przy każdym wyliczeniu rabatu — zmiana działa od następnego przeliczenia
+ * formularza, bez restartu.
+ *
+ * ⚠️ Wyłączenie NIE rusza zamówień już wysłanych: mają rabat policzony
+ * i zapisany w swoich pozycjach. Dotyczy tego, co liczy się od teraz.
+ */
+router.get('/portal-discount', requireLogin, requireAdmin, (req, res) => {
+    res.json({ success: true, ...portalDiscountSwitch.getState() });
+});
+
+router.post('/portal-discount', requireLogin, requireAdmin, (req, res) => {
+    try {
+        const enabled = req.body?.enabled === true || req.body?.enabled === 'true';
+        const state = portalDiscountSwitch.setEnabled(enabled);
+        log(`Rabat 1% za korzystanie z serwisu ${state.enabled ? 'WŁĄCZONY' : 'WYŁĄCZONY'} przez admina ${req.session.user?.pin || '?'}`);
+        res.json({ success: true, enabled: state.enabled, updatedAt: state.updatedAt });
+    } catch (error) {
+        log('Błąd przełączania rabatu za korzystanie z serwisu:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
 });
 
 router.get('/access-lock', requireLogin, requireAdmin, (req, res) => {

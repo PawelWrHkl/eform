@@ -21,6 +21,7 @@ const nodemailer = require('nodemailer');
 const { selectQuery } = require('../db/core');
 const { log } = require('../utils/logging');
 const { isEligibleUser, PORTAL_DISCOUNT_PERCENT } = require('./portalUsageDiscount');
+const { isEnabled: isDiscountSwitchEnabled } = require('./portalUsageDiscountSwitch');
 
 const transporter = nodemailer.createTransport({
     host: 'serwer2560216.home.pl',
@@ -53,6 +54,14 @@ function formatClient(user) {
  */
 async function notifyFirstOrderIfApplicable(orderId) {
     try {
+        // Osobne sprawdzenie, a nie poleganie na `isEligibleUser()`: ta funkcja
+        // mówi o uprawnieniu klienta, a nie o tym, czy rabat jest włączony.
+        // Mail informuje „klient dostał 1%", więc przy wyłączonym przełączniku
+        // byłby po prostu nieprawdą.
+        if (!isDiscountSwitchEnabled()) {
+            return { sent: false, reason: 'rabat za korzystanie z serwisu jest wyłączony przełącznikiem admina' };
+        }
+
         const rows = await selectQuery(
             `SELECT o.user_id, u.ident, u.client_name, u.id,
                     (SELECT COUNT(*) FROM \`order\` s

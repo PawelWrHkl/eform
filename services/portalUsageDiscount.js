@@ -44,6 +44,7 @@
 const { selectQuery } = require('../db/core');
 const { log } = require('../utils/logging');
 const { resolveClientDiscountForOrder, resolveClientDiscountForPosition } = require('./groupDiscount');
+const { isEnabled: isDiscountSwitchEnabled } = require('./portalUsageDiscountSwitch');
 
 /** Organizacja objęta rabatem (LUXANGMBH). */
 const PORTAL_DISCOUNT_ORG_ID = 5;
@@ -109,6 +110,18 @@ async function getOrderUserId(orderId, deps = {}) {
  * @returns {Promise<number>} 1 albo 0 (punkty procentowe)
  */
 async function resolvePortalDiscountForOrder(orderId, deps = {}) {
+    // Jedyne miejsce, w którym rodzi się ten punkt procentowy — i dlatego jedyne,
+    // w którym pyta się o przełącznik admina. `resolvePortalDiscountForPosition`
+    // i `resolveCombined*` idą tędy, więc wyłączenie gasi rabat wszędzie:
+    // w formularzu, na ekranie edycji pozycji, w wycenie i na wydrukach.
+    //
+    // `isEligibleUser()` zostaje CZYSTE — odpowiada na pytanie „czy ten klient
+    // spełnia regułę", które jest faktem o danych i nie zależy od tego, czy
+    // akurat rozdajemy rabat. Wmieszanie przełącznika tam zafałszowałoby też
+    // raporty i testy uprawnienia.
+    const switchEnabled = deps.isSwitchEnabled ? deps.isSwitchEnabled() : isDiscountSwitchEnabled();
+    if (!switchEnabled) return 0;
+
     const userId = await getOrderUserId(orderId, deps);
     return (await isEligibleUser(userId, deps)) ? PORTAL_DISCOUNT_PERCENT : 0;
 }
