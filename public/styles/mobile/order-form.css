@@ -1,0 +1,372 @@
+/* =============================================================================
+   MOBILE "NEUE BESTELLUNG" — E-orders (ETAP 2)
+   =============================================================================
+   Dotyczy wylacznie templates/new-order.njk (i szablonow, ktore go rozszerzaja:
+   edit_order.njk). Wszystkie reguly zakotwiczone w `#new-order-card` albo w
+   identyfikatorach pol tego formularza, wiec nie wyciekaja na inne ekrany.
+
+   ⚠️ Kolejnosc wczytania: mobile/new-order.css uzywa breakpointu 935px (nie
+   767.98px) i jest w `{% block head %}`, czyli ladowany PO arkuszach z base.njk.
+   Ten plik musi isc po nim - link stoi na koncu bloku head w new-order.njk.
+
+   ⚠️ Markup tego szablonu ma niedomkniete <div>-y (przegladarka sama je
+   naprawia), wiec zagniezdzenie bywa inne, niz sugeruje wciecie w pliku.
+   Dlatego selektory celuja w identyfikatory i klasy, a nie w sciezki rodzicow.
+   ============================================================================= */
+
+@media (max-width: 767.98px) {
+
+    /* ===================================================== 1. RAMA EKRANU === */
+
+    body,
+    main {
+        background: var(--m-bg) !important;
+    }
+
+    /* Gradientowa belka `.container::before` (theme.css) - patrz order-view.css. */
+    main .container::before,
+    main .container::after {
+        content: none !important;
+        display: none !important;
+    }
+
+    main > .content.center-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: transparent !important;
+    }
+
+    main > .content.center-content > .my-5 {
+        margin: 0 !important;
+    }
+
+    main > .content.center-content > .my-5 > h2 {
+        font-size: 20px !important;
+        line-height: 1.3 !important;
+        font-weight: 700 !important;
+        color: var(--m-text) !important;
+        text-align: left !important;
+        margin: 4px 0 14px !important;
+        padding: 0 !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* Karta Bootstrapa znika - role kart przejmuja pojedyncze sekcje nizej. */
+    #new-order-card.card {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    #new-order-card > .card-body {
+        padding: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: var(--m-gap) !important;
+    }
+
+    /* =============================================== 2. SEKCJE JAKO KARTY === */
+    /* Kazdy `.row` w karcie to jedno pole formularza. Na desktopie to uklad
+       [etykieta 3 kolumny | pole 9 kolumn]; na mobile etykieta idzie NAD pole. */
+
+    /* ⚠️ `:not(.d-none)` przy KAZDEJ regule ustawiajacej `display` w tym pliku.
+       Bootstrapowe `.d-none { display: none !important }` ma specyficznosc
+       (0,1,0), a selektory ponizej maja id, wiec bez tego wyjatku odslanialyby
+       elementy, ktore skrypty celowo chowaja:
+         • `#end-client-container` + `#end-client-hint` - orderEndClient.js:45,
+           pokazywane dopiero po zaznaczeniu "zamowienie dla odbiorcy koncowego",
+         • `#edit-/#delete-delivery-address-btn`, `#edit-/#delete-mail-btn` -
+           new-order.js `toggleBtns()`, widoczne tylko przy wybranym adresie,
+         • wiersze `.new-addr` / `.new-send-addr` - ukryte w samym szablonie.
+       To ta sama klasa bledu, co `display: ... !important` na wierszach
+       konfiguratora (patrz mobile/configurator.css). */
+    #new-order-card > .card-body > .row:not(.d-none),
+    #new-order-card #end-client-row:not(.d-none),
+    #new-order-card #mail-dropdown-container:not(.d-none) {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 12px 14px !important;
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius) !important;
+        box-shadow: var(--m-shadow-card) !important;
+        box-sizing: border-box !important;
+        /* `.content.center-content` centruje tekst dla layoutu desktopowego -
+           w karcie formularza etykiety i opisy checkboxow maja isc do lewej. */
+        text-align: left !important;
+    }
+
+    /* `#mail-dropdown-container` jest rodzenstwem wewnatrz sekcji adresu, a nie
+       osobnym `.row` - bez tego dublowalby ramke karty w karcie. */
+    #new-order-card #mail-dropdown-container {
+        margin-top: 12px !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    #new-order-card > .card-body > .row > [class*="col-md-"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    #new-order-card label,
+    #new-order-card .form-label {
+        display: block;
+        font-size: var(--m-label) !important;
+        font-weight: 600 !important;
+        line-height: 1.3 !important;
+        color: var(--m-text-muted) !important;
+        margin: 0 0 6px !important;
+        padding: 0 !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* ==================================================== 3. KONTROLKI === */
+
+    #new-order-card .form-control,
+    #new-order-card .form-select,
+    #new-order-card input[type="text"],
+    #new-order-card input[type="tel"],
+    #new-order-card input[type="email"],
+    #new-order-card input[type="number"],
+    #new-order-card select,
+    #new-order-card textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: var(--m-control-h) !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 10px 14px !important;
+        box-sizing: border-box !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: var(--m-font) !important;   /* >=16px = brak auto-zoomu iOS */
+        line-height: 1.35 !important;
+        box-shadow: none !important;
+    }
+
+    #new-order-card select,
+    #new-order-card .form-select {
+        padding-right: 40px !important;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%2397a2b1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 14px center !important;
+        background-size: 13px 13px !important;
+    }
+
+    #new-order-card textarea {
+        min-height: 96px !important;
+        resize: vertical !important;
+    }
+
+    #new-order-card .form-control:focus,
+    #new-order-card .form-select:focus,
+    #new-order-card textarea:focus,
+    #new-order-card select:focus {
+        outline: none !important;
+        border-color: var(--m-accent) !important;
+        box-shadow: 0 0 0 3px var(--m-focus) !important;
+    }
+
+    #new-order-card #charCount {
+        display: block;
+        margin-top: 6px !important;
+        font-size: 12px !important;
+        color: var(--m-text-soft) !important;
+        text-align: right;
+    }
+
+    /* ===================================== 4. CHECKBOXY (przelaczniki) === */
+    /* Wymog briefu: checkbox nie moze wypychac etykiety poza ekran. Etykieta
+       dostaje `flex: 1 1 auto; min-width: 0`, wiec zawija sie zamiast rozpychac
+       wiersz - a to wlasnie robily dlugie niemieckie zdania w tych polach. */
+
+    #new-order-card #address-checkbox-container:not(.d-none),
+    #new-order-card #send-address-checkbox-container:not(.d-none),
+    #new-order-card #end-client-row .d-flex.align-items-center.gap-2:first-child {
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: nowrap !important;
+        gap: 10px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 0 10px !important;
+        padding: 0 !important;
+        min-width: 0 !important;
+    }
+
+    #new-order-card .form-check-input {
+        flex: 0 0 22px !important;
+        width: 22px !important;
+        height: 22px !important;
+        min-width: 22px !important;
+        margin: 0 !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: 6px !important;
+        accent-color: var(--m-accent);
+    }
+
+    #new-order-card .form-check-input:checked {
+        background-color: var(--m-accent) !important;
+        border-color: var(--m-accent) !important;
+    }
+
+    #new-order-card .form-check-label {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        line-height: 1.35 !important;
+        color: var(--m-text) !important;
+        overflow-wrap: anywhere;
+        hyphens: auto;
+        -webkit-hyphens: auto;
+    }
+
+    /* ========================== 5. IKONY PRZY ADRESIE / MAILU (44px) === */
+    /* `edit / delete / add` to <button class="btn p-0"> z <img class="icon">.
+       Na desktopie sa male i ustawione w rzedzie obok selecta; tutaj select
+       zajmuje cala szerokosc, a ikony schodza pod niego jako pasek akcji
+       o dotykowym rozmiarze. */
+
+    #new-order-card #address-dropdown-container:not(.d-none),
+    #new-order-card #mail-dropdown-container:not(.d-none) {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 8px !important;
+    }
+
+    #new-order-card #address-select,
+    #new-order-card #mail-select {
+        flex: 1 1 100% !important;
+    }
+
+    #new-order-card .manipulate-address,
+    #new-order-card .manipulate-mail,
+    #new-order-card .add-new-address {
+        margin: 0 !important;
+        gap: 8px !important;
+    }
+
+    #new-order-card .manipulate-address .btn:not(.d-none),
+    #new-order-card .manipulate-mail .btn:not(.d-none),
+    #new-order-card .add-new-address .btn:not(.d-none),
+    #new-order-card #add-end-client-btn:not(.d-none) {
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius-sm) !important;
+        box-shadow: none !important;
+        color: var(--m-text-muted) !important;
+        font-size: 20px !important;
+    }
+
+    #new-order-card .manipulate-address .btn img.icon,
+    #new-order-card .manipulate-mail .btn img.icon,
+    #new-order-card .add-new-address .btn img.icon {
+        width: 20px !important;
+        height: 20px !important;
+        object-fit: contain !important;
+    }
+
+    /* Pole wyszukiwania odbiorcy koncowego (moduł faktur). */
+    #new-order-card .end-client-combo {
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
+    }
+
+    #new-order-card #end-client-container:not(.d-none) {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+
+    #new-order-card #end-client-hint,
+    #new-order-card .text-muted {
+        font-size: 12.5px !important;
+        line-height: 1.35 !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* =================================================== 6. AKCJE === */
+    /* Jeden ekran = jedna glowna akcja: zapis w kolorze akcentu, anulowanie
+       jako cichy przycisk pod nim. */
+
+    #new-order-card .mobile-rm-d-flex,
+    #new-order-card > .card-body > div:last-child.d-flex {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+        margin: 4px 0 0 !important;
+        padding: 0 !important;
+    }
+
+    #save-order-btn {
+        order: 1;
+        width: 100% !important;
+        min-height: var(--m-control-h) !important;
+        margin: 0 !important;
+        padding: 14px 16px !important;
+        background: var(--m-accent) !important;
+        border: 1px solid var(--m-accent) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-on-accent) !important;
+        font-size: var(--m-font) !important;
+        font-weight: 700 !important;
+        box-shadow: none !important;
+    }
+
+    #save-order-btn:active {
+        background: var(--m-accent-press) !important;
+        border-color: var(--m-accent-press) !important;
+    }
+
+    #new-order-card .btn-outline-danger[href="/"],
+    #new-order-card a.btn-outline-danger {
+        order: 2;
+        width: 100% !important;
+        min-height: 48px !important;
+        margin: 0 !important;
+        padding: 12px 16px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: transparent !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text-muted) !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        text-decoration: none !important;
+        box-shadow: none !important;
+    }
+}

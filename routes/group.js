@@ -11,7 +11,7 @@ const { generatePdf, generateOrderDocuments } = require('../services/mailBot/pdf
 const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../services/confirmationPolicy');
 const { translateOrderItems } = require('../services/translationDict/itemTranslator');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
-const { buildItemProductionDays } = require('../services/productionDays');
+const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../services/productionDays');
 const path = require('path');
 const { log } = require('../utils/logging');
 const { formatClientLabel } = require('../utils/formatClient');
@@ -364,6 +364,10 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
         // pilnuje jednorazowosci (liczy wyslane zamowienia klienta) i nigdy nie rzuca,
         // wiec nie moze przewrocic wysylki zamowienia.
         await notifyFirstOrderIfApplicable(orderId);
+        // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
+        // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
+        // kolumnę także dla zamówień sprzed migracji, gdzie jest jeszcze NULL.
+        await recalcAndSaveMaxProdDays(orderId);
         ({ orderDetails, orderItems } = await db.getOrderDataToSend(orderId));
 
         const sender = new OrderSender.OrderSender(req, orderDetails, orderItems);

@@ -1,0 +1,251 @@
+/* =============================================================================
+   DOLNY PASEK NAWIGACJI + EKRAN "MEHR" — E-orders (ETAP 2)
+   =============================================================================
+   Markup siedzi w templates/base.njk (`<nav class="m-bottomnav">`), czyli jest
+   renderowany po stronie serwera - bez migotania i bez zaleznosci od JS.
+
+   Pasek jest ukryty POZA media query (`display: none` na dole tego pliku jako
+   stan domyslny), wiec desktop go nie widzi nawet przez ulamek sekundy.
+   Ten sam wzorzec ma juz `.mobile-pwd-fab` w mobile/layout.css.
+
+   Przycisk "Mehr" NIE otwiera nowego ekranu - przelacza istniejacy collapse
+   `#mobileNav` (to samo, co hamburger w naglowku), przez natywne
+   `data-bs-toggle="collapse"` Bootstrapa. Zero nowej logiki nawigacji,
+   zero duplikatu listy pozycji menu.
+   ============================================================================= */
+
+/* Stan domyslny: pasek nie istnieje wizualnie nigdzie poza mobile. */
+.m-bottomnav {
+    display: none;
+}
+
+@media (max-width: 767.98px) {
+
+    .m-bottomnav {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1040;          /* nad trescia, pod naglowkiem (1030 + sheet) */
+        align-items: stretch;
+        height: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px));
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        margin: 0;
+        background: var(--m-card);
+        border-top: 1px solid var(--m-border);
+        box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.06);
+        box-sizing: border-box;
+    }
+
+    [data-theme="dark"] .m-bottomnav {
+        box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .m-bottomnav__item {
+        flex: 1 1 0;
+        min-width: 0;           /* bez tego dlugie etykiety rozpychaja pasek */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        padding: 6px 2px;
+        border: none;
+        background: transparent;
+        color: var(--m-text-soft);
+        font: inherit;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+        cursor: pointer;
+    }
+
+    .m-bottomnav__item:active {
+        background: var(--m-field-press);
+    }
+
+    .m-bottomnav__icon {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+        display: block;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    /* Etykieta moze zejsc do dwoch linii - niemieckie "Bestellungen" i polskie
+       "Zamowienia" nie miesciloby sie w jednej przy 320px, a briefu zakazuje
+       ucinania tekstu. */
+    .m-bottomnav__label {
+        font-size: 10.5px;
+        line-height: 1.15;
+        font-weight: 600;
+        text-align: center;
+        width: 100%;
+        overflow-wrap: anywhere;
+        hyphens: auto;
+        -webkit-hyphens: auto;
+    }
+
+    .m-bottomnav__item.is-active {
+        color: var(--m-accent-text, var(--m-text));
+    }
+
+    .m-bottomnav__item.is-active .m-bottomnav__icon {
+        stroke: var(--m-accent);
+        stroke-width: 2.1;
+    }
+
+    /* Kreska nad aktywna pozycja - czytelniejsza niz sam kolor ikony przy
+       slabym kontrascie ekranu w sloncu. */
+    .m-bottomnav__item.is-active::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        width: 28px;
+        height: 3px;
+        border-radius: 0 0 3px 3px;
+        background: var(--m-accent);
+    }
+
+    .m-bottomnav__item {
+        position: relative;
+    }
+
+    /* ======================================================= EKRAN "MEHR" === */
+    /* `#mobileNav` to collapse Bootstrapa w naglowku. Po otwarciu rozwijal sie
+       jako kilka pozycji pod paskiem; tutaj staje sie pelnoekranowym arkuszem
+       (makieta "Mehr"), niezaleznie od tego, czy otworzyl go hamburger czy
+       dolny pasek. `.collapsing` musi dostac te same wymiary, inaczej Bootstrap
+       animuje wysokosc od 0 i arkusz "wyskakuje". */
+    .mobile-nav #mobileNav.show,
+    .mobile-nav #mobileNav.collapsing {
+        position: fixed;
+        top: calc(var(--m-header-h) + env(safe-area-inset-top, 0px));
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-height: none;
+        margin: 0;
+        padding: 8px var(--m-gutter) calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+        background: var(--m-bg);
+        border-top: 1px solid var(--m-border);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        z-index: 1035;
+    }
+
+    /* Pozycje menu jako lista kart - jak ekran "Mehr" z makiety. */
+    .mobile-nav #mobileNav.show .nav {
+        gap: 0 !important;
+        margin: 8px 0 0 !important;
+        background: var(--m-card);
+        border: 1px solid var(--m-border);
+        border-radius: var(--m-radius);
+        overflow: hidden;
+    }
+
+    .mobile-nav #mobileNav.show .nav-item {
+        border-bottom: 1px solid var(--m-border);
+    }
+
+    .mobile-nav #mobileNav.show .nav-item:last-child {
+        border-bottom: none;
+    }
+
+    .mobile-nav #mobileNav.show .nav-link {
+        border-radius: 0 !important;
+        padding: 14px var(--m-gutter) !important;
+        min-height: 52px;
+        font-size: 15px !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* Przelacznik jezyka klonowany przez tools/langChanger.js na sam dol menu. */
+    /* Klon przelacznika jezyka ma style inline (langChanger.js), wiec kazda
+       wlasciwosc, ktora tu zmieniamy, musi byc `!important` - inaczej flagi
+       dotykaly krawedzi karty. */
+    .mobile-nav #mobileNav.show .mobile-language-switcher {
+        margin-top: 16px !important;
+        padding: 12px !important;
+        border-top: none !important;
+        background: var(--m-card);
+        border: 1px solid var(--m-border);
+        border-radius: var(--m-radius);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .mobile-nav #mobileNav.show .mobile-language-switcher > * {
+        gap: 12px !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+    }
+
+    /* Gdy arkusz jest otwarty, dolny pasek zostaje widoczny (mozna z niego
+       wyjsc tapnieciem w inna zakladke), ale "Mehr" jest podswietlone. */
+    body.m-more-open .m-bottomnav__item[data-m-nav="more"] {
+        color: var(--m-text);
+    }
+
+    body.m-more-open .m-bottomnav__item[data-m-nav="more"] .m-bottomnav__icon {
+        stroke: var(--m-accent);
+    }
+
+    /* ---------------------------------------------------------------- stopka */
+    /* Stopka byla `position: sticky; bottom: 0` - z dolnym paskiem wpadalaby
+       pod niego i linki RODO/regulamin/kontakt bylyby nieklikalne. Puszczamy ja
+       normalnym przeplywem na koniec strony; `main` rezerwuje juz miejsce na
+       pasek, wiec stopka konczy sie nad nim. */
+    .site-footer {
+        position: static !important;
+        height: auto !important;
+        margin-bottom: 0 !important;
+        padding: 12px 0 calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 12px) !important;
+        background: transparent !important;
+        border-top: 1px solid var(--m-border);
+    }
+
+    .site-footer .footer-inner {
+        height: auto !important;
+        flex-wrap: wrap;
+        padding: 0 var(--m-gutter);
+    }
+
+    /* Trzy dlugie niemieckie rzeczowniki ("Datenschutzerklarung",
+       "Nutzungsbedingungen") nie zmieszcza sie w jednej linii na telefonie -
+       maja zawijac sie MIEDZY linkami, a nie w srodku slowa. */
+    .site-footer .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 2px 10px !important;
+        font-size: 12px !important;
+        line-height: 1.4;
+        overflow-wrap: normal;
+        text-align: center;
+    }
+
+    .site-footer .footer-links a {
+        margin: 0 !important;
+        color: var(--m-text-soft) !important;
+    }
+
+    .site-footer .footer-dot {
+        opacity: 0.5;
+    }
+
+    /* Gradientowa kreska nad stopka - ten sam jezyk co belki `.container::before`,
+       na telefonie tylko szum. */
+    .site-footer .footer-accent {
+        display: none !important;
+    }
+
+    /* FAB z haslami (konto admina) musi stac nad paskiem, nie na nim. */
+    .mobile-pwd-fab {
+        bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 16px) !important;
+    }
+}

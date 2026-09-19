@@ -127,6 +127,8 @@ test('sendImportedOrder changes status, uploads and sends mail with import flag'
         }
       },
       getExtraAttachments: async () => [],
+      // jw. — atrapa zapisu `order_item.prod_days`, test nie ma bazy
+      recalcAndSaveMaxProdDays: async () => 0,
       generatePdf: async () => Buffer.from('pdf'),
       translateOrderItems: async (_items, clean) => {
         calls.prodPdf += 1;
@@ -200,6 +202,9 @@ function harnessAb() {
     generateProductionPdf: async () => Buffer.from('prod'),
     uploadProductionPdf: async () => {},
     buildItemProductionDays: (_items, _times, delay) => { zapisane.delay = delay; return { maxProdDays: 0 }; },
+    // Zapis `order_item.prod_days` chodzi po bazie — w teście zastępujemy go
+    // atrapą, żeby wysyłka po imporcie dawała się sprawdzić bez MySQL-a.
+    recalcAndSaveMaxProdDays: async () => 0,
     getProductionSendSkipClient: () => null,
     formatSendTotals: async (d) => d,
     sendMailAsync: async (to, _lang, _pdf, _att, _vars, bcc, _tpl, _subj, options) => {

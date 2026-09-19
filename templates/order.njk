@@ -12,6 +12,8 @@
                     <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
                     <script defer src="https://cdn.jsdelivr.net/npm/canvg@3.0.10/lib/umd.min.js"></script>
                     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+                    {# Mobile ETAP 2 - ostatni w bloku, bo nadpisuje mobile/order_details.css. #}
+                    <link rel="stylesheet" href="/styles/mobile/order-view.css?v={{ assetVersion }}">
                 {% endblock head %}
                 {% block key_nav %}
                     window.history.back()
@@ -710,9 +712,21 @@
                                                                                             {% endblock %}
                                                                                         </div>
                                                                                     {% else %}
-                                                                                        <div class="text-center py-5 mt-5">
+                                                                                        <div class="text-center py-5 mt-5 order-empty-state">
                                                                                             <h3 class="mb-4">{{ __('order.no_positions') }}</h3>
                                                                                             <p class="lead mt-5 fw-bold">{{ __('order.add_position') }}</p>
+                                                                                            {# Mobile (ETAP 2): glowna akcja wewnatrz pustego stanu, tak jak w
+                                                                                               makiecie. To ten sam adres, co przycisk w pasku akcji wyzej -
+                                                                                               tylko powtorzony tam, gdzie uzytkownik wlasnie patrzy. Warunek
+                                                                                               `clientOwnedOrder` jest przepisany 1:1 z tamtego przycisku:
+                                                                                               zamowienie klienta grupy jest dla grupy-matki tylko do wgladu
+                                                                                               (utils/orderStatusGuard.js), wiec nie wolno tu podsuwac
+                                                                                               dodawania pozycji. #}
+                                                                                            {% if not clientOwnedOrder %}
+                                                                                                <a href="/orders/order/{{ orderDetails.id }}/new-position/" class="m-empty-cta d-md-none">
+                                                                                                    + {{ __('order.add_position_btn') }}
+                                                                                                </a>
+                                                                                            {% endif %}
                                                                                         </div>
                                                                                     {% endif %}
                                                                                 </div>

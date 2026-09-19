@@ -1,0 +1,546 @@
+/* =============================================================================
+   MOBILE DIALOG WYBORU WARTOSCI — E-orders (ETAP 1, przebudowa)
+   =============================================================================
+   Pelnoekranowy arkusz zamiast okna: pasek tytulu, przyklejone wyszukiwanie
+   i filtry, SIATKA 4 KAFELKOW W RZEDZIE (bylo: jeden pod drugim), kompaktowy
+   pasek akcji na dole.
+
+   Wczytywany jako OSTATNI w `{% block head %}` szablonu form.njk, wiec nadpisuje
+   `styles/dialog.css` i `styles/mobile/dialog.css`.
+
+   ###########################################################################
+   # CZEGO TU NIE WOLNO RUSZAC — trzy miejsca, gdzie `display` to LOGIKA      #
+   #                                                                         #
+   # 1. `.image-box` — wyszukiwarka i filtry chowaja kafelki inline:          #
+   #      element.style.display = 'block' | 'none'                            #
+   #    (dialogUtils_copy.js, filterAndDisplayOptions). Reguly ponizej NIE    #
+   #    ustawiaja `display` na `.image-box` — kafelek jest elementem siatki   #
+   #    niezaleznie od tego, czy ma `block` czy `flex`, wiec nie ma potrzeby. #
+   #                                                                         #
+   # 2. `#dialog-confirm` — przycisk "Zastosuj" istnieje tylko przy MULTI:    #
+   #      confirmButton.style.display = isMultiChoice ? 'inline-block':'none' #
+   #    (dialogUtils_copy.js, initialize). Stad brak `display` na tym id.     #
+   #                                                                         #
+   # 3. `.filter-controls.d-none` — gdy parametr nie ma filtrow, cały blok    #
+   #    dostaje `.d-none` (createFilterControls). Nie forsujemy mu `display`. #
+   ###########################################################################
+   ============================================================================= */
+
+@media (max-width: 767.98px) {
+
+    /* ================================================== 1. ARKUSZ === */
+
+    #color-dialog[open] {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: var(--m-bg) !important;
+        box-sizing: border-box !important;
+    }
+
+    #color-dialog #dialog-container {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        background: var(--m-bg) !important;
+        overflow: hidden !important;
+    }
+
+    /* --- pasek tytulu --- */
+    #color-dialog #dialog-title {
+        flex: 0 0 auto;
+        display: flex !important;
+        align-items: center;
+        min-height: 56px;
+        margin: 0 !important;
+        padding: 10px var(--m-gutter) !important;
+        background: var(--m-card) !important;
+        border-bottom: 1px solid var(--m-border) !important;
+        color: var(--m-text) !important;
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        line-height: 1.25 !important;
+        text-align: left !important;
+        padding-top: calc(10px + env(safe-area-inset-top, 0px)) !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* ======================================= 2. SZUKAJ / FILTRY / SORT === */
+
+    #color-dialog .dialog-controls {
+        flex: 0 0 auto;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        padding: 10px var(--m-gutter) !important;
+        background: var(--m-card) !important;
+        border-bottom: 1px solid var(--m-border) !important;
+    }
+
+    #color-dialog .search-container {
+        margin: 0 !important;
+    }
+
+    #color-dialog .search-input {
+        width: 100% !important;
+        min-height: 44px !important;
+        margin: 0 !important;
+        padding: 10px 14px 10px 40px !important;   /* miejsce na lupe */
+        box-sizing: border-box !important;
+        background-color: var(--m-field) !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397a2b1' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: left 13px center !important;
+        background-size: 17px 17px !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: var(--m-font) !important;        /* <16px = auto-zoom iOS */
+        box-shadow: none !important;
+    }
+
+    #color-dialog .search-input:focus {
+        outline: none !important;
+        border-color: var(--m-accent) !important;
+        box-shadow: 0 0 0 3px var(--m-focus) !important;
+    }
+
+    /* Filtry: zwijany pasek. `.collapsed` / `.expanded` przelacza
+       dialogUtils_copy.js przez `max-height` - zostawiamy ten mechanizm,
+       zmieniamy tylko wyglad. */
+    #color-dialog .filter-controls {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius-sm) !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    #color-dialog .filter-controls.collapsed {
+        max-height: 46px !important;
+    }
+
+    #color-dialog .filter-controls.expanded {
+        max-height: 60vh !important;
+        overflow-y: auto !important;
+    }
+
+    #color-dialog .filter-controls-header {
+        min-height: 44px !important;
+        padding: 10px 14px !important;
+        background: transparent !important;
+        border-bottom: none !important;
+    }
+
+    #color-dialog .filter-controls-title {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: var(--m-text-muted) !important;
+    }
+
+    #color-dialog .filter-controls-toggle {
+        font-size: 12px !important;
+        color: var(--m-text-soft) !important;
+    }
+
+    #color-dialog .filter-controls-content {
+        padding: 0 10px 10px !important;
+    }
+
+    #color-dialog .filter-group {
+        padding: 6px 0 !important;
+        border-bottom: none !important;
+        margin: 0 !important;
+    }
+
+    #color-dialog .filter-controls .dropdown-toggle,
+    #color-dialog .filter-controls .btn {
+        width: 100% !important;
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 8px 12px !important;
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: 14px !important;
+        text-align: left !important;
+        box-shadow: none !important;
+    }
+
+    #color-dialog .dropdown-menu {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: var(--m-radius-sm) !important;
+        border: 1px solid var(--m-border) !important;
+    }
+
+    #color-dialog .dropdown-menu li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+        padding: 2px 6px;
+    }
+
+    #color-dialog .dropdown-option {
+        width: 20px !important;
+        height: 20px !important;
+        min-width: 20px !important;
+        margin: 0 !important;
+        accent-color: var(--m-accent);
+    }
+
+    #color-dialog .form-check-label {
+        font-size: 14px !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* Sortowanie + czyszczenie ulubionych w jednym rzedzie. */
+    #color-dialog .sorting-controls {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #color-dialog .sorting-select,
+    #color-dialog #sortOptions {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 8px 34px 8px 12px !important;
+        background-color: var(--m-field) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: 14px !important;
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%2397a2b1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 11px center !important;
+        background-size: 12px 12px !important;
+        box-shadow: none !important;
+    }
+
+    #color-dialog .clear-favorites-btn {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 8px 12px !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text-muted) !important;
+        font-size: 13px !important;
+        white-space: nowrap;
+        box-shadow: none !important;
+    }
+
+    /* ============================================ 3. SIATKA KAFELKOW === */
+    /* Sedno zmiany: `styles/mobile/dialog.css` robilo z listy `display: flex`
+       przy `.image-box { width: 100% }`, wiec w rzedzie miescil sie JEDEN
+       kafelek. Teraz to siatka o czterech rownych kolumnach.
+       `minmax(0, 1fr)` zamiast `1fr` - inaczej dluga nazwa wartosci rozpycha
+       kolumne (domyslne `min-width: auto` elementu siatki) i wraca poziomy
+       scroll. */
+    #color-dialog #dynamic-options-list {
+        flex: 1 1 auto !important;
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        align-content: start !important;
+        gap: 8px !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 12px var(--m-gutter) calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+        background: var(--m-bg) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        box-sizing: border-box !important;
+    }
+
+    /* ⚠️ Bez `display` — patrz naglowek pliku (punkt 1). */
+    #color-dialog .image-box {
+        position: relative !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+        width: auto !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 5px !important;
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: 10px !important;
+        box-shadow: none !important;
+        /* ⚠️ `overflow: visible`, nie `hidden`: nazwa wartosci ma dwie linie
+           (`VALUE<br>DESCRIPTION` z createOptionElement) i przy przycietym
+           kafelku druga linia znikala. Brief zakazuje ucinania tekstu, a
+           miniatura ma wlasne zaokraglenie, wiec nie potrzebuje maski. */
+        overflow: visible !important;
+    }
+
+    #color-dialog .image-box.active {
+        border-color: var(--m-accent) !important;
+        background: var(--m-accent-soft) !important;
+        box-shadow: 0 0 0 2px var(--m-accent) !important;
+    }
+
+    /* Zaznaczenie: znacznik w rogu. Dla MULTI dialog.css rysuje wlasny
+       `::after` - nie duplikujemy go, stad `:not(.multi-selectable)`. */
+    #color-dialog .image-box.active:not(.multi-selectable)::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: var(--m-accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23241c05' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E") center / 10px 10px no-repeat;
+        z-index: 6;
+    }
+
+    #color-dialog .image-box-top {
+        width: 100% !important;
+    }
+
+    /* Miniatura kwadratowa - rzad kafelkow ma trzymac wspolna linie. */
+    #color-dialog .image-wrapper {
+        width: 100% !important;
+        max-height: none !important;
+        margin: 0 !important;
+        aspect-ratio: 1 / 1;
+    }
+
+    #color-dialog .diag-image {
+        width: 100% !important;
+        height: 100% !important;
+        padding: 0 !important;
+        border: none !important;
+        border-radius: 7px !important;
+        object-fit: cover !important;
+        background-color: var(--m-field) !important;
+        box-shadow: none !important;
+    }
+
+    /* Lupa podgladu - maly znacznik w rogu miniatury. */
+    #color-dialog .preview-box {
+        top: auto !important;
+        bottom: 3px !important;
+        right: 3px !important;
+        width: 18px !important;
+        height: 18px !important;
+        padding: 3px !important;
+        background: var(--m-card) !important;
+        border-radius: 5px !important;
+        opacity: 0.92;
+    }
+
+    #color-dialog .image-box-bottom {
+        display: flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+        width: 100% !important;
+        margin: 4px 0 0 !important;
+        padding: 0 !important;
+    }
+
+    #color-dialog .image-name {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 10px !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+        color: var(--m-text) !important;
+        text-align: left !important;
+        overflow-wrap: anywhere;
+        hyphens: auto;
+        -webkit-hyphens: auto;
+    }
+
+    /* Stan magazynowy: kropka 8px przed nazwa. */
+    #color-dialog .stock-badge {
+        flex: 0 0 8px !important;
+        width: 8px !important;
+        height: 8px !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        align-self: flex-start;
+        margin-top: 3px !important;
+    }
+
+    /* Serduszko nad miniatura, zeby nie zabieralo szerokosci nazwie. */
+    #color-dialog .heart-icon {
+        position: absolute !important;
+        top: 4px !important;
+        right: 4px !important;
+        width: 17px !important;
+        height: 17px !important;
+        margin: 0 !important;
+        padding: 2px;
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 50%;
+        z-index: 6;
+    }
+
+    #color-dialog .delivery-info {
+        margin: 3px 0 0 !important;
+        font-size: 9.5px !important;
+        line-height: 1.2 !important;
+        color: var(--m-text-soft) !important;
+        text-align: left !important;
+        overflow-wrap: anywhere;
+    }
+
+    #color-dialog .tile-info-stack {
+        top: 4px !important;
+        left: 4px !important;
+        gap: 3px !important;
+    }
+
+    #color-dialog .image-box-top .param-info-icon {
+        width: 17px !important;
+        height: 17px !important;
+        min-width: 17px !important;
+        font-size: 10px !important;
+    }
+
+    /* Napis "OBSOLETE" byl liczony pod kafelek 180px - w siatce musi zmalec. */
+    #color-dialog .obsolete::before {
+        font-size: 11px !important;
+        letter-spacing: 0 !important;
+    }
+
+    #color-dialog .obsolete::after {
+        width: 15px !important;
+        height: 15px !important;
+        font-size: 10px !important;
+        top: 4px !important;
+        left: 4px !important;
+    }
+
+    /* ============================================== 4. PASEK DOLNY === */
+
+    #color-dialog #additional-info {
+        flex: 0 0 auto;
+        max-height: 30vh;
+        overflow-y: auto;
+        padding: 10px var(--m-gutter) !important;
+        background: var(--m-card) !important;
+        border-top: 1px solid var(--m-border) !important;
+    }
+
+    #color-dialog .bottom {
+        flex: 0 0 auto;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 10px !important;
+        margin: 0 !important;
+        padding: 10px var(--m-gutter) calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+        background: var(--m-card) !important;
+        border-top: 1px solid var(--m-border) !important;
+        position: static !important;
+    }
+
+    #color-dialog .button-wrapper {
+        display: flex !important;
+        flex: 1 1 auto !important;
+        gap: 8px !important;
+        margin: 0 !important;
+    }
+
+    /* ⚠️ Bez `display` — patrz naglowek pliku (punkt 2). */
+    #color-dialog #dialog-confirm {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-height: 48px !important;
+        margin: 0 !important;
+        padding: 12px 16px !important;
+        background: var(--m-accent) !important;
+        border: 1px solid var(--m-accent) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-on-accent) !important;
+        font-size: 15px !important;
+        font-weight: 700 !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    #color-dialog #dialog-close {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-height: 48px !important;
+        margin: 0 !important;
+        padding: 12px 16px !important;
+        background: transparent !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text-muted) !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    #color-dialog .obj-counter {
+        flex: 0 0 auto !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        margin: 0 !important;
+        float: none !important;
+        padding: 6px 10px;
+        background: var(--m-field);
+        border-radius: 999px;
+        color: var(--m-text-muted) !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+    }
+
+    #color-dialog .obj-counter label {
+        margin: 0 !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        color: inherit !important;
+    }
+
+    /* ======================================= 5. PODGLAD ZDJECIA === */
+
+    #image-preview-dialog[open] {
+        background: rgba(10, 12, 22, 0.96) !important;
+    }
+
+    #image-preview-dialog .close-dialog-btn {
+        top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+        right: 12px !important;
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 1.2rem !important;
+        background: rgba(255, 255, 255, 0.16) !important;
+        color: #fff !important;
+        box-shadow: none !important;
+    }
+}

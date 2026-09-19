@@ -425,8 +425,35 @@ async function clearLinkGroup(positionIds) {
     return await updateQuery(query, positionIds);
 }
 
+/**
+ * Zapisuje szacowany termin produkcji POZYCJI (`order_item.prod_days`).
+ *
+ * Liczy go `services/productionDays.js` razem z `order.max_prod_days` — ta sama
+ * wartość, którą widać w wierszu „Termin produkcji" pod pozycją. Zapis idzie
+ * jednym zapytaniem na pozycję, bo mapa jest mała (pozycje jednego zamówienia).
+ * `null` jest poprawną wartością: znaczy „brak danych grupy asortymentowej",
+ * i musi nadpisać poprzedni wynik, żeby po zmianie konfiguracji nie zostawał
+ * nieaktualny termin.
+ *
+ * @param {Record<string|number, number|null>} daysByItemId
+ * @returns {Promise<void>}
+ */
+async function updateItemsProdDays(daysByItemId) {
+    const entries = Object.entries(daysByItemId || {});
+    if (entries.length === 0) return;
+    const query = 'UPDATE order_item SET prod_days = ? WHERE id = ?';
+    for (const [itemId, days] of entries) {
+        try {
+            await updateQuery(query, [days == null ? null : days, itemId]);
+        } catch (err) {
+            log(err);
+        }
+    }
+}
+
 module.exports = {
     insertNewForm,
+    updateItemsProdDays,
     getPosition,
     getLastChoice,
     updatePosition,

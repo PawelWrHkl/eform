@@ -19,6 +19,9 @@
                         }
                     </style>
                     <script src="/vendor/country-select-js/build/js/countrySelect.min.js"></script>
+                    {# Mobile ETAP 2 - ostatni w bloku, bo nadpisuje mobile/new-order.css
+                       (ktory ma wlasny breakpoint 935px i jest ladowany tuz wyzej). #}
+                    <link rel="stylesheet" href="/styles/mobile/order-form.css?v={{ assetVersion }}">
                 {% endblock %}
                 {% block content %}
                     <div class="content col-9 center-content mobile-bg-white">

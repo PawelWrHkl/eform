@@ -1,0 +1,124 @@
+/* =============================================================================
+   MOBILE DESIGN TOKENS — E-orders (ETAP 1)
+   =============================================================================
+   JEDYNE zrodlo kolorow/rozmiarow dla nowego UI mobilnego. Wszystko siedzi w
+   @media (max-width: 767.98px), czyli DESKTOP JEST NIETKNIETY - zmienne
+   `--m-*` w ogole nie istnieja powyzej tego breakpointu.
+
+   Dlaczego osobna przestrzen `--m-*`, a nie nadpisanie `--bg-surface` itd.
+   z theme.css: te tokeny sa wspoldzielone z desktopem i z generatorem PDF.
+   Podmiana ich w media query dzialalaby, ale kazda przyszla zmiana motywu
+   niosla by ryzyko cichego efektu ubocznego na mobile. `--m-*` jest addytywne.
+
+   Breakpoint 767.98px, a nie 768px - taka konwencje maja wszystkie pozostale
+   pliki w public/styles/mobile/. Zmiana na 768px dalaby 0.02px zakladki,
+   w ktorej dwa zestawy regul obowiazuja naraz.
+   ============================================================================= */
+
+@media (max-width: 767.98px) {
+    :root {
+        /* --- Akcent (glowne akcje: Weiter / Speichern / + Position) --------- */
+        --m-accent: #d4a437;
+        --m-accent-press: #b98d27;
+        --m-accent-soft: rgba(212, 164, 55, 0.14);
+
+        /* Tekst NA akcencie. Makieta ma tu biel, ale #fff na #d4a437 daje
+           kontrast ~2.2:1 - ponizej progu WCAG AA (4.5:1) dla tekstu 16px,
+           czyli na sloncu przycisk robi sie nieczytelny. Ciemny atrament daje
+           ~6:1. Zeby wrocic do makiety 1:1 wystarczy podmienic te jedna
+           linie na `#ffffff`. */
+        --m-on-accent: #241c05;
+
+        /* --- Powierzchnie -------------------------------------------------- */
+        --m-bg: #f4f5f7;
+        --m-card: #ffffff;
+        --m-field: #fbfbfc;
+        --m-field-press: #f1f3f6;
+
+        /* --- Tekst --------------------------------------------------------- */
+        --m-text: #17212f;
+        --m-text-muted: #5c6b7f;
+        --m-text-soft: #97a2b1;
+
+        /* --- Obramowania --------------------------------------------------- */
+        --m-border: #e3e6ea;
+        --m-border-strong: #cfd5dd;
+        --m-focus: rgba(212, 164, 55, 0.45);
+
+        /* --- Stany --------------------------------------------------------- */
+        --m-danger: #dc3545;
+        --m-danger-soft: rgba(220, 53, 69, 0.1);
+        --m-ink: #2b3a4e;
+
+        /* --- Metryka (wymagania z briefu) ---------------------------------- */
+        --m-gutter: 16px;          /* marginesy boczne ekranu               */
+        --m-radius: 12px;          /* karty                                  */
+        --m-radius-sm: 10px;       /* kontrolki                              */
+        --m-control-h: 52px;       /* min. wysokosc kontrolki (touch)        */
+        --m-gap: 12px;             /* odstep miedzy sekcjami                 */
+        --m-header-h: 64px;        /* wysokosc naglowka (brief: 60-68px)     */
+        --m-font: 16px;            /* >=16px = brak auto-zoomu na iOS        */
+        --m-label: 14px;           /* etykiety pol                           */
+
+        /* Wysokosc dolnego paska nawigacji (ETAP 2). `main` liczy z tego swoj
+           `padding-bottom` (mobile/header.css), wiec pasek nigdy nie zakrywa
+           ostatniego elementu strony. Na konfiguratorze paska nie ma i
+           scripts/mobile/bottomNav.js zeruje te zmienna, zeby nie zostawiac
+           pustego miejsca pod przyciskiem zapisu. */
+        --m-bottomnav-h: 64px;
+
+        --m-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+        --m-shadow-header: 0 1px 3px rgba(15, 23, 42, 0.07);
+    }
+
+    [data-theme="dark"] {
+        --m-accent: #dcae43;
+        --m-accent-press: #c2952f;
+        --m-accent-soft: rgba(220, 174, 67, 0.16);
+        --m-on-accent: #1a1405;
+
+        --m-bg: #1d2130;
+        --m-card: #262b3d;
+        --m-field: #2e3448;
+        --m-field-press: #363d54;
+
+        --m-text: #eef2f7;
+        --m-text-muted: #a6b0c0;
+        --m-text-soft: #7e8899;
+
+        --m-border: rgba(255, 255, 255, 0.09);
+        --m-border-strong: rgba(255, 255, 255, 0.18);
+        --m-focus: rgba(220, 174, 67, 0.5);
+
+        --m-danger: #f26a75;
+        --m-danger-soft: rgba(242, 106, 117, 0.14);
+        --m-ink: #cdd6e3;
+
+        --m-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --m-shadow-header: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    /* --- Zakaz poziomego scrolla (wymaganie z briefu) ----------------------
+       `overflow-x: hidden` na html I body: sam body nie wystarcza, bo przy
+       `position: fixed` naglowka to html bywa elementem przewijanym. */
+    html,
+    body {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+
+    /* Dlugie niemieckie zlozenia (BEDIENUNGSEITE, FENSTERRAHMENHÖHE) nie moga
+       rozpychac layoutu ani byc ucinane. `anywhere` lamie je dopiero gdy nie
+       ma innego wyjscia, `hyphens: auto` dokłada dywiz wg reguł jezyka z
+       atrybutu lang="" na <html>. */
+    body {
+        /* `break-word` zamiast `anywhere`: lamie slowo dopiero wtedy, gdy samo
+           nie miesci sie w linii. `anywhere` rozcinalo tez krotkie napisy, ktore
+           spokojnie zmiescilyby sie po zawinieciu - w stopce wychodzilo z tego
+           "Datenschutzerk / larung". Tam, gdzie kolumna jest sztywna (etykiety
+           w kartach, dolny pasek), `anywhere` zostaje ustawione punktowo. */
+        overflow-wrap: break-word;
+        hyphens: auto;
+        -webkit-hyphens: auto;
+    }
+}

@@ -24,6 +24,14 @@
         <link rel="stylesheet" href="/styles/mobile/form.css">
         <link rel="stylesheet" href="/styles/mobile/components.css">
         <link rel="stylesheet" href="/styles/mobile/responsive.css">
+        {# ── Mobile ETAP 1 ──────────────────────────────────────────────
+           Kolejnosc ma znaczenie: tokens.css definiuje zmienne `--m-*`,
+           a header.css nadpisuje starsze reguly z mobile/layout.css, wiec
+           oba MUSZA byc wczytane PO pozostalych arkuszach mobilnych.
+           Wszystko siedzi w @media (max-width: 767.98px) - desktop bez zmian. #}
+        <link rel="stylesheet" href="/styles/mobile/tokens.css?v={{ assetVersion }}">
+        <link rel="stylesheet" href="/styles/mobile/header.css?v={{ assetVersion }}">
+        <link rel="stylesheet" href="/styles/mobile/bottomnav.css?v={{ assetVersion }}">
         <link rel="preconnect" href="https://fonts.googleapis.com"/>
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin"/>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet"/>
@@ -420,6 +428,52 @@
 </div>
 </div>
 </footer>{% endblock %}
+{# ══════════════════════════════════════════════════════════════════════════
+   DOLNY PASEK NAWIGACJI (mobile, ETAP 2)
+   Widoczny wylacznie ponizej 768px (mobile/bottomnav.css ukrywa go domyslnie).
+   Renderowany po stronie serwera, zeby nie migotal i dzialal bez JS.
+
+   "Mehr" przelacza collapse `#mobileNav` przez natywne `data-bs-toggle`
+   Bootstrapa - to DOKLADNIE to samo menu, co pod hamburgerem w naglowku,
+   wiec lista pozycji (uprawnienia, faktury, klienci, kontekst grupy) nie
+   jest tu duplikowana i nie moze sie rozjechac z oryginalem.
+
+   ⚠️ Etykiety: `base.your_orders` ("Ihre Angebote") i `base.orders_history`
+   ("gesendete Bestellungen") sa opisowe i nie mieszcza sie w czterech
+   kolumnach przy 320px. Skrocone warianty trzymamy TUTAJ, bo pliki
+   tlumaczen zyja poza repozytorium (config.localesDir = /mnt/eform/languages)
+   i dodanie kluczy wymagaloby wdrozenia poza kodem. Gdy kiedys powstana
+   `base.nav_start` / `base.nav_offers` / `base.nav_orders` / `base.nav_more`,
+   ten slownik nalezy usunac. Pelne, przetlumaczone nazwy ida do `aria-label`,
+   wiec czytnik ekranu dostaje wlasciwa etykiete juz teraz. #}
+{% set mNavLabels = {
+    "pl": { "start": "Start",   "offers": "Oferty",   "orders": "Zamówienia",   "more": "Więcej" },
+    "de": { "start": "Start",   "offers": "Angebote", "orders": "Bestellungen", "more": "Mehr" },
+    "en": { "start": "Start",   "offers": "Offers",   "orders": "Orders",       "more": "More" },
+    "nl": { "start": "Start",   "offers": "Offertes", "orders": "Bestellingen", "more": "Meer" },
+    "fr": { "start": "Accueil", "offers": "Devis",    "orders": "Commandes",    "more": "Plus" }
+} %}
+{% set mNav = mNavLabels[locale] | default(mNavLabels["de"]) %}
+<nav class="m-bottomnav" aria-label="{{ __('base.products') }}">
+    <a href="/" class="m-bottomnav__item" data-m-nav="start" data-m-path="/">
+        <svg class="m-bottomnav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></svg>
+        <span class="m-bottomnav__label">{{ mNav.start }}</span>
+    </a>
+    <a href="/orders" class="m-bottomnav__item" data-m-nav="offers" data-m-path="/orders" aria-label="{{ __('base.your_orders') }}">
+        <svg class="m-bottomnav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/></svg>
+        <span class="m-bottomnav__label">{{ mNav.offers }}</span>
+    </a>
+    <a href="/orders/history" class="m-bottomnav__item" data-m-nav="orders" data-m-path="/orders/history" aria-label="{{ __('base.orders_history') }}">
+        <svg class="m-bottomnav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="4" cy="6" r="0.6"/><circle cx="4" cy="12" r="0.6"/><circle cx="4" cy="18" r="0.6"/></svg>
+        <span class="m-bottomnav__label">{{ mNav.orders }}</span>
+    </a>
+    <button type="button" class="m-bottomnav__item" data-m-nav="more"
+            data-bs-toggle="collapse" data-bs-target="#mobileNav"
+            aria-controls="mobileNav" aria-expanded="false">
+        <svg class="m-bottomnav__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+        <span class="m-bottomnav__label">{{ mNav.more }}</span>
+    </button>
+</nav>
 <div id="connection-lost-overlay" class="d-none">
     <div class="connection-lost-box">
 <div class="connection-lost-icon">⚠️</div>
@@ -434,7 +488,7 @@
     src="https://cdnjs.cloudflare.com/ajax/libs/intro.js/8.3.2/intro.min.js"
     integrity="sha512-5ykRz1AkSpATwLO5fFqJb7Y5kprfzu/q9PbRVSOspLcn2Tm7m6vZIAyoUA4a5GFNRIlxM43kHXmYEphfz3eOWA=="
     crossorigin="anonymous"
-    referrerpolicy="no-referrer"></script><script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script><script src="https://cdn.jsdelivr.net/npm/hot-formula-parser@4.0.0/dist/formula-parser.min.js"></script><script src="/scripts/formula.js"></script><script src="https://cdn.jsdelivr.net/npm/jstat@1.9.2/dist/jstat.min.js"></script><script src="https://cdn.jsdelivr.net/gh/formulajs/formulajs@2.9.3/dist/formula.min.js"></script><script src="/scripts/translation.js"></script><script
+    referrerpolicy="no-referrer"></script><script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script><script src="https://cdn.jsdelivr.net/npm/hot-formula-parser@4.0.0/dist/formula-parser.min.js"></script><script src="/scripts/formula.js"></script><script src="https://cdn.jsdelivr.net/npm/jstat@1.9.2/dist/jstat.min.js"></script><script src="https://cdn.jsdelivr.net/gh/formulajs/formulajs@2.9.3/dist/formula.min.js"></script><script src="/scripts/translation.js"></script><script src="/scripts/mobile/bottomNav.js?v={{ assetVersion }}" defer></script><script
     src="https://cdnjs.cloudflare.com/ajax/libs/js-polyfills/0.1.43/polyfill.js"
     integrity="sha512-qOOdnUM5GtxFYZtMURfJthJ+1PphZz6uCofz6oBnCxCyP3Oc+ieRzc8sb7c+YL1vrenZNwu/C0EaqBaVvbiRhw=="
     crossorigin="anonymous"

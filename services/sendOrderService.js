@@ -8,6 +8,14 @@ const { log } = require('../utils/logging');
 const { formatClientLabel } = require('../utils/formatClient');
 const { getProductionSendSkipClient, isProductionVersion, shouldForceProductionSend } = require('../utils/productionSendGuard');
 const { resolveItemClientDiscount } = require('./subPrices');
+// `order_item.prod_days` bywa stringiem (sterownik MySQL potrafi zwrócić INT
+// jako tekst), a odbiorca JSON-a oczekuje liczby albo `null` — nie "12".
+function normalizeProdDays(value) {
+    if (value == null || value === '') return null;
+    const dni = Number(value);
+    return Number.isFinite(dni) ? dni : null;
+}
+
 class OrderSender {
 
     constructor(req, order, orderItems, options = {}) {
@@ -76,6 +84,14 @@ class OrderSender {
                 product_description: item?.group_name ?? '',
                 commission: item?.commision ?? "",
                 ...(eforRabat ? { efor_rabat: eforRabat.percent } : {}),
+                // Szacowany termin produkcji POZYCJI (dni) — dokładnie ta sama
+                // liczba, którą klient widzi w wierszu „Termin produkcji" pod
+                // pozycją. Źródłem jest kolumna `order_item.prod_days`, liczona
+                // i zapisywana przez `services/productionDays.js`
+                // (`recalcAndSaveMaxProdDays`) — wysyłka jej NIE przelicza, żeby
+                // FTP dostał to samo, co było na ekranie. `null` = brak czasu
+                // dla grupy asortymentowej.
+                prod_days: normalizeProdDays(item?.prod_days),
                 parameters: sortedFilteredObj,
                 comment: item.comment,
                 asortment: item.asrotment_group_number,

@@ -18,7 +18,7 @@ const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { log } = require('../../utils/logging');
 const confLang = require('../mailBot/conf');
 const { translateOrderItems } = require('../translationDict/itemTranslator');
-const { buildItemProductionDays } = require('../productionDays');
+const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../productionDays');
 const { getProductionSendSkipClient } = require('../../utils/productionSendGuard');
 
 function parseJsonField(value, fallback = null) {
@@ -103,6 +103,7 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
   const prodPdfGenerate = deps.generateProductionPdf || generateProductionPdf;
   const prodPdfUpload = deps.uploadProductionPdf || uploadProductionPdf;
   const productionSkipClient = deps.getProductionSendSkipClient || getProductionSendSkipClient;
+  const saveProdDays = deps.recalcAndSaveMaxProdDays || recalcAndSaveMaxProdDays;
 
   if (!orderId || !user) {
     return { sent: false, error: 'orderId and user are required' };
@@ -121,6 +122,10 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
       return { sent: false, error: 'changeOrderStatus failed' };
     }
 
+    // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
+    // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
+    // kolumnę także dla zamówień sprzed migracji, gdzie jest jeszcze NULL.
+    await saveProdDays(orderId);
     ({ orderDetails, orderItems } = await ordersDb.getOrderDataToSend(orderId));
     orderItems = normalizeOrderItems(orderItems);
 

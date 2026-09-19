@@ -1219,6 +1219,10 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         // pilnuje jednorazowosci (liczy wyslane zamowienia klienta) i nigdy nie rzuca,
         // wiec nie moze przewrocic wysylki zamowienia.
         await notifyFirstOrderIfApplicable(id);
+        // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
+        // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
+        // kolumnę także dla zamówień sprzed migracji, gdzie jest jeszcze NULL.
+        await recalcAndSaveMaxProdDays(id);
         ({ orderDetails, orderItems } = await db.getOrderDataToSend(id));
 
         const sender = new OrderSender.OrderSender(req, orderDetails, orderItems);
@@ -1794,6 +1798,10 @@ router.post('/order/:orderId/admin-save-json', requireLogin, async (req, res) =>
         // pilnuje jednorazowosci (liczy wyslane zamowienia klienta) i nigdy nie rzuca,
         // wiec nie moze przewrocic wysylki zamowienia.
         await notifyFirstOrderIfApplicable(id);
+        // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
+        // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
+        // kolumnę także dla zamówień sprzed migracji, gdzie jest jeszcze NULL.
+        await recalcAndSaveMaxProdDays(id);
         ({ orderDetails, orderItems } = await db.getOrderDataToSend(id));
 
         const sender = new OrderSender.OrderSender(req, orderDetails, orderItems);

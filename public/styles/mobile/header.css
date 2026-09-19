@@ -1,0 +1,222 @@
+/* =============================================================================
+   MOBILE HEADER — E-orders (ETAP 1)
+   =============================================================================
+   Przebudowa WYLACZNIE prezentacyjna: markup naglowka w templates/base.njk
+   zostaje bez zmian (brand + #mobile-back-btn + .navbar-toggler + #mobileNav).
+   Kolejnosc wizualna [wstecz | logo | hamburger] robi `order` we flexie, wiec
+   zaden skrypt szukajacy tych elementow po id/klasie nic nie traci.
+
+   Naglowek jest `position: fixed`, nie `sticky` - w tym layoucie przewija sie
+   <main> (ma wlasne overflow-y: auto z mobile/layout.css), wiec sticky wewnatrz
+   <nav> nie mialoby wzgledem czego przywierac. Efekt dla uzytkownika jest ten
+   sam, ktorego wymaga brief: naglowek nie znika podczas konfiguracji produktu.
+   ============================================================================= */
+
+@media (max-width: 767.98px) {
+
+    /* ---------------------------------------------------------------- pasek */
+    /* `.navbar.mobile-nav` zamiast samego `.mobile-nav`: pasek nosi tez klase
+       `.bg-light`, a bootstrap.min.css jest w base.njk wczytywany PO arkuszach
+       mobilnych. Przy rownej specyficznosci (0,1,0) i rownym `!important`
+       wygrywalby pozniejszy plik, czyli Bootstrap - w ciemnym motywie naglowek
+       wychodzil jasniejszy od kart pod nim. Dwie klasy (0,2,0) to rozstrzygaja. */
+    .navbar.mobile-nav,
+    .mobile-nav {
+        display: block !important;
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100% !important;
+        z-index: 1030;
+        margin: 0 !important;
+        padding: 0 !important;
+        padding-top: env(safe-area-inset-top, 0px) !important;
+        background: var(--m-card) !important;
+        border-bottom: 1px solid var(--m-border) !important;
+        box-shadow: var(--m-shadow-header) !important;
+        box-sizing: border-box;
+    }
+
+    /* Wiersz naglowka. `flex-wrap` jest konieczny: #mobileNav (rozwijane menu)
+       to czwarty element tego samego kontenera i musi zawinac sie POD pasek. */
+    .mobile-nav > .container-fluid {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 10px !important;
+        min-height: var(--m-header-h) !important;
+        padding: 0 var(--m-gutter) !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* ----------------------------------------------------------------- logo */
+    .mobile-nav .navbar-brand {
+        order: 2;
+        flex: 1 1 auto;
+        min-width: 0;            /* bez tego dlugie logo rozpycha pasek */
+        display: flex !important;
+        align-items: center;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Logo jest podmieniane w locie przez base.js (HKL / Luxan / Maizoncozy),
+       wiec ograniczamy je WYSOKOSCIA, nie szerokoscia - kazdy z trzech znakow
+       ma inne proporcje i sztywne `max-width: 40vw` scinalo ten najszerszy. */
+    .mobile-nav .logo {
+        max-height: 36px !important;
+        width: auto !important;
+        max-width: min(58vw, 230px) !important;
+        margin: 0 !important;
+        object-fit: contain;
+        display: block;
+    }
+
+    /* ------------------------------------------------------------- powrot */
+    #mobile-back-btn.mobile-back-btn {
+        order: 1;
+        margin: 0 !important;
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+        border-radius: var(--m-radius-sm);
+        border: 1px solid var(--m-border);
+        background: var(--m-field) !important;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    #mobile-back-btn.mobile-back-btn:active {
+        background: var(--m-field-press) !important;
+        transform: scale(0.94);
+    }
+
+    .mobile-back-icon {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* ---------------------------------------------------------- hamburger */
+    .mobile-nav .navbar-toggler {
+        order: 3;
+        flex: 0 0 auto;
+        width: 44px;
+        height: 44px;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius-sm) !important;
+        background: var(--m-field) !important;
+        box-shadow: none !important;
+    }
+
+    .mobile-nav .navbar-toggler:focus {
+        box-shadow: 0 0 0 3px var(--m-focus) !important;
+        outline: none;
+    }
+
+    .mobile-nav .navbar-toggler:active {
+        background: var(--m-field-press) !important;
+    }
+
+    /* Ikona hamburgera jako maska w kolorze tekstu - domyslny obrazek Bootstrapa
+       jest czarny na sztywno i w ciemnym motywie znikal. */
+    .mobile-nav .navbar-toggler .navbar-toggler-icon {
+        width: 22px !important;
+        height: 22px !important;
+        background-image: none !important;
+        background-color: var(--m-text);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 6h18M3 12h18M3 18h18' stroke='%23000' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 6h18M3 12h18M3 18h18' stroke='%23000' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    /* ------------------------------------------------------- rozwijane menu */
+    #mobileNav {
+        order: 4;
+        flex: 0 0 100%;
+        width: 100%;
+        max-height: calc(100vh - var(--m-header-h) - 24px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        border-top: 1px solid var(--m-border);
+    }
+
+    .mobile-nav .nav {
+        gap: 4px !important;
+        margin: 8px 0 12px !important;
+        padding: 0 !important;
+    }
+
+    .mobile-nav .nav-link {
+        background: transparent !important;
+        border-radius: var(--m-radius-sm) !important;
+        padding: 12px 8px !important;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        font-size: var(--m-font) !important;
+        color: var(--m-text) !important;
+    }
+
+    .mobile-nav .nav-link:active {
+        background: var(--m-field-press) !important;
+    }
+
+    /* Wylogowanie jest <button> w <form> (patrz komentarz w base.njk) -
+       musi wygladac jak reszta pozycji menu, a nie jak przycisk przegladarki. */
+    .mobile-nav .nav-logout-form {
+        margin: 0;
+    }
+
+    .mobile-nav .nav-logout-btn {
+        width: 100%;
+        text-align: left;
+        border: none;
+        background: transparent !important;
+        color: var(--m-danger) !important;
+    }
+
+    /* ---------------------------------------------------------------- tresc */
+    /* Naglowek jest fixed, wiec <main> musi sam zrobic sobie miejsce.
+       padding-bottom liczy sie z --m-bottomnav-h, ktore ETAP 3 podniesie -
+       dzieki temu dolny pasek nie zakryje ostatniego elementu strony. */
+    main {
+        padding-top: calc(var(--m-header-h) + env(safe-area-inset-top, 0px) + 8px) !important;
+        padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 24px) !important;
+        padding-left: var(--m-gutter) !important;
+        padding-right: var(--m-gutter) !important;
+        background: var(--m-bg) !important;
+    }
+
+    body {
+        background: var(--m-bg) !important;
+    }
+
+    /* Desktopowy przycisk "wstecz" z `{% block back_link %}` (base.njk).
+       Na mobile jego zawartosc (`.arrow` + `.back-text`) jest chowana od dawna,
+       ale SAM przycisk zostawal: `position: absolute`, ~120px szerokosci,
+       wypychany przez layout.css poza prawa krawedz ekranu. To on robil
+       poziomy scroll na KAZDEJ podstronie - a poniewaz `html` ma
+       `overflow-x: hidden`, Chromium rozciagal do szerokosci tresci rowniez
+       elementy `position: fixed`, wiec razem z nim wyjezdzal naglowek i dolny
+       pasek. Rolę tego przycisku pelni na mobile `#mobile-back-btn` w naglowku.
+       Wykryte pomiarem na wyrenderowanym order.njk (ETAP 2). */
+    .modern-back-btn {
+        display: none !important;
+    }
+
+    /* `.languages` (link do panelu + przelacznik jezyka + motyw) i tak jest
+       chowany przez scripts/tools/langChanger.js, ktory KLONUJE flagi do
+       hamburgera. Reguła ponizej tylko domyka sprawe deterministycznie: gdy
+       ten skrypt nie zdazy sie wykonac, absolutnie pozycjonowany blok
+       (`top: 1rem; left: 11rem`) ladowal dokladnie na logo. */
+    .languages {
+        display: none !important;
+    }
+}

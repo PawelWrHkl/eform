@@ -9,7 +9,7 @@ const { generateOrderDocuments } = require('../mailBot/pdfGenerator');
 const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../confirmationPolicy');
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
-const { buildItemProductionDays } = require('../productionDays');
+const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../../utils/productionSendGuard');
 const {
     orderHasSubPrices,
@@ -71,6 +71,10 @@ async function submitCorrection(req, orderId, prices) {
         log(`Korekta ${orderId}: status ustawiony na 'sent', ale nie udało się zapisać cen:`, err);
     }
 
+    // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
+    // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
+    // kolumnę także dla zamówień sprzed migracji, gdzie jest jeszcze NULL.
+    await recalcAndSaveMaxProdDays(orderId);
     ({ orderDetails, orderItems } = await db.getOrderDataToSend(orderId));
 
     const sender = new OrderSender(req, orderDetails, orderItems, {

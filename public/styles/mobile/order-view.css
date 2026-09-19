@@ -1,0 +1,539 @@
+/* =============================================================================
+   MOBILE "ANGEBOT" (szczegoly zamowienia) — E-orders (ETAP 2)
+   =============================================================================
+   Dotyczy templates/order.njk (oraz szablonow, ktore go rozszerzaja:
+   order_sent.njk, orders_owner.njk itp. - te same klasy, ten sam efekt).
+
+   ⚠️ Kolejnosc: mobile/order_details.css jest w `{% block head %}`, czyli
+   ladowany PO arkuszach z base.njk. Ten plik musi isc po NIM - link stoi na
+   koncu bloku head w order.njk.
+
+   ###########################################################################
+   # CZEGO TU NIE WOLNO RUSZAC                                               #
+   #                                                                         #
+   # Widocznosc wierszy z cenami SUB zalezy od roli i od kłódki. Szablon      #
+   # ustawia ja inline:                                                      #
+   #   <div class="mobile-sub-params" style="display: block;">  (order.njk    #
+   #   linie 465/485/496 - warunki isGroupShop / isClient / hasSubPriceToggle #
+   #   / showSub / discountPricesUnlocked)                                    #
+   # a mobile/order_details.css dokłada `display: none !important` dla        #
+   # `.mobile-sub-params.mobile-item-prices` (zwijanie karty).                #
+   #                                                                         #
+   # Ten uklad JUZ dziala i jest wyliczony po stronie serwera. Dlatego ponizej#
+   # NIE MA ani jednej deklaracji `display` dla `.mobile-sub-params`,         #
+   # `.mobile-item-details`, `.mobile-item-specs`, `.mobile-item-prices`      #
+   # i `.mobile-item-comment` - zmieniamy im wylacznie typografie i odstepy.  #
+   # Dopisanie tam `display` odslonilo by ceny rolom, ktore ich nie widza.    #
+   ###########################################################################
+   ============================================================================= */
+
+@media (max-width: 767.98px) {
+
+    /* ===================================================== 1. RAMA EKRANU === */
+
+    body {
+        background: var(--m-bg) !important;
+    }
+
+    /* mobile/order_details.css zeruje padding `main` (`padding: 0 !important`),
+       a brak gornego odstepu kompensowal `#order-nav { margin-top: 120px }` -
+       czyli sztywna wysokosc starego naglowka. Nowy naglowek ma 64px i wlasna
+       rezerwe w `main`, wiec przywracamy normalny uklad i kasujemy ten margines. */
+    main {
+        padding-top: calc(var(--m-header-h) + env(safe-area-inset-top, 0px) + 8px) !important;
+        padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 24px) !important;
+        padding-left: var(--m-gutter) !important;
+        padding-right: var(--m-gutter) !important;
+        background: var(--m-bg) !important;
+    }
+
+    /* Gradientowa belka `.container::before` (theme.css) na waskim ekranie
+       czyta sie jak zablakana kreska nad kazda sekcja. */
+    main .container::before,
+    main .container::after {
+        content: none !important;
+        display: none !important;
+    }
+
+    main > .content.center-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: transparent !important;
+    }
+
+    /* ============================================ 2. KARTA ZAMOWIENIA === */
+
+    #order-nav {
+        margin: 0 0 var(--m-gap) !important;
+        padding: 14px !important;
+        gap: 12px !important;
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius) !important;
+        box-shadow: var(--m-shadow-card) !important;
+        overflow: visible !important;
+    }
+
+    .order-nav-main {
+        height: auto !important;      /* bylo 100px na sztywno */
+        gap: 12px !important;
+        order: 2 !important;          /* pasek akcji POD tytulem, jak w makiecie */
+    }
+
+    /* --- tytul: "Angebot Nr. 17" + nazwa zlecenia --- */
+    #order-nav .floating-order,
+    #order-nav .floating-order.mobile,
+    #order-nav .floating-order.w-100 {
+        order: 1 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: transparent !important;
+        text-align: left !important;
+        box-shadow: none !important;
+    }
+
+    #order-title-mobile {
+        font-size: 20px !important;
+        line-height: 1.25 !important;
+        font-weight: 700 !important;
+        color: var(--m-text) !important;
+        text-align: left !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-wrap: anywhere;
+    }
+
+    #commission-name-mobile,
+    #commission-name {
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        color: var(--m-text-muted) !important;
+        background: transparent !important;
+        margin: 4px 0 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        text-align: left !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* --- komentarz do zamowienia ---
+       ⚠️ `#comment` renderuje sie ZAWSZE, a jego tresc jest w szablonie pod
+       `{% if orderDetails.comment ... %}` - przy braku komentarza w srodku
+       zostaje sam bialy znak. Dlatego ani `.comment-space`, ani `#comment` nie
+       dostaja tla, ramki ani paddingu: element ze samym zwijalnym bialym
+       znakiem ma zerowa wysokosc, wiec pusty komentarz po prostu znika, a
+       niepusty czyta sie jak podpis pod tytulem. Ramka wokol niego zostawialaby
+       pusty prostokat na kazdym zamowieniu bez komentarza. #comment nie ma na
+       tej stronie zadnego handlera (sprawdzone), wiec nic nie tracimy. */
+    #order-nav .comment-space {
+        order: 3 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        justify-content: flex-start !important;
+    }
+
+    #comment {
+        /* mobile/main.css daje `.btn { min-height: 44px }`, a `#comment` nosi
+           klase `btn` - bez tego pusty komentarz zostawial 44px bialej dziury
+           w karcie zamowienia. */
+        min-height: 0 !important;
+        line-height: 1.45 !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        color: var(--m-text-muted) !important;
+        text-align: left !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* ================================================== 3. PASEK AKCJI === */
+    /* [+ nowa pozycja] [edycja] | [link] [kłódka] [PDF] [Excel]
+       Wszystko jako kwadraty 48px: jeden akcent (nowa pozycja), reszta cicha.
+       Zamiana za dawne kafle 69x75px z ikonami 60px, ktore same zajmowaly
+       polowe ekranu. */
+
+    .mobile-top-row {
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+        gap: 8px !important;
+    }
+
+    #order-buttons:not(.d-none) {
+        display: flex !important;
+        flex: 0 0 auto !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: auto !important;
+    }
+
+    #generate-container-mobile {
+        flex: 1 1 auto !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex-wrap: wrap !important;
+    }
+
+    #order-buttons .btn,
+    #order-buttons .action-btn,
+    #generate-container-mobile .btn {
+        width: 48px !important;
+        min-width: 48px !important;
+        height: 48px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius-sm) !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        color: var(--m-text-muted) !important;
+        font-size: 20px !important;
+        transform: none !important;
+    }
+
+    #order-buttons .btn:active,
+    #order-buttons .action-btn:active,
+    #generate-container-mobile .btn:active {
+        background: var(--m-field-press) !important;
+        transform: none !important;
+    }
+
+    #order-buttons .btn:hover,
+    #order-buttons .action-btn:hover,
+    #generate-container-mobile .btn:hover {
+        transform: none !important;
+        box-shadow: none !important;
+        background: var(--m-field) !important;
+    }
+
+    #order-buttons .ico,
+    #generate-container-mobile .icon {
+        width: 22px !important;
+        height: 22px !important;
+        object-fit: contain !important;
+        filter: none !important;
+    }
+
+    #generate-container-mobile .btn:hover .icon {
+        filter: none !important;
+    }
+
+    /* Jedyna wyrozniona akcja na tym ekranie. */
+    #order-buttons #new-order-button {
+        background: var(--m-accent) !important;
+        border-color: var(--m-accent) !important;
+    }
+
+    #order-buttons #new-order-button .ico {
+        /* Ikona jest ciemnym PNG-iem; na zlotym tle zostawiamy ja bez filtra,
+           bo `--m-on-accent` jest rowniez ciemny (kontrast ~6:1). */
+        filter: none !important;
+    }
+
+    #order-buttons #new-order-button:active {
+        background: var(--m-accent-press) !important;
+        border-color: var(--m-accent-press) !important;
+    }
+
+    /* ================================================== 4. PUSTY STAN === */
+
+    /* Selektor z `.content .container` jest ZAMIERZONY: order_details.css ma
+       `.content .container .text-center.py-5 { padding-left/right: 0 !important }`
+       o specyficznosci (0,4,0), wiec samo `.order-empty-state` (0,1,0) traciloby
+       boczny padding i tekst kleilby sie do ramki. */
+    .content .container .order-empty-state,
+    .order-empty-state {
+        margin: 0 !important;
+        padding: 32px 20px !important;
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius) !important;
+        box-shadow: var(--m-shadow-card) !important;
+    }
+
+    /* Ikona dokumentu z makiety - jako tlo pseudoelementu, zeby nie dokladac
+       kolejnego pliku graficznego do repozytorium. */
+    .order-empty-state::before {
+        content: "";
+        display: block;
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 18px;
+        background-color: var(--m-text-soft);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h8l4 4v14H6z'/%3E%3Cpath d='M14 3v4h4'/%3E%3Cpath d='M9 12h6M9 16h4'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h8l4 4v14H6z'/%3E%3Cpath d='M14 3v4h4'/%3E%3Cpath d='M9 12h6M9 16h4'/%3E%3C/svg%3E") center / contain no-repeat;
+        opacity: 0.55;
+    }
+
+    .order-empty-state h3 {
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        color: var(--m-text) !important;
+        margin: 0 0 8px !important;
+        overflow-wrap: anywhere;
+    }
+
+    .order-empty-state p.lead {
+        font-size: 14px !important;
+        font-weight: 400 !important;
+        line-height: 1.45 !important;
+        color: var(--m-text-muted) !important;
+        margin: 0 0 20px !important;
+        overflow-wrap: anywhere;
+    }
+
+    .m-empty-cta {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: var(--m-control-h);
+        padding: 14px 16px;
+        background: var(--m-accent);
+        border: 1px solid var(--m-accent);
+        border-radius: var(--m-radius-sm);
+        color: var(--m-on-accent);
+        font-size: var(--m-font);
+        font-weight: 700;
+        text-decoration: none;
+        overflow-wrap: anywhere;
+    }
+
+    .m-empty-cta:active {
+        background: var(--m-accent-press);
+        border-color: var(--m-accent-press);
+        color: var(--m-on-accent);
+    }
+
+    /* ============================================== 5. LISTA POZYCJI === */
+
+    .container.my-5.padding-top,
+    .order-table-container,
+    .table-scroll {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: visible !important;   /* karty nie potrzebuja scrolla w bok */
+    }
+
+    .mobile-items-list {
+        gap: var(--m-gap) !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .mobile-item-card {
+        margin: 0 0 var(--m-gap) !important;
+        padding: 12px 14px !important;
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius) !important;
+        box-shadow: var(--m-shadow-card) !important;
+        transform: none !important;
+    }
+
+    .mobile-item-header {
+        gap: 10px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-items: flex-start !important;
+    }
+
+    .mobile-item-basic {
+        min-width: 0 !important;
+        gap: 2px !important;
+        align-items: flex-start !important;
+        text-align: left !important;
+        /* mobile/order_details.css wpycha ten blok o `margin-left: 20%` -
+           nazwa pozycji wygladala przez to na wysrodkowana i traciła 70px
+           szerokosci, przez co dluzsze nazwy lamaly sie bez potrzeby. */
+        margin-left: 0 !important;
+    }
+
+    .mobile-item-name {
+        text-align: left !important;
+        font-size: 15px !important;
+        font-weight: 700 !important;
+        color: var(--m-text) !important;
+        overflow-wrap: anywhere;
+    }
+
+    .mobile-item-group {
+        text-align: left !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        color: var(--m-text-muted) !important;
+        overflow-wrap: anywhere;
+    }
+
+    .mobile-item-number {
+        flex: 0 0 auto !important;
+        margin-right: 0 !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        color: var(--m-text-muted) !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: 999px !important;
+        padding: 3px 9px !important;
+    }
+
+    /* Szewron rozwijania (klasa `.expanded` przelacza scripts/mobileCards.js) */
+    .mobile-item-header::after {
+        border-color: var(--m-text-soft) !important;
+    }
+
+    .mobile-item-details,
+    .mobile-item-specs,
+    .mobile-item-prices,
+    .mobile-item-comment,
+    .mobile-sub-params {
+        /* ⚠️ Bez `display` - patrz naglowek pliku. */
+        font-size: 13.5px !important;
+        line-height: 1.45 !important;
+        color: var(--m-text-muted) !important;
+        overflow-wrap: anywhere;
+    }
+
+    .mobile-item-specs {
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius-sm) !important;
+        padding: 10px 12px !important;
+    }
+
+    .mobile-spec-item,
+    .mobile-sub-param-item,
+    .mobile-item-detail {
+        overflow-wrap: anywhere;
+    }
+
+    .mobile-spec-item strong,
+    .mobile-sub-param-item strong,
+    .mobile-item-detail strong {
+        color: var(--m-text) !important;
+        font-weight: 600 !important;
+    }
+
+    .sub-param-value {
+        color: var(--m-text) !important;
+    }
+
+    .mobile-item-actions {
+        gap: 8px !important;
+        margin-top: 12px !important;
+        padding-top: 10px !important;
+        border-top: 1px solid var(--m-border) !important;
+    }
+
+    /* Akcje pozycji: strzalki kolejnosci jako kwadraty 40px, a
+       Duplikat / Bearbeiten / Loschen jako waskie chipy. Dotad byly to pelne
+       bloki w kolorach Bootstrapa (granat / czerwien), ktore zajmowaly wiecej
+       miejsca niz sama pozycja i zawijaly sie do dwoch rzedow.
+       `.action-btn` to osobna rodzina klas niz `.btn` - stad dwa selektory. */
+    .mobile-item-actions .btn {
+        flex: 0 0 auto !important;
+        width: 40px !important;
+        min-width: 40px !important;
+        height: 40px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius-sm) !important;
+        box-shadow: none !important;
+        color: var(--m-text-muted) !important;
+    }
+
+    .mobile-item-actions .btn svg {
+        width: 16px !important;
+        height: 16px !important;
+        fill: currentColor;
+    }
+
+    .mobile-item-actions .action-btn {
+        flex: 0 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        height: 40px !important;
+        margin: 0 !important;
+        padding: 0 12px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text-muted) !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        text-decoration: none !important;
+        box-shadow: none !important;
+        white-space: nowrap;
+    }
+
+    .mobile-item-actions .action-btn-delete {
+        color: var(--m-danger) !important;
+        border-color: var(--m-danger) !important;
+        background: var(--m-danger-soft) !important;
+    }
+
+    .mobile-item-actions {
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+    }
+
+    /* ==================================================== 6. PODSUMOWANIE === */
+
+    #total-container {
+        margin: 4px 0 0 !important;
+        padding: 12px 14px !important;
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius) !important;
+        box-shadow: var(--m-shadow-card) !important;
+    }
+
+    #total-container .total-price {
+        justify-content: space-between !important;
+        margin: 0 !important;
+        padding: 4px 0 !important;
+    }
+
+    #total-container .total-price .total,
+    #total-container .price-label {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    #total-container .price-label {
+        width: auto !important;
+        max-width: 100% !important;
+        flex: 1 1 auto !important;
+        text-align: right !important;
+        font-size: 15px !important;
+        font-weight: 700 !important;
+        color: var(--m-text) !important;
+        overflow-wrap: anywhere;
+    }
+}

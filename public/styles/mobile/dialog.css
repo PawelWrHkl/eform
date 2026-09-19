@@ -38,7 +38,17 @@
         bottom: 0 !important;
         box-sizing: border-box !important;
     }
-    #dialog-container {
+    /* ⚠️ Zawezone z samego `#dialog-container` do wnetrza `#color-dialog`.
+       Tego identyfikatora uzywaja DWA rozne elementy: kontener tresci dialogu
+       wyboru wartosci (templates/form.njk) oraz opakowanie ukrytych dialogow
+       `#dialog-space` / `#delete-dialog` w templates/base.njk. Regula bez
+       zawezenia trafiala w oba, wiec ten drugi dostawal `height: 100%` i tlo
+       powierzchni - na kazdej stronie ladujacej ten arkusz (m.in. szczegoly
+       zamowienia) zostawal przez to wysoki bialy prostokat pod trescia.
+       `getElementById('dialog-container')` w dialogUtils_copy.js nadal trafia
+       na ten wewnatrz `#color-dialog` (jest wczesniej w DOM), wiec zachowanie
+       dialogu sie nie zmienia. */
+    #color-dialog #dialog-container {
         padding: 0 !important;
         background: var(--bg-surface) !important;
         width: 100% !important;

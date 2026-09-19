@@ -10,6 +10,12 @@
           <link rel="stylesheet" href="/styles/mobile/dialog.css">
             <link rel="stylesheet" href="/styles/mobile/slope.css">
               <link rel="stylesheet" href="/styles/mobile/components.css">
+              {# Mobile ETAP 1 - layout konfiguratora. Musi byc ostatni,
+                 bo nadpisuje mobile/form.css i mobile/components.css. #}
+              <link rel="stylesheet" href="/styles/mobile/configurator.css?v={{ assetVersion }}">
+              {# Mobile - przebudowa dialogu wyboru wartosci. Po configurator.css,
+                 bo nadpisuje takze mobile/dialog.css z linii wyzej. #}
+              <link rel="stylesheet" href="/styles/mobile/dialog-view.css?v={{ assetVersion }}">
               {% endblock head %}
               {% block key_nav %}
               {% endblock %}
@@ -119,4 +125,9 @@
                     {% endif %}
                     <script type="module" src="/scripts/main.js"></script>
                     <script type="module" src="/scripts/tools/betterNumberValidator.js"></script>
+                    {# Mobile ETAP 1 - stepper (wskaznik postepu + scroll do sekcji).
+                       Czysto prezentacyjny, nie dotyka wartosci ani widocznosci pol -
+                       szczegoly w naglowku samego pliku. Na desktopie konczy dzialanie
+                       na pierwszym `matchMedia`, wiec nie wykonuje tam nic. #}
+                    <script src="/scripts/mobile/configuratorStepper.js?v={{ assetVersion }}" defer></script>
                   {% endblock scripts %}

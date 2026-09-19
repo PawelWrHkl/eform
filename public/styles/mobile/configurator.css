@@ -1,0 +1,837 @@
+/* =============================================================================
+   MOBILE KONFIGURATOR — E-orders (ETAP 1)
+   =============================================================================
+   Dotyczy WYLACZNIE widoku konfiguratora (templates/form.njk). Wszystkie reguly
+   sa zakotwiczone w `#commission-form` albo `#dynamic-form`, wiec nie wyciekaja
+   na pozostale ekrany mobilne (to material na ETAP 2 i 3).
+
+   ###########################################################################
+   # ZASADA, KTOREJ NIE WOLNO ZLAMAC PRZY EDYCJI TEGO PLIKU                  #
+   #                                                                         #
+   # Widocznosc kazdego wiersza parametru ustawia silnik konfiguratora        #
+   # inline-em, BEZ `!important`:                                            #
+   #     paramDiv.style.display = 'grid' | 'none'                            #
+   #     (createForm.js: applySingleParamVisibility, hideLockedParamRows,     #
+   #      hideRegularPriceRowsDuringCalc, hideParams; form.js: pola VAT       #
+   #      i rabatu klienta)                                                   #
+   #                                                                         #
+   # Deklaracja `display: ... !important` w arkuszu BIJE styl inline. Gdyby   #
+   # ktos dopisal tu `display: grid !important`, pokazalyby sie parametry     #
+   # ukryte przez ENABLE, ceny katalogowe zablokowane dla salonu oraz pola    #
+   # chronione haslem. Dlatego ponizej `display` wystepuje wylacznie BEZ      #
+   # `!important` - inline zawsze wygrywa i logika zostaje nietknieta.        #
+   ###########################################################################
+   ============================================================================= */
+
+@media (max-width: 767.98px) {
+
+    /* =========================================================== 1. RAMA === */
+
+    #commission-form.full-form {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* `main` daje juz 16px marginesu bocznego (mobile/header.css), wiec tresc
+       formularza nie moze dokladac swojego - stad 0 zamiast dawnych 15px
+       i `margin-top: 23%` z mobile/layout.css. */
+    #commission-form .content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        margin: 0 0 8px !important;
+        background: transparent !important;
+    }
+
+    #commission-form .content > h1 {
+        font-size: 20px !important;
+        line-height: 1.3 !important;
+        font-weight: 700 !important;
+        color: var(--m-text) !important;
+        text-align: left !important;
+        margin: 4px 0 14px !important;
+        padding: 0 !important;
+    }
+
+    #commission-form .container,
+    #commission-form .asortment-container,
+    #commission-form .order-reminder {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }
+
+    #commission-form .order-reminder > h3 {
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        color: var(--m-text-muted) !important;
+        text-align: left !important;
+        margin: 0 0 10px !important;
+        padding: 0 !important;
+    }
+
+    /* ============================================ 2. WYBOR ASORTYMENTU === */
+    /* Nazwa zlecenia + dzial + grupa asortymentowa. Trzy kontrolki, ktore
+       dotad mialy szerokosci 63% / 80% / 93% i schodkowaly sie na ekranie. */
+
+    #commission-form .asortment-inputs {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: var(--m-gap) !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 0 var(--m-gap) !important;
+    }
+
+    #commission-form .asortment-inputs > div,
+    #commission-form .commission-space,
+    #commission-form .comm-input,
+    #commission-form .gr-select {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Selektor przez `.asortment-inputs >` jest ZAMIERZONY: reguła zerujaca
+       padding powyzej ma specyficznosc (1,1,1) przez `> div`, wiec samo
+       `#commission-form .commission-space` (1,1,0) by z nia przegralo i
+       etykiety siedzialyby na krawedzi karty. */
+    #commission-form .asortment-inputs > .commission-space,
+    #commission-form .asortment-inputs > .gr-select {
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius) !important;
+        box-shadow: var(--m-shadow-card) !important;
+        padding: 10px 14px 12px !important;
+    }
+
+    #commission-form .comm-input {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+    }
+
+    #commission-input {
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+
+    /* Dekoracje z desktopu: `.container::before` rysuje 3px gradientowa belke
+       na gorze KAZDEGO `.container`, wiec na waskim ekranie ladowala na
+       naglowku "Bitte prufen..." i nad karta nazwy zlecenia jak zabladzona
+       kreska. Na mobile nie ma dla niej miejsca. */
+    #commission-form .container::before,
+    #commission-form .asortment-container::before,
+    #commission-form .order-reminder::before {
+        content: none !important;
+        display: none !important;
+    }
+
+    /* Kontrolki naglowkowe (nazwa zlecenia / dzial / grupa) dostaja ten sam
+       jezyk wizualny co pola konfiguratora. `.form-select` traci strzalke
+       Bootstrapa przez `background: ... !important` w mobile/components.css -
+       dlatego dokladamy ja z powrotem jawnie. */
+    #commission-form #commission-input,
+    #commission-form #department-select,
+    #commission-form #asortment-group-select {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: var(--m-control-h) !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 10px 14px !important;
+        box-sizing: border-box !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: var(--m-font) !important;
+        line-height: 1.35 !important;
+        box-shadow: none !important;
+    }
+
+    #commission-form #department-select,
+    #commission-form #asortment-group-select {
+        padding-right: 40px !important;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%2397a2b1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 14px center !important;
+        background-size: 13px 13px !important;
+    }
+
+    #commission-form #commission-input:focus,
+    #commission-form #department-select:focus,
+    #commission-form #asortment-group-select:focus {
+        outline: none !important;
+        border-color: var(--m-accent) !important;
+        box-shadow: 0 0 0 3px var(--m-focus) !important;
+    }
+
+    #commission-form .commission-space label,
+    #commission-form .gr-select label {
+        font-size: var(--m-label) !important;
+        font-weight: 600 !important;
+        color: var(--m-text-muted) !important;
+        margin: 0 0 6px !important;
+        padding: 0 !important;
+    }
+
+    /* ============================================ 2b. UKRYWANIE KROKOW === */
+    /* ⚠️ ANI JEDNEJ deklaracji `display` w tej regule - to jest caly jej sens.
+       Widocznoscia pojedynczych pol rzadzi silnik przez inline `style.display`
+       (`applySingleParamVisibility` i spolka w createForm.js), a
+       `.asortment-container` dostaje `display: block` z priorytetem
+       `important` (processCommissionInput). Kreator musi wiec chowac kroki
+       kanalem ORTOGONALNYM do `display`: wynosi element poza ekran i gasi go.
+       Efekt: pole ukryte przez ENABLE / zablokowane haslem / schowane dla
+       salonu pozostaje ukryte, a pole widoczne po prostu czeka na swoj krok.
+       Znacznik `data-m-hidden` nadaje scripts/mobile/configuratorStepper.js. */
+    [data-m-hidden="1"] {
+        position: absolute !important;
+        left: -10000px !important;
+        top: auto !important;
+        width: 1px !important;
+        height: 1px !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        overflow: hidden !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        box-shadow: none !important;
+    }
+
+    /* ======================================== 2c. NAWIGACJA KROKOW === */
+    /* [Wstecz] [Dalej] pod polami aktywnego kroku. Na ostatnim kroku "Dalej"
+       znika, a pod spodem pojawia sie `#buttons-space` z zapisem. */
+    .m-steppager {
+        display: flex;
+        gap: 10px;
+        width: 100%;
+        margin: 4px 0 0;
+        padding: 0;
+    }
+
+    .m-steppager__btn {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: var(--m-control-h);
+        padding: 12px 14px;
+        border-radius: var(--m-radius-sm);
+        font-size: var(--m-font);
+        font-weight: 700;
+        line-height: 1.3;
+        cursor: pointer;
+        overflow-wrap: anywhere;
+        touch-action: manipulation;
+    }
+
+    .m-steppager__btn[hidden] {
+        display: none !important;
+    }
+
+    .m-steppager__back {
+        flex: 1 1 38%;
+        background: transparent;
+        border: 1px solid var(--m-border-strong);
+        color: var(--m-text-muted);
+    }
+
+    .m-steppager__back:disabled {
+        opacity: 0.4;
+        cursor: default;
+    }
+
+    .m-steppager__next {
+        flex: 1 1 62%;
+        background: var(--m-accent);
+        border: 1px solid var(--m-accent);
+        color: var(--m-on-accent);
+    }
+
+    .m-steppager__next:active {
+        background: var(--m-accent-press);
+        border-color: var(--m-accent-press);
+    }
+
+    /* ==================================================== 3. STEPPER === */
+    /* Wstrzykiwany przez scripts/mobile/configuratorStepper.js. Sluzy do
+       NAWIGACJI (scroll do sekcji) - nie ukrywa zadnego pola, wiec nie moze
+       kolidowac z logika ENABLE/FORMULA.
+
+       Przypiety na stale do DOLU ekranu, widoczny niezaleznie od przewiniecia.
+       `position: fixed`, a nie `sticky`: element siedzi w DOM wewnatrz <main>,
+       ktory ma wlasne `overflow-y: auto` (mobile/layout.css), wiec `sticky`
+       przywieralby do krawedzi TEGO kontenera, a nie ekranu - i na starszym
+       WebKicie potrafi w takim ukladzie w ogole nie zadzialac. `fixed` liczy sie
+       wzgledem okna, wiec zachowanie jest takie samo w kazdej przegladarce.
+
+       Miejsce pod pasek rezerwuje `padding-bottom` na <main> (nizej), wlaczane
+       klasa `m-stepper-fixed` na <body> - skrypt nadaje ja tylko wtedy, gdy
+       pasek naprawde ma co pokazac (wiecej niz jedna sekcja). Bez tego przy
+       formularzu bez krokow zostawalaby pusta luka pod przyciskiem zapisu.
+
+       z-index 1040: nad trescia i nad naglowkiem-rodzenstwem (1030), ale
+       ponizej `.overlay`/`.hourglass` (148/150 w osobnym kontekscie) i ponizej
+       modalnych <dialog>, ktore i tak renderuja sie w warstwie wierzchniej. */
+    .m-stepper {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1040;
+        margin: 0 !important;
+        padding: 0 0 env(safe-area-inset-bottom, 0px);
+        background: var(--m-card);
+        border: none;
+        border-top: 1px solid var(--m-border);
+        border-radius: 0;
+        box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.07);
+        overflow: hidden;
+        box-sizing: border-box;
+    }
+
+    [data-theme="dark"] .m-stepper {
+        box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Wysokosc paska + zapas, zeby ostatni przycisk formularza dalo sie
+       dosunac nad niego. `--m-stepper-h` ustawia skrypt POMIAREM (etykiety
+       krokow roznia sie dlugoscia miedzy jezykami i przy 320px potrafia zawinac
+       sie do dwoch linii); 68px to wartosc awaryjna, gdyby skrypt nie zdazyl. */
+    body.m-stepper-fixed main {
+        padding-bottom: calc(var(--m-stepper-h, 68px) + env(safe-area-inset-bottom, 0px) + 18px) !important;
+    }
+
+    .m-stepper__list {
+        display: flex;
+        align-items: stretch;
+        list-style: none;
+        margin: 0;
+        padding: 8px 4px;
+        gap: 2px;
+    }
+
+    .m-stepper__item {
+        flex: 1 1 0;
+        min-width: 0;          /* pozwala kolumnom sie skurczyc zamiast
+                                  rozpychac pasek poza ekran */
+        display: flex;
+    }
+
+    .m-stepper__btn {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 2px;
+        border: none;
+        background: transparent;
+        color: var(--m-text-soft);
+        font: inherit;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-stepper__num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        flex: 0 0 26px;
+        border-radius: 50%;
+        border: 1px solid var(--m-border-strong);
+        background: var(--m-field);
+        color: var(--m-text-muted);
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    /* Etykieta zawija sie do dwoch linii zamiast byc ucieta - wymog briefu
+       dotyczy takze niemieckich nazw krokow. */
+    .m-stepper__label {
+        font-size: 10.5px;
+        line-height: 1.2;
+        font-weight: 600;
+        text-align: center;
+        width: 100%;
+        overflow-wrap: anywhere;
+        hyphens: auto;
+        -webkit-hyphens: auto;
+    }
+
+    .m-stepper__item.is-active .m-stepper__num {
+        background: var(--m-accent);
+        border-color: var(--m-accent);
+        color: var(--m-on-accent);
+    }
+
+    .m-stepper__item.is-active .m-stepper__btn {
+        color: var(--m-text);
+    }
+
+    .m-stepper__item.is-done .m-stepper__num {
+        background: var(--m-accent-soft);
+        border-color: var(--m-accent);
+        color: var(--m-text);
+    }
+
+    .m-stepper__btn:focus-visible {
+        outline: none;
+        border-radius: var(--m-radius-sm);
+        box-shadow: 0 0 0 3px var(--m-focus);
+    }
+
+    /* ============================================ 4. WIERSZE PARAMETROW === */
+
+    #dynamic-form {
+        display: grid;
+        grid-template-columns: 1fr !important;
+        gap: var(--m-gap) !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* UWAGA: brak `display` z `!important` - patrz naglowek pliku. */
+    #dynamic-form [class*="-select-area"],
+    #dynamic-form .link-area {
+        grid-template-columns: 1fr !important;
+        gap: 6px !important;
+        align-content: start !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 10px 14px 12px !important;
+        background: var(--m-card) !important;
+        border: 1px solid var(--m-border) !important;
+        border-radius: var(--m-radius) !important;
+        box-shadow: var(--m-shadow-card) !important;
+        /* Zadnych `transform`/`translateY` na hover - na dotyku stan :hover
+           przykleja sie po tapnieciu i kafelek zostaje przesuniety. */
+        transform: none !important;
+        transition: border-color 0.2s ease !important;
+    }
+
+    #dynamic-form [class*="-select-area"]:hover {
+        transform: none !important;
+        box-shadow: var(--m-shadow-card) !important;
+        border-color: var(--m-border) !important;
+    }
+
+    /* `<br>` wstawiane po kazdej kontrolce (createForm.js) sa reliktem layoutu
+       desktopowego - w gridzie tworza pusty wiersz na ~20px. */
+    #dynamic-form [class*="-select-area"] > br {
+        display: none;
+    }
+
+    /* ------------------------------------------------------------ etykieta */
+    #dynamic-form .field-label-row {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 6px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        min-width: 0 !important;
+    }
+
+    #dynamic-form [class*="-select-area"] label,
+    #dynamic-form .field-label-row label {
+        font-size: var(--m-label) !important;
+        font-weight: 600 !important;
+        line-height: 1.3 !important;
+        color: var(--m-text-muted) !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        hyphens: auto;
+        -webkit-hyphens: auto;
+    }
+
+    /* ---------------------------------------- kontrolka wyboru (GRAPHICS) */
+    /* `.button` ma w form_btn.css `all: unset` + gradient + `width: 80%`.
+       Tutaj staje sie plaskim polem wyboru z szewronem - zgodnie z makieta
+       "Etykieta + Bitte auswählen ›". */
+    #dynamic-form [class*="-select-area"] button.button,
+    #dynamic-form [class*="-select-area"] > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: var(--m-control-h) !important;
+        margin: 0 !important;
+        padding: 10px 40px 10px 14px !important;
+        box-sizing: border-box !important;
+        position: relative !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: var(--m-font) !important;
+        font-weight: 500 !important;
+        letter-spacing: 0 !important;
+        line-height: 1.35 !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+        overflow: visible !important;       /* .button ma overflow:hidden      */
+        white-space: normal !important;     /* dlugie nazwy maja sie zawijac   */
+        overflow-wrap: anywhere !important;
+        touch-action: manipulation !important;
+    }
+
+    /* Przesuwajacy sie polysk (`.button::before`) - efekt hover, ktory na
+       dotyku tylko mruga przy tapnieciu. */
+    #dynamic-form [class*="-select-area"] button.button::before {
+        display: none !important;
+        content: none !important;
+    }
+
+    /* Szewron ">" z makiety - przejmujemy `::after` przycisku.
+       Dwie pulapki, obie potwierdzone w przegladarce:
+       1. form_btn.css ma `.button::after { display: none }`,
+       2. theme.css ma GLOBALNE `button:not(.has-tooltip)::after` z polyskiem:
+          `inset: 0` + `opacity: 0`. Bez wyzerowania `inset` (left/bottom
+          zostawaly na 0, wiec pozycjonowanie bylo nadokreslone i `right`
+          ignorowany) oraz bez `opacity: 1` szewron powstawal, ale byl
+          przezroczysty i po lewej stronie przycisku. */
+    #dynamic-form [class*="-select-area"] button.button::after,
+    #dynamic-form [class*="-select-area"] > button::after {
+        content: "" !important;
+        display: block !important;
+        position: absolute !important;
+        inset: auto !important;
+        right: 16px !important;
+        top: 50% !important;
+        width: 8px !important;
+        height: 8px !important;
+        border: none !important;
+        border-right: 2px solid var(--m-text-soft) !important;
+        border-bottom: 2px solid var(--m-text-soft) !important;
+        border-radius: 1px !important;
+        transform: translateY(-50%) rotate(-45deg) !important;
+        opacity: 1 !important;
+        pointer-events: none;
+        background: none !important;
+        box-shadow: none !important;
+    }
+
+    #dynamic-form [class*="-select-area"] button.button:hover,
+    #dynamic-form [class*="-select-area"] > button:hover {
+        transform: none !important;
+        filter: none !important;
+        box-shadow: none !important;
+        background: var(--m-field) !important;
+    }
+
+    #dynamic-form [class*="-select-area"] button.button:active,
+    #dynamic-form [class*="-select-area"] > button:active {
+        transform: none !important;
+        background: var(--m-field-press) !important;
+        border-color: var(--m-accent) !important;
+    }
+
+    /* Stan "jeszcze nie wybrano" - atrybut ustawia configuratorStepper.js
+       (porownuje tresc przycisku z t('form.check_word')). Sam tekst zostaje
+       taki, jaki daje silnik; zmienia sie wylacznie kolor. */
+    #dynamic-form [class*="-select-area"] button.button[data-m-empty="1"] {
+        color: var(--m-text-soft) !important;
+        font-weight: 400 !important;
+    }
+
+    #dynamic-form [class*="-select-area"] button.button:disabled {
+        background: var(--m-field-press) !important;
+        color: var(--m-text-soft) !important;
+        opacity: 1 !important;
+    }
+
+    /* Walidacja - czerwona ramka zamiast czerwonego gradientu. */
+    #dynamic-form [class*="-select-area"] button.button.invalid-input,
+    #dynamic-form [class*="-select-area"] .btn.invalid-input {
+        background: var(--m-danger-soft) !important;
+        border: 1px solid var(--m-danger) !important;
+        box-shadow: none !important;
+        color: var(--m-text) !important;
+    }
+
+    /* ------------------------------------------------------------- select */
+    #dynamic-form [class*="-select-area"] select,
+    #dynamic-form [class*="-select-area"] select.select {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: var(--m-control-h) !important;
+        margin: 0 !important;
+        padding: 10px 40px 10px 14px !important;
+        box-sizing: border-box !important;
+        background-color: var(--m-field) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: var(--m-font) !important;
+        line-height: 1.35 !important;
+        box-shadow: none !important;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%2397a2b1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 13px 13px;
+    }
+
+    #dynamic-form [class*="-select-area"] select:focus {
+        outline: none !important;
+        border-color: var(--m-accent) !important;
+        box-shadow: 0 0 0 3px var(--m-focus) !important;
+    }
+
+    /* -------------------------------------------------------------- input */
+    /* `:not([type=...])` trzyma z dala checkboxy przelacznika recznej wartosci
+       i ukryty input[type=file] zalacznika. */
+    #dynamic-form [class*="-select-area"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: var(--m-control-h) !important;
+        margin: 0 !important;                /* kasuje input[type=number]
+                                                { margin-left: 15px } z
+                                                mobile/form.css              */
+        padding: 10px 14px !important;
+        box-sizing: border-box !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: var(--m-font) !important;  /* <16px = iOS auto-zoom       */
+        line-height: 1.35 !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    #dynamic-form [class*="-select-area"] input:focus {
+        outline: none !important;
+        border-color: var(--m-accent) !important;
+        background: var(--m-card) !important;
+        box-shadow: 0 0 0 3px var(--m-focus) !important;
+        transform: none !important;
+    }
+
+    /* Pola liczone (FORMULA / SOURCE) przychodza jako `disabled` - maja
+       wygladac na odczyt, nie na zepsute (ramka + tlo sugeruja pole do
+       wpisania, ktorego uzytkownik i tak nie kliknie).
+       Powtorzone `:not(...)` NIE jest przypadkiem: reguła bazowa wyzej ma
+       przez trzy `:not()` specyficznosc (1,4,1) i bez tego wygrywalaby z
+       samym `input:disabled` (1,2,1). */
+    #dynamic-form [class*="-select-area"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):disabled {
+        background: transparent !important;
+        border-color: transparent !important;
+        border-bottom: 1px solid var(--m-border) !important;
+        border-radius: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        color: var(--m-text) !important;
+        font-weight: 600 !important;
+        -webkit-text-fill-color: var(--m-text);
+        opacity: 1 !important;
+    }
+
+    #dynamic-form [class*="-select-area"] input.invalid-input {
+        border-color: var(--m-danger) !important;
+        background: var(--m-danger-soft) !important;
+    }
+
+    /* --------------------------------- przelacznik recznej wartosci (MULTI) */
+    /* Wymog briefu: checkbox nie moze wypychac etykiety poza ekran. */
+    #dynamic-form .manual-override-row {
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        margin: 2px 0 0 !important;
+        padding: 0 !important;
+        min-width: 0 !important;
+    }
+
+    #dynamic-form .manual-override-checkbox {
+        flex: 0 0 20px !important;
+        width: 20px !important;
+        height: 20px !important;
+        margin: 0 !important;
+        accent-color: var(--m-accent);
+    }
+
+    #dynamic-form .manual-override-label {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        font-size: var(--m-label) !important;
+        font-weight: 500 !important;
+        color: var(--m-text-muted) !important;
+        overflow-wrap: anywhere;
+    }
+
+    #dynamic-form .manual-range-hint {
+        font-size: 12.5px !important;
+        line-height: 1.35 !important;
+        color: var(--m-danger) !important;
+        margin: 0 !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* ---------------------------------------------- parametr typu `link` */
+    #dynamic-form .link-area .link-btn,
+    #dynamic-form .link-area .tiny-link-btn,
+    #dynamic-form [class*="-select-area"] .link-btn,
+    #dynamic-form [class*="-select-area"] .tiny-link-btn {
+        width: 100% !important;
+        min-height: var(--m-control-h) !important;
+        margin: 0 !important;
+        padding: 10px 14px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: var(--m-field) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text) !important;
+        font-size: var(--m-font) !important;
+        font-weight: 600 !important;
+        text-align: center !important;
+        box-shadow: none !important;
+        overflow-wrap: anywhere;
+    }
+
+    /* ------------------------------------------------- ikonka INFO w polu */
+    #dynamic-form .param-info-icon {
+        width: 22px !important;
+        height: 22px !important;
+        min-width: 22px !important;
+        font-size: 12px !important;
+        margin: 0 !important;
+    }
+
+    /* ---------------------------------------------- komentarz do pozycji */
+    #commission-form .comment-space {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        justify-self: stretch !important;
+    }
+
+    #commission-form .comment-space textarea {
+        width: 100% !important;
+        min-height: 96px !important;
+        padding: 12px 14px !important;
+        font-size: var(--m-font) !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        background: var(--m-field) !important;
+        color: var(--m-text) !important;
+        box-sizing: border-box !important;
+    }
+
+    /* ===================================================== 5. AKCJE === */
+    /* Jeden ekran = jedna glowna akcja. `#show-button` (zapis pozycji) jest
+       jedynym przyciskiem w kolorze akcentu; reset i zalaczniki sa ciche. */
+
+    #commission-form #buttons-space {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+        margin: 18px 0 0 !important;
+        padding: 0 !important;
+    }
+
+    #commission-form #buttons-space #show-button,
+    #commission-form #buttons-space .btn.form-button#show-button {
+        order: 1;
+        width: 100% !important;
+        min-height: var(--m-control-h) !important;
+        margin: 0 !important;
+        padding: 14px 16px !important;
+        background: var(--m-accent) !important;
+        border: 1px solid var(--m-accent) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-on-accent) !important;
+        font-size: var(--m-font) !important;
+        font-weight: 700 !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+    }
+
+    #commission-form #buttons-space #show-button:active {
+        background: var(--m-accent-press) !important;
+        border-color: var(--m-accent-press) !important;
+        transform: none !important;
+        filter: none !important;
+    }
+
+    #commission-form #buttons-space #reset-button {
+        order: 2;
+        width: 100% !important;
+        min-height: 48px !important;
+        margin: 0 !important;
+        padding: 12px 16px !important;
+        background: transparent !important;
+        border: 1px solid var(--m-border-strong) !important;
+        border-radius: var(--m-radius-sm) !important;
+        color: var(--m-text-muted) !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        box-shadow: none !important;
+    }
+
+    #commission-form #buttons-space #reset-button:active {
+        background: var(--m-field-press) !important;
+    }
+
+    #commission-form #attachment-space {
+        order: 3;
+        width: 100% !important;
+        margin: 4px 0 0 !important;
+    }
+
+    #commission-form .attachment-label {
+        font-size: var(--m-label) !important;
+        font-weight: 600 !important;
+        color: var(--m-text-muted) !important;
+        margin-bottom: 8px !important;
+    }
+
+    #commission-form #attachment-container {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 10px !important;
+    }
+
+    #commission-form #file-error-message {
+        width: 100% !important;
+        margin: 12px 0 0 !important;
+        border-radius: var(--m-radius-sm) !important;
+        font-size: 14px !important;
+    }
+}

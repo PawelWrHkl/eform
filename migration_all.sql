@@ -108,6 +108,9 @@ ALTER TABLE `order`
 ALTER TABLE `order`
   ADD COLUMN `max_prod_days` INT DEFAULT NULL;
 
+ALTER TABLE `order_item`
+  ADD COLUMN `prod_days` INT DEFAULT NULL;
+
 ALTER TABLE `order`
   MODIFY COLUMN `order_idx` VARCHAR(32) DEFAULT NULL;
 

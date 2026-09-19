@@ -273,6 +273,13 @@ input[type="number"]:focus {
 	transform: scale(1.1);
 }
 
+/* Ikonka z zalacznikiem jest klikalna - klik pobiera plik od razu, bez
+   wchodzenia w dymek. Kursor musi to zapowiadac, "help" sugerowalby sam opis. */
+.param-info-icon.has-attachment,
+.param-info-cupon.has-attachment {
+	cursor: pointer;
+}
+
 .order-reminder {
 	display: none !important;
 }
