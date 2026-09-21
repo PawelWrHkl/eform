@@ -12,6 +12,10 @@ export class FormsManager {
         this.loader = new DataLoader();
         this.paths = [];
         this.aliases = {}
+        // Aliasy (nakładki słowników) DOPASOWANE do aktualnej grupy i klienta.
+        // Wypełnia je `loadDataPerClient()`. Musi istnieć od startu, bo
+        // `getAliases()` bywa wołane zanim jakakolwiek grupa się wczyta.
+        this.foundAliases = [];
         this.productUsers = [];
         this.clientData = {};
     }
@@ -71,6 +75,12 @@ export class FormsManager {
     }
 
     async loadDataPerClient(group) {
+        // Zerujemy na wejściu, bo `this.foundAliases` opisuje TĘ grupę.
+        // Funkcja ma dwa wyjścia, które nic nie przypisują (brak aliasów dla
+        // grupy oraz brak dopasowania do klienta) — bez tego resetu zostawałyby
+        // po nich aliasy z POPRZEDNIO otwartej grupy asortymentowej.
+        this.foundAliases = [];
+
         // Nakładka kolekcji tkanin — ta sama zasada co przy skryptach cenowych.
         const overlay = await this.getTermsOverlay(group);
         const overlayCollections = Object.entries(overlay.collections || {}).filter(([, file]) => !!file);
@@ -162,8 +172,26 @@ export class FormsManager {
         return overlay;
     }
 
+    /**
+     * Alias (nakładka słownika) przypisany do parametru w aktualnej grupie.
+     *
+     * ⚠️ `this.foundAliases` ustawia `loadDataPerClient()` WYŁĄCZNIE wtedy, gdy
+     * znajdzie dopasowanie dla pary organizacja+klient. Dla grupy bez aliasów
+     * (czyli dla większości klientów) pole zostawało `undefined`, a to wywołanie
+     * rzucało `Cannot read properties of undefined (reading 'find')`. Wyjątek
+     * leciał z `createFilterControls()` (dialogUtils_copy.js) i przerywał cały
+     * łańcuch `initialize() → setupUI() → addSearchAndFilters()`, więc dialog
+     * wyboru wartości w ogóle się nie budował.
+     *
+     * Zwracamy `{}`, a nie `[]`: jedyny konsument czyta z wyniku `.file`, więc
+     * pusty obiekt jest uczciwym „brak aliasu" i nie kusi, żeby traktować
+     * wynik jak listę.
+     *
+     * @param {string} paramName nazwa parametru (kolumna NAME z param.txt)
+     * @returns {{organization?: string, client?: string, param?: string, file?: string}}
+     */
     getAliases(paramName){
-        return this.foundAliases.find(alias => alias.param === paramName) || [];
+        return this.foundAliases?.find(alias => alias.param === paramName) || {};
     }
     async getClientScripts() {
         // Sprawdź czy this.groupsDetails istnieje i nie jest puste
