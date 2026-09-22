@@ -17,7 +17,12 @@
 		"configtest:daemon": "node --max-old-space-size=2048 scripts/configuratorTesterDaemon.js",
 		"configtest:stop": "test -f configtest/configtest.pid && kill -TERM $(cat configtest/configtest.pid) && echo zatrzymany || echo 'demon nie chodzi'",
 		"configtest:status": "test -f configtest/configtest.pid && ps -p $(cat configtest/configtest.pid) -o pid,etime,rss,cmd --no-headers || echo 'demon nie chodzi'",
-		"configtest:logs": "tail -n 50 -f configtest/configtest.log"
+		"configtest:logs": "tail -n 50 -f configtest/configtest.log",
+		"configtest:install": "sudo cp deploy/eform-configtest.service deploy/eform-configtest-watchdog.service deploy/eform-configtest-watchdog.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now eform-configtest && sudo systemctl enable --now eform-configtest-watchdog.timer && systemctl status eform-configtest --no-pager && systemctl list-timers eform-configtest-watchdog.timer --no-pager",
+		"configtest:restart": "sudo systemctl restart eform-configtest.service",
+		"configtest:service": "systemctl status eform-configtest.service --no-pager",
+		"configtest:watchdog-status": "systemctl list-timers eform-configtest-watchdog.timer --no-pager",
+		"configtest:enable": "rm -f configtest/DISABLED && echo 'odblokowany'"
 	},
 	"keywords": [],
 	"author": "Pawel Woroniecki",

@@ -67,7 +67,17 @@ function buildHtml(report) {
     ? `<p>Konfiguracje wygenerowane przez tester: <strong>${t.rangeCases}</strong> — ${t.rangeInRange} w zakresie wymiarów cenników, ${t.rangeOutOfRange} poza zakresem, ${t.rangeOptionCases || 0} po opcjach (tkaniny, kolory, modele).</p>`
     : '';
   const coverage = t.positionsChecked
-    ? `<p>Zakres sprawdzenia: <strong>${t.positionsChecked}</strong> pozycji z ${t.positionsTotal}${t.positionsInDb ? ` (baza ma ${t.positionsInDb} pozycji w tych grupach)` : ''}${t.duplicates ? `, ${t.duplicates} pominiętych jako identyczne konfiguracje` : ''}, <strong>${t.comparedToPriceList}</strong> porównań z cennikiem źródłowym, ${t.scriptsRun || 0} z wdrożonym skryptem cenowym, ${t.comparedToStored} z ceną zapisaną, ${t.cartChecked} kontroli powtarzalności${t.failed ? `, ${t.failed} nie dało się przeliczyć` : ''}.</p>`
+    ? `<p>Zakres sprawdzenia: <strong>${t.positionsChecked}</strong> pozycji z ${t.positionsTotal}${t.positionsInDb ? ` (baza ma ${t.positionsInDb} pozycji w tych grupach)` : ''}${t.duplicates ? `, ${t.duplicates} pominiętych jako identyczne konfiguracje` : ''}, <strong>${t.comparedToPriceList}</strong> porównań z cennikiem źródłowym, ${t.scriptsRun || 0} z wdrożonym skryptem cenowym, ${t.comparedToStored} z ceną zapisaną, ${t.cartChecked} kontroli powtarzalności${t.failed ? `, ${t.failed} nie dało się przeliczyć` : ''}${t.missingRules ? `, ${t.missingRules} pominiętych jako archiwalne (brak reguł tej wersji na dysku — nie jest to usterka)` : ''}.</p>`
+    : '';
+
+  // Dwie warstwy, które nie liczą „pozycji": symulacja tworzenia pozycji
+  // i parsowanie skryptów cenowych. Bez własnego wiersza ich praca w ogóle nie
+  // byłaby widoczna w raporcie.
+  const simulation = t.simulated
+    ? `<p>Symulacja tworzenia pozycji: <strong>${t.simulationPassed}/${t.simulated}</strong> grup zdanych — automat sam przeszedł konfigurator i zapisu nie wykonał.</p>`
+    : '';
+  const scripts = t.scriptsParsed
+    ? `<p>Wdrożone skrypty cenowe: sprawdzono <strong>${t.scriptsParsed}</strong>, niesparsowalnych <strong style="color:${t.scriptsBroken ? '#c0392b' : '#1a7a1a'};">${t.scriptsBroken}</strong>.</p>`
     : '';
 
   const headline = totalFindings === 0
@@ -97,6 +107,8 @@ function buildHtml(report) {
   ${headline}
   ${coverage}
   ${generated}
+  ${simulation}
+  ${scripts}
   <div class="note">
     Ceny porównywane są z niezależnym cennikiem źródłowym z <code>/mnt/eformconf</code> (arkusz per grupa,
     wariant cennika wg klienta z <code>prod.txt</code>) — po stronie portalu brany jest wynik

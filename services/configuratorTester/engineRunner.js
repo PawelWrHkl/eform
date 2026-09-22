@@ -12,6 +12,20 @@
 'use strict';
 
 const formEngine = require('../formEngine');
+const { hasRules } = require('../rulesVersion');
+
+/**
+ * Czy reguły tej wersji w ogóle są na dysku — cienki alias na
+ * `services/rulesVersion.hasRules`, żeby nie mieć dwóch implementacji tej samej
+ * reguły w projekcie.
+ *
+ * ⚠️ Tester CELOWO tylko POMIJA takie pozycje, choć aplikacja od 2026-09-21
+ * potrafi podmienić wersję na najnowszą dostępną (`rulesVersion`): przeliczenie
+ * archiwalnej pozycji INNYMI regułami i porównanie go z ceną z dnia zamówienia
+ * dałoby fałszywe „cena zaniżona". Pomijamy i liczymy — to brak danych
+ * historycznych, nie usterka wyceny.
+ */
+const hasRulesOnDisk = hasRules;
 
 function safeJsonParse(raw, fallback) {
   if (!raw) return fallback;
@@ -46,6 +60,21 @@ async function recomputeFromPositionRow(row, { isGroup = false, withDisplayValue
   const { groupNumber, version, lang, values, displayValues, orgIdent, userIdent } = decodePositionRow(row);
   if (!groupNumber || !version) {
     return { ok: false, error: `pozycja #${row.id}: brak groupNumber/version do przeliczenia`, positionId: row.id, groupNumber };
+  }
+
+  // Brak reguł tej wersji na dysku → pozycja jest nie do odtworzenia i NIE jest
+  // to zgłoszenie (patrz `hasRulesOnDisk`). Osobna flaga, żeby wołający policzył
+  // pominięcie zamiast zgłaszać „brak ceny".
+  if (!hasRulesOnDisk(groupNumber, version, lang)) {
+    return {
+      ok: false,
+      missingRules: true,
+      positionId: row.id,
+      groupNumber,
+      version,
+      lang,
+      error: `pozycja #${row.id}: brak reguł wersji ${version}/${lang} na dysku — pozycja archiwalna, pominięta`
+    };
   }
 
   // `isGroup` makes the form build SUB___* (client-facing) params too, so one
@@ -232,6 +261,7 @@ async function getAvailableOptionValues({ groupNumber, version, lang, baseValues
 }
 
 module.exports = {
+  hasRulesOnDisk,
   decodePositionRow,
   recomputeFromPositionRow,
   recomputeTwice,

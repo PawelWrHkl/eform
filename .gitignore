@@ -9,3 +9,9 @@ Dockerfile
 # Znacznik postepu nocnego testera - stan runtime tej maszyny.
 # Skopiowany gdzie indziej kazalby pominac pozycje, ktorych tam nie sprawdzono.
 configtest/state.json
+# Znacznik "przebieg w toku" (watchdog 05:30) i blokada po wymuszonym
+# restarcie hosta - oba to stan runtime TEJ maszyny, nie repo. DISABLED w
+# szczegolnosci nie moze wrocic przez auto-commit/checkout, bo to by po
+# cichu zdjelo kill-switch po incydencie.
+configtest/run-in-progress.json
+configtest/DISABLED

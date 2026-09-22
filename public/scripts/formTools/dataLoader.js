@@ -52,9 +52,50 @@ export class DataLoader {
     }
   }
 
+  /**
+   * Podmiana wersji reguł, gdy tej z pozycji nie ma już na udziale.
+   *
+   * ⚠️ Stare wersje znikają z dysku, a `order_item.ver` trzyma numer z chwili
+   * zapisu — zmierzone 2026-09-21: **522 zapisane pozycje** wskazują na wersje,
+   * których nie ma w ŻADNYM środowisku (najnowsze z lutego 2026). Bez tego
+   * `parseData()` zwracał `null` i `generateForm()` padał na `data.dictValues`:
+   * użytkownik otwierający taką pozycję do edycji dostawał martwy ekran, bez
+   * jednego komunikatu.
+   *
+   * Katalogu nie da się wylistować z przeglądarki, więc pyta o to serwer
+   * (`routes/positions.js` → `/position/rules-version/...`). Podmiana jest
+   * ZAPAMIĘTYWANA w `this.versionFallback`, bo reguły innej wersji mogą wycenić
+   * pozycję inaczej niż w dniu zamówienia i człowiek musi to zobaczyć.
+   */
+  async resolveUsableVersion() {
+    try {
+      const url = `/position/rules-version/${this.groupNumber}/`
+        + `?requested=${encodeURIComponent(this.versionFile ?? '')}&lang=${encodeURIComponent(this.lang)}`;
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data && data.version ? data : null;
+    } catch (error) {
+      console.warn('Nie udało się ustalić zastępczej wersji reguł.', error);
+      return null;
+    }
+  }
+
   async parseData() {
-    const paramsData = await this.loadData(`${this.mainPath}${this.paramFile}`);
-    const dictData = await this.loadData(`${this.mainPath}${this.dictFile}`);
+    let paramsData = await this.loadData(`${this.mainPath}${this.paramFile}`);
+    let dictData = await this.loadData(`${this.mainPath}${this.dictFile}`);
+
+    // Jedna próba podmiany — tylko gdy reguł faktycznie nie było.
+    if ((!paramsData || !dictData) && !this.versionFallback) {
+      const zastepcza = await this.resolveUsableVersion();
+      if (zastepcza && zastepcza.fallback) {
+        console.warn(`Reguły wersji ${this.versionFile} niedostępne — ${zastepcza.reason}`);
+        this.versionFallback = zastepcza;
+        this.mainPath = `/data/${this.groupNumber}/data/versions/${zastepcza.version}/${this.lang}/`;
+        paramsData = await this.loadData(`${this.mainPath}${this.paramFile}`);
+        dictData = await this.loadData(`${this.mainPath}${this.dictFile}`);
+      }
+    }
 
     if (!paramsData || !dictData) {
       console.error("Nie udało się wczytać CSV");

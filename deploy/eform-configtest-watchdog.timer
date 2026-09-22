@@ -1,0 +1,16 @@
+# Odpala eform-configtest-watchdog.service codziennie o 05:30 — 3.5h po
+# nocnym przebiegu testera (CONFIGTEST_NIGHTLY_HOUR=2, domyślnie).
+#
+# Persistent=false CELOWO: gdyby host akurat wtedy nie chodził (np. bo
+# poprzedniej nocy watchdog go już zrestartował), NIE chcemy, żeby przy
+# starcie odpalił się od razu — to mogłoby wywołać kolejny reboot w pętli
+# zamiast poczekać na następne normalne okno 05:30.
+[Unit]
+Description=Codzienny check o 05:30, czy nocny przebieg configuratorTestera się skończył
+
+[Timer]
+OnCalendar=*-*-* 05:30:00
+Persistent=false
+
+[Install]
+WantedBy=timers.target

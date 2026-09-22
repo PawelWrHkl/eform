@@ -94,6 +94,28 @@ export async function generateForm(
   await semafor.init(groupNumber)
 
   const data = await loader.parseData();
+
+  // ⚠️ Reguł tej wersji mogło nie być na udziale — `dataLoader.parseData()`
+  // podmienia wtedy wersję na najnowszą dostępną (patrz services/rulesVersion.js:
+  // 522 zapisane pozycje wskazują na wersje, których nie ma nigdzie). Podmiana
+  // MUSI być widoczna, bo inne reguły mogą wycenić pozycję inaczej niż w dniu
+  // zamówienia; do tej pory kończyło się to wyjątkiem na `data.dictValues`
+  // i martwym ekranem edycji.
+  window.rulesVersionFallback = loader.versionFallback || null;
+  if (window.rulesVersionFallback) {
+    showToast('warning', t('form.rules_version_fallback')
+      .replace('%requested%', window.rulesVersionFallback.requested)
+      .replace('%used%', window.rulesVersionFallback.version), 8);
+  }
+
+  if (!data) {
+    // Grupa nie ma na dysku ŻADNYCH wczytywalnych reguł — nie ma czego
+    // podmienić i nie ma z czego zbudować formularza. Komunikat zamiast
+    // wyjątku: użytkownik ma wiedzieć, że to brak danych, nie jego wina.
+    showToast('error', t('form.rules_missing').replace('%group%', groupNumber), 10);
+    throw new Error(`Brak reguł grupy ${groupNumber} (wersja ${version}, ${lang}) — formularza nie da się zbudować.`);
+  }
+
   const dictValues = data.dictValues;
   let allOptionsByParameter = loader.convertDictValues(dictValues);
 

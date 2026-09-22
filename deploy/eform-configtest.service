@@ -1,0 +1,63 @@
+# Nocny tester konfiguratora — demon sprawdzający co noc, czy da się złożyć
+# pozycję i czy ceny zgadzają się z cennikiem źródłowym.
+#
+# Instalacja (razem z watchdogiem 05:30 — eform-configtest-watchdog.service/
+# .timer — patrz jego nagłówek): `npm run configtest:install` (woła sudo).
+# Ręcznie, ten sam efekt:
+#   sudo cp deploy/eform-configtest.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now eform-configtest
+#   systemctl status eform-configtest --no-pager
+#
+# Konfiguracja idzie z pliku .env w WorkingDirectory (demon woła dotenv):
+# CONFIGTEST_NIGHTLY_HOUR, CONFIGTEST_NOTIFY_EMAIL, CONFIGTEST_APP_URL,
+# CONFIGTEST_SIM_PIN/_PASSWORD/_ORDER_ID — patrz nagłówek
+# scripts/configuratorTesterDaemon.js.
+[Unit]
+Description=eForm configurator tester (nocna symulacja pozycji i kontrola cen)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pawel
+Group=pawel
+WorkingDirectory=/home/pawel/projects/eform-project/eform
+# ⚠️ Ten sam limit sterty co w npm scriptach `configtest:*`. Jedna grupa
+# potrafi zająć ~1.5 GB (JSDOM + sparsowany arkusz cennika) i bez tego
+# pierwszy pełny przelot padł na „heap limit Allocation failed".
+ExecStart=/home/pawel/.nvm/versions/node/v23.10.0/bin/node --max-old-space-size=2048 /home/pawel/projects/eform-project/eform/scripts/configuratorTesterDaemon.js
+# `on-failure`, nie `always`: drugi start (np. obok ręcznie odpalonego
+# `npm run configtest:daemon`) kończy się czysto kodem 0 z wpisem w logu —
+# przy `always` systemd wpadłby na tym w pętlę restartów.
+Restart=on-failure
+RestartSec=30
+# Demon sam pisze configtest/configtest.log (services/configuratorTester/logger.js),
+# więc do journala idzie tylko to, co wypadnie poza nim — bez dublowania logu.
+StandardOutput=journal
+StandardError=journal
+#
+# ⚠️ TWARDY SUFIT PAMIĘCI CGROUP — 2026-09-21: przelot o 12:04 zjadł całą
+# pamięć hosta (7.7 GB, prawie bez swapu) i padło WSZYSTKO w tle (główny
+# eform, import daemon), maszyna wymagała twardego restartu. `--max-old-space-size`
+# ogranicza TYLKO stertę V8 TEGO procesu — nie widzi natywnej pamięci
+# (bufory xlsx/exceljs, JSDOM po stronie C++), a Chromium spod Playwrighta
+# (browserRunner.js) to OSOBNY proces, którego V8 w ogóle nie liczy. Dzieci
+# grupy (groupProcess.js) i tak dostają WŁASNY limit 2048 MB każde — bez
+# sufitu na całą cgroup nic nie stoi na przeszkodzie, żeby demon + jego
+# dzieci + Chromium razem przekroczyły fizyczny RAM hosta.
+# Sufit niżej obejmuje CAŁE drzewo procesów demona (dzieci z groupProcess.js
+# i Chromium też, bo są w tej samej cgroup) — gdy przekroczy, OSTKilluje
+# WYŁĄCZNIE tę cgroupę (nie cały system), `Restart=on-failure` podnosi ją
+# ponownie za 30 s. `MemorySwapMax=0` celowo: bez tego przekroczenie sufitu
+# spycha proces w swap zamiast go zabić, a to właśnie powolne dobijanie
+# swapem — nie sam OOM-kill — dusiło resztę hosta.
+MemoryHigh=2560M
+MemoryMax=3072M
+MemorySwapMax=0
+OOMPolicy=kill
+# Demon jest konserwacyjny, nie ma prawa konkurować o CPU z żywym serwerem.
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

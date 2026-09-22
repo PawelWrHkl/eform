@@ -54,6 +54,15 @@ function buildHtml(report, reportFilePath) {
        ${t.comparedToStored} z ceną zapisaną w zamówieniu, ${t.cartChecked} kontroli powtarzalności${t.failed ? `, ${t.failed} nie dało się przeliczyć` : ''}.</p>`
     : '';
 
+  // Symulacja i parsowanie skryptów nie liczą „pozycji", więc bez własnych
+  // zdań ich praca nie byłaby w mailu widoczna wcale.
+  const simulationLine = t.simulated
+    ? `<p style="color:#333;">Symulacja tworzenia pozycji: <strong>${t.simulationPassed}/${t.simulated}</strong> grup zdanych.</p>`
+    : '';
+  const scriptsLine = t.scriptsParsed
+    ? `<p style="color:#333;">Wdrożone skrypty cenowe: sprawdzono <strong>${t.scriptsParsed}</strong>, niesparsowalnych <strong>${t.scriptsBroken}</strong>.</p>`
+    : '';
+
   const statusLine = totalFindings === 0
     ? `<p style="color:#1a7a1a;font-weight:bold;">✅ Brak błędów — sprawdzono ${groupsChecked} grup.</p>`
     : `<p style="color:#c0392b;font-weight:bold;">❌ Wykryto ${totalFindings} błędów (P1: ${byPriority.P1 || 0}, HIGH: ${byPriority.HIGH || 0}, MEDIUM: ${byPriority.MEDIUM || 0}) na ${groupsChecked} sprawdzonych grup.</p>`;
@@ -103,6 +112,8 @@ function buildHtml(report, reportFilePath) {
   <p style="color:#555;">Data: <strong>${new Date(report.finishedAt).toLocaleString('pl-PL')}</strong></p>
   ${statusLine}
   ${coverage}
+  ${simulationLine}
+  ${scriptsLine}
   ${skippedNote}
   <p style="color:#888;font-size:12px;">
     Ceny są porównywane z niezależnym cennikiem źródłowym z /mnt/eformconf (arkusz per grupa,
@@ -141,6 +152,15 @@ async function sendTestReport(report, reportFilePath) {
   // address is the operational import-notification recipient; silently
   // reusing it would send this module's test reports to an inbox that never
   // opted into them. Require an explicit, dedicated recipient instead.
+  // Wyłącznik na czas pracy nad testerem: każdy przebieg wysyła raport do
+  // czterech osób, więc kilka przejazdów weryfikacyjnych pod rząd to kilka
+  // maili do kolegów o niczym. `CONFIGTEST_NO_MAIL=true` zostawia raport na
+  // dysku i tylko odnotowuje pominięcie — nigdy nie wycisza po cichu.
+  if (process.env.CONFIGTEST_NO_MAIL === 'true') {
+    log('ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.');
+    return;
+  }
+
   const to = process.env.CONFIGTEST_NOTIFY_EMAIL;
   if (!to) {
     log('ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.');

@@ -1,0 +1,25 @@
+# 05:30 watchdog dla nocnego przebiegu configuratorTestera — patrz
+# scripts/configTestWatchdog.js. Jeśli przebieg zaczęty o 02:00 nadal jest
+# "w toku" o 05:30 (services/configuratorTester/runLock.js), reboot całego
+# hosta i blokada testera (configtest/DISABLED) do ręcznego odblokowania.
+#
+# Instalacja (razem z eform-configtest.service — patrz jego nagłówek):
+#   sudo cp deploy/eform-configtest-watchdog.service deploy/eform-configtest-watchdog.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now eform-configtest-watchdog.timer
+#   systemctl list-timers eform-configtest-watchdog.timer
+#
+# ⚠️ User=root (domyślne, brak User= poniżej) — CELOWO: żeby wywołać reboot
+# bez rozszerzania sudoers o nic. Sam skrypt robi dokładnie jedną rzecz poza
+# odczytem pliku: `reboot`, więc uprawnienia roota są tu wąskie i w całości
+# widoczne w tym jednym pliku.
+[Unit]
+Description=eForm configurator tester — watchdog 05:30 (reboot hosta, jeśli nocny przebieg się nie skończył)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pawel/projects/eform-project/eform
+ExecStart=/home/pawel/.nvm/versions/node/v23.10.0/bin/node /home/pawel/projects/eform-project/eform/scripts/configTestWatchdog.js
+StandardOutput=journal
+StandardError=journal

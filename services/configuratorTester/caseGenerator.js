@@ -83,11 +83,41 @@ function mulberry32(seed) {
  */
 async function runPositionChecks(groupNumber, positions, { currentVersion, cartCheckLimit = 3 } = {}) {
   const findings = [];
-  const stats = { checked: 0, failed: 0, comparedToPriceList: 0, comparedToStored: 0, cartChecked: 0, scriptsRun: 0 };
+  const stats = { checked: 0, failed: 0, missingRules: 0, comparedToPriceList: 0, comparedToStored: 0, cartChecked: 0, scriptsRun: 0 };
 
   for (let i = 0; i < positions.length; i++) {
     const row = positions[i];
-    const recompute = await engineRunner.recomputeFromPositionRow(row, { isGroup: true });
+
+    // ⚠️ JEDNA pozycja nie może przewrócić całej grupy. Grupa chodzi we własnym
+    // procesie (`configTestGroupWorker`), więc wyjątek tutaj kończył przebieg
+    // grupy kodem 1 i raport pokazywał tylko „proces zakończył się kodem 1" —
+    // bez śladu, na czym i dlaczego. Zamiast tego: zgłoszenie MEDIUM
+    // (to informacja o testerze albo o danych, nie dowód usterki wyceny)
+    // i przechodzimy do następnej pozycji.
+    let recompute;
+    try {
+      recompute = await engineRunner.recomputeFromPositionRow(row, { isGroup: true });
+    } catch (err) {
+      stats.failed += 1;
+      findings.push({
+        priority: 'MEDIUM',
+        code: 'BLAD_PRZELICZENIA',
+        groupNumber,
+        positionId: row.id,
+        expected: 'przeliczenie zapisanej pozycji',
+        actual: err.message,
+        message: `Pozycja #${row.id} (wersja ${row.ver || '?'}, ${row.lang || 'pl'}): przeliczenie przerwane błędem — ${err.message.split('\n')[0]}`,
+        date: new Date().toISOString()
+      });
+      continue;
+    }
+
+    // Pozycja archiwalna — reguł jej wersji nie ma już na dysku. Liczymy,
+    // nie zgłaszamy (patrz engineRunner.hasRulesOnDisk).
+    if (recompute.missingRules) {
+      stats.missingRules += 1;
+      continue;
+    }
 
     if (!recompute.ok) {
       stats.failed += 1;

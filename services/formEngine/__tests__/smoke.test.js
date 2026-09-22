@@ -60,9 +60,15 @@ test('calculatePrices fails fast when group/version are missing', async () => {
 
 test('calculatePrices surfaces a clean error when group data dir is absent', async () => {
   // bootEngine should succeed (no resources are fetched until the bridge
-  // module loads), but the missing /scripts/* tree means the bridge cannot
-  // import form.js and the call rejects within the bootstrap timeout.
-  // We use a non-existent group so the test never touches real data.
+  // module loads); the call then rejects because there are no rules to build
+  // the form from. We use a non-existent group so the test never touches real
+  // data.
+  //
+  // ⚠️ The message must NAME the missing group and version. Until 2026-09-21
+  // this path died with `Cannot read properties of null (reading 'dictValues')`
+  // — a TypeError that told nobody what was actually missing, and that reached
+  // real users as a dead edit screen (522 saved positions point at rule
+  // versions that no longer exist anywhere; see services/rulesVersion.js).
   const fakeGroup = '__nonexistent_group__';
   await assert.rejects(
     () => formEngine.calculatePrices({
@@ -71,6 +77,13 @@ test('calculatePrices surfaces a clean error when group data dir is absent', asy
       lang: 'pl',
       values: {}
     }),
-    (err) => err && /formEngine|cannot read|bridge|did not load|Cannot find module/i.test(err.message)
+    (err) => {
+      if (!err) return false;
+      if (/cannot read properties of null/i.test(err.message)) {
+        throw new Error(`regresja: wrócił nieczytelny TypeError zamiast nazwanego błędu — ${err.message}`);
+      }
+      return /Brak reguł grupy|formEngine|bridge|did not load|Cannot find module/i.test(err.message)
+        && new RegExp(fakeGroup).test(err.message);
+    }
   );
 });

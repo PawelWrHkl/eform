@@ -22,6 +22,10 @@
  *   CONFIGTEST_APP_URL          - eForm instance for the browser pass; the pass
  *                                 runs only when this is set (see below)
  *   CONFIGTEST_NIGHTLY_BROWSER  - 'false' to skip the browser pass even then
+ *   CONFIGTEST_SIM_PIN / _PASSWORD / _ORDER_ID - konto i zamówienie dla symulacji
+ *                                 tworzenia pozycji; komplet włącza ją automatycznie
+ *   CONFIGTEST_NIGHTLY_SIMULATION - 'false' to skip the position-creation simulation
+ *   CONFIGTEST_SCRIPT_SYNTAX    - 'false' to skip parsing the deployed price scripts
  *   CONFIGTEST_RANDOM_CASES     - random/kombinacji cases per group per run (default 5)
  *   CONFIGTEST_OUTPUT_DIR       - override report output dir (default <ROOT_DIR>/configtest-output)
  *
@@ -89,12 +93,29 @@ async function maybeRunNightly() {
     const withBrowser = !!process.env.CONFIGTEST_APP_URL
       && process.env.CONFIGTEST_NIGHTLY_BROWSER !== 'false';
 
-    const { report, reportFilePath } = await runFullSuite({
+    // Symulacja TWORZENIA pozycji — warstwa, która odpowiada wprost na pytanie
+    // „czy klient da dziś radę złożyć pozycję w tej grupie". Włącza się sama,
+    // gdy ma komplet danych: adres instancji i konto do zalogowania
+    // (`CONFIGTEST_SIM_PIN`/`_PASSWORD`) plus zamówienie, w którym otwiera
+    // ekran nowej pozycji (`CONFIGTEST_SIM_ORDER_ID`). Brak któregokolwiek →
+    // pomijamy z wpisem w raporcie, nigdy po cichu.
+    const withSimulation = !!process.env.CONFIGTEST_APP_URL
+      && !!process.env.CONFIGTEST_SIM_PIN
+      && !!process.env.CONFIGTEST_SIM_PASSWORD
+      && !!process.env.CONFIGTEST_SIM_ORDER_ID
+      && process.env.CONFIGTEST_NIGHTLY_SIMULATION !== 'false';
+
+    const { report, reportFilePath, skippedDisabled } = await runFullSuite({
       randomCasesCount: RANDOM_CASES,
       onlyNew: process.env.CONFIGTEST_NIGHTLY_ALL_POSITIONS !== 'true',
-      browser: withBrowser
+      browser: withBrowser,
+      simulation: withSimulation
     });
-    log(`ConfiguratorTester daemon: cycle done — ${report.totalFindings} błędów (P1: ${report.byPriority.P1 || 0}), raport: ${reportFilePath}`);
+    if (skippedDisabled) {
+      log('ConfiguratorTester daemon: nightly cycle pominięty — tester zablokowany (configtest/DISABLED).');
+    } else {
+      log(`ConfiguratorTester daemon: cycle done — ${report.totalFindings} błędów (P1: ${report.byPriority.P1 || 0}), raport: ${reportFilePath}`);
+    }
   } catch (err) {
     log(`ConfiguratorTester daemon: cycle error: ${err.message}`);
   } finally {
@@ -102,8 +123,34 @@ async function maybeRunNightly() {
   }
 }
 
+/**
+ * Czy z PID-u w pliku chodzi żywy proces.
+ *
+ * ⚠️ Dwa demony naraz to dwa pełne przeloty o 2:00, dwa maile do tych samych
+ * czterech osób i podwojone zużycie pamięci (jedna grupa ~1.5 GB). Łatwo o to
+ * po instalacji unitu systemd obok ręcznie odpalonego `npm run configtest:daemon`,
+ * dlatego drugi start kończy się czysto (kod 0) z wyjaśnieniem, a unit ma
+ * `Restart=on-failure`, żeby nie wpadł w pętlę restartów.
+ */
+function alreadyRunning() {
+  try {
+    const pid = parseInt(fs.readFileSync(PIDFILE, 'utf8').trim(), 10);
+    if (!pid || pid === process.pid) return false;
+    process.kill(pid, 0); // tylko sprawdzenie istnienia procesu
+    return pid;
+  } catch (_err) {
+    return false; // brak pliku albo martwy PID — wolna droga
+  }
+}
+
 function startDaemon() {
   if (timer) return;
+
+  const running = alreadyRunning();
+  if (running) {
+    log(`ConfiguratorTester daemon: już chodzi (pid=${running}) — ten start pomijam, żeby nie było dwóch przelotów naraz.`);
+    process.exit(0);
+  }
 
   writePidFile();
   process.on('SIGTERM', () => shutdown('SIGTERM'));

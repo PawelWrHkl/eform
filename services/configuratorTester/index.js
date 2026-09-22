@@ -16,6 +16,7 @@ const { saveHtmlReport } = require('./htmlReport');
 const { sendTestReport } = require('./mailer');
 const { log } = require('./logger');
 const { pruneOutput, rotateLog } = require('./retention');
+const { markRunStart, markRunEnd, isDisabled } = require('./runLock');
 
 /**
  * Run the full nightly suite across every active group.
@@ -23,6 +24,8 @@ const { pruneOutput, rotateLog } = require('./retention');
  * @param {number} [opts.randomCasesCount]
  * @param {number} [opts.seed]
  * @param {string[]} [opts.onlyGroups] - restrict to these group numbers (quick test)
+ * @param {boolean} [opts.browser] - dodatkowo przejazd po UI istniejących pozycji
+ * @param {boolean} [opts.simulation] - dodatkowo symulacja TWORZENIA nowej pozycji
  */
 /** Where the browser pass points, for the report's own audit trail. */
 function runBrowserChecksTarget() {
@@ -30,6 +33,18 @@ function runBrowserChecksTarget() {
 }
 
 async function runFullSuite(opts = {}) {
+  // Kill-switch po wymuszonym restarcie hosta (deploy/eform-configtest-
+  // watchdog.service, 2026-09-21: przelot bez sufitu pamięci zjadł cały RAM
+  // i zabił wszystko w tle). Blokada jest CELOWO cicha — bez maila, bez
+  // wpisu w raporcie — bo to znany, zamierzony stan po incydencie, nie
+  // awaria; log wystarcza, a odblokowanie jest ręczne
+  // (`rm configtest/DISABLED`, patrz runLock.js).
+  if (isDisabled()) {
+    log('ConfiguratorTester: zablokowany po poprzednim wymuszonym restarcie (configtest/DISABLED) — pomijam przebieg.');
+    return { report: null, reportFilePath: null, htmlReportPath: null, skippedDisabled: true };
+  }
+
+  markRunStart();
   try {
     return await runFullSuiteInner(opts);
   } catch (err) {
@@ -39,6 +54,11 @@ async function runFullSuite(opts = {}) {
     log(`ConfiguratorTester: przebieg przerwany globalnie — ${err.message}`);
     await sendFailureReport(err).catch(() => {});
     throw err;
+  } finally {
+    // Zawsze, także na ścieżce błędu — inaczej watchdog o 5:30 widziałby
+    // "przebieg w toku" na zawsze po zwykłym wyjątku, nie tylko po realnym
+    // zawieszeniu, i resetowałby host bez potrzeby co noc.
+    markRunEnd();
   }
 }
 
@@ -95,6 +115,30 @@ async function runFullSuiteInner(opts = {}) {
     });
   }
 
+  // Parsowanie wdrożonych skryptów cenowych — PIERWSZE, bo jest tanie
+  // (`new vm.Script`, bez wykonania: 1532 pliki w kilka sekund) i wyjaśnia
+  // wyniki wszystkich warstw niżej. Zepsuty plik daje „według cennika" zamiast
+  // ceny, a pozycja zapisuje się bez wartości — dokładnie to znaleziono na
+  // grupie 76. Wyłączalne `CONFIGTEST_SCRIPT_SYNTAX=false` tylko na wypadek,
+  // gdyby kiedyś przeszkadzało; domyślnie chodzi zawsze.
+  if (process.env.CONFIGTEST_SCRIPT_SYNTAX !== 'false') {
+    try {
+      const { checkGroupScripts } = require('./scriptSyntaxCheck');
+      const syntax = checkGroupScripts(groupNumbers);
+      groupResults.push({
+        groupNumber: 'skrypty cenowe',
+        skipped: false,
+        findings: syntax.findings,
+        stats: { scriptsParsed: syntax.checked, scriptsBroken: syntax.broken },
+        reason: `Parsowanie wdrożonych skryptów cenowych (${syntax.checked} plików, bez uruchamiania).`
+      });
+      log(`ConfiguratorTester: skrypty cenowe — sprawdzono ${syntax.checked}, niesparsowalnych ${syntax.broken}`);
+    } catch (err) {
+      // Awaria samego sprawdzenia nie może przewrócić całego przebiegu.
+      log(`ConfiguratorTester: sprawdzenie składni skryptów nieudane — ${err.message}`);
+    }
+  }
+
   for (const groupNumber of groupNumbers) {
     try {
       // Each group in its own process by default — see groupProcess.js /
@@ -124,6 +168,49 @@ async function runFullSuiteInner(opts = {}) {
   // Release the shared JSDOM realm the Excel truth table uses for formula
   // evaluation — otherwise the process keeps it (and its timers) alive.
   require('./excelTruthTable').disposeEvaluator();
+
+  // Symulacja tworzenia pozycji — warstwa, która odpowiada na pytanie
+  // właściciela wprost: „czy da się TERAZ złożyć pozycję w tej grupie".
+  // Przechodzi konfigurator jak człowiek (dział → grupa → wypełnienie pól →
+  // werdykt) i wydaje ocenę WALIDATOREM APLIKACJI, a ceny porównuje
+  // z niezależnym cennikiem. Idzie na końcu, bo jest najdroższa (Chromium,
+  // realna sesja) i najbardziej zależna od środowiska.
+  //
+  // ⚠️ Nic nie zapisuje — `positionSimulator` nie klika `#show-button`.
+  if (opts.simulation) {
+    try {
+      const { runSimulationChecks } = require('./simulationRunner');
+      const simulation = await runSimulationChecks({ groupNumbers: opts.onlyGroups || null });
+      if (simulation.skipped) {
+        log(`ConfiguratorTester: symulacja pominięta — ${simulation.skipped}`);
+      }
+      groupResults.push({
+        groupNumber: 'symulacja',
+        skipped: !!simulation.skipped,
+        findings: simulation.findings,
+        stats: { simulated: simulation.simulated, simulationPassed: simulation.passed },
+        reason: simulation.skipped
+          || `Symulacja tworzenia pozycji w przeglądarce: zdanych ${simulation.passed}/${simulation.simulated}.`
+      });
+    } catch (err) {
+      // Zgłaszamy jako wynik, nie jako wyjątek — reszta raportu jest ważna
+      // nawet wtedy, gdy przeglądarka nie wstała.
+      log(`ConfiguratorTester: symulacja przerwana — ${err.message}`);
+      groupResults.push({
+        groupNumber: 'symulacja',
+        skipped: false,
+        findings: [{
+          priority: 'MEDIUM',
+          code: 'BLAD_SYMULACJI',
+          groupNumber: null,
+          positionId: null,
+          message: `Symulacja tworzenia pozycji przerwała się: ${err.message}. Brak zgłoszeń z tej warstwy NIE oznacza, że konfigurator działa.`,
+          date: new Date().toISOString(),
+          source: 'simulation'
+        }]
+      });
+    }
+  }
 
   const report = buildRunReport(groupResults, { startedAt, finishedAt: new Date().toISOString() });
   const reportFilePath = saveRunReport(report);

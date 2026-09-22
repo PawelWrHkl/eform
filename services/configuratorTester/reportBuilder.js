@@ -67,8 +67,14 @@ function buildRunReport(groupResults, { startedAt, finishedAt } = {}) {
     acc.rangeOptionCases += st.rangeOptionCases || 0;
     acc.positionsInDb += st.positionsInDb || 0;
     acc.failed += st.failed || 0;
+    acc.missingRules += st.missingRules || 0;
+    // Warstwy pseudo-grupowe: symulacja tworzenia pozycji i parsowanie skryptów.
+    acc.simulated += st.simulated || 0;
+    acc.simulationPassed += st.simulationPassed || 0;
+    acc.scriptsParsed += st.scriptsParsed || 0;
+    acc.scriptsBroken += st.scriptsBroken || 0;
     return acc;
-  }, { positionsChecked: 0, positionsTotal: 0, comparedToPriceList: 0, comparedToStored: 0, cartChecked: 0, scriptsRun: 0, duplicates: 0, positionsInDb: 0, rangeCases: 0, rangeInRange: 0, rangeOutOfRange: 0, rangeOptionCases: 0, failed: 0 });
+  }, { positionsChecked: 0, positionsTotal: 0, comparedToPriceList: 0, comparedToStored: 0, cartChecked: 0, scriptsRun: 0, duplicates: 0, positionsInDb: 0, rangeCases: 0, rangeInRange: 0, rangeOutOfRange: 0, rangeOptionCases: 0, failed: 0, missingRules: 0, simulated: 0, simulationPassed: 0, scriptsParsed: 0, scriptsBroken: 0 });
 
   return {
     startedAt: startedAt || new Date().toISOString(),

@@ -178,11 +178,29 @@ function patchFetch(window, { uid }) {
     });
   }
 
+  /** Sama ścieżka z adresu — bezwzględnego albo względnego. */
+  const pathnameOf = (url) => {
+    try { return new URL(url, 'http://engine.local').pathname; } catch (_e) { return url; }
+  };
+
   window.fetch = (input /* , init */) => {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
 
     if (url === '/user/uid' || url.endsWith('/user/uid')) {
       return Promise.resolve(jsonResponse({ success: true, uid: uid || `engine_${Date.now()}` }));
+    }
+
+    // Ta sama podmiana wersji reguł, co w przeglądarce: `dataLoader.parseData()`
+    // pyta o nią, gdy `param.txt` żądanej wersji zwróci 404. Bez tego silnik
+    // bezgłowy (import, przeliczanie, tester) padał na `data.dictValues` przy
+    // każdej pozycji, której wersja zniknęła z udziału — a takich jest 522.
+    if (pathnameOf(url).startsWith('/position/rules-version/')) {
+      const { resolveUsableVersion } = require('../rulesVersion');
+      const segments = pathnameOf(url).split('/').filter(Boolean);
+      const groupNr = segments[2];
+      const query = new URL(url, 'http://engine.local').searchParams;
+      const wynik = resolveUsableVersion(groupNr, query.get('requested'), query.get('lang') || 'pl');
+      return Promise.resolve(jsonResponse(wynik));
     }
 
     if (url === '/env' || url.endsWith('/env')) {

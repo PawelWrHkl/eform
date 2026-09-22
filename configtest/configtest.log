@@ -141,3 +141,27 @@
 [2026-09-08T12:40:49.631Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
 [2026-09-08T12:41:00.471Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
 [2026-09-08T12:41:57.762Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-21T10:23:58.478Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-09-04, 2026-09-07)
+[2026-09-21T10:24:16.377Z] ConfiguratorTester: skrypty cenowe — sprawdzono 138, niesparsowalnych 0
+[2026-09-21T10:25:05.685Z] ConfiguratorTester: grupa 43 — 1 błędów
+[2026-09-21T10:25:08.109Z] ConfiguratorTester mailer: report sent to grzegorz.fijalkowski@hkl.eu,rafal.kozlowski@hkl.eu,pawel.woroniecki@hkl.eu,krzysztof.krawczyk@hkl.eu (1 findings)
+[2026-09-21T10:29:04.452Z] ConfiguratorTester: skrypty cenowe — sprawdzono 138, niesparsowalnych 0
+[2026-09-21T10:34:20.603Z] ConfiguratorTester: grupa 43 — 3 błędów
+[2026-09-21T10:34:20.632Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+[2026-09-21T10:35:35.935Z] ConfiguratorTester daemon: już chodzi (pid=195109) — ten start pomijam, żeby nie było dwóch przelotów naraz.
+[2026-09-21T10:35:42.867Z] ConfiguratorTester daemon started pid=198142 node=v23.10.0 nightlyHour=2 checkInterval=300s
+[2026-09-21T10:35:53.894Z] ConfiguratorTester daemon stopping (SIGTERM)
+[2026-09-21T10:36:05.551Z] ConfiguratorTester: skrypty cenowe — sprawdzono 44, niesparsowalnych 0
+[2026-09-21T10:36:50.271Z] ConfiguratorTester: grupa 11 — 0 błędów
+[2026-09-21T10:37:02.643Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-21T10:37:24.255Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-21T10:37:26.790Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-09-21T10:37:26.824Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+[2026-09-21T11:51:05.493Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 9
+[2026-09-21T11:53:46.577Z] ConfiguratorTester: skrypty cenowe — sprawdzono 1556, niesparsowalnych 5
+[2026-09-21T11:59:37.097Z] ConfiguratorTester: grupa 71 — 5 błędów
+[2026-09-21T12:03:44.185Z] ConfiguratorTester: grupa 43 — 2 błędów
+[2026-09-21T12:04:46.062Z] ConfiguratorTester: grupa 20 — 1 błędów
+[2026-09-21T13:05:04.980Z] ConfiguratorTester watchdog: brak przebiegu w toku o 05:30 — OK.
+[2026-09-21T13:05:09.025Z] ConfiguratorTester watchdog: znaleziono STARY znacznik przebiegu (2026-09-19T13:05:08.992Z, pid=999999) — to nie dzisiejsza noc, zostawiam bez ruszania hosta. Sprawdź ręcznie configtest/run-in-progress.json.
+[2026-09-21T13:05:21.007Z] ConfiguratorTester: zablokowany po poprzednim wymuszonym restarcie (configtest/DISABLED) — pomijam przebieg.

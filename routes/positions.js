@@ -20,6 +20,7 @@ const { ensureGroupInfoFilesDir } = require('../utils/ensureInfoFilesDir');
 const { ordersManager } = require('../utils/saveOrdersOutput.js');
 const { file } = require('pdfkit');
 const { log } = require('../utils/logging');
+const { resolveUsableVersion } = require('../services/rulesVersion');
 const { recalcAndSaveMaxProdDays } = require('../services/productionDays');
 // Same VAT locals as the new-position form (routes/orders.js), so position
 // edit (regular + admin-redit) shows/computes exactly the same VAT block —
@@ -538,6 +539,29 @@ router.get('/version/:groupNr/', requireLogin, async (req, res) => {
 
   return res.status(200).json({ version: version })
 })
+
+
+/**
+ * Wersja reguł, którą DA SIĘ wczytać dla tej grupy — z podmianą, gdy wersja
+ * zapisana w pozycji zniknęła z udziału.
+ *
+ * ⚠️ Pyta o to `formTools/dataLoader.js`, gdy `param.txt`/`paramdict.txt`
+ * żądanej wersji zwróci 404. Bez tego `generateForm()` padał na
+ * `data.dictValues` i użytkownik dostawał MARTWY ekran edycji — dotyczy 522
+ * zapisanych pozycji (patrz services/rulesVersion.js). Przeglądarka nie umie
+ * wylistować katalogu, więc rozstrzyga to serwer.
+ */
+router.get('/rules-version/:groupNr/', requireLogin, async (req, res) => {
+  const lang = req.query.lang || req.getLocale();
+  const requested = req.query.requested || null;
+  const wynik = resolveUsableVersion(req.params.groupNr, requested, lang);
+  if (wynik.fallback) {
+    log(`Reguły: grupa ${req.params.groupNr} — ${wynik.reason} (język ${lang})`);
+  }
+  // 404 tylko wtedy, gdy NIE MA czym podmienić — inaczej klient nie odróżniłby
+  // „podmieniono" od „nic nie ma".
+  return res.status(wynik.version ? 200 : 404).json(wynik);
+});
 
 
 router.post('/versions/update/', requireLogin, async (req, res) => {
