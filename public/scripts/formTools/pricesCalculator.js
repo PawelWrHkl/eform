@@ -113,40 +113,6 @@ export function clientDiscountAppliedToSubTotal() {
 }
 
 /**
- * Rabat cennikowy `SUB___CENA_RABAT` sprzed i po doliczeniu bonusu portalowego.
- *
- * ⚠️ Bonus jest doliczany WPROST do tego parametru (60% → 61%), a parametr
- * normalnie odtwarza skrypt cenowy przy każdym przeliczeniu — więc bonus się
- * nie kumuluje. Gdyby jednak skrypt w danym cyklu nie przeliczył rabatu,
- * zobaczylibyśmy tu WŁASNĄ, już podbitą wartość i doliczyli bonus drugi raz.
- * Dlatego zapamiętujemy obie liczby i przy takim trafieniu wracamy do surowej.
- */
-let rabatBeforeBonus = null;
-let rabatAfterBonus = null;
-
-/**
- * Przelicza parametr FORMUŁOWY jego własną formułą z `param.txt`.
- *
- * ⚠️ Świadomie NIE powtarzamy tu wzoru „cena × (1 − rabat)": każda grupa ma
- * własny (grupa 71 rabatuje `SUB___DOPLATA` osobnym `SUB___DOPLATA_RABAT`,
- * grupa 39 wrzuca dopłatę do jednego nawiasu). `calculateFromFormula` liczy
- * dokładnie to, co liczy silnik, i przy okazji odświeża input ORAZ wiersz
- * `displayValues` — bez tego parametr miałby nową wartość, a lista starą
- * (tak było na pozycji 7302: w parametrze 81.97, w wierszu 82.80).
- */
-function recalcFormulaParam(name, values, displayValues) {
-    const params = Array.isArray(window.params) ? window.params : [];
-    const param = params.find((p) => p && p.NAME === name);
-    if (!param || !param.FORMULA || param.FORMULA === '<NULL>') return false;
-    if (!window.FormulaHandler) return false;
-    calculateFromFormula(
-        param, values, window.formInputs || {}, displayValues,
-        window.tempGroupNumber, window.allOptionsByParameter || {}, null, name
-    );
-    return true;
-}
-
-/**
  * Wstawia wiersz `displayValues` DOKŁADNIE ZA wskazanym parametrem.
  *
  * ⚠️ Kolejność wierszy pozycji to kolejność wkładania do `Map` — a `Map.set`
@@ -232,12 +198,14 @@ function registerClientDiscountKeys() {
  * a tej nie czyta już nic), a obie formuły odtwarzają się od zera przy każdym
  * przeliczeniu — dlatego akurat tam jest to bezpieczne.
  *
- * ⚠️ **Oba rabaty liczą się od CENY KATALOGOWEJ `SUB___CENA_SUMA`**, ale
- * inaczej się składają z rabatem cennikowym `SUB___CENA_RABAT`: rabat klienta
- * go ZASTĘPUJE (`katalog × (1 − rabat)`, decyzja z 2026-08-24), a bonus 1% za
- * korzystanie z serwisu DOKŁADA SIĘ jako punkt procentowy (decyzja
- * z 2026-09-11). Szczegóły i zmierzone pozycje — w komentarzu przy samym
- * liczeniu, niżej.
+ * ⚠️ **Dwa rabaty, dwie różne podstawy** (szczegóły przy samym liczeniu):
+ *  • **rabat klienta grupy** liczy się od CENY KATALOGOWEJ `SUB___CENA_SUMA`
+ *    i ZASTĘPUJE rabat cennikowy (`katalog × (1 − rabat)`, decyzja
+ *    z 2026-08-24),
+ *  • **ekstra rabat** (`user.extra_rabat`) liczy się od KWOTY NETTO PO RABACIE
+ *    i tylko od niej (decyzja z 2026-09-22) — czyli mnoży wynik powyższego.
+ *    Do 2026-09-22 doliczał się jako punkt procentowy do `SUB___CENA_RABAT`
+ *    (60% → 61%), przez co liczył się od ceny katalogowej.
  *
  * ⚠️ Rabat NIE wpływa na VAT ani na `WARTOSC_BRUTTO` — te liczą się od
  * nierabatowanego netto, tak jak przed wprowadzeniem rabatu.
@@ -257,74 +225,76 @@ export function applyClientDiscount(values, displayValues) {
     registerClientDiscountKeys();
 
     const pct = Number(window.clientDiscountPercent) || 0;
-    if (!(pct > 0)) return;
-    // Ile z `pct` to bonus za korzystanie z serwisu (0 dla wszystkich poza
-    // nowymi klientami LUXANGMBH) — wstrzykiwane przez routes/orders.js
-    // i routes/positions.js z services/portalUsageDiscount.js.
+    if (!(pct > 0)) {
+        // ⚠️ Rabat zszedł do zera, ale wiersz po nim potrafi wciąż siedzieć
+        // w ZAPISANEJ pozycji: przy edycji `displayValues` przychodzą z bazy,
+        // nie z pustej mapy. Bez tego usunięcia klient, któremu rabat odebrano,
+        // widzi go dalej — i zapisuje ponownie przy każdej edycji. Tak właśnie
+        // pozycje sprzed 2026-09-22 (np. 7378, klient Neuhausen) pokazywały
+        // „1% za korzystanie z serwisu" mimo pustej kolumny `user.extra_rabat`.
+        if (displayValues) {
+            for (const key of CLIENT_DISCOUNT_KEYS) displayValues.delete(key);
+            displayValues.delete('SUB___WARTOSC_PO_RABACIE');
+            displayValues.delete('WARTOSC_PO_RABACIE');
+        }
+        return;
+    }
+    // Ile z `pct` to ekstra rabat klienta (`user.extra_rabat`; 0, gdy klient nic
+    // nie ma wpisane) — wstrzykiwane przez routes/orders.js i routes/positions.js
+    // z services/portalUsageDiscount.js.
     const portalBonusPct = Number(window.portalUsageDiscountPercent) || 0;
 
-    // ⚠️ **BONUS ZA KORZYSTANIE Z SERWISU DOLICZAMY WPROST DO
-    // `SUB___CENA_RABAT`** — rabat cennikowy 60% staje się 61% i resztę liczy
-    // formuła grupy. Decyzja właściciela 2026-09-11: „jak masz rabat 60% to
-    // niech tam się dodaje, że rabat 61% — w żaden inny sposób".
+    // ⚠️ **EKSTRA RABAT MNOŻY KWOTĘ NETTO PO RABACIE** — nie dolicza się już do
+    // procentu cennikowego (decyzja właściciela 2026-09-22: „ma liczyć się tylko
+    // i wyłącznie od parametru wartość netto po rabacie").
     //
-    // Zmierzone na pozycji 7302 (zam. 3080, grupa 39): katalog `SUB___CENA_SUMA`
-    // = 207, rabat cennikowy 0.6. Po podbiciu do 0.61 formuła daje
-    // 207 × 0.39 = **80.73**. Wcześniejsze mnożenie ceny po rabacie
-    // (82.80 × 0.99 = 81.97) było błędem.
+    // Do 2026-09-22 bonus był doliczany WPROST do `SUB___CENA_RABAT` (60% → 61%),
+    // czyli liczył się od ceny KATALOGOWEJ. Na pozycji 7381 (katalog 547, rabat
+    // cennikowy 60%) dawało to 547 × 0.39 = 213.33, bo 1% od katalogu to 5.47.
+    // Teraz podstawą jest kwota po rabacie: 547 × 0.40 = 218.80, a bonus to 1%
+    // OD NIEJ (2.19) — należne 216.61.
     //
-    // ⚠️ Rabat klienta (`group_user.discount_percent`) działa INACZEJ — nie
-    // dolicza się do cennika, tylko go ZASTĘPUJE (`katalog × (1 − rabat)`,
-    // decyzja z 2026-08-24, potwierdzona na pozycjach 7189: katalog 979, 15% →
-    // 832.15 mimo cennikowych 391.60, i 7198: 468.60 za 2 szt., 60% → 187.44).
-    // Dlatego rozdzielamy `pct` (serwer przysyła sumę obu, patrz
-    // `resolveCombinedDiscountForOrder`) z powrotem na dwa składniki.
+    // ⚠️ `SUB___CENA_RABAT` zostaje NIETKNIĘTY (60%, nie 61%) — bonus nie jest
+    // już częścią cennika, więc nie ma czego podbijać. Znika tym samym cały
+    // problem kumulacji bonusu między przeliczeniami.
+
+    // Rabat klienta grupy = to, co zostaje z `pct` po odjęciu ekstra rabatu.
+    // Serwer przysyła sumę obu (`resolveCombinedDiscountForOrder`), a składają
+    // się inaczej, więc muszą tu zostać rozdzielone.
     const clientPct = Math.max(0, pct - portalBonusPct);
-
-    if (portalBonusPct > 0 && values['SUB___CENA_RABAT'] !== undefined) {
-        const current = parseFloat(values['SUB___CENA_RABAT']) || 0;
-        // Skrypt cenowy nie przeliczył rabatu w tym cyklu? Widzimy własną,
-        // podbitą liczbę — wracamy do zapamiętanej surowej, żeby nie doliczyć
-        // bonusu drugi raz.
-        const raw = (rabatAfterBonus !== null && Math.abs(current - rabatAfterBonus) < 1e-9)
-            ? rabatBeforeBonus
-            : current;
-        const bumped = Math.min(1, parseFloat((raw + portalBonusPct / 100).toFixed(6)));
-        rabatBeforeBonus = raw;
-        rabatAfterBonus = bumped;
-
-        // ⚠️ Podbita wartość idzie WYŁĄCZNIE do `values` — czyli do liczenia.
-        // Wiersz listy i pole formularza zostają na surowym rabacie cennikowym
-        // („60%"), bo zaraz pod nim stoi osobny wiersz bonusu („1%"). Pokazanie
-        // 61% obok 1% czytałoby się jak 62% (uwaga właściciela 2026-09-11) —
-        // prezentacja ma być 60 + 1, a liczone 61.
-        values['SUB___CENA_RABAT'] = bumped;
-
-        // Kolejność ma znaczenie: wartość pozycji liczy się z ceny jednostkowej.
-        recalcFormulaParam('SUB___CENA_KONCOWA', values, displayValues);
-        recalcFormulaParam('SUB___WARTOSC_KONCOWA', values, displayValues);
-    }
 
     const ilosc = Math.max(1, parseFloat(values['ILOSC']) || 1);
     const hasKoncowa = values['SUB___WARTOSC_KONCOWA'] !== undefined;
     const hasCenaKoncowa = values['SUB___CENA_KONCOWA'] !== undefined;
-    // Podstawa VAT: kwota pozycji po bonusie (jest już w cenniku), ale PRZED
-    // rabatem klienta — ten VAT-u nie rusza (decyzja właściciela 2026-08-21).
+    // Podstawa VAT: kwota pozycji PRZED rabatem klienta — ten VAT-u nie rusza
+    // (decyzja właściciela 2026-08-21).
+    // ⚠️ Od 2026-09-22 jest to też kwota PRZED ekstra rabatem. Dotąd bonus
+    // siedział w `SUB___CENA_RABAT`, czyli w cenniku, więc VAT liczył się od
+    // kwoty już po nim. Teraz bonus schodzi dopiero po rabacie cennikowym —
+    // traktujemy go jak rabat klienta, a ten podstawy VAT nie rusza.
     netBeforeClientDiscount = parseFloat(values['SUB___WARTOSC_KONCOWA']);
 
-    // Rabat klienta liczony od ceny KATALOGOWEJ — zastępuje rabat cennikowy.
-    // Bonus (już wliczony w `SUB___CENA_RABAT` wyżej) trzeba wtedy odjąć osobno,
-    // żeby 15% + 1% dało dokładnie 16% od katalogu.
+    // Cena katalogowa — podstawa rabatu klienta grupy, który ZASTĘPUJE rabat
+    // cennikowy. Gdy jej nie ma, zostaje cena po rabacie cennikowym.
     const rawUnitList = parseFloat(values['SUB___CENA_SUMA']);
     const unitListPrice = Number.isFinite(rawUnitList)
         ? rawUnitList
         : parseFloat(values['SUB___CENA_KONCOWA']);
 
-    const unitAfterDiscount = clientPct > 0 && Number.isFinite(unitListPrice)
-        // Cena nie schodzi poniżej zera, choćby procenty sumowały się powyżej 100.
-        ? Math.max(0, parseFloat((unitListPrice * (1 - (clientPct + portalBonusPct) / 100)).toFixed(2)))
-        // Sam bonus — cenę policzyła już formuła po podbiciu rabatu cennikowego.
+    // Krok 1 — rabat klienta grupy ZASTĘPUJE rabat cennikowy (`katalog × (1 − rabat)`,
+    // decyzja z 2026-08-24). Bez niego zostaje cena po rabacie cennikowym, którą
+    // policzyła już formuła grupy.
+    const unitAfterClientDiscount = clientPct > 0 && Number.isFinite(unitListPrice)
+        // Cena nie schodzi poniżej zera, choćby rabat przekroczył 100%.
+        ? Math.max(0, unitListPrice * (1 - clientPct / 100))
         : parseFloat(values['SUB___CENA_KONCOWA']);
+
+    // Krok 2 — ekstra rabat zdejmuje swój procent z KWOTY NETTO PO RABACIE.
+    // ⚠️ Mnożenie, nie dodawanie punktów procentowych: rabat klienta 15% i bonus
+    // 1% dają 100 → 85 → 84.15, a nie 84 (16% od katalogu, jak było do 22.09).
+    const unitAfterDiscount = Number.isFinite(unitAfterClientDiscount)
+        ? Math.max(0, parseFloat((unitAfterClientDiscount * (1 - portalBonusPct / 100)).toFixed(2)))
+        : NaN;
     const positionAfterDiscount = Number.isFinite(unitAfterDiscount)
         ? parseFloat((unitAfterDiscount * ilosc).toFixed(2))
         : NaN;
@@ -381,13 +351,18 @@ export function applyClientDiscount(values, displayValues) {
     // (services/portalUsageDiscount.js), więc kwota schodzi dokładnie raz;
     // tutaj zmienia się tylko OPIS, żeby było widać, skąd rabat się bierze.
     const existingDiscount = displayValues.get('SUB___RABAT_KLIENTA') || {};
+    // ⚠️ Wysokość ekstra rabatu wchodzi do TEKSTU opisu (`{percent}` w kluczu),
+    // bo steruje nią właściciel przez `user.extra_rabat` — zaszyte „1%" kłamałoby
+    // przy każdej innej wartości. Podstawiamy `portalBonusPct`, nie `pct`:
+    // opis dotyczy samego ekstra rabatu, a `pct` niesie sumę z rabatem klienta.
+    const portalLabel = t('form.portal_usage_discount_label', { percent: portalBonusPct });
     const discountLabel = portalBonusPct <= 0
         ? t('form.client_discount_label')
         : (pct > portalBonusPct
-            // Rabat klienta + bonus portalowy w jednym procencie.
-            ? `${t('form.client_discount_label')} (${t('form.portal_usage_discount_label')})`
-            // Cały rabat to bonus portalowy.
-            : t('form.portal_usage_discount_label'));
+            // Rabat klienta + ekstra rabat w jednym wierszu.
+            ? `${t('form.client_discount_label')} (${portalLabel})`
+            // Cały rabat to ekstra rabat.
+            : portalLabel);
     setRowAfter(displayValues, 'SUB___CENA_RABAT', 'SUB___RABAT_KLIENTA', {
         // Opis jest wyliczany, nie dziedziczony: `|| existing` zamroziłoby stary
         // tekst przy kolejnym przeliczeniu, gdyby doszedł rabat klienta.
@@ -570,8 +545,17 @@ export function checkIfPriceIsCorrect(values, inputs, displayValues) {
     // in a group without SUMA_BRUTTO was unconditionally flagged as "price
     // missing" and had its real, correctly-computed prices replaced by the
     // "Według cennika" placeholder, regardless of whether CENA/DOPLATA were fine.
+    // ⚠️ Drugi filtr: parametr WYŁĄCZONY przez `ENABLE` w tej konfiguracji nie
+    // jest ceną, która „wyszła zero" — tej ceny po prostu nie ma się skąd wziąć.
+    // `applyParamVisibilityFromFormulas` wpisuje taki parametr (ze skryptem
+    // cenowym) do `window.skipCountParams`, więc żaden skrypt go nie liczy.
+    // Grupa 14 (VERTIKAL) przy `KONFIGURACJA="L"` cenę HKL liczy `CENAPASEK`,
+    // a `CENA` jest wyłączona i stoi na 0 — bez tego filtra CAŁY blok cenowy
+    // (`CENA_SUMA`, `SUMA_BRUTTO`, `CENA_KONCOWA`, `WARTOSC_KONCOWA`) szedł na
+    // „Według cennika" przy poprawnie policzonej cenie.
+    const skipped = window.skipCountParams || [];
     const hasZero = priceParams
-        .filter(paramName => inputs[paramName] !== undefined)
+        .filter(paramName => inputs[paramName] !== undefined && !skipped.includes(paramName))
         .some(paramName => {
             const value = values[paramName];
             return value == '0' || value == 0;
@@ -584,8 +568,11 @@ export function checkIfPriceIsCorrect(values, inputs, displayValues) {
                 destinationParams.forEach(paramName => {
 
                     let displayValue = displayValues.get(paramName);
-                    
-                    if (inputs[paramName]) {
+
+                    // Wyłączonego pola nie podmieniamy — napis wróciłby też do
+                    // jego wiersza (`row: '2'`), który `clearDisabledValues`
+                    // dopiero co schował.
+                    if (inputs[paramName] && !skipped.includes(paramName)) {
                         inputs[paramName].type = 'text';
                         inputs[paramName].value = t('form.pricelist_info')
                         displayValues.set(paramName, {

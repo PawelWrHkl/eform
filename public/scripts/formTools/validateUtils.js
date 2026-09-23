@@ -483,6 +483,42 @@ export function validateAllFieldsOnSubmit(inputs, values) {
 }
 
 
+/**
+ * Wartość, na którą wraca parametr wyłączony przez `ENABLE`.
+ *
+ * ⚠️ Parametr LICZONY (skrypt cenowy `SCRIPTS` albo `FORMULA`) ma wartość
+ * neutralną `0`, a nie `''` — dokładnie tak startuje jego input
+ * (`form.js`: `input.value = 0` dla `SCRIPTS != '<NULL>' || FORMULA != '<NULL>'`).
+ *
+ * DLACZEGO TO WAŻNE: `hot-formula-parser` liczy OBIE gałęzie `IF`, także tę
+ * nieużywaną. Pusty operand daje `#VALUE!` na całej formule, `evaluateFormula`
+ * zwraca wtedy `false`, a `calculateFromFormula` wpisuje 0. Grupa 14 (VERTIKAL)
+ * przy `KONFIGURACJA="L"`: cenę HKL liczy `CENAPASEK`, wyłączona `CENA` stoi w
+ * drugiej gałęzi `CENA_SUMA` — wyczyszczona do `''` zerowała `CENA_SUMA`,
+ * `SUMA_BRUTTO`, `CENA_KONCOWA` i `WARTOSC_KONCOWA` (oraz ich bliźniaki
+ * `SUB___*`), mimo poprawnie policzonego `CENAPASEK`.
+ */
+function neutralValueFor(paramName, currentValue) {
+    const params = window.params;
+    if (!Array.isArray(params)) return '';
+    const param = params.find(p => p.NAME === paramName);
+    if (!param) return '';
+
+    // Ten sam warunek, co w `form.js` przy budowie pola — tam decyduje o
+    // `input.disabled = true` i `input.value = 0`.
+    const isCalculated = param.SCRIPTS != '<NULL>' || param.FORMULA != '<NULL>';
+    if (!isCalculated) return '';
+
+    // ⚠️ Parametr liczony, ale trzymający TEKST, zostaje na `''`. Grupa 14 ma
+    // takie trzy: `OPIS_POZYCJI`, `OPIS_CENY`, `OPIS_RABATU` (`SCRIPTS='true'`,
+    // `FORMROW='0'`) — skrypt cenowy wpisuje tam etykietę w rodzaju
+    // `"(304(TCNDPG2))*1.045"`. Zero byłoby tam liczbą udającą opis.
+    if (currentValue === '') return '';
+    if (typeof currentValue === 'string' && !Number.isFinite(Number(currentValue))) return '';
+
+    return 0;
+}
+
 export function clearDisabledValues(values, displayValues) {
     const enabledParamsKeys = new Set(Object.keys(enabledParams));
     
@@ -507,7 +543,7 @@ export function clearDisabledValues(values, displayValues) {
                 values[desc] = '';
             }
             if (values[key] !== undefined && key !== desc) {
-                values[key] = '';
+                values[key] = key === baseParam ? neutralValueFor(baseParam, values[key]) : '';
             }
             if (values[alias_desc] !== undefined) {
                 values[alias_desc] = '';

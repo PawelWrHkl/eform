@@ -4,7 +4,7 @@ const { requireLogin, requireGroup } = require('../middleware/loginMixture');
 const ownerService = require('../services/owner.js');
 const db = require('../db/db_helper.js');
 const OrderSender = require('../services/sendOrderService');
-const { notifyFirstOrderIfApplicable } = require('../services/portalUsageDiscountMailer');
+const { notifyFirstOrderIfApplicable } = require('../services/firstOrderMailer');
 const mailBot = require('../services/mailBot/mailBot');
 const orderService = require('../services/orderService.js');
 const { generatePdf, generateOrderDocuments } = require('../services/mailBot/pdfGenerator');
@@ -359,10 +359,10 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
             return res.status(400).json({ success: false, message: req.__('group.error_empty_order') });
         }
 
-        // Nowy klient LUXANGMBH wlasnie wyslal PIERWSZE zamowienie i dostal 1 punkt
-        // procentowy rabatu za korzystanie z serwisu — powiadamiamy handel. Serwis sam
-        // pilnuje jednorazowosci (liczy wyslane zamowienia klienta) i nigdy nie rzuca,
-        // wiec nie moze przewrocic wysylki zamowienia.
+        // Klient wlasnie wyslal swoje PIERWSZE zamowienie — powiadamiamy handel.
+        // Idzie dla kazdego klienta, nie tylko objetego rabatem (decyzja z 22.09).
+        // Serwis sam pilnuje jednorazowosci (liczy wyslane zamowienia klienta)
+        // i nigdy nie rzuca, wiec nie moze przewrocic wysylki zamowienia.
         await notifyFirstOrderIfApplicable(orderId);
         // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
         // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę

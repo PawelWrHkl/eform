@@ -220,6 +220,21 @@ wykona, `errorShield` podstawia napis, `getTotal()` nie ma z czego policzyć sum
 zapisuje się bez wartości**. Cennik ma dla tej konfiguracji cenę 175. Jeden `node --check` na
 skryptach odpowiada na to natychmiast — patrz `services/configuratorTester/scriptSyntaxCheck.js`.
 
+⚠️ **Trzecia przyczyna, naprawiona 2026-09-22: parametr cenowy WYŁĄCZONY przez `ENABLE`.**
+Grupa 14 (VERTIKAL) ma dwie ceny HKL pod tą samą etykietą, wykluczające się nawzajem —
+`CENAPASEK` (`=WSROD(KONFIGURACJA,"L")`) i `CENA` (`=NOT(WSROD(KONFIGURACJA,"L"))`) — a `CENA_SUMA`
+wybiera źródło formułą `IF(WSROD(KONFIGURACJA,"L"),CENAPASEK+…,CENA+…)`. Dwa mechanizmy brały
+nieaktywną `CENA` za cenę, która wyszła zero:
+
+* `clearDisabledValues` czyścił ją do `''`, a **`hot-formula-parser` liczy OBIE gałęzie `IF`** —
+  pusty operand w gałęzi nieużywanej daje `#VALUE!` na CAŁEJ formule, `evaluateFormula` zwraca
+  `false`, `calculateFromFormula` wpisuje 0. Zmierzone: `CENA=""` → `false`, `CENA=0` → 55.5.
+  Teraz parametr liczony (`SCRIPTS`/`FORMULA`) wraca na `0`, czyli na to, czym startuje jego input.
+* `checkIfPriceIsCorrect` widział `CENA == 0` (a `'' == 0` jest w JS prawdą) i podmieniał cały blok.
+  Teraz pomija parametry cenowe z `window.skipCountParams` i nie wpisuje napisu w ukryte pole.
+
+Test: `services/__tests__/priceChainDisabledParam.test.js`.
+
 ⚠️ **To najlepszy dostępny wykrywacz braku ceny.** Nie trzeba własnej heurystyki: jeśli na ekranie
 w polu ceny stoi „Według cennika", aplikacja właśnie zadeklarowała, że nie umie tego wycenić.
 Filtr `inputs[paramName] !== undefined` jest tam nieprzypadkowy — `SUMA_BRUTTO` w części grup nie

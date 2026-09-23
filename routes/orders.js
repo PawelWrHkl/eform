@@ -10,7 +10,7 @@ const ownerService = require('../services/owner.js');
 const { getActiveGroupShopId } = require('../services/groupContext');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
-const { notifyFirstOrderIfApplicable } = require('../services/portalUsageDiscountMailer');
+const { notifyFirstOrderIfApplicable } = require('../services/firstOrderMailer');
 const mailBot = require('../services/mailBot/mailBot');
 const path = require('path');
 const OrderSender = require("../services/sendOrderService");
@@ -1055,9 +1055,9 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
     // Rabat klienta grupy (`group_user.discount_percent`) — liczony z konta
     // podrzędnego przypisanego do ZAMÓWIENIA, więc wychodzi ten sam niezależnie
     // od tego, czy pozycję konfiguruje klient, czy grupa w jego kontekście.
-    // Do tego ewentualny 1% za korzystanie z serwisu dla nowych klientów
-    // LUXANGMBH — doliczany do TEGO SAMEGO procentu, żeby nie powstał drugi,
-    // równoległy tor rabatowy (services/portalUsageDiscount.js).
+    // Do tego ewentualny ekstra rabat klienta (`user.extra_rabat`) — wchodzi do
+    // TEGO SAMEGO procentu, żeby nie powstał drugi, równoległy tor rabatowy
+    // (services/portalUsageDiscount.js); front rozdziela go z powrotem.
     const { total: clientDiscountPercent, portalBonus: portalUsageDiscountPercent } =
         await resolveCombinedDiscountForOrder(req.params.orderId);
 
@@ -1214,10 +1214,10 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             });
         }
 
-        // Nowy klient LUXANGMBH wlasnie wyslal PIERWSZE zamowienie i dostal 1 punkt
-        // procentowy rabatu za korzystanie z serwisu — powiadamiamy handel. Serwis sam
-        // pilnuje jednorazowosci (liczy wyslane zamowienia klienta) i nigdy nie rzuca,
-        // wiec nie moze przewrocic wysylki zamowienia.
+        // Klient wlasnie wyslal swoje PIERWSZE zamowienie — powiadamiamy handel.
+        // Idzie dla kazdego klienta, nie tylko objetego rabatem (decyzja z 22.09).
+        // Serwis sam pilnuje jednorazowosci (liczy wyslane zamowienia klienta)
+        // i nigdy nie rzuca, wiec nie moze przewrocic wysylki zamowienia.
         await notifyFirstOrderIfApplicable(id);
         // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
         // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
@@ -1793,10 +1793,10 @@ router.post('/order/:orderId/admin-save-json', requireLogin, async (req, res) =>
             return res.status(400).json({ success: false, message: 'Nie możesz wysłać pustego zamówienia' });
         }
 
-        // Nowy klient LUXANGMBH wlasnie wyslal PIERWSZE zamowienie i dostal 1 punkt
-        // procentowy rabatu za korzystanie z serwisu — powiadamiamy handel. Serwis sam
-        // pilnuje jednorazowosci (liczy wyslane zamowienia klienta) i nigdy nie rzuca,
-        // wiec nie moze przewrocic wysylki zamowienia.
+        // Klient wlasnie wyslal swoje PIERWSZE zamowienie — powiadamiamy handel.
+        // Idzie dla kazdego klienta, nie tylko objetego rabatem (decyzja z 22.09).
+        // Serwis sam pilnuje jednorazowosci (liczy wyslane zamowienia klienta)
+        // i nigdy nie rzuca, wiec nie moze przewrocic wysylki zamowienia.
         await notifyFirstOrderIfApplicable(id);
         // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
         // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę

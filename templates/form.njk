@@ -104,8 +104,8 @@
                        (applyClientDiscount). 0 = brak rabatu, czyli zachowanie jak dotąd. #}
                     <script>
                       window.clientDiscountPercent = {{ clientDiscountPercent | default(0) | dump | safe }};
-                      // Ile z powyzszego to 1% za korzystanie z serwisu (nowi klienci
-                      // LUXANGMBH) — do WIDOCZNEGO wiersza informacyjnego w
+                      // Ile z powyzszego to ekstra rabat klienta (user.extra_rabat)
+                      // — do WIDOCZNEGO wiersza informacyjnego w
                       // pricesCalculator.applyClientDiscount(). Sam procent jest juz
                       // wliczony w clientDiscountPercent, wiec kwota schodzi raz.
                       window.portalUsageDiscountPercent = {{ portalUsageDiscountPercent | default(0) | dump | safe }};

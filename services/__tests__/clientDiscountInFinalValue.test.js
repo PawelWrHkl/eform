@@ -83,7 +83,16 @@ function buildBundle() {
 function makeWindow({ clientDiscountPercent = 0, portalUsageDiscountPercent = 0 } = {}) {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { runScripts: 'outside-only' });
   const { window } = dom;
-  window.t = (key) => key;
+  // Stub odwzorowuje prawdziwy `window.t` (public/scripts/translation.js):
+  // brak klucza → sam klucz, `{nazwa}` → wartość z `vars`. Dzięki temu test
+  // sprawdza, że wysokość ekstra rabatu FAKTYCZNIE ląduje w opisie wiersza.
+  const slownik = { 'form.portal_usage_discount_label': '{percent}% rabatu za korzystanie z serwisu' };
+  window.t = (key, vars) => {
+    const value = slownik[key] || key;
+    if (!vars) return value;
+    return value.replace(/\{(\w+)\}/g, (ph, nazwa) =>
+      Object.prototype.hasOwnProperty.call(vars, nazwa) ? String(vars[nazwa]) : ph);
+  };
   // `form.js` odpala przy imporcie kilka zapytań (`/env`, logo, nazwa
   // użytkownika). Odpowiadamy na wszystkie tym samym, pełnym kształtem
   // odpowiedzi — inaczej ich obsługa błędów zasypuje wynik testu logami.
@@ -172,17 +181,19 @@ const PARAMS_GRUPY_39 = [
 
 test('rabat 1% schodzi z ceny jednostkowej — parametr fakturowy, wiersz i suma to ta sama liczba', () => {
   // Prawdziwa pozycja 7277 (zam. 3078): katalog 283, rabat cennikowy 60%
-  // → 113.20; z bonusem 1% należne jest 283 × 0.39 = 110.37.
+  // → 113.20; ekstra rabat 1% schodzi Z TEJ KWOTY: 113.20 × 0.99 = 112.07.
+  // ⚠️ Do 2026-09-22 było tu 110.37 (283 × 0.39), bo bonus doliczał się do
+  // procentu cennikowego i liczył od katalogu.
   const window = makeWindow({ clientDiscountPercent: 1, portalUsageDiscountPercent: 1 });
   const values = valuesFixture(113.2, 1, 283);
   const dv = displayValuesFixture(window, 113.2);
 
   window.__discountTest.applyClientDiscount(values, dv);
 
-  assert.equal(values.SUB___CENA_KONCOWA, 110.37, 'PREIS N. RABATT — z niego idzie faktura');
-  assert.equal(dv.get('SUB___CENA_KONCOWA').option_value, '110.37', 'wiersz ceny jednostkowej');
-  assert.equal(values.SUB___WARTOSC_KONCOWA, 110.37, 'wartość idzie za ceną');
-  assert.equal(window.__discountTest.getTotal(dv).total_sub, 110.37, 'order_item.total_price_sub');
+  assert.equal(values.SUB___CENA_KONCOWA, 112.07, 'PREIS N. RABATT — z niego idzie faktura');
+  assert.equal(dv.get('SUB___CENA_KONCOWA').option_value, '112.07', 'wiersz ceny jednostkowej');
+  assert.equal(values.SUB___WARTOSC_KONCOWA, 112.07, 'wartość idzie za ceną');
+  assert.equal(window.__discountTest.getTotal(dv).total_sub, 112.07, 'order_item.total_price_sub');
 });
 
 test('klient BEZ rabatu cennikowego — wynik jak dotąd, czyli cena × (1 − rabat)', () => {
@@ -210,19 +221,20 @@ test('przy ilości > 1 wartość pozycji to DOKŁADNIE cena po rabacie × iloś�
   assert.equal(window.__discountTest.getTotal(dv).total_sub, 148.5);
 });
 
-test('bonus 1% DOKŁADA SIĘ do rabatu cennikowego, a nie mnoży — pozycja 7302', () => {
+test('ekstra rabat MNOŻY kwotę netto po rabacie, a nie dokłada się do cennika — pozycja 7302', () => {
   // `SUB___CENA_SUMA` = 207, `SUB___CENA_RABAT` = 0.6 → cena po cenniku 82.80.
-  // Właściciel liczy 207 × 0.39 = 80.73, czyli 1% od ceny KATALOGOWEJ.
-  // Mnożenie (82.80 × 0.99 = 81.97) było błędem.
+  // ⚠️ REGUŁA ODWRÓCONA 2026-09-22: właściciel liczy teraz 82.80 × 0.99 = 81.97,
+  // czyli 1% od KWOTY PO RABACIE. Do 21.09 należne było 207 × 0.39 = 80.73
+  // (1% od katalogu) — ta sama liczba, którą wcześniejszy wpis nazywał błędem.
   const window = makeWindow({ clientDiscountPercent: 1, portalUsageDiscountPercent: 1 });
   const values = valuesFixture(82.8, 1, 207);
   const dv = displayValuesFixture(window, 82.8);
 
   window.__discountTest.applyClientDiscount(values, dv);
 
-  assert.equal(values.SUB___CENA_KONCOWA, 80.73, '207 × 0.39');
-  assert.equal(values.SUB___WARTOSC_KONCOWA, 80.73);
-  assert.equal(window.__discountTest.getTotal(dv).total_sub, 80.73);
+  assert.equal(values.SUB___CENA_KONCOWA, 81.97, '82.80 × 0.99');
+  assert.equal(values.SUB___WARTOSC_KONCOWA, 81.97);
+  assert.equal(window.__discountTest.getTotal(dv).total_sub, 81.97);
 });
 
 test('rabat klienta ZASTĘPUJE rabat cennikowy — pozycja 7189 (979 @ 15% → 832.15)', () => {
@@ -250,20 +262,24 @@ test('rabat klienta 60% na 2 szt. — pozycja 7198 (468.60 → 187.44)', () => {
   assert.equal(values.SUB___WARTOSC_KONCOWA, 187.44, 'tyle samo, co w bazie');
 });
 
-test('rabat klienta 15% + bonus 1% = 16% od ceny katalogowej', () => {
-  // Ten sam wynik, co opisuje services/portalUsageDiscount.js: procenty
-  // łączą się w jeden, liczony od katalogu.
+test('rabat klienta 15%, a POTEM ekstra rabat 1% od kwoty po nim', () => {
+  // ⚠️ Rabaty nie sumują się już w jeden procent: 979 × 0.85 = 832.15, a ekstra
+  // rabat schodzi z TEGO: 832.15 × 0.99 = 823.83. Do 21.09 było 979 × 0.84 =
+  // 822.36 (16% od katalogu).
   const window = makeWindow({ clientDiscountPercent: 16, portalUsageDiscountPercent: 1 });
   const values = valuesFixture(391.6, 1, 979);
   const dv = displayValuesFixture(window, 391.6);
 
   window.__discountTest.applyClientDiscount(values, dv);
 
-  assert.equal(values.SUB___CENA_KONCOWA, 822.36, '979 × 0.84');
+  assert.equal(values.SUB___CENA_KONCOWA, 823.83, '979 × 0.85, potem × 0.99');
 });
 
 test('cena nie schodzi poniżej zera, choćby procenty sumowały się powyżej 100', () => {
-  const window = makeWindow({ clientDiscountPercent: 100, portalUsageDiscountPercent: 1 });
+  // ⚠️ 101 = 100 (rabat klienta) + 1 (ekstra), bo od 2026-09-22 serwer NIE
+  // przycina już sumy do 100: przy mnożeniu przycięcie po cichu zabierało
+  // punkt procentowy rabatowi klienta (100% → 99%, czyli cena zamiast zera).
+  const window = makeWindow({ clientDiscountPercent: 101, portalUsageDiscountPercent: 1 });
   const values = valuesFixture(82.8, 1, 207);
   const dv = displayValuesFixture(window, 82.8);
 
@@ -273,19 +289,35 @@ test('cena nie schodzi poniżej zera, choćby procenty sumowały się powyżej 1
   assert.equal(values.SUB___WARTOSC_KONCOWA, 0);
 });
 
+test('wysokość ekstra rabatu wchodzi do TEKSTU opisu, nie jest zaszyta', () => {
+  // ⚠️ Właściciel steruje wysokością przez `user.extra_rabat`, więc opis musi
+  // pokazać TĘ wartość. Zaszyte „1%" kłamałoby przy każdej innej.
+  const window = makeWindow({ clientDiscountPercent: 2.5, portalUsageDiscountPercent: 2.5 });
+  const dv = displayValuesFixture(window, 113.2);
+
+  window.__discountTest.applyClientDiscount(valuesFixture(113.2), dv);
+
+  assert.equal(
+    dv.get('SUB___RABAT_KLIENTA').param_description,
+    '2.5% rabatu za korzystanie z serwisu',
+    'procent z bazy, nie stała'
+  );
+  assert.equal(dv.get('SUB___RABAT_KLIENTA').option_value, '2.5%');
+});
+
 test('wiersz rabatu jest DOKŁADNIE JEDEN, ukryty pod kłódką', () => {
   const window = makeWindow({ clientDiscountPercent: 1, portalUsageDiscountPercent: 1 });
   const dv = displayValuesFixture(window, 113.2);
 
   window.__discountTest.applyClientDiscount(valuesFixture(113.2), dv);
 
-  // `SUB___CENA_RABAT` to sam procent cennikowy (już podbity o bonus) — KWOTĘ
-  // rabatu niesie dokładnie jeden wiersz.
+  // `SUB___CENA_RABAT` to sam, surowy procent cennikowy — KWOTĘ rabatu niesie
+  // dokładnie jeden wiersz.
   const wiersze = Array.from(dv.keys()).filter((k) => /RABAT|PO_RABACIE/.test(k));
   assert.deepEqual(wiersze, ['SUB___CENA_RABAT', 'SUB___RABAT_KLIENTA'], 'żadnej drugiej kwoty rabatu');
   assert.equal(dv.get('SUB___RABAT_KLIENTA').locked, true);
   assert.equal(dv.get('SUB___RABAT_KLIENTA').option_value, '1%');
-  assert.equal(dv.get('SUB___RABAT_KLIENTA').param_description, 'form.portal_usage_discount_label');
+  assert.equal(dv.get('SUB___RABAT_KLIENTA').param_description, '1% rabatu za korzystanie z serwisu');
 });
 
 test('rabat klienta i bonus portalowy razem: jeden wiersz, oba w opisie', () => {
@@ -295,10 +327,10 @@ test('rabat klienta i bonus portalowy razem: jeden wiersz, oba w opisie', () => 
 
   window.__discountTest.applyClientDiscount(values, dv);
 
-  assert.equal(values.SUB___CENA_KONCOWA, 84, '16% liczone RAZ, nie 15% + 1% po kolei');
+  assert.equal(values.SUB___CENA_KONCOWA, 84.15, '15%, a potem 1% od reszty');
   const opis = dv.get('SUB___RABAT_KLIENTA').param_description;
-  assert.match(opis, /client_discount_label/);
-  assert.match(opis, /portal_usage_discount_label/);
+  assert.match(opis, /client_discount_label/, 'rabat klienta grupy');
+  assert.match(opis, /1% rabatu za korzystanie z serwisu/, 'ekstra rabat z własnym procentem');
 });
 
 test('dwa przeliczenia pod rząd nie kumulują rabatu', () => {
@@ -329,6 +361,27 @@ test('bez rabatu nic się nie zmienia i nie przybywa żaden wiersz', () => {
   assert.equal(window.__discountTest.getTotal(dv).total_sub, 113.2);
 });
 
+test('wiersz rabatu ZNIKA, gdy klientowi rabat odebrano', () => {
+  // ⚠️ Usterka zgłoszona 2026-09-22: klient bez `user.extra_rabat` widział
+  // „1% za korzystanie z serwisu". Pozycja zapisana, gdy rabat jeszcze się
+  // należał, wnosi ten wiersz ze sobą przy edycji (`displayValues` przychodzą
+  // z bazy, nie z pustej mapy), a `applyClientDiscount` przy rabacie 0 tylko
+  // wychodziło — nic wiersza nie kasowało, więc zapisywał się w kółko.
+  const window = makeWindow({ clientDiscountPercent: 0 });
+  const values = valuesFixture(113.2);
+  const dv = displayValuesFixture(window, 113.2);
+  dv.set('SUB___RABAT_KLIENTA', {
+    param_description: 'form.portal_usage_discount_label',
+    option_value: '1%', locked: true, sub: true, row: '2'
+  });
+
+  window.__discountTest.applyClientDiscount(values, dv);
+
+  assert.equal(dv.has('SUB___RABAT_KLIENTA'), false, 'stary wiersz rabatu musi zniknąć');
+  assert.equal(values.SUB___CENA_KONCOWA, 113.2, 'cena bez rabatu zostaje nietknięta');
+  assert.equal(window.__discountTest.getTotal(dv).total_sub, 113.2);
+});
+
 test('stary wiersz kwoty rabatu znika przy edycji pozycji zapisanej wcześniej', () => {
   const window = makeWindow({ clientDiscountPercent: 1, portalUsageDiscountPercent: 1 });
   const dv = displayValuesFixture(window, 113.2);
@@ -341,11 +394,13 @@ test('stary wiersz kwoty rabatu znika przy edycji pozycji zapisanej wcześniej',
   assert.equal(window.__discountTest.getTotal(dv).total_sub, 112.07);
 });
 
-test('VAT: bonus wchodzi do podstawy (jest w cenniku), rabat klienta NIE', () => {
+test('VAT liczy się od kwoty przed rabatem klienta I przed ekstra rabatem', () => {
   // Grupa 39 nie ma `SUB___SUMA_BRUTTO`, więc `applyVatToGrossValue` sięga po
-  // `SUB___WARTOSC_KONCOWA`. Bonus jest częścią rabatu cennikowego, więc
-  // podstawa VAT za nim idzie; rabat klienta VAT-u nie rusza (decyzja
-  // właściciela z 2026-08-21) — stąd zapamiętana kwota sprzed niego.
+  // `SUB___WARTOSC_KONCOWA`. Żaden z dwóch rabatów nie rusza podstawy VAT
+  // (decyzja właściciela z 2026-08-21) — stąd zapamiętana kwota sprzed nich.
+  // ⚠️ ZMIANA 2026-09-22: podstawą jest teraz 100, nie 99. Dotąd bonus siedział
+  // w `SUB___CENA_RABAT`, czyli w cenniku, więc VAT szedł za nim; teraz bonus
+  // schodzi po cenniku i jest traktowany jak rabat klienta.
   const window = makeWindow({ clientDiscountPercent: 16, portalUsageDiscountPercent: 1 });
   window.vatEnabled = true;
   window.vatRate = 19;
@@ -359,25 +414,26 @@ test('VAT: bonus wchodzi do podstawy (jest w cenniku), rabat klienta NIE', () =>
   window.__discountTest.applyClientDiscount(values, dv);
   window.__discountTest.applyVatToGrossValue(values, dv);
 
-  assert.equal(values.SUB___CENA_KONCOWA, 84, '100 − 16%');
-  // podstawa VAT: 99 (po bonusie), nie 84 (po rabacie klienta)
-  assert.equal(values.WARTOSC_BRUTTO, 117.81, '99 × 1.19');
-  assert.equal(values.WARTOSC_VAT, 18.81);
+  assert.equal(values.SUB___CENA_KONCOWA, 84.15, '15%, a potem 1% od reszty');
+  // podstawa VAT: 100 (przed obydwoma rabatami), nie 84.15
+  assert.equal(values.WARTOSC_BRUTTO, 119, '100 × 1.19');
+  assert.equal(values.WARTOSC_VAT, 19);
 });
 
-test('liczone 61%, pokazywane 60% + 1% — i bonus stoi zaraz ZA rabatem cennikowym', () => {
-  // ⚠️ Wiersz cennika ZOSTAJE na 60%, bo tuż pod nim stoi wiersz bonusu 1%.
-  // Pokazanie 61% obok 1% czytałoby się jak 62% (uwaga właściciela).
+test('rabat cennikowy zostaje NIETKNIĘTY (60%), a bonus stoi zaraz za nim', () => {
+  // ⚠️ Od 2026-09-22 `SUB___CENA_RABAT` nie jest już podbijany o bonus — ani do
+  // liczenia, ani na liście. Bonus przestał być częścią cennika, więc nie ma
+  // czego podbijać; znika też ryzyko skumulowania go między przeliczeniami.
   const window = makeWindow({ clientDiscountPercent: 1, portalUsageDiscountPercent: 1 });
   const values = valuesFixture(82.8, 1, 207);
   const dv = displayValuesFixture(window, 82.8);
 
   window.__discountTest.applyClientDiscount(values, dv);
 
-  assert.equal(values.SUB___CENA_RABAT, 0.61, 'do liczenia: 61%');
+  assert.equal(values.SUB___CENA_RABAT, 0.6, 'do liczenia: surowy cennik, bez podbicia');
   assert.equal(dv.get('SUB___CENA_RABAT').option_value, '60%', 'na liście: surowy cennik');
   assert.equal(dv.get('SUB___RABAT_KLIENTA').option_value, '1%', 'bonus osobno');
-  assert.equal(values.SUB___CENA_KONCOWA, 80.73, '207 × 0.39');
+  assert.equal(values.SUB___CENA_KONCOWA, 81.97, '82.80 × 0.99');
 
   const klucze = Array.from(dv.keys());
   assert.equal(

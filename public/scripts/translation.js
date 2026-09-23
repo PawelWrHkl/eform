@@ -1,7 +1,20 @@
 window.translations = {};
 window.language = 'pl'
-window.t = function (key) {
-  return key.split('.').reduce((o, k) => (o || {})[k], window.translations) || key;
+/**
+ * Tłumaczenie klucza, opcjonalnie z podstawieniem zmiennych `{nazwa}`.
+ *
+ * ⚠️ `vars` jest opcjonalne i wywołania bez niego działają dokładnie jak dotąd —
+ * podstawianie rusza tylko wtedy, gdy ktoś je poda.
+ *
+ * ⚠️ Nieznany placeholder ZOSTAJE w tekście (`{percent}`), a nie zamienia się
+ * w „undefined": brakującą zmienną widać wtedy od razu, zamiast pokazywać
+ * klientowi śmieć w opisie ceny.
+ */
+window.t = function (key, vars) {
+  const value = key.split('.').reduce((o, k) => (o || {})[k], window.translations) || key;
+  if (!vars || typeof value !== 'string') return value;
+  return value.replace(/\{(\w+)\}/g, (placeholder, nazwa) =>
+    Object.prototype.hasOwnProperty.call(vars, nazwa) ? String(vars[nazwa]) : placeholder);
 };
 
 // Odpowiednik serwerowego `gk()` (services/groupType.js) dla skryptów: etykiety
