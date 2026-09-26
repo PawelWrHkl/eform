@@ -152,6 +152,32 @@
                     {% endif %}
 
                 {% elif tab == 'personalization' %}
+                    {# Wybór wariantu wyglądu A/B — ten sam stan co przycisk „Zmień wygląd”
+                       w nagłówku (public/scripts/uiVariant.js: klik po `data-ui-variant-set`,
+                       zaznaczenie `aria-checked` ustawia sam skrypt). Etykiety: `eforT`
+                       z base.njk (partials/efor-v2-strings.njk). #}
+                    <h2 class="panel-section-title">{{ eforT.appearanceTitle }}</h2>
+                    <p class="panel-section-hint">{{ eforT.appearanceHint }}</p>
+                    <div class="ui-variant-picker" role="radiogroup" aria-label="{{ eforT.appearanceTitle }}">
+                        <button type="button" class="ui-variant-option" role="radio" aria-checked="false" data-ui-variant-set="classic">
+                            <span class="ui-variant-option__preview ui-variant-option__preview--classic" aria-hidden="true">
+                                <span class="uvp-nav"></span><span class="uvp-bar"></span><span class="uvp-card"></span><span class="uvp-card uvp-card--2"></span><span class="uvp-btn"></span>
+                            </span>
+                            <span class="ui-variant-option__text">
+                                <span class="ui-variant-option__name"><span class="ui-variant-option__letter">A</span>{{ eforT.variantClassic }}</span>
+                                <span class="ui-variant-option__desc">{{ eforT.variantClassicDesc }}</span>
+                            </span>
+                        </button>
+                        <button type="button" class="ui-variant-option" role="radio" aria-checked="false" data-ui-variant-set="efor-v2">
+                            <span class="ui-variant-option__preview ui-variant-option__preview--efor" aria-hidden="true">
+                                <span class="uvp-nav"></span><span class="uvp-bar"></span><span class="uvp-card"></span><span class="uvp-card uvp-card--2"></span><span class="uvp-btn"></span>
+                            </span>
+                            <span class="ui-variant-option__text">
+                                <span class="ui-variant-option__name"><span class="ui-variant-option__letter">B</span>{{ eforT.variantEfor }}</span>
+                                <span class="ui-variant-option__desc">{{ eforT.variantEforDesc }}</span>
+                            </span>
+                        </button>
+                    </div>
                     <span class="panel-soon-badge">{{ __('panel.tab_personalization') }}</span>
                     <h2 class="panel-section-title">{{ __('panel.personalization_coming_soon') }}</h2>
                     <p class="panel-section-hint">{{ __('panel.personalization_hint') }}</p>

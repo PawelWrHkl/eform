@@ -1,0 +1,5074 @@
+/* =============================================================================
+   WARIANT WYGLĄDU B — „Efor 2.0”
+   =============================================================================
+   Odwzorowanie makiet z katalogu `wizualizacja efor/` (paleta, typografia,
+   karty z turkusowym nagłówkiem, bursztynowe akcje, kremowe sumy).
+
+   ZASADA: każda reguła w tym pliku wisi pod `.theme-efor-v2` (klasa na <html>,
+   ustawia ją public/scripts/uiVariant.js). Wariant A (klasyczny) pozostaje
+   bez zmian — jedynym wyjątkiem jest sekcja 0, czyli sam przycisk
+   „Zmień wygląd”, który musi wyglądać poprawnie w obu wariantach.
+
+   Plik jest wczytywany jako OSTATNI arkusz w <head> (base.njk, po bloku `head`
+   podstrony), więc przy równej specyficzności wygrywa. `!important` pojawia
+   się tylko tam, gdzie nadpisujemy regułę, która sama go ma (theme.css,
+   layout.css, order_details.css, form.css i Bootstrap mają ich sporo).
+
+   Paleta z makiet (próbki pikseli, 2026-09-25):
+     turkus nagłówków  #265B63     bursztyn akcji   #F7B417
+     krem sumy         #FDEBC4     krem plakietek   #FEF3DD
+     tło strony        #F7F5F1     pasek boczny     #FEFEFD
+     tekst tytułów     #0B1324     linie            #E8E6E0 / #DFE1E5
+     przycisk wyłącz.  #DCDEE2     informacja       #E3F1F2
+   Tryb ciemny wariantu B (sekcja 3) nie ma makiety — to propozycja spójna
+   z tą paletą (grafitowo-turkusowe tła, ten sam bursztyn akcji).
+
+   SPIS
+     0.  Przełącznik „Zmień wygląd” (oba warianty)
+     1.  Widoczność: .efor-v2-only / .efor-classic-only
+     2.  Tokeny — jasny
+     3.  Tokeny — ciemny
+     4.  Baza: typografia, tło, zaznaczenie, focus
+     5.  Powłoka: pasek boczny
+     6.  Powłoka: pasek górny (okruszki, język, awatar)
+     7.  Powłoka: przycisk „Powrót”, stopka
+     8.  Komponenty: przyciski
+     9.  Komponenty: pola, listy wyboru, checkboxy
+     10. Komponenty: karty, nagłówki kart, plakietki
+     11. Komponenty: tabele
+     12. Komponenty: menu rozwijane, dialogi, podpowiedzi, stronicowanie
+     13. Stany: walidacja, ładowanie, pusto, wyłączone
+     14. Nagłówek strony (eyebrow + tytuł)
+     15. Strona: oferta
+     16. Strona: konfigurator pozycji
+     17. Strona: dane oferty (nowa / edycja)
+     18. Strona: szczegóły pozycji
+     19. Strony: listy, start, panel
+     20. Mobile (< 768 px)
+     21. Przejście między wariantami, ograniczony ruch
+   ============================================================================= */
+
+
+/* =============================================================================
+   0. PRZEŁĄCZNIK „ZMIEŃ WYGLĄD” — widoczny w OBU wariantach
+   =============================================================================
+   Pigułka w nagłówku (obok „Panelu użytkownika”) i pozycja w menu mobilnym.
+   Plakietka A/B pokazuje aktywny wariant; jej treść idzie z atrybutów
+   `data-state-*`, więc nic nie miga przy ładowaniu strony. */
+.ui-variant-toggle {
+    position: relative;
+    z-index: 200;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    margin: 0 10px 15px 0;
+    padding: 0 6px 0 14px;
+    vertical-align: middle;
+    border-radius: 9999px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-glass-strong);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0;
+    white-space: nowrap;
+    box-shadow: var(--shadow-xs);
+    overflow: visible;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+/* globalna reguła `button` z theme.css dokłada błysk w ::after — tu zbędny */
+.ui-variant-toggle::after {
+    display: none !important;
+}
+
+.ui-variant-toggle:hover {
+    border-color: var(--brand-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.ui-variant-toggle:focus-visible {
+    outline: 3px solid rgba(247, 180, 23, .55);
+    outline-offset: 2px;
+}
+
+.ui-variant-toggle__icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+}
+
+.ui-variant-toggle__state {
+    display: inline-grid;
+    place-items: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 7px;
+    border-radius: 9999px;
+    background: var(--brand-primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.ui-variant-toggle__state::before {
+    content: attr(data-state-classic);
+}
+
+.theme-efor-v2 .ui-variant-toggle__state {
+    background: #f7b417;
+    color: #1b1403;
+}
+
+.theme-efor-v2 .ui-variant-toggle__state::before {
+    content: attr(data-state-efor);
+}
+
+/* Wersja w menu (hamburger na telefonie): pełna szerokość, jak inne pozycje. */
+.ui-variant-toggle.ui-variant-toggle--menu {
+    display: flex !important;
+    width: 100%;
+    height: auto;
+    min-height: 48px;
+    margin: 0;
+    padding: 12px 8px !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-weight: 600;
+    justify-content: flex-start;
+}
+
+.ui-variant-toggle--menu .ui-variant-toggle__label {
+    flex: 1 1 auto;
+    text-align: left;
+}
+
+.ui-variant-toggle--menu .ui-variant-toggle__state {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 0 10px;
+}
+
+@media (max-width: 1180px) {
+    /* Wąski desktop: sama ikona + plakietka, pełna nazwa zostaje w `title`. */
+    header.languages .ui-variant-toggle:not(.ui-variant-toggle--menu) .ui-variant-toggle__label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+}
+
+
+/* =============================================================================
+   1. WIDOCZNOŚĆ ELEMENTÓW PER WARIANT
+   ============================================================================= */
+html:not(.theme-efor-v2) .efor-v2-only,
+html:not(.theme-efor-v2) .nav-icon-v2 {
+    display: none !important;
+}
+
+.theme-efor-v2 .efor-classic-only {
+    display: none !important;
+}
+
+/* Widoczne dla czytnika ekranu, niewidoczne na ekranie */
+.efor-sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+
+/* =============================================================================
+   2. TOKENY — TRYB JASNY
+   =============================================================================
+   `--efor-*` to paleta wariantu B. Dolna połowa bloku przepina tokeny
+   theme.css (`--brand-*`, `--bg-*`, `--text-*`…) na tę paletę — dzięki temu
+   komponenty, których ten plik nie rusza wprost (panel, faktury, admin),
+   i tak dostają spójne kolory. */
+.theme-efor-v2 {
+    --efor-teal-900: #12353a;
+    --efor-teal-800: #1b464d;
+    --efor-teal: #265b63;
+    --efor-teal-600: #2f6c75;
+    --efor-teal-500: #3f7f88;
+    --efor-teal-100: #d3e7e9;
+    --efor-teal-50: #e3f1f2;
+
+    --efor-amber: #f7b417;
+    --efor-amber-hover: #efaa0c;
+    --efor-amber-press: #df9d06;
+    --efor-amber-ink: #1b1403;
+    --efor-amber-100: #fdebc4;
+    --efor-amber-50: #fef3dd;
+    --efor-amber-line: #f3cf7a;
+    --efor-cream: #fefaf1;
+
+    --efor-bg: #f7f5f1;
+    --efor-sidebar: #fefefd;
+    --efor-card: #ffffff;
+    --efor-sunken: #f4f2ed;
+    --efor-hover: #f8f6f1;
+
+    --efor-ink: #0b1324;
+    --efor-text: #1f2733;
+    --efor-text-2: #4a5361;
+    --efor-muted: #6b7380;
+    --efor-soft: #9aa1ab;
+
+    --efor-line: #e8e6e0;
+    --efor-line-2: #dfe1e5;
+    --efor-line-strong: #c9ced6;
+
+    --efor-disabled-bg: #dcdee2;
+    --efor-disabled-ink: #8a919c;
+    --efor-neutral-btn: #e6e9ed;
+    --efor-neutral-btn-hover: #dde1e6;
+    --efor-bronze: #977c5c;
+
+    --efor-danger: #c0392b;
+    --efor-danger-ink: #a3261a;
+    --efor-danger-50: #fdeeec;
+    --efor-danger-200: #f3c5bf;
+    --efor-success: #1e7f55;
+    --efor-success-50: #e6f4ec;
+    --efor-warning-ink: #8a5a00;
+
+    --efor-focus-ring: rgba(247, 180, 23, .5);
+    --efor-focus-ring-teal: rgba(38, 91, 99, .22);
+
+    --efor-radius-card: 14px;
+    --efor-radius-ctl: 10px;
+    --efor-radius-btn: 10px;
+    --efor-shadow-card: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .05);
+    --efor-shadow-raise: 0 6px 18px -6px rgba(16, 24, 40, .14), 0 2px 6px -2px rgba(16, 24, 40, .06);
+    --efor-shadow-pop: 0 18px 40px -12px rgba(16, 24, 40, .24), 0 6px 14px -6px rgba(16, 24, 40, .1);
+
+    --efor-nav-w: 280px;
+    --efor-nav-w-collapsed: 60px;
+    --efor-topbar-h: 72px;
+    --efor-gutter: 24px;
+    --efor-control-h: 48px;
+    --efor-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+    /* ilustracje działów (partials/efor-v2-icons.njk) */
+    --efor-illu-fill: #eef5f6;
+    --efor-illu-accent: #cfe3e6;
+    --efor-illu-soft: #ffffff;
+
+    /* ── theme.css → paleta B ── */
+    --brand-primary: var(--efor-teal);
+    --brand-primary-hover: var(--efor-teal-800);
+    --brand-primary-light: var(--efor-teal-50);
+    --brand-primary-glow: rgba(38, 91, 99, .16);
+    --brand-accent: var(--efor-amber);
+    --brand-accent-hover: var(--efor-amber-hover);
+    --brand-gradient: linear-gradient(0deg, var(--efor-teal), var(--efor-teal));
+    --brand-gradient-subtle: linear-gradient(0deg, var(--efor-teal-50), var(--efor-teal-50));
+
+    --bg-body: var(--efor-bg);
+    --bg-surface: var(--efor-card);
+    --bg-surface-solid: var(--efor-card);
+    --bg-surface-raised: var(--efor-card);
+    --bg-surface-sunken: var(--efor-sunken);
+    --bg-nav: var(--efor-sidebar);
+    --bg-input: var(--efor-card);
+    --bg-input-focus: var(--efor-card);
+    --bg-hover: var(--efor-hover);
+    --bg-active: var(--efor-amber-50);
+    --bg-overlay: rgba(11, 19, 36, .42);
+    --bg-glass: var(--efor-card);
+    --bg-glass-strong: var(--efor-card);
+
+    --text-primary: var(--efor-ink);
+    --text-secondary: var(--efor-text-2);
+    --text-tertiary: var(--efor-muted);
+    --text-link: var(--efor-teal);
+    --text-on-brand: #ffffff;
+    --text-gradient: linear-gradient(0deg, var(--efor-ink), var(--efor-ink));
+
+    --border-default: var(--efor-line);
+    --border-strong: var(--efor-line-strong);
+    --border-focus: var(--efor-teal);
+    --border-input: var(--efor-line-2);
+    --border-glow: 0 0 0 3px var(--efor-focus-ring-teal);
+
+    --shadow-xs: 0 1px 2px rgba(16, 24, 40, .04);
+    --shadow-sm: var(--efor-shadow-card);
+    --shadow-md: var(--efor-shadow-raise);
+    --shadow-lg: var(--efor-shadow-raise);
+    --shadow-xl: var(--efor-shadow-pop);
+    --shadow-glow: none;
+    --shadow-glow-lg: none;
+    --shadow-card: var(--efor-shadow-card);
+    --shadow-card-hover: var(--efor-shadow-raise);
+
+    --color-success: var(--efor-success);
+    --color-success-bg: var(--efor-success-50);
+    --color-success-border: #b7dcc8;
+    --color-warning: var(--efor-amber);
+    --color-warning-bg: var(--efor-amber-50);
+    --color-warning-border: var(--efor-amber-line);
+    --color-error: var(--efor-danger);
+    --color-error-bg: var(--efor-danger-50);
+    --color-error-border: var(--efor-danger-200);
+    --color-error-glow: rgba(192, 57, 43, .16);
+    --color-info: var(--efor-teal);
+    --color-info-bg: var(--efor-teal-50);
+    --color-info-border: var(--efor-teal-100);
+
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --radius-xl: 14px;
+    --radius-2xl: 18px;
+
+    --font-sans: var(--efor-font);
+    --nav-width: var(--efor-nav-w);
+    --nav-link-radius: 10px;
+
+    /* Bootstrap 5 */
+    --bs-body-font-family: var(--efor-font);
+    --bs-body-bg: var(--efor-bg);
+    --bs-body-color: var(--efor-text);
+    --bs-border-color: var(--efor-line-2);
+    --bs-primary: var(--efor-teal);
+    --bs-primary-rgb: 38, 91, 99;
+    --bs-link-color: var(--efor-teal);
+    --bs-link-hover-color: var(--efor-teal-800);
+    --bs-focus-ring-color: var(--efor-focus-ring-teal);
+
+    color-scheme: light;
+}
+
+
+/* =============================================================================
+   3. TOKENY — TRYB CIEMNY (propozycja; makiety pokazują tylko tryb jasny)
+   =============================================================================
+   Grafitowe tła z domieszką turkusu (żeby nagłówki kart dalej „należały” do
+   palety), bursztyn akcji bez zmian — na ciemnym tle ma kontrast ~9:1.
+   `[data-theme="dark"]` ustawia themeToggle.js; wariant i tryb są niezależne. */
+.theme-efor-v2[data-theme="dark"] {
+    --efor-teal-900: #0d2327;
+    --efor-teal-800: #1d4c53;
+    --efor-teal: #245a62;
+    --efor-teal-600: #2d6a73;
+    --efor-teal-500: #5aa3ad;
+    --efor-teal-100: rgba(90, 163, 173, .24);
+    --efor-teal-50: rgba(90, 163, 173, .14);
+
+    --efor-amber-ink: #1b1403;
+    --efor-amber-100: rgba(247, 180, 23, .2);
+    --efor-amber-50: rgba(247, 180, 23, .12);
+    --efor-amber-line: rgba(247, 180, 23, .45);
+    --efor-cream: rgba(247, 180, 23, .07);
+
+    --efor-bg: #0f1619;
+    --efor-sidebar: #131c20;
+    --efor-card: #182227;
+    --efor-sunken: #131b1f;
+    --efor-hover: #1d2930;
+
+    --efor-ink: #eef3f4;
+    --efor-text: #dce4e6;
+    --efor-text-2: #b4c1c5;
+    --efor-muted: #93a3a8;
+    --efor-soft: #6f8187;
+
+    --efor-line: rgba(255, 255, 255, .08);
+    --efor-line-2: rgba(255, 255, 255, .13);
+    --efor-line-strong: rgba(255, 255, 255, .22);
+
+    --efor-disabled-bg: #263238;
+    --efor-disabled-ink: #76878d;
+    --efor-neutral-btn: #223038;
+    --efor-neutral-btn-hover: #2a3a43;
+    --efor-bronze: #a88b69;
+
+    --efor-danger: #f07b6e;
+    --efor-danger-ink: #f5968b;
+    --efor-danger-50: rgba(240, 123, 110, .13);
+    --efor-danger-200: rgba(240, 123, 110, .4);
+    --efor-success: #4fc08d;
+    --efor-success-50: rgba(79, 192, 141, .13);
+    --efor-warning-ink: #f3c75f;
+
+    --efor-focus-ring-teal: rgba(90, 163, 173, .35);
+
+    --efor-shadow-card: 0 1px 2px rgba(0, 0, 0, .35);
+    --efor-shadow-raise: 0 8px 22px -8px rgba(0, 0, 0, .55);
+    --efor-shadow-pop: 0 22px 48px -14px rgba(0, 0, 0, .7);
+
+    --efor-illu-fill: #1d2a30;
+    --efor-illu-accent: #2a3f47;
+    --efor-illu-soft: #22323a;
+
+    --bg-overlay: rgba(4, 8, 10, .62);
+    --color-success-border: rgba(79, 192, 141, .35);
+
+    color-scheme: dark;
+}
+
+
+/* =============================================================================
+   4. BAZA
+   ============================================================================= */
+/* `background-color`, nie skrót `background` — skrót skasowałby zdjęcie tła
+   strony logowania (login.css `.image-background`). */
+.theme-efor-v2 body {
+    font-family: var(--efor-font) !important;
+    background-color: var(--efor-bg) !important;
+    color: var(--efor-text);
+    font-feature-settings: 'cv11', 'ss01';
+}
+
+.theme-efor-v2 h1,
+.theme-efor-v2 h2,
+.theme-efor-v2 h3,
+.theme-efor-v2 h4 {
+    color: var(--efor-ink) !important;
+    letter-spacing: -.02em;
+}
+
+/* theme.css rysuje pod każdym h1 gradientową kreskę — w makietach jej nie ma */
+.theme-efor-v2 h1::after {
+    display: none !important;
+}
+
+.theme-efor-v2 a {
+    color: var(--efor-teal);
+}
+
+.theme-efor-v2 a:hover {
+    color: var(--efor-teal-800);
+}
+
+.theme-efor-v2 ::selection {
+    background: var(--efor-amber-100);
+    color: var(--efor-ink);
+}
+
+/* Focus z klawiatury — bursztynowy pierścień, widoczny na każdym tle
+   (propozycja: makiety nie pokazują stanu focus). */
+.theme-efor-v2 :focus-visible {
+    outline: 3px solid var(--efor-focus-ring);
+    outline-offset: 2px;
+}
+
+.theme-efor-v2 .text-muted {
+    color: var(--efor-muted) !important;
+}
+
+.theme-efor-v2 ::-webkit-scrollbar-thumb {
+    background: var(--efor-line-strong);
+}
+
+.theme-efor-v2 hr {
+    border-color: var(--efor-line);
+    opacity: 1;
+}
+
+
+/* =============================================================================
+   5. POWŁOKA — PASEK BOCZNY (desktop)
+   =============================================================================
+   Kolejność jak w makietach: logo → plakietka środowiska → nawigacja → (odstęp)
+   → numer konfiguracji → karta konta → „Wyloguj”. Markup zostaje ten sam:
+   `.side-nav` i jej lista dostają `display: contents`, więc pozycje stają się
+   dziećmi flexa i można je ułożyć `order`-em (wylogowanie ląduje na samym
+   dole, pod kartą konta). */
+@media (min-width: 768px) {
+    .theme-efor-v2 .desktop-nav {
+        display: flex;
+        flex-direction: column;
+        background: var(--efor-sidebar) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border-right: 1px solid var(--efor-line) !important;
+        box-shadow: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        padding-bottom: 10px;
+    }
+
+    .theme-efor-v2 .desktop-nav > a[href="/"] {
+        order: 0;
+        display: block;
+        flex: 0 0 auto;
+        text-align: center;
+    }
+
+    .theme-efor-v2 .desktop-nav .logo {
+        display: block;
+        width: auto !important;
+        max-width: 172px !important;
+        max-height: 72px;
+        margin: 26px auto 12px !important;
+    }
+
+    /* Zwijanie paska — mały, spokojny przycisk w rogu */
+    .theme-efor-v2 .nav-toggle-btn {
+        top: 12px;
+        right: 10px;
+        width: 30px;
+        height: 30px;
+        padding: 0 !important;
+        border-radius: 8px !important;
+        border: 1px solid var(--efor-line) !important;
+        background: var(--efor-card) !important;
+        backdrop-filter: none;
+        box-shadow: none !important;
+        opacity: .7;
+    }
+
+    .theme-efor-v2 .nav-toggle-btn:hover {
+        opacity: 1;
+        border-color: var(--efor-line-strong) !important;
+    }
+
+    .theme-efor-v2 .nav-toggle-icon {
+        width: 18px !important;
+        height: 18px;
+    }
+
+    /* Plakietka środowiska („Wersja Testowa”) — kremowa pigułka pod logo.
+       `display` bez !important: getEnv.js chowa blok na produkcji stylem
+       inline `display: none`, który musi dalej wygrywać. */
+    .theme-efor-v2 #node-div {
+        order: 1;
+        display: flex;
+        justify-content: center;
+        padding: 0 20px 18px !important;
+        background: transparent !important;
+        opacity: 1 !important;
+    }
+
+    .theme-efor-v2 #env-info {
+        margin: 0 !important;
+        padding: 5px 14px;
+        border-radius: 9999px;
+        background: var(--efor-amber-50);
+        color: #7a5a12;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0;
+    }
+
+    .theme-efor-v2[data-theme="dark"] #env-info {
+        color: var(--efor-warning-ink);
+    }
+
+    .theme-efor-v2 #env-info:empty {
+        display: none;
+    }
+
+    /* Dane konta pokazuje karta na dole (uiVariantView.js) */
+    .theme-efor-v2 #user-div {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .desktop-nav > .side-nav,
+    .theme-efor-v2 .desktop-nav > .side-nav > .nav {
+        display: contents;
+    }
+
+    .theme-efor-v2 .desktop-nav #bottom-nav-menu {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .desktop-nav .custom-nav-link,
+    .theme-efor-v2 .desktop-nav .custom-nav-link.nav-link-primary,
+    .theme-efor-v2 .desktop-nav .custom-nav-link.nav-link-primary.has-tooltip.active {
+        order: 2;
+        display: flex !important;
+        align-items: center;
+        gap: 14px;
+        flex: 0 0 auto;
+        width: auto !important;
+        min-height: 46px;
+        margin: 2px 12px !important;
+        padding: 10px 14px !important;
+        border: 0 !important;
+        border-radius: 10px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        transform: none !important;
+        animation: none !important;
+        color: var(--efor-text) !important;
+        font-size: 15.5px;
+        font-weight: 500;
+        line-height: 1.25;
+        text-align: left;
+    }
+
+    /* ⚠️ Reguła wyżej ma `display: flex !important` o wyższej specyficzności
+       niż bootstrapowe `.d-none` — bez tego wracałyby linki, które base.js
+       celowo chowa („Wyłącz kontekst”, „Panel pracowników”). */
+    .theme-efor-v2 .desktop-nav .custom-nav-link.d-none {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .desktop-nav .custom-nav-link::before {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .desktop-nav .custom-nav-link:hover {
+        background: var(--efor-sunken) !important;
+        color: var(--efor-ink) !important;
+    }
+
+    .theme-efor-v2 .desktop-nav .custom-nav-link.active,
+    .theme-efor-v2 .desktop-nav .custom-nav-link.nav-link-primary.active,
+    .theme-efor-v2 .desktop-nav .custom-nav-link.nav-link-primary.has-tooltip.active {
+        background: var(--efor-amber) !important;
+        color: var(--efor-amber-ink) !important;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2 .desktop-nav .custom-nav-link.active:hover {
+        background: var(--efor-amber-hover) !important;
+    }
+
+    .theme-efor-v2 .desktop-nav .custom-nav-link:focus-visible {
+        outline: 3px solid var(--efor-focus-ring);
+        outline-offset: -1px;
+    }
+
+    .theme-efor-v2 .desktop-nav .nav-icon {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .nav-icon-v2 {
+        display: block;
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+    }
+
+    .theme-efor-v2 .desktop-nav .nav-text,
+    .theme-efor-v2 .desktop-nav .nav-text-new-order {
+        color: inherit !important;
+        font-weight: inherit !important;
+        white-space: normal;
+    }
+
+    /* „Wyłącz kontekst” (owner/admin pracuje jako klient) — ważny stan,
+       zostaje wyróżniony, ale w palecie B */
+    .theme-efor-v2 .desktop-nav .custom-nav-link.context-button {
+        background: var(--efor-danger-50) !important;
+        color: var(--efor-danger-ink) !important;
+        box-shadow: inset 0 0 0 1px var(--efor-danger-200) !important;
+    }
+
+    /* Lista klientów ownera / kontekst konta podrzędnego grupy */
+    .theme-efor-v2 .desktop-nav #userSelectContainer,
+    .theme-efor-v2 .desktop-nav #groupShopContextContainer {
+        order: 3;
+        max-width: none;
+        margin: 14px 16px 0 !important;
+    }
+
+    .theme-efor-v2 .desktop-nav #userSelectLabel,
+    .theme-efor-v2 .desktop-nav #groupShopContextContainer label {
+        margin: 0 0 6px !important;
+        font-size: 12px;
+        font-weight: 600 !important;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--efor-muted) !important;
+    }
+
+    .theme-efor-v2 .desktop-nav #pwd-org-btn {
+        width: 44px !important;
+        height: 44px;
+        min-height: 44px;
+        margin: 5px 0 0 !important;
+        padding: 0 !important;
+        justify-content: center;
+        border: 1px solid var(--efor-line-2) !important;
+    }
+
+    /* Numer konfiguracji — drobny, nad kartą konta; spycha dół paska w dół */
+    /* main.css przypina ten blok `position: fixed` do dołu okna — w B jest
+       zwykłym elementem kolumny, nad kartą konta. */
+    .theme-efor-v2 #config-div {
+        order: 4;
+        position: static;
+        width: auto;
+        margin-top: auto;
+        padding: 18px 28px 0;
+        text-align: left;
+    }
+
+    .theme-efor-v2 #config-number-info {
+        margin: 0 !important;
+        font-size: 12px;
+        color: var(--efor-soft);
+        text-align: left;
+    }
+
+    .theme-efor-v2 #config-number-info br {
+        display: none;
+    }
+
+    /* Karta konta */
+    .theme-efor-v2 .efor-user-card {
+        order: 5;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 12px 16px 6px;
+        padding: 16px 8px 6px;
+        border-top: 1px solid var(--efor-line);
+        color: var(--efor-text);
+    }
+
+    .theme-efor-v2 .efor-user-card__avatar {
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 36px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        color: var(--efor-text);
+    }
+
+    .theme-efor-v2 .efor-user-card__avatar svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .theme-efor-v2 .efor-user-card__text {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        line-height: 1.3;
+    }
+
+    .theme-efor-v2 .efor-user-card__name {
+        overflow: hidden;
+        color: var(--efor-ink);
+        font-size: 14px;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-user-card__mail,
+    .theme-efor-v2 .efor-user-card__extra {
+        overflow: hidden;
+        font-size: 12px;
+        color: var(--efor-muted);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-user-card__extra {
+        color: var(--efor-teal);
+        font-weight: 600;
+    }
+
+    .theme-efor-v2 .efor-user-card__extra:empty,
+    .theme-efor-v2 .efor-user-card__mail:empty {
+        display: none;
+    }
+
+    /* Wylogowanie — ostatnia pozycja paska */
+    .theme-efor-v2 .desktop-nav #logout-nav-btn {
+        order: 6;
+        margin-bottom: 8px !important;
+    }
+
+    /* ── pasek zwinięty (60 px) ── */
+    .theme-efor-v2.nav-collapsed .desktop-nav .custom-nav-link,
+    .theme-efor-v2 .desktop-nav.collapsed .custom-nav-link {
+        justify-content: center;
+        gap: 0;
+        width: 44px !important;
+        min-height: 44px;
+        height: 44px !important;
+        margin: 2px 8px !important;
+        padding: 10px !important;
+    }
+
+    .theme-efor-v2.nav-collapsed .desktop-nav .logo {
+        margin-top: 56px !important;
+    }
+
+    .theme-efor-v2.nav-collapsed #node-div,
+    .theme-efor-v2.nav-collapsed #config-div,
+    .theme-efor-v2.nav-collapsed .efor-user-card__text,
+    .theme-efor-v2.nav-collapsed .desktop-nav #userSelectContainer,
+    .theme-efor-v2 .desktop-nav.collapsed #node-div,
+    .theme-efor-v2 .desktop-nav.collapsed #config-div,
+    .theme-efor-v2 .desktop-nav.collapsed .efor-user-card__text {
+        display: none !important;
+    }
+
+    .theme-efor-v2.nav-collapsed .efor-user-card,
+    .theme-efor-v2 .desktop-nav.collapsed .efor-user-card {
+        justify-content: center;
+        margin: auto 8px 6px;
+        padding: 12px 0 4px;
+    }
+}
+
+
+/* =============================================================================
+   6. POWŁOKA — PASEK GÓRNY (desktop)
+   =============================================================================
+   `header.languages` z pływającej grupy w prawym rogu staje się pełnym paskiem:
+   okruszki po lewej, po prawej „Zmień wygląd”, tour, motyw, język, awatar.
+   ⚠️ `display: flex !important` jest konieczne: langChanger.js wpisuje na
+   desktopie inline `display: block`. Na telefonie pasek ma zostać ukryty —
+   dlatego wszystko siedzi w min-width: 768px. */
+@media (min-width: 768px) {
+    .theme-efor-v2 header.languages {
+        position: absolute !important;
+        top: 0;
+        left: calc(var(--efor-nav-w) + var(--efor-gutter));
+        right: var(--efor-gutter);
+        z-index: 120;
+        display: flex !important;
+        align-items: center;
+        gap: 10px;
+        height: var(--efor-topbar-h);
+        padding: 0 !important;
+        border-bottom: 1px solid var(--efor-line);
+        background: transparent;
+        transition: left .4s cubic-bezier(.16, 1, .3, 1);
+    }
+
+    .theme-efor-v2.nav-collapsed header.languages {
+        left: calc(var(--efor-nav-w-collapsed) + var(--efor-gutter));
+    }
+
+    .theme-efor-v2 header.languages > * {
+        margin: 0 !important;
+    }
+
+    /* Okruszki (specyficzność musi przebić `header.languages > *` wyżej) */
+    .theme-efor-v2 header.languages > .efor-breadcrumb {
+        order: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1 1 auto;
+        min-width: 0;
+        margin-right: auto !important;
+    }
+
+    /* Miejsce na przycisk „Powrót”, który siedzi w <main> (sekcja 7) */
+    .theme-efor-v2:has(.modern-back-btn) header.languages > .efor-breadcrumb {
+        margin-left: 54px !important;
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__home {
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 36px;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        color: var(--efor-text);
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__home:hover {
+        background: var(--efor-sunken);
+        color: var(--efor-ink);
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__home svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__trail {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        margin: 0;
+        padding: 0 0 0 14px;
+        border-left: 1px solid var(--efor-line-strong);
+        list-style: none;
+        font-size: 16px;
+        line-height: 22px;
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__trail:empty {
+        display: none;
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__trail li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        color: var(--efor-text-2);
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__trail li + li::before {
+        content: '/';
+        color: var(--efor-soft);
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__trail a {
+        color: var(--efor-text-2);
+        text-decoration: none;
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__trail a:hover {
+        color: var(--efor-ink);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+
+    .theme-efor-v2 .efor-breadcrumb__trail [aria-current="page"] {
+        overflow: hidden;
+        color: var(--efor-ink);
+        font-weight: 700;
+        text-overflow: ellipsis;
+    }
+
+    /* Prawa grupa */
+    .theme-efor-v2 header.languages #ui-variant-toggle {
+        order: 1;
+    }
+
+    .theme-efor-v2 header.languages #intro-tour-header-btn {
+        order: 2;
+    }
+
+    .theme-efor-v2 header.languages #theme-toggle {
+        order: 3;
+    }
+
+    .theme-efor-v2 header.languages .efor-lang {
+        order: 4;
+    }
+
+    .theme-efor-v2 header.languages #user-panel-header-btn {
+        order: 5;
+    }
+
+    .theme-efor-v2 header.languages .language-switcher {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .ui-variant-toggle:not(.ui-variant-toggle--menu) {
+        height: 40px;
+        border-color: var(--efor-line-2);
+        background: var(--efor-card);
+        box-shadow: none;
+        color: var(--efor-text);
+        font-weight: 600;
+    }
+
+    .theme-efor-v2 .ui-variant-toggle:not(.ui-variant-toggle--menu):hover {
+        border-color: var(--efor-amber-line);
+        background: var(--efor-cream);
+    }
+
+    .theme-efor-v2 header.languages .theme-toggle {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        border: 1px solid var(--efor-line-2);
+        background: var(--efor-card);
+        backdrop-filter: none;
+        box-shadow: none;
+        color: var(--efor-text);
+    }
+
+    .theme-efor-v2 header.languages .theme-toggle:hover {
+        transform: none;
+        border-color: var(--efor-line-strong);
+        background: var(--efor-hover);
+        box-shadow: none;
+    }
+
+    /* Język */
+    .theme-efor-v2 .efor-lang__btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        padding: 0 10px !important;
+        border: 0 !important;
+        border-radius: 10px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--efor-text);
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .theme-efor-v2 .efor-lang__btn::after {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .efor-lang__btn:hover,
+    .theme-efor-v2 .efor-lang__btn[aria-expanded="true"] {
+        background: var(--efor-sunken) !important;
+    }
+
+    .theme-efor-v2 .efor-lang__globe {
+        width: 20px;
+        height: 20px;
+    }
+
+    .theme-efor-v2 .efor-lang__chevron {
+        width: 16px;
+        height: 16px;
+        transition: transform .15s ease;
+    }
+
+    .theme-efor-v2 .efor-lang__btn[aria-expanded="true"] .efor-lang__chevron {
+        transform: rotate(180deg);
+    }
+
+    /* Awatar = link do panelu użytkownika */
+    .theme-efor-v2 header.languages #user-panel-header-btn {
+        height: 44px;
+        gap: 8px;
+        margin-left: 6px !important;
+        padding: 0 2px 0 18px !important;
+        border-left: 1px solid var(--efor-line);
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--efor-text) !important;
+        transform: none !important;
+        animation: none !important;
+    }
+
+    .theme-efor-v2 header.languages #user-panel-header-btn:focus-visible {
+        outline-offset: 4px;
+    }
+
+    .theme-efor-v2 .efor-avatar {
+        display: inline-grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--efor-bronze);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: .02em;
+        transition: box-shadow .15s ease;
+    }
+
+    .theme-efor-v2 .efor-avatar svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .theme-efor-v2 header.languages #user-panel-header-btn:hover .efor-avatar {
+        box-shadow: 0 0 0 3px var(--efor-amber-100);
+    }
+
+    .theme-efor-v2 .efor-avatar__chevron {
+        width: 16px;
+        height: 16px;
+        color: var(--efor-text-2);
+    }
+
+    /* Treść strony zaczyna się pod paskiem górnym */
+    .theme-efor-v2 main {
+        display: block;
+        padding-top: calc(var(--efor-topbar-h) + 4px);
+    }
+}
+
+
+/* =============================================================================
+   7. POWŁOKA — PRZYCISK „POWRÓT” I STOPKA (desktop)
+   ============================================================================= */
+@media (min-width: 768px) {
+    /* „Powrót” jako kompaktowa ikona na lewym końcu paska górnego; etykieta
+       zostaje dla czytników ekranu. */
+    .theme-efor-v2 .modern-back-btn {
+        top: 16px !important;
+        left: calc(var(--efor-nav-w) + var(--efor-gutter));
+        z-index: 130 !important;
+        width: 40px;
+        min-width: 40px !important;
+        height: 40px;
+        min-height: 40px !important;
+        margin-left: 0 !important;
+        padding: 0 !important;
+        justify-content: center;
+        gap: 0 !important;
+        border: 1px solid var(--efor-line-2) !important;
+        border-radius: 10px !important;
+        background: var(--efor-card) !important;
+        backdrop-filter: none;
+        box-shadow: none !important;
+        color: var(--efor-text);
+    }
+
+    .theme-efor-v2.nav-collapsed .modern-back-btn {
+        left: calc(var(--efor-nav-w-collapsed) + var(--efor-gutter));
+        margin-left: 0 !important;
+    }
+
+    .theme-efor-v2 .modern-back-btn:hover {
+        transform: none;
+        border-color: var(--efor-line-strong) !important;
+        background: var(--efor-hover) !important;
+    }
+
+    .theme-efor-v2 .modern-back-btn .arrow img {
+        width: 18px;
+        height: 18px;
+        opacity: .8;
+    }
+
+    .theme-efor-v2[data-theme="dark"] .modern-back-btn .arrow img {
+        filter: invert(1);
+    }
+
+    .theme-efor-v2 .modern-back-btn .back-text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    /* Stopka: linki po lewej, „eform © rok” po prawej, cienka linia nad nią */
+    .theme-efor-v2 .site-footer {
+        left: calc(var(--efor-nav-w) + var(--efor-gutter)) !important;
+        right: var(--efor-gutter);
+        height: 46px;
+        border-top: 1px solid var(--efor-line);
+        background: var(--efor-bg) !important;
+        backdrop-filter: none;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2.nav-collapsed .site-footer {
+        left: calc(var(--efor-nav-w-collapsed) + var(--efor-gutter)) !important;
+    }
+
+    .theme-efor-v2 .footer-accent {
+        display: none;
+    }
+
+    .theme-efor-v2 .footer-inner {
+        height: 46px;
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2 .footer-links a {
+        padding: 0 8px;
+        color: var(--efor-muted) !important;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0;
+    }
+
+    .theme-efor-v2 .footer-links a:first-child {
+        padding-left: 0;
+    }
+
+    .theme-efor-v2 .footer-links a:hover {
+        color: var(--efor-ink) !important;
+    }
+
+    .theme-efor-v2 .site-footer a::after {
+        background: var(--efor-teal);
+    }
+
+    .theme-efor-v2 .footer-dot {
+        background: var(--efor-soft);
+        opacity: .8;
+    }
+
+    .theme-efor-v2 .footer-copy {
+        color: var(--efor-muted);
+        font-size: 13px;
+        opacity: 1;
+    }
+
+    .theme-efor-v2 .footer-brand {
+        background: none;
+        -webkit-text-fill-color: currentColor;
+        color: var(--efor-text-2);
+        font-weight: 600;
+        letter-spacing: 0;
+    }
+
+    /* Zapas pod stałą stopką, żeby ostatnia karta się pod nią nie chowała */
+    .theme-efor-v2 main {
+        padding-bottom: 64px;
+    }
+}
+
+/* =============================================================================
+   8. KOMPONENTY — PRZYCISKI
+   =============================================================================
+   Trzy poziomy z makiet:
+     • główny   — bursztyn, ciemny tekst („Speichern”, „Position hinzufügen”),
+     • drugi    — biały z obrysem („Abbrechen”, „Zurück”, „Letzte Konfiguration”),
+     • neutralny — szare wypełnienie („Werte zurücksetzen”).
+   Stany (propozycja — makiety pokazują tylko spoczynek i „wyłączony”):
+   hover ciemniejszy o ton, wciśnięcie −1 px, focus = bursztynowy pierścień,
+   disabled = szare #DCDEE2 bez cienia. */
+.theme-efor-v2 button,
+.theme-efor-v2 .btn {
+    border-radius: var(--efor-radius-btn);
+    letter-spacing: 0;
+    font-family: var(--efor-font);
+}
+
+/* błysk z theme.css (::after) — w B przyciski są matowe. Bootstrapowe
+   `.dropdown-toggle` trzymają swój trójkąt w ::after, więc ich nie ruszamy. */
+.theme-efor-v2 button:not(.has-tooltip):not(.dropdown-toggle)::after {
+    display: none;
+}
+
+.theme-efor-v2 .btn {
+    --bs-btn-border-radius: var(--efor-radius-btn);
+    --bs-btn-font-weight: 600;
+    --bs-btn-focus-box-shadow: 0 0 0 3px var(--efor-focus-ring);
+    font-weight: 600;
+    box-shadow: none;
+}
+
+/* ── główny (bursztyn) ── */
+.theme-efor-v2 .btn-primary,
+.theme-efor-v2 button.btn-primary,
+.theme-efor-v2 .btn-success,
+.theme-efor-v2 .btn-outline-success,
+.theme-efor-v2 .action-btn.action-btn-send,
+.theme-efor-v2 #buttons-space #show-button,
+.theme-efor-v2 .efor-btn--primary {
+    background: var(--efor-amber) !important;
+    background-image: none !important;
+    color: var(--efor-amber-ink) !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    animation: none !important;
+    filter: none !important;
+    font-weight: 700 !important;
+    text-shadow: none;
+}
+
+.theme-efor-v2 .btn-primary:hover,
+.theme-efor-v2 .btn-success:hover,
+.theme-efor-v2 .btn-outline-success:hover,
+.theme-efor-v2 .action-btn.action-btn-send:hover,
+.theme-efor-v2 #buttons-space #show-button:hover,
+.theme-efor-v2 #last-config-confirm:hover,
+.theme-efor-v2 .efor-btn--primary:hover {
+    background: var(--efor-amber-hover) !important;
+    color: var(--efor-amber-ink) !important;
+    transform: none !important;
+}
+
+.theme-efor-v2 .btn-primary:active,
+.theme-efor-v2 .btn-success:active,
+.theme-efor-v2 .btn-outline-success:active,
+.theme-efor-v2 .action-btn.action-btn-send:active,
+.theme-efor-v2 #buttons-space #show-button:active,
+.theme-efor-v2 .efor-btn--primary:active {
+    background: var(--efor-amber-press) !important;
+    transform: translateY(1px) !important;
+}
+
+.theme-efor-v2 .action-btn.action-btn-send img {
+    filter: grayscale(1) brightness(.15) !important;
+}
+
+/* ── drugi (obrys) ── */
+.theme-efor-v2 .btn-secondary,
+.theme-efor-v2 .btn-light,
+.theme-efor-v2 .btn-outline-secondary,
+.theme-efor-v2 .btn-outline-primary,
+.theme-efor-v2 .btn-outline-danger,
+.theme-efor-v2 .efor-btn--secondary {
+    background: var(--efor-card) !important;
+    background-image: none !important;
+    color: var(--efor-ink) !important;
+    border: 1px solid var(--efor-line-strong) !important;
+    box-shadow: none !important;
+    font-weight: 600 !important;
+}
+
+.theme-efor-v2 .btn-secondary:hover,
+.theme-efor-v2 .btn-light:hover,
+.theme-efor-v2 .btn-outline-secondary:hover,
+.theme-efor-v2 .btn-outline-primary:hover,
+.theme-efor-v2 .btn-outline-danger:hover,
+.theme-efor-v2 .efor-btn--secondary:hover {
+    background: var(--efor-hover) !important;
+    border-color: var(--efor-text-2) !important;
+    color: var(--efor-ink) !important;
+    transform: none !important;
+}
+
+/* ── neutralny (szare wypełnienie) ── */
+.theme-efor-v2 #buttons-space #reset-button,
+.theme-efor-v2 .efor-btn--neutral {
+    background: var(--efor-neutral-btn) !important;
+    color: var(--efor-ink) !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+}
+
+.theme-efor-v2 #buttons-space #reset-button:hover,
+.theme-efor-v2 .efor-btn--neutral:hover {
+    background: var(--efor-neutral-btn-hover) !important;
+    border-color: transparent !important;
+    transform: none !important;
+}
+
+/* ── destrukcyjny (potwierdzenie usunięcia) ── */
+.theme-efor-v2 .btn-danger {
+    background: var(--efor-danger) !important;
+    color: #fff !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+}
+
+.theme-efor-v2 .btn-danger:hover {
+    background: var(--efor-danger-ink) !important;
+}
+
+/* ── wyłączony — wspólny dla wszystkich poziomów ── */
+.theme-efor-v2 button:disabled,
+.theme-efor-v2 .btn:disabled,
+.theme-efor-v2 .btn.disabled,
+.theme-efor-v2 #buttons-space #show-button:disabled,
+.theme-efor-v2 .efor-btn:disabled {
+    background: var(--efor-disabled-bg) !important;
+    color: var(--efor-disabled-ink) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+.theme-efor-v2 .btn-link {
+    color: var(--efor-teal) !important;
+    font-weight: 600;
+}
+
+/* ── przyciski-ikony w tabelach i paskach akcji ── */
+.theme-efor-v2 .action-btn {
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: var(--efor-radius-btn) !important;
+    border: 1px solid var(--efor-line-2) !important;
+    background: var(--efor-card) !important;
+    background-image: none !important;
+    color: var(--efor-ink) !important;
+    box-shadow: none !important;
+    font-weight: 600;
+}
+
+.theme-efor-v2 .action-btn img {
+    filter: grayscale(1) brightness(.22);
+}
+
+.theme-efor-v2[data-theme="dark"] .action-btn img,
+.theme-efor-v2[data-theme="dark"] #generate-container .btn img.icon {
+    filter: grayscale(1) invert(.92);
+}
+
+.theme-efor-v2 .action-btn:hover {
+    border-color: var(--efor-line-strong) !important;
+    background: var(--efor-hover) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.theme-efor-v2 .action-btn.action-btn-delete {
+    color: var(--efor-danger-ink) !important;
+}
+
+.theme-efor-v2 .action-btn.action-btn-delete:hover {
+    border-color: var(--efor-danger-200) !important;
+    background: var(--efor-danger-50) !important;
+}
+
+/* Kafelki-ikony w stylu makiety (40×40, biały, delikatny obrys) */
+.theme-efor-v2 .theme-toggle {
+    border-radius: 10px;
+}
+
+.theme-efor-v2 .admin-btn {
+    border-radius: var(--efor-radius-btn) !important;
+    border-color: var(--efor-line-2) !important;
+}
+
+
+/* =============================================================================
+   9. KOMPONENTY — POLA, LISTY WYBORU, CHECKBOXY
+   ============================================================================= */
+.theme-efor-v2 input[type="text"],
+.theme-efor-v2 input[type="number"],
+.theme-efor-v2 input[type="password"],
+.theme-efor-v2 input[type="email"],
+.theme-efor-v2 input[type="tel"],
+.theme-efor-v2 input[type="date"],
+.theme-efor-v2 input[type="search"],
+.theme-efor-v2 select,
+.theme-efor-v2 textarea,
+.theme-efor-v2 .form-control,
+.theme-efor-v2 .form-select {
+    font-family: var(--efor-font);
+    color: var(--efor-ink);
+    background-color: var(--efor-card);
+    border: 1px solid var(--efor-line-2);
+    border-radius: var(--efor-radius-ctl);
+    box-shadow: none;
+}
+
+.theme-efor-v2 .form-control,
+.theme-efor-v2 .form-select {
+    min-height: 46px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: 15px;
+}
+
+.theme-efor-v2 .form-control-sm,
+.theme-efor-v2 .form-select-sm {
+    min-height: 38px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 14px;
+}
+
+.theme-efor-v2 input::placeholder,
+.theme-efor-v2 textarea::placeholder {
+    color: var(--efor-soft);
+    opacity: 1;
+}
+
+.theme-efor-v2 input[type="text"]:hover,
+.theme-efor-v2 input[type="number"]:hover,
+.theme-efor-v2 select:hover,
+.theme-efor-v2 textarea:hover,
+.theme-efor-v2 .form-control:hover,
+.theme-efor-v2 .form-select:hover {
+    border-color: var(--efor-line-strong);
+}
+
+.theme-efor-v2 input[type="text"]:focus,
+.theme-efor-v2 input[type="number"]:focus,
+.theme-efor-v2 input[type="password"]:focus,
+.theme-efor-v2 input[type="email"]:focus,
+.theme-efor-v2 input[type="tel"]:focus,
+.theme-efor-v2 input[type="date"]:focus,
+.theme-efor-v2 input[type="search"]:focus,
+.theme-efor-v2 select:focus,
+.theme-efor-v2 textarea:focus,
+.theme-efor-v2 .form-control:focus,
+.theme-efor-v2 .form-select:focus,
+.theme-efor-v2 .input-form:focus {
+    border-color: var(--efor-teal) !important;
+    border-bottom-width: 1px !important;
+    background-color: var(--efor-card) !important;
+    box-shadow: 0 0 0 3px var(--efor-focus-ring-teal) !important;
+    outline: none !important;
+    transform: none !important;
+}
+
+/* Pola tylko do odczytu (m.in. wyliczone ceny w konfiguratorze) */
+.theme-efor-v2 input:disabled,
+.theme-efor-v2 select:disabled,
+.theme-efor-v2 textarea:disabled,
+.theme-efor-v2 .form-control:disabled,
+.theme-efor-v2 .form-select:disabled,
+.theme-efor-v2 input[readonly] {
+    background-color: var(--efor-sunken) !important;
+    border-color: var(--efor-line) !important;
+    color: var(--efor-text-2) !important;
+    -webkit-text-fill-color: var(--efor-text-2);
+    opacity: 1;
+    cursor: default;
+}
+
+.theme-efor-v2 select:disabled,
+.theme-efor-v2 .form-select:disabled {
+    color: var(--efor-muted) !important;
+    cursor: not-allowed;
+}
+
+/* Etykiety pól — ciemne i pogrubione jak w makietach */
+.theme-efor-v2 label {
+    color: var(--efor-text) !important;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.theme-efor-v2 .form-check-label,
+.theme-efor-v2 .checkboxtext {
+    color: var(--efor-text) !important;
+    font-weight: 400;
+    font-size: 15px;
+}
+
+.theme-efor-v2 input[type="checkbox"],
+.theme-efor-v2 input[type="radio"] {
+    accent-color: var(--efor-teal);
+}
+
+.theme-efor-v2 .form-check-input {
+    width: 20px;
+    height: 20px;
+    border: 1.5px solid var(--efor-line-strong);
+    background-color: var(--efor-card);
+    transform: none !important;
+    cursor: pointer;
+}
+
+.theme-efor-v2 .form-check-input[type="checkbox"] {
+    border-radius: 6px;
+}
+
+.theme-efor-v2 .form-check-input:hover {
+    border-color: var(--efor-teal-500);
+}
+
+.theme-efor-v2 .form-check-input:checked {
+    background-color: var(--efor-teal);
+    border-color: var(--efor-teal);
+}
+
+.theme-efor-v2 .form-check-input:focus {
+    border-color: var(--efor-teal);
+    box-shadow: 0 0 0 3px var(--efor-focus-ring-teal);
+}
+
+
+/* =============================================================================
+   10. KOMPONENTY — KARTY, NAGŁÓWKI KART, PLAKIETKI
+   ============================================================================= */
+.theme-efor-v2 .container,
+.theme-efor-v2 .card,
+.theme-efor-v2 .position-container,
+.theme-efor-v2 .order-card,
+.theme-efor-v2 .history-order-card,
+.theme-efor-v2 .efor-card {
+    background: var(--efor-card) !important;
+    border: 1px solid var(--efor-line) !important;
+    border-radius: var(--efor-radius-card) !important;
+    box-shadow: var(--efor-shadow-card) !important;
+    backdrop-filter: none !important;
+}
+
+.theme-efor-v2 .container::before {
+    display: none !important;
+}
+
+.theme-efor-v2 .order-card,
+.theme-efor-v2 .history-order-card {
+    border-left: 4px solid var(--efor-teal) !important;
+}
+
+.theme-efor-v2 .shadow-lg,
+.theme-efor-v2 .shadow {
+    box-shadow: var(--efor-shadow-card) !important;
+}
+
+.theme-efor-v2 .efor-card {
+    overflow: hidden;
+}
+
+/* Turkusowy pasek nagłówka karty — wspólny dla kart zbudowanych w JS
+   (uiVariantView.js) i dla nagłówków dopisanych pseudo-elementem niżej. */
+.theme-efor-v2 .efor-card__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 14px 22px;
+    background: var(--efor-teal);
+    color: #fff !important;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    line-height: 1.25;
+}
+
+.theme-efor-v2 .efor-card__body {
+    padding: 18px 22px 22px;
+}
+
+/* Plakietki (status, środowisko) */
+.theme-efor-v2 .badge,
+.theme-efor-v2 .efor-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.theme-efor-v2 .badge.bg-warning,
+.theme-efor-v2 .efor-pill {
+    background: var(--efor-amber-50) !important;
+    color: #6f4f09 !important;
+    border: 1px solid var(--efor-amber-100);
+}
+
+.theme-efor-v2[data-theme="dark"] .badge.bg-warning,
+.theme-efor-v2[data-theme="dark"] .efor-pill {
+    color: var(--efor-warning-ink) !important;
+}
+
+.theme-efor-v2 .efor-pill__dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--efor-amber);
+}
+
+.theme-efor-v2 .efor-pill--sent {
+    background: var(--efor-teal-50) !important;
+    border-color: var(--efor-teal-100);
+    color: var(--efor-teal) !important;
+}
+
+.theme-efor-v2 .efor-pill--sent .efor-pill__dot {
+    background: var(--efor-teal-500);
+}
+
+
+/* =============================================================================
+   11. KOMPONENTY — TABELE
+   =============================================================================
+   Nagłówek w kolorze paska kart (turkus, biały tekst — makieta „Positionen”),
+   wiersze białe z cienką linią, najechanie = kremowe tło. */
+.theme-efor-v2 .table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--efor-text);
+    --bs-table-hover-bg: var(--efor-hover);
+    --bs-table-border-color: var(--efor-line);
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background: var(--efor-card) !important;
+    border: 1px solid var(--efor-line);
+    border-radius: 12px;
+    box-shadow: none !important;
+    color: var(--efor-text);
+}
+
+.theme-efor-v2 .table > thead,
+.theme-efor-v2 .table > thead > tr {
+    background: var(--efor-teal) !important;
+}
+
+.theme-efor-v2 .table > thead > tr > th {
+    --bs-table-bg: var(--efor-teal);
+    --bs-table-color: #fff;
+    background: var(--efor-teal) !important;
+    color: #fff !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 14px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    text-transform: none;
+}
+
+.theme-efor-v2 .table > thead > tr > th:first-child {
+    border-top-left-radius: 11px;
+}
+
+.theme-efor-v2 .table > thead > tr > th:last-child {
+    border-top-right-radius: 11px;
+}
+
+.theme-efor-v2 .table > tbody > tr {
+    background: var(--efor-card) !important;
+    transform: none !important;
+}
+
+.theme-efor-v2 .table > tbody > tr > td,
+.theme-efor-v2 .table > tbody > tr > th {
+    --bs-table-bg: var(--efor-card);
+    background: var(--efor-card);
+    color: var(--efor-text) !important;
+    border-top: 0 !important;
+    border-bottom: 1px solid var(--efor-line) !important;
+    border-radius: 0 !important;
+    box-shadow: none;
+}
+
+.theme-efor-v2 .table > tbody > tr:last-child > td,
+.theme-efor-v2 .table > tbody > tr:last-child > th {
+    border-bottom: 0 !important;
+}
+
+.theme-efor-v2 .table > tbody > tr:hover > td,
+.theme-efor-v2 .table > tbody > tr:hover > th {
+    background: var(--efor-hover) !important;
+}
+
+.theme-efor-v2 .table th[scope="row"] {
+    color: var(--efor-ink) !important;
+    font-weight: 700;
+}
+
+
+/* =============================================================================
+   12. KOMPONENTY — MENU ROZWIJANE, DIALOGI, PODPOWIEDZI, TOASTY, STRONICOWANIE
+   ============================================================================= */
+.theme-efor-v2 .dropdown-menu {
+    background: var(--efor-card) !important;
+    border: 1px solid var(--efor-line) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--efor-shadow-pop) !important;
+    backdrop-filter: none !important;
+    padding: 6px !important;
+}
+
+.theme-efor-v2 .dropdown-item {
+    border-radius: 8px;
+    color: var(--efor-text) !important;
+    font-size: 15px;
+}
+
+.theme-efor-v2 .dropdown-item:hover,
+.theme-efor-v2 .dropdown-item:focus {
+    background: var(--efor-sunken) !important;
+    color: var(--efor-ink) !important;
+}
+
+.theme-efor-v2 .dropdown-item.active,
+.theme-efor-v2 .dropdown-item:active {
+    background: var(--efor-amber-50) !important;
+    color: var(--efor-ink) !important;
+    font-weight: 600;
+}
+
+.theme-efor-v2 dialog {
+    border: 1px solid var(--efor-line);
+    border-radius: 16px;
+    background: var(--efor-card) !important;
+    backdrop-filter: none;
+    box-shadow: var(--efor-shadow-pop);
+    color: var(--efor-ink);
+}
+
+.theme-efor-v2 dialog::backdrop {
+    background: rgba(11, 19, 36, .45);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+.theme-efor-v2 .modal-content {
+    border: 1px solid var(--efor-line);
+    border-radius: 16px;
+    background: var(--efor-card);
+    box-shadow: var(--efor-shadow-pop);
+}
+
+.theme-efor-v2 .modal-header {
+    border-bottom-color: var(--efor-line);
+}
+
+.theme-efor-v2 .modal-footer {
+    border-top-color: var(--efor-line);
+}
+
+/* Podpowiedzi `.has-tooltip` — ciemny turkus zamiast szarego łupka */
+.theme-efor-v2 .has-tooltip::after {
+    background: var(--efor-teal-900) !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    box-shadow: var(--efor-shadow-raise) !important;
+}
+
+.theme-efor-v2 .has-tooltip::before {
+    border-top-color: var(--efor-teal-900) !important;
+}
+
+/* Toasty (toastr): biała karta z kolorowym akcentem i ikoną — propozycja,
+   makiety komunikatów nie pokazują. */
+.theme-efor-v2 #toast-container > .toast,
+.theme-efor-v2 #toast-container > div {
+    position: relative;
+    width: 340px;
+    padding: 14px 16px 14px 52px !important;
+    border: 1px solid var(--efor-line);
+    border-left: 4px solid var(--efor-teal);
+    border-radius: 12px !important;
+    background-color: var(--efor-card) !important;
+    background-image: none !important;
+    color: var(--efor-ink) !important;
+    box-shadow: var(--efor-shadow-pop) !important;
+    opacity: 1 !important;
+    font-family: var(--efor-font);
+    font-size: 14px;
+}
+
+.theme-efor-v2 #toast-container > .toast::before {
+    content: '';
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    width: 22px;
+    height: 22px;
+    margin-top: -11px;
+    border-radius: 50%;
+    background: var(--efor-teal);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.theme-efor-v2 #toast-container > .toast-success {
+    border-left-color: var(--efor-success);
+}
+
+.theme-efor-v2 #toast-container > .toast-success::before {
+    background: var(--efor-success);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m8 12.5 2.6 2.6L16 9.6'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m8 12.5 2.6 2.6L16 9.6'/%3E%3C/svg%3E");
+}
+
+.theme-efor-v2 #toast-container > .toast-error {
+    border-left-color: var(--efor-danger);
+}
+
+.theme-efor-v2 #toast-container > .toast-error::before {
+    background: var(--efor-danger);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 7v6M12 16.5h.01'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 7v6M12 16.5h.01'/%3E%3C/svg%3E");
+}
+
+.theme-efor-v2 #toast-container > .toast-warning {
+    border-left-color: var(--efor-amber);
+}
+
+.theme-efor-v2 #toast-container > .toast-warning::before {
+    background: var(--efor-amber-press);
+}
+
+.theme-efor-v2 #toast-container .toast-title {
+    font-weight: 700;
+    color: var(--efor-ink);
+}
+
+.theme-efor-v2 #toast-container .toast-close-button {
+    color: var(--efor-muted);
+    text-shadow: none;
+    opacity: .8;
+}
+
+.theme-efor-v2 #toast-container .toast-progress {
+    background: var(--efor-teal);
+    opacity: .25;
+}
+
+/* Stronicowanie — aktywna strona w bursztynie (jak aktywna pozycja menu) */
+.theme-efor-v2 .pagination .page-item.active .page-link {
+    background: var(--efor-amber) !important;
+    color: var(--efor-amber-ink) !important;
+    box-shadow: none !important;
+}
+
+.theme-efor-v2 .pagination .page-link:focus {
+    box-shadow: 0 0 0 3px var(--efor-focus-ring);
+}
+
+
+/* =============================================================================
+   13. STANY — WALIDACJA, ŁADOWANIE, PUSTO, WYŁĄCZONE (propozycje)
+   =============================================================================
+   Makiety nie pokazują błędów ani ładowania; poniżej wersje spójne z paletą:
+   błąd = czerwony obrys + różowe tło + komunikat z ikoną, ostrzeżenie =
+   bursztyn, ładowanie = turkusowo-bursztynowy spinner i „shimmer” na cenach. */
+.theme-efor-v2 .invalid-input,
+.theme-efor-v2 .input-error {
+    border-color: var(--efor-danger) !important;
+    border-bottom-width: 1px !important;
+    background-color: var(--efor-danger-50) !important;
+    box-shadow: 0 0 0 3px var(--color-error-glow) !important;
+    animation: none !important;
+}
+
+.theme-efor-v2 .invalid-label,
+.theme-efor-v2 .input-error-msg,
+.theme-efor-v2 [class*="-select-area"] > label[id$="-label"]:not(.warning-warranty-label) {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0 0 !important;
+    padding: 0 !important;
+    color: var(--efor-danger-ink) !important;
+    font-size: 13px !important;
+    font-weight: 600;
+    visibility: visible;
+}
+
+.theme-efor-v2 .invalid-label::before,
+.theme-efor-v2 .input-error-msg::before,
+.theme-efor-v2 [class*="-select-area"] > label[id$="-label"]:not(.warning-warranty-label)::before {
+    content: '';
+    flex: 0 0 15px;
+    width: 15px;
+    height: 15px;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 7v6M12 16.5h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 7v6M12 16.5h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.theme-efor-v2 .input-error-msg {
+    float: none;
+    margin-left: 0 !important;
+}
+
+.theme-efor-v2 .warning-warranty-input {
+    border-color: var(--efor-amber) !important;
+    background-color: var(--efor-amber-50) !important;
+    box-shadow: 0 0 0 3px var(--efor-focus-ring) !important;
+}
+
+.theme-efor-v2 .warning-warranty-label {
+    display: block;
+    margin-top: 6px !important;
+    color: var(--efor-warning-ink) !important;
+    font-size: 13px !important;
+    font-weight: 600;
+}
+
+.theme-efor-v2 .input-with-icon .warning-icon {
+    color: var(--efor-amber-press);
+}
+
+/* Przycisk wyboru wartości z błędem (np. brak modelu) */
+.theme-efor-v2 .button.invalid-input {
+    background: var(--efor-danger-50) !important;
+    color: var(--efor-danger-ink) !important;
+    box-shadow: inset 0 0 0 1px var(--efor-danger), 0 0 0 3px var(--color-error-glow) !important;
+}
+
+.theme-efor-v2 .alert-danger {
+    border: 1px solid var(--efor-danger-200);
+    border-radius: 12px;
+    background: var(--efor-danger-50);
+    color: var(--efor-danger-ink);
+}
+
+/* Ładowanie */
+.theme-efor-v2 .hourglass {
+    border: 4px solid var(--efor-teal-100) !important;
+    border-top-color: var(--efor-teal) !important;
+    border-right-color: var(--efor-amber) !important;
+    width: 64px !important;
+    height: 64px !important;
+    animation-duration: .9s !important;
+}
+
+.theme-efor-v2 .overlay {
+    background: rgba(247, 245, 241, .62) !important;
+    backdrop-filter: blur(2px) !important;
+    -webkit-backdrop-filter: blur(2px) !important;
+}
+
+.theme-efor-v2[data-theme="dark"] .overlay {
+    background: rgba(15, 22, 25, .66) !important;
+}
+
+@keyframes efor-shimmer {
+    0% { background-position: 150% 0; }
+    100% { background-position: -50% 0; }
+}
+
+/* Cena w trakcie liczenia (klasa z createForm.js maskPriceValuesDuringCalc,
+   jeśli jest obecna) — zamiast pustego pola delikatny „shimmer” */
+.theme-efor-v2 input.price-value-masked {
+    background-image: linear-gradient(90deg, transparent 0%, var(--efor-teal-50) 40%, var(--efor-amber-50) 55%, transparent 80%) !important;
+    background-size: 200% 100% !important;
+    animation: efor-shimmer 1.1s linear infinite;
+}
+
+.theme-efor-v2 .efor-skeleton {
+    border-radius: 8px;
+    background: linear-gradient(90deg, var(--efor-sunken) 0%, var(--efor-card) 45%, var(--efor-sunken) 90%);
+    background-size: 200% 100%;
+    animation: efor-shimmer 1.2s linear infinite;
+}
+
+/* Utracone połączenie */
+.theme-efor-v2 .connection-lost-box {
+    border-radius: 16px;
+    border-top: 4px solid var(--efor-amber);
+}
+
+.theme-efor-v2 .connection-lost-refresh {
+    background: var(--efor-amber) !important;
+    border: 0 !important;
+    color: var(--efor-amber-ink) !important;
+    border-radius: var(--efor-radius-btn);
+}
+
+/* =============================================================================
+   14. NAGŁÓWEK STRONY — „eyebrow” + tytuł (desktop)
+   =============================================================================
+   Makiety: mały, rozstrzelony napis wersalikami nad dużym, ciężkim tytułem,
+   wyrównanie do lewej. Treść eyebrow idzie z `--efor-t-*` (base.njk,
+   partials/efor-v2-strings.njk), więc jest w języku strony i nie miga. */
+@media (min-width: 768px) {
+    .theme-efor-v2 .content {
+        margin-left: calc(var(--efor-nav-w) + var(--efor-gutter)) !important;
+        width: calc(100% - var(--efor-nav-w) - var(--efor-gutter) * 2) !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        flex: 0 0 auto;
+    }
+
+    .theme-efor-v2.nav-collapsed .content {
+        margin-left: calc(var(--efor-nav-w-collapsed) + var(--efor-gutter)) !important;
+        width: calc(100% - var(--efor-nav-w-collapsed) - var(--efor-gutter) * 2) !important;
+    }
+
+    .theme-efor-v2 .efor-page-title,
+    .theme-efor-v2[data-efor-group="order"] #order-title,
+    .theme-efor-v2[data-efor-page="new-position"] #commission-form .content > h1,
+    .theme-efor-v2[data-efor-page="edit-position"] .full-form .content > h1,
+    .theme-efor-v2[data-efor-page="position"] .order-header,
+    .theme-efor-v2[data-efor-page="orders"] .orders-topbar-center h2,
+    .theme-efor-v2[data-efor-page="history"] .orders-topbar-center h2,
+    .theme-efor-v2[data-efor-page="add-order"] .content > .my-5 > h2,
+    .theme-efor-v2[data-efor-page="edit-order"] .content > .my-5 > h2 {
+        margin: 0 !important;
+        padding: 0 !important;
+        color: var(--efor-ink) !important;
+        font-size: clamp(30px, 1.6vw + 16px, 44px) !important;
+        font-weight: 800 !important;
+        line-height: 1.08 !important;
+        letter-spacing: -.03em !important;
+        text-align: left !important;
+        white-space: normal !important;
+    }
+
+    .theme-efor-v2 .efor-page-title::before,
+    .theme-efor-v2[data-efor-group="order"] #order-title::before,
+    .theme-efor-v2[data-efor-page="new-position"] #commission-form .content > h1::before,
+    .theme-efor-v2[data-efor-page="edit-position"] .full-form .content > h1::before,
+    .theme-efor-v2[data-efor-page="position"] .order-header::before,
+    .theme-efor-v2[data-efor-page="orders"] .orders-topbar-center h2::before,
+    .theme-efor-v2[data-efor-page="history"] .orders-topbar-center h2::before,
+    .theme-efor-v2[data-efor-page="add-order"] .content > .my-5 > h2::before,
+    .theme-efor-v2[data-efor-page="edit-order"] .content > .my-5 > h2::before {
+        display: block;
+        margin: 0 0 10px;
+        color: var(--efor-text-2);
+        font-size: 12.5px;
+        font-weight: 600;
+        letter-spacing: .22em;
+        line-height: 1.2;
+        text-transform: uppercase;
+    }
+
+    .theme-efor-v2[data-efor-page="order"] #order-title::before { content: var(--efor-t-eyebrowOrder); }
+    .theme-efor-v2[data-efor-page="order-sent"] #order-title::before { content: var(--efor-t-eyebrowOrderSent); }
+    .theme-efor-v2[data-efor-page="new-position"] #commission-form .content > h1::before { content: var(--efor-t-eyebrowNewPos); }
+    .theme-efor-v2[data-efor-page="edit-position"] .full-form .content > h1::before { content: var(--efor-t-eyebrowEditPos); }
+    .theme-efor-v2[data-efor-page="position"] .order-header::before { content: var(--efor-t-eyebrowPosition); }
+    .theme-efor-v2[data-efor-page="orders"] .orders-topbar-center h2::before { content: var(--efor-t-eyebrowOrders); }
+    .theme-efor-v2[data-efor-page="history"] .orders-topbar-center h2::before { content: var(--efor-t-eyebrowHistory); }
+    .theme-efor-v2[data-efor-page="add-order"] .content > .my-5 > h2::before { content: var(--efor-t-eyebrowAddOrder); }
+    .theme-efor-v2[data-efor-page="edit-order"] .content > .my-5 > h2::before { content: var(--efor-t-eyebrowEditOrder); }
+}
+
+
+/* =============================================================================
+   15. STRONA — OFERTA (`/orders/order/:id`, też wysłane zamówienie)
+   =============================================================================
+   Nagłówek (tytuł + akcje) przestaje być przyklejonym paskiem — w makietach
+   przewija się z treścią. Pozycje = karty (lista `.mobile-items-list`
+   z order.njk), po prawej przyklejony panel „Podsumowanie” (uiVariantView.js
+   przenosi do niego sumy i przycisk wysyłki). Przełącznik „Karty / Tabela”
+   ustawia `data-efor-positions` na <html>. */
+@media (min-width: 768px) {
+    .theme-efor-v2[data-efor-group="order"] #order-nav,
+    .theme-efor-v2[data-efor-group="order"] #order-nav.navbar-scrolled {
+        position: static !important;
+        left: auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        margin: 20px 0 26px !important;
+        padding: 0 !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        white-space: normal;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .order-nav-main {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-areas:
+            "title status status"
+            "title actions add";
+        align-items: end;
+        column-gap: 10px;
+        row-gap: 14px;
+        height: auto !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #desktop-floating-order {
+        grid-area: title;
+        display: block !important;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        align-self: end;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #order-title br {
+        display: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #commission-name {
+        margin: 10px 0 0 !important;
+        color: var(--efor-text-2);
+        font-size: 19px;
+        font-weight: 400;
+        letter-spacing: 0;
+        white-space: normal;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .efor-order-status {
+        grid-area: status;
+        justify-self: end;
+        align-self: start;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #generate-container,
+    .theme-efor-v2[data-efor-group="order"] #generate-container > .d-flex {
+        grid-area: actions;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #generate-container .btn,
+    .theme-efor-v2[data-efor-group="order"] #generate-container .dropdown > .btn {
+        width: 46px;
+        min-width: 46px !important;
+        height: 46px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 1px solid var(--efor-line-2) !important;
+        border-radius: var(--efor-radius-btn) !important;
+        background: var(--efor-card) !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #generate-container .btn:hover {
+        border-color: var(--efor-line-strong) !important;
+        background: var(--efor-hover) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #generate-container .btn img.icon,
+    .theme-efor-v2[data-efor-group="order"] #generate-container .btn span {
+        width: 22px;
+        height: 22px;
+        max-width: 22px;
+        max-height: 22px;
+        font-size: 18px !important;
+        filter: grayscale(1) brightness(.22);
+    }
+
+    .theme-efor-v2[data-theme="dark"][data-efor-group="order"] #generate-container .btn img.icon,
+    .theme-efor-v2[data-theme="dark"][data-efor-group="order"] #generate-container .btn span {
+        filter: grayscale(1) invert(.92);
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #unlockSubBtn.active {
+        border-color: var(--efor-amber) !important;
+        background: var(--efor-amber-50) !important;
+    }
+
+    /* „Edytuj dane i nazwę oferty” — przycisk z ikoną ołówka, jak „Angebotsdaten” */
+    .theme-efor-v2[data-efor-group="order"] #generate-container #edit-order-button {
+        display: inline-flex !important;
+        align-items: center;
+        gap: 10px;
+        height: 46px;
+        margin: 0 !important;
+        padding: 0 18px !important;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        font-size: 15px;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #generate-container #edit-order-button::before,
+    .theme-efor-v2[data-efor-group="order"] #order-buttons #new-order-button::before,
+    .theme-efor-v2 .efor-summary #send-order::before,
+    .theme-efor-v2 .efor-summary #submit-for-approval-btn::before {
+        content: '';
+        flex: 0 0 20px;
+        width: 20px;
+        height: 20px;
+        background: currentColor;
+        -webkit-mask: var(--efor-mask, none) center / contain no-repeat;
+        mask: var(--efor-mask, none) center / contain no-repeat;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #generate-container #edit-order-button::before {
+        --efor-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.17 6.81a1 1 0 0 0-3.98-3.98L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z'/%3E%3Cpath d='m15 5 4 4'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #order-buttons.d-md-flex {
+        grid-area: add;
+        display: flex !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #order-buttons #new-order-button {
+        display: inline-flex !important;
+        align-items: center;
+        gap: 10px;
+        height: 46px;
+        padding: 0 20px !important;
+        font-size: 15px !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #order-buttons #new-order-button::before {
+        --efor-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .comment-space {
+        align-items: flex-start !important;
+        justify-content: flex-start !important;
+        margin: 12px 0 0 !important;
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #comment {
+        color: var(--efor-text-2);
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        text-align: left !important;
+    }
+
+    /* Obszar pozycji: siatka [pozycje | podsumowanie] zamiast jednej karty */
+    .theme-efor-v2[data-efor-group="order"] .content > .container {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        align-items: start;
+        column-gap: 24px;
+        /* ⚠️ 0, nie odstęp: panel obejmuje kilka wierszy siatki, a `row-gap`
+           doliczałby się także między pustymi wierszami. Odstępy = marginesy. */
+        row-gap: 0;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        animation: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .content.center-content,
+    .theme-efor-v2[data-efor-group="order"] .mobile-items-list {
+        text-align: left;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .content > .container > * {
+        grid-column: 1;
+        min-width: 0;
+        margin-bottom: 16px;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .static-head {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .order-table-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .table-scroll {
+        width: auto;
+        margin-bottom: 16px !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .content > .container > .efor-summary,
+    .theme-efor-v2[data-efor-group="order"] .content > .container > .send-order-actions {
+        grid-column: 2;
+        grid-row: 1 / span 3;
+        position: sticky;
+        top: 24px;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .content > .container > .order-empty-state {
+        grid-column: 1 / -1;
+    }
+
+    /* Pasek „Pozycje (n)” + przełącznik widoku */
+    .theme-efor-v2 .efor-positions-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 0 14px;
+    }
+
+    .theme-efor-v2 .efor-positions-bar__title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 !important;
+        font-size: 26px !important;
+        font-weight: 800 !important;
+    }
+
+    .theme-efor-v2 .efor-count {
+        display: inline-grid;
+        place-items: center;
+        min-width: 38px;
+        height: 32px;
+        padding: 0 10px;
+        border: 1px solid var(--efor-line-2);
+        border-radius: 9999px;
+        background: var(--efor-card);
+        color: var(--efor-ink);
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0;
+    }
+
+    .theme-efor-v2 .efor-view-switch {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        border: 1px solid var(--efor-line);
+        border-radius: 12px;
+        background: var(--efor-sunken);
+    }
+
+    .theme-efor-v2 .efor-view-switch button {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        height: 36px;
+        padding: 0 14px !important;
+        border: 0 !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--efor-text-2);
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .theme-efor-v2 .efor-view-switch button svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .theme-efor-v2 .efor-view-switch button:hover {
+        color: var(--efor-ink);
+    }
+
+    .theme-efor-v2 .efor-view-switch button[aria-pressed="true"] {
+        background: var(--efor-card) !important;
+        color: var(--efor-ink);
+        box-shadow: var(--efor-shadow-card) !important;
+    }
+
+    /* ── karty pozycji ── */
+    .theme-efor-v2[data-efor-group="order"][data-efor-positions="cards"] .order-table {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"][data-efor-positions="cards"] .mobile-items-list {
+        display: flex !important;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .theme-efor-v2[data-efor-group="order"][data-efor-positions="table"] .mobile-items-list {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        overflow: hidden;
+        margin: 0;
+        padding: 0 0 18px;
+        border: 1px solid var(--efor-line);
+        border-radius: var(--efor-radius-card);
+        background: var(--efor-card);
+        box-shadow: var(--efor-shadow-card) !important;
+        transform: none !important;
+        cursor: pointer;
+        transition: border-color .15s ease, box-shadow .15s ease;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card:hover {
+        border-color: var(--efor-teal-100);
+        box-shadow: var(--efor-shadow-raise) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card.link-group-row {
+        box-shadow: inset 5px 0 0 var(--link-group-color), var(--efor-shadow-card) !important;
+    }
+
+    /* pasek nagłówka: [#nr  grupa · nazwa]  [akcje] */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-header {
+        grid-column: 1;
+        grid-row: 1;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+        min-height: 62px;
+        margin: 0;
+        padding: 12px 8px 12px 20px;
+        border: 0;
+        background: var(--efor-teal);
+        color: #fff;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-header::after {
+        display: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-number {
+        order: -1;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+        padding: 3px 10px;
+        border: 0;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, .14);
+        color: #fff !important;
+        font-size: 18px;
+        font-weight: 800;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-basic {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 2px 10px;
+        min-width: 0;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-group {
+        order: 1;
+        overflow: hidden;
+        color: #fff !important;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+        text-overflow: ellipsis;
+        text-transform: none;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-name {
+        order: 2;
+        color: rgba(255, 255, 255, .78) !important;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-name::before {
+        content: '·';
+        margin-right: 10px;
+    }
+
+    /* akcje w tym samym pasku (w DOM są na końcu karty — przenosi je grid) */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions {
+        grid-column: 2;
+        grid-row: 1;
+        display: flex !important;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        margin: 0 !important;
+        padding: 10px 14px 10px 6px !important;
+        border: 0 !important;
+        background: var(--efor-teal);
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .position-controls {
+        gap: 6px !important;
+        margin: 0 4px 0 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .position-controls .btn,
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .action-btn {
+        width: auto !important;
+        min-width: 38px !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 12px !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: #fff !important;
+        color: var(--efor-ink) !important;
+        font-size: 14px !important;
+        font-weight: 600;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .position-controls .btn {
+        width: 38px !important;
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .position-controls .btn svg {
+        width: 18px !important;
+        height: 18px !important;
+        fill: var(--efor-ink) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .action-btn:hover,
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .position-controls .btn:hover {
+        background: var(--efor-amber-50) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .action-btn-delete {
+        color: var(--efor-danger-ink) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .action-btn-delete:hover {
+        background: var(--efor-danger-50) !important;
+    }
+
+    .theme-efor-v2[data-theme="dark"][data-efor-group="order"] .mobile-item-actions .position-controls .btn,
+    .theme-efor-v2[data-theme="dark"][data-efor-group="order"] .mobile-item-actions .action-btn {
+        background: rgba(255, 255, 255, .92) !important;
+        color: #0b1324 !important;
+    }
+
+    /* białe przyciski na pasku karty — strzałki w kolorze atramentu także w trybie ciemnym */
+    .theme-efor-v2[data-theme="dark"][data-efor-group="order"] .mobile-item-actions .position-controls .btn svg {
+        fill: #0b1324 !important;
+    }
+
+    .theme-efor-v2[data-theme="dark"][data-efor-group="order"] .mobile-item-actions .action-btn-delete {
+        color: #a3261a !important;
+    }
+
+    /* treść karty */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card > :not(.mobile-item-header):not(.mobile-item-actions) {
+        grid-column: 1 / -1;
+        margin-left: 20px !important;
+        margin-right: 20px !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-details {
+        display: contents !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-detail {
+        grid-column: 1 / -1;
+        margin: 14px 20px 0;
+        color: var(--efor-text);
+        font-size: 15px;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-detail strong {
+        color: var(--efor-text-2);
+        font-weight: 500;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-detail br {
+        display: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-detail strong::after {
+        content: ' ';
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-specs {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        column-gap: 36px;
+        margin-top: 10px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-spec-item {
+        display: grid;
+        grid-template-columns: minmax(120px, 44%) minmax(0, 1fr);
+        column-gap: 14px;
+        align-items: baseline;
+        padding: 6px 0;
+        border-bottom: 1px dashed var(--efor-line);
+        color: var(--efor-ink);
+        font-size: 15px;
+        font-weight: 500;
+        overflow-wrap: anywhere;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-spec-item strong {
+        color: var(--efor-text-2);
+        font-weight: 400;
+        text-transform: none;
+    }
+
+    /* ceny pozycji: „Stückpreis | Positionswert” jako duże liczby */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-params {
+        margin-top: 14px !important;
+        padding: 12px 0 0 !important;
+        border: 0 !important;
+        border-top: 1px solid var(--efor-line) !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-params.mobile-item-prices {
+        display: flex !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-params[style*="display: block"],
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-params.mobile-item-prices {
+        display: flex !important;
+        flex-wrap: wrap;
+        gap: 10px 0;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-params.d-none {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-param-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 150px;
+        margin: 0 !important;
+        padding: 0 22px 0 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-param-item + .mobile-sub-param-item {
+        padding-left: 22px !important;
+        border-left: 1px solid var(--efor-line) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-param-item strong {
+        color: var(--efor-text-2) !important;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-param-item .sub-param-value {
+        color: var(--efor-ink) !important;
+        font-size: 21px;
+        font-weight: 800;
+        letter-spacing: -.02em;
+    }
+
+    /* ceny klienta (SUB) i „złote” — ten sam układ, kremowy akcent */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card .mobile-sub-param-item.gold .sub-param-value {
+        color: #7a5a12 !important;
+    }
+
+    .theme-efor-v2[data-theme="dark"][data-efor-group="order"] .mobile-item-card .mobile-sub-param-item.gold .sub-param-value {
+        color: var(--efor-warning-ink) !important;
+    }
+
+    /* czas produkcji — informacyjny pasek na dole karty (makieta) */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-detail:has(.prod-days-item) {
+        order: 50;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 16px;
+        padding: 11px 16px;
+        border-radius: 10px;
+        background: var(--efor-teal-50);
+        color: var(--efor-teal-800);
+    }
+
+    .theme-efor-v2[data-theme="dark"][data-efor-group="order"] .mobile-item-detail:has(.prod-days-item) {
+        color: var(--efor-ink);
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-detail:has(.prod-days-item)::before {
+        content: '';
+        flex: 0 0 20px;
+        width: 20px;
+        height: 20px;
+        background: currentColor;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 6v6l4 2'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 6v6l4 2'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-detail:has(.prod-days-item) strong {
+        color: inherit;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .prod-days-item {
+        color: var(--efor-ink);
+        font-weight: 700;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .prod-days-max {
+        color: var(--efor-muted);
+        font-size: 13px;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-comment {
+        margin-top: 12px !important;
+        padding: 10px 14px !important;
+        border-radius: 10px;
+        background: var(--efor-sunken);
+        color: var(--efor-text);
+        font-size: 14px;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-comment br {
+        display: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .link-group-chip {
+        margin-left: 4px;
+        padding: 1px 7px;
+        border-radius: 9999px;
+        font-size: 12px;
+    }
+
+    /* „Dodaj kolejną pozycję” */
+    .theme-efor-v2 .efor-add-position {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        min-height: 58px;
+        margin: 0 0 16px;
+        border: 1.5px solid var(--efor-line-strong);
+        border-radius: 12px;
+        background: var(--efor-card);
+        color: var(--efor-ink) !important;
+        font-size: 16px;
+        font-weight: 600;
+        text-decoration: none !important;
+        transition: border-color .15s ease, background-color .15s ease;
+    }
+
+    .theme-efor-v2 .efor-add-position:hover {
+        border-color: var(--efor-amber);
+        background: var(--efor-cream);
+    }
+
+    .theme-efor-v2 .efor-add-position__plus {
+        font-size: 26px;
+        font-weight: 400;
+        line-height: 1;
+    }
+
+    .theme-efor-v2[data-efor-positions="table"] .efor-add-position {
+        display: none;
+    }
+
+    /* ── tabela pozycji (widok „Tabela”) ── */
+    .theme-efor-v2[data-efor-group="order"] .order-table {
+        margin-top: 0 !important;
+        border-radius: 12px;
+        animation: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .order-table thead th {
+        font-weight: 600 !important;
+        border-right: 1px solid rgba(255, 255, 255, .12) !important;
+    }
+
+    .theme-efor-v2 .price-row:not(.sub-params-locked-row) .sub-params-container,
+    .theme-efor-v2 .sub-params-row .sub-params-container {
+        border-color: var(--efor-line) !important;
+        border-left-color: var(--efor-teal) !important;
+        background: var(--efor-sunken) !important;
+    }
+
+    .theme-efor-v2 .sub-param-item {
+        border-color: var(--efor-line) !important;
+        background: var(--efor-card) !important;
+    }
+
+    .theme-efor-v2 .prod-time-row-cell {
+        border: 0;
+        border-radius: 10px;
+        background: var(--efor-teal-50);
+    }
+
+    /* ── panel „Podsumowanie” ── */
+    .theme-efor-v2 .efor-summary .efor-summary__body {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 14px 20px 20px;
+    }
+
+    .theme-efor-v2 .efor-summary__row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 6px 0 12px;
+        border-bottom: 1px solid var(--efor-line);
+        color: var(--efor-text);
+        font-size: 16px;
+    }
+
+    .theme-efor-v2 .efor-summary__row strong {
+        color: var(--efor-ink);
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2 .efor-summary #total-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2 .efor-summary .total-price {
+        display: block !important;
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2 .efor-summary .total-price.d-none {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .efor-summary .total-price .total {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 14px 16px !important;
+        border: 1px solid var(--efor-amber-100) !important;
+        border-radius: 12px !important;
+        background: var(--efor-amber-100) !important;
+        box-shadow: none !important;
+        color: var(--efor-ink) !important;
+        text-align: left !important;
+    }
+
+    .theme-efor-v2 .efor-summary .total-price .total.gold {
+        border-color: var(--efor-line) !important;
+        background: var(--efor-sunken) !important;
+    }
+
+    .theme-efor-v2 .efor-summary .total-price .total.sub-total {
+        border-color: var(--efor-teal-100) !important;
+        background: var(--efor-teal-50) !important;
+    }
+
+    .theme-efor-v2 .efor-total__label {
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2 .efor-total__value {
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -.02em;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-summary .send-order-actions {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 10px;
+        margin: 4px 0 0;
+    }
+
+    .theme-efor-v2 .efor-summary .send-order-actions > .badge {
+        justify-content: center;
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2 .efor-summary .send-order-actions .custom-order-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100% !important;
+        min-height: 54px !important;
+        margin: 0 !important;
+        float: none;
+        font-size: 17px !important;
+    }
+
+    .theme-efor-v2 .efor-summary .custom-order-btn p {
+        margin: 0 !important;
+        font-size: inherit;
+    }
+
+    .theme-efor-v2 .efor-summary #send-order::before,
+    .theme-efor-v2 .efor-summary #submit-for-approval-btn::before {
+        --efor-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 2v6h6M16 13H8M16 17H8M10 9H8'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2 .efor-summary .production-order-override {
+        margin: 0 !important;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--efor-sunken);
+    }
+
+    /* Pusta oferta — ikona pudełka nad komunikatem (makieta „Positionen 0”) */
+    .theme-efor-v2[data-efor-group="order"] .order-empty-state {
+        margin: 0 !important;
+        padding: 56px 24px !important;
+        border: 1px solid var(--efor-line);
+        border-radius: var(--efor-radius-card);
+        background: var(--efor-card);
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .order-empty-state::before {
+        content: '';
+        display: block;
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 16px;
+        background: var(--efor-text-2);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z'/%3E%3Cpath d='m3.3 7 8.7 5 8.7-5M12 22V12'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z'/%3E%3Cpath d='m3.3 7 8.7 5 8.7-5M12 22V12'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .order-empty-state h3 {
+        margin: 0 0 8px !important;
+        color: var(--efor-text) !important;
+        font-size: 20px !important;
+        font-weight: 600 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .order-empty-state .lead {
+        margin: 0 0 20px !important;
+        color: var(--efor-muted);
+        font-size: 15px;
+        font-weight: 400 !important;
+    }
+
+    /* Na desktopie B pokazujemy CTA, który order.njk rysuje tylko na telefonie */
+    .theme-efor-v2[data-efor-group="order"] .order-empty-state .m-empty-cta {
+        display: inline-flex !important;
+        align-items: center;
+        gap: 8px;
+        height: 48px;
+        padding: 0 22px;
+        border-radius: var(--efor-radius-btn);
+        background: var(--efor-amber);
+        color: var(--efor-amber-ink) !important;
+        font-weight: 700;
+        text-decoration: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .order-empty-state .m-empty-cta:hover {
+        background: var(--efor-amber-hover);
+    }
+}
+
+/* Węższy desktop: panel podsumowania pod pozycjami, bez przyklejania */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .theme-efor-v2[data-efor-group="order"] .content > .container {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .content > .container > .efor-summary,
+    .theme-efor-v2[data-efor-group="order"] .content > .container > .send-order-actions {
+        grid-column: 1;
+        grid-row: auto;
+        position: static;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .order-nav-main {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "title status"
+            "actions actions"
+            "add add";
+        align-items: start;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #generate-container,
+    .theme-efor-v2[data-efor-group="order"] #order-buttons.d-md-flex {
+        justify-content: flex-start !important;
+    }
+}
+
+/* =============================================================================
+   16. STRONA — KONFIGURATOR POZYCJI (nowa pozycja / edycja pozycji)
+   =============================================================================
+   Karta „Przypisanie produktu” (nazwa pomieszczenia + kafelki produktu
+   i systemu z uiVariantView.js), pod nią karta „Parametry produktu” z siatką
+   pól, z prawej przyklejony panel „Podsumowanie ceny”. Kafelki i panel są
+   tylko od 768 / 992 px — na telefonie zostaje dopracowany układ mobilny
+   (mobile/configurator.css) w kolorach wariantu B. */
+@media (min-width: 768px) {
+    /* ── karta: przypisanie produktu ── */
+    .theme-efor-v2[data-efor-page="new-position"] .asortment-container {
+        margin: 22px 0 20px !important;
+        padding: 0 !important;
+        overflow: hidden;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .asortment-container::before {
+        content: var(--efor-t-cardProduct);
+        position: static;
+        display: block !important;
+        height: auto;
+        padding: 14px 22px;
+        border-radius: 0;
+        background: var(--efor-teal);
+        color: #fff;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+        line-height: 1.25;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .asortment-inputs {
+        display: flex !important;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 18px 24px;
+        padding: 20px 22px 4px;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .asortment-inputs div {
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .commission-space {
+        flex: 1 1 360px;
+        width: auto !important;
+        max-width: 620px !important;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .comm-input {
+        width: 100% !important;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .comm-input label,
+    .theme-efor-v2[data-efor-page="new-position"] .gr-select label {
+        margin: 0 0 8px !important;
+        font-size: 15px !important;
+        text-transform: none;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] #commission-input,
+    .theme-efor-v2[data-efor-page="edit-position"] #commission-name {
+        width: 100% !important;
+        height: 48px;
+        padding: 10px 14px !important;
+        font-size: 16px;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .gr-select {
+        flex: 0 1 240px;
+        width: auto !important;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .gr-select .form-select {
+        width: 100% !important;
+        height: 48px;
+    }
+
+    .theme-efor-v2 .asortment-container.efor-chooser-ready .gr-select {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] #check-form {
+        display: inline-flex !important;
+        flex-direction: row-reverse;
+        align-items: center;
+        gap: 10px;
+        min-height: 48px;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] #check-form .form-check-input {
+        float: none;
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] #check-form label {
+        margin: 0 !important;
+        font-size: 15px !important;
+        font-weight: 500;
+    }
+
+    /* ── kafelki wyboru ── */
+    .theme-efor-v2 .efor-chooser {
+        padding: 16px 22px 22px;
+    }
+
+    .theme-efor-v2 .efor-chooser__title {
+        margin: 6px 0 12px !important;
+        color: var(--efor-ink) !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        letter-spacing: -.01em;
+    }
+
+    .theme-efor-v2 .efor-choice-grid {
+        display: grid;
+        gap: 14px;
+    }
+
+    /* 3 kolumny jak w makiecie; minimum tak dobrane, żeby „RAMKA
+       MAGNETYCZNA” czy „KOMPONENTY” mieściły się bez łamania wyrazu */
+    .theme-efor-v2 .efor-choice-grid--product {
+        grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    }
+
+    .theme-efor-v2 .efor-choice-grid--system {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 16px;
+    }
+
+    .theme-efor-v2 .efor-choice {
+        position: relative;
+        margin: 0;
+        border: 1.5px solid var(--efor-line) !important;
+        border-radius: 12px !important;
+        background: var(--efor-card) !important;
+        box-shadow: none !important;
+        color: var(--efor-ink) !important;
+        text-align: left;
+        cursor: pointer;
+        transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+    }
+
+    .theme-efor-v2 .efor-choice:hover {
+        border-color: var(--efor-amber-line) !important;
+        background: var(--efor-cream) !important;
+        box-shadow: var(--efor-shadow-card) !important;
+    }
+
+    .theme-efor-v2 .efor-choice.is-selected {
+        border: 2px solid var(--efor-amber) !important;
+        background: var(--efor-cream) !important;
+    }
+
+    .theme-efor-v2 .efor-choice:focus-visible {
+        outline: 3px solid var(--efor-focus-ring);
+        outline-offset: 2px;
+    }
+
+    .theme-efor-v2 .efor-choice__media {
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 8px;
+        background: var(--efor-illu-fill);
+        color: var(--efor-teal);
+    }
+
+    .theme-efor-v2 .efor-choice__illu {
+        width: 100%;
+        height: 100%;
+    }
+
+    .theme-efor-v2 .efor-choice__name {
+        min-width: 0;
+        overflow-wrap: break-word;
+        hyphens: auto;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    /* produkt: [ilustracja | nazwa | strzałka] */
+    .theme-efor-v2 .efor-choice--product {
+        display: grid !important;
+        grid-template-columns: 104px minmax(0, 1fr) 44px;
+        align-items: center;
+        gap: 16px;
+        min-height: 106px;
+        padding: 12px 16px 12px 12px !important;
+        font-size: 18px;
+    }
+
+    .theme-efor-v2 .efor-choice--product .efor-choice__media {
+        width: 104px;
+        height: 78px;
+    }
+
+    .theme-efor-v2 .efor-choice__go {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border: 1.5px solid var(--efor-line-strong);
+        border-radius: 50%;
+        background: var(--efor-card);
+        transition: background-color .15s ease, border-color .15s ease;
+    }
+
+    .theme-efor-v2 .efor-choice__go svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .theme-efor-v2 .efor-choice--product:hover .efor-choice__go {
+        border-color: var(--efor-amber);
+    }
+
+    .theme-efor-v2 .efor-choice--product.is-selected .efor-choice__go {
+        border-color: var(--efor-amber);
+        background: var(--efor-amber);
+        color: var(--efor-amber-ink);
+    }
+
+    /* system: [ilustracja / nazwa / „Wybierz”] */
+    .theme-efor-v2 .efor-choice--system {
+        display: flex !important;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 12px !important;
+    }
+
+    .theme-efor-v2 .efor-choice--system .efor-choice__media {
+        width: 100%;
+        height: 150px;
+    }
+
+    .theme-efor-v2 .efor-choice--system .efor-choice__name {
+        padding: 0 6px;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -.01em;
+    }
+
+    .theme-efor-v2 .efor-choice__pick {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        height: 48px;
+        border: 1px solid var(--efor-line-strong);
+        border-radius: 10px;
+        background: var(--efor-card);
+        color: var(--efor-ink);
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .theme-efor-v2 .efor-choice__radio {
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        border: 1.5px solid var(--efor-ink);
+        border-radius: 50%;
+        color: transparent;
+    }
+
+    .theme-efor-v2 .efor-choice__radio svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .theme-efor-v2 .efor-choice--system.is-selected .efor-choice__pick {
+        border-color: var(--efor-amber);
+        background: var(--efor-amber);
+        color: var(--efor-amber-ink);
+    }
+
+    .theme-efor-v2 .efor-choice--system.is-selected .efor-choice__radio {
+        border-color: var(--efor-amber-ink);
+        background: var(--efor-amber-ink);
+        color: var(--efor-amber);
+    }
+
+    /* szkielety na czas wczytywania opcji */
+    .theme-efor-v2 .efor-choice--skeleton {
+        pointer-events: none;
+        border-style: dashed !important;
+    }
+
+    .theme-efor-v2 .efor-choice--skeleton .efor-choice__line {
+        display: block;
+        width: 60%;
+        height: 16px;
+    }
+
+    .theme-efor-v2 .efor-choice--skeleton.efor-choice--product {
+        display: grid !important;
+        grid-template-columns: 112px 1fr;
+        align-items: center;
+        gap: 16px;
+        min-height: 106px;
+        padding: 12px !important;
+    }
+
+    .theme-efor-v2 .efor-choice--skeleton.efor-choice--product .efor-choice__media {
+        width: 112px;
+        height: 82px;
+    }
+
+    .theme-efor-v2 .efor-choice--skeleton.efor-choice--system {
+        display: flex !important;
+        flex-direction: column;
+        gap: 14px;
+        padding: 12px !important;
+    }
+
+    .theme-efor-v2 .efor-choice--skeleton.efor-choice--system .efor-choice__media {
+        width: 100%;
+        height: 150px;
+    }
+
+    /* podsumowanie wyboru: [Produkt: PLISY ✎] [System: EOS ✎] */
+    .theme-efor-v2 .efor-chooser__summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 0 0 14px;
+    }
+
+    .theme-efor-v2 .efor-chooser__summary[hidden],
+    .theme-efor-v2 .efor-chooser__step[hidden] {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .efor-chooser[data-mode="done"] .efor-chooser__summary {
+        margin-bottom: 0;
+    }
+
+    .theme-efor-v2 .efor-sum-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 230px;
+        padding: 8px 8px 8px 8px;
+        border: 1px solid var(--efor-line);
+        border-radius: 12px;
+        background: var(--efor-sunken);
+    }
+
+    .theme-efor-v2 .efor-sum-item__media {
+        display: grid;
+        place-items: center;
+        width: 60px;
+        height: 44px;
+        border-radius: 8px;
+        background: var(--efor-illu-fill);
+        color: var(--efor-teal);
+        overflow: hidden;
+    }
+
+    .theme-efor-v2 .efor-sum-item__media svg {
+        width: 100%;
+        height: 100%;
+    }
+
+    .theme-efor-v2 .efor-sum-item__text {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-width: 0;
+        padding-left: 4px;
+    }
+
+    .theme-efor-v2 .efor-sum-item__label {
+        color: var(--efor-muted);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+
+    .theme-efor-v2 .efor-sum-item__value {
+        color: var(--efor-ink);
+        font-size: 17px;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2 .efor-sum-item__edit {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--efor-text-2);
+    }
+
+    .theme-efor-v2 .efor-sum-item__edit:hover {
+        background: var(--efor-card) !important;
+        color: var(--efor-ink);
+    }
+
+    .theme-efor-v2 .efor-sum-item__edit svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* „Wczytaj ostatnią konfigurację” (makieta: „Letzte Konfiguration übernehmen”) */
+    .theme-efor-v2 .efor-chooser > .last-config-info {
+        position: static !important;
+        transform: none !important;
+        z-index: auto;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 14px;
+        min-width: 0;
+        max-width: none;
+        margin: 0 0 16px;
+        padding: 12px 16px !important;
+        border: 1px solid var(--efor-line-2);
+        border-radius: 12px;
+        background: var(--efor-card) !important;
+        backdrop-filter: none;
+        box-shadow: none;
+        animation: none;
+    }
+
+    .theme-efor-v2 .efor-chooser > .last-config-info::before {
+        content: '';
+        flex: 0 0 26px;
+        width: 26px;
+        height: 26px;
+        background: var(--efor-ink);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 6v6l4 2'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 6v6l4 2'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    .theme-efor-v2 .efor-chooser > .last-config-info #last-config-confirm {
+        width: auto;
+        height: 44px;
+        padding: 0 18px !important;
+        border: 1px solid var(--efor-line-strong) !important;
+        border-radius: var(--efor-radius-btn) !important;
+        background: var(--efor-card) !important;
+        box-shadow: none !important;
+        color: var(--efor-ink) !important;
+        font-size: 15px;
+        font-weight: 600;
+        animation: none !important;
+        transform: none !important;
+    }
+
+    .theme-efor-v2 .efor-chooser > .last-config-info #last-config-confirm:hover {
+        border-color: var(--efor-text-2) !important;
+        background: var(--efor-hover) !important;
+    }
+
+    /* ── karta: parametry produktu ── */
+    .theme-efor-v2[data-efor-page="new-position"] .order-reminder,
+    .theme-efor-v2[data-efor-page="edit-position"] .full-form .content > .container:has(> #dynamic-form) {
+        margin: 0 0 20px !important;
+        padding: 0 !important;
+        overflow: hidden;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .order-reminder > h3,
+    .theme-efor-v2[data-efor-page="edit-position"] .container:has(> #dynamic-form) > h3 {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 4px 16px;
+        margin: 0 !important;
+        padding: 14px 22px;
+        background: var(--efor-teal);
+        color: rgba(255, 255, 255, .78) !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        letter-spacing: 0;
+    }
+
+    .theme-efor-v2[data-efor-page="new-position"] .order-reminder > h3::before,
+    .theme-efor-v2[data-efor-page="edit-position"] .container:has(> #dynamic-form) > h3::before {
+        content: var(--efor-t-cardParams);
+        color: #fff;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+        gap: 18px 24px !important;
+        padding: 22px 22px 8px;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form > div[class*="-select-area"] {
+        align-content: start;
+        min-width: 0;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form > div[class*="-select-area"] > br {
+        display: none;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form .field-label-row {
+        margin: 0 0 8px;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] [class*="-select-area"] label {
+        margin: 0 0 8px !important;
+        padding: 0 !important;
+        color: var(--efor-ink) !important;
+        font-size: 15px !important;
+        font-weight: 600;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] .field-label-row label {
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form .input-form,
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form select {
+        width: 100% !important;
+        height: 48px;
+        padding: 10px 14px !important;
+        font-size: 16px !important;
+        font-weight: 500 !important;
+        color: var(--efor-ink) !important;
+    }
+
+    /* Wymiary — linijka w polu (makieta: „Breite (mm)”) */
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form > :is([class^="SZEROKOSC"], [class^="WYSOKOSC"], [class^="DLUGOSC"]) > input.input-form {
+        padding-left: 46px !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7380' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z'/%3E%3Cpath d='m14.5 12.5 2-2M11.5 9.5l2-2M8.5 6.5l2-2M17.5 15.5l2-2'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: 14px center !important;
+        background-size: 20px 20px !important;
+    }
+
+    /* Przycisk wyboru wartości (MODEL, KOLOR…) jak pole listy z makiety */
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form .button {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        box-sizing: border-box;
+        width: 100% !important;
+        min-height: 48px;
+        padding: 10px 14px !important;
+        border: 1px solid var(--efor-line-2) !important;
+        border-radius: var(--efor-radius-ctl) !important;
+        background: var(--efor-card) !important;
+        color: var(--efor-ink) !important;
+        box-shadow: none !important;
+        filter: none !important;
+        transform: none !important;
+        font-size: 15.5px;
+        font-weight: 500;
+        letter-spacing: 0;
+        line-height: 1.3;
+        text-align: left;
+        white-space: normal;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form .button::before {
+        display: none !important;
+    }
+
+    /* ⚠️ theme.css daje każdemu `button::after` `position: absolute; inset: 0`
+       (błysk) — bez `static` strzałka lądowała w rogu pola. */
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form .button::after {
+        content: '';
+        position: static !important;
+        inset: auto;
+        display: block !important;
+        flex: 0 0 18px;
+        width: 18px;
+        height: 18px;
+        margin-left: auto;
+        background: currentColor;
+        opacity: .65;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form .button:hover {
+        border-color: var(--efor-line-strong) !important;
+        background: var(--efor-hover) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form .button:focus-visible {
+        outline: none;
+        border-color: var(--efor-teal) !important;
+        box-shadow: 0 0 0 3px var(--efor-focus-ring-teal) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form .button.invalid-input {
+        border-color: var(--efor-danger) !important;
+        background: var(--efor-danger-50) !important;
+        color: var(--efor-danger-ink) !important;
+        box-shadow: 0 0 0 3px var(--color-error-glow) !important;
+    }
+
+    /* Ilość: [−] 1 [+] */
+    .theme-efor-v2[data-efor-group="configurator"] #dynamic-form > .efor-qty-area {
+        grid-template-columns: 48px minmax(0, 1fr) 48px;
+    }
+
+    .theme-efor-v2 .efor-qty-area > * {
+        grid-column: 1 / -1;
+    }
+
+    .theme-efor-v2 .efor-qty-area > input#ILOSC {
+        grid-column: 2;
+        grid-row: 2;
+        border-radius: 0 !important;
+        text-align: center;
+        font-weight: 600 !important;
+    }
+
+    .theme-efor-v2 .efor-qty-area > .efor-qty-btn {
+        grid-row: 2;
+        display: grid;
+        place-items: center;
+        height: 48px;
+        padding: 0 !important;
+        border: 1px solid var(--efor-line-2) !important;
+        background: var(--efor-sunken) !important;
+        box-shadow: none !important;
+        color: var(--efor-ink);
+        font-size: 22px;
+        font-weight: 500;
+        line-height: 1;
+    }
+
+    .theme-efor-v2 .efor-qty-area > .efor-qty-btn:hover {
+        background: var(--efor-neutral-btn) !important;
+    }
+
+    .theme-efor-v2 .efor-qty-area > .efor-qty-btn--minus {
+        grid-column: 1;
+        border-right: 0 !important;
+        border-radius: 10px 0 0 10px !important;
+    }
+
+    .theme-efor-v2 .efor-qty-area > .efor-qty-btn--plus {
+        grid-column: 3;
+        border-left: 0 !important;
+        border-radius: 0 10px 10px 0 !important;
+    }
+
+    /* Dół karty parametrów: [Dodaj komentarz] [Resetuj] … [Załączniki] */
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space {
+        display: flex !important;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin: 8px 0 0 !important;
+        padding: 18px 22px 22px;
+        border-top: 1px solid var(--efor-line);
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #show-comment-button {
+        position: static;
+        order: 1;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        height: 46px;
+        padding: 0 18px;
+        border: 1px solid var(--efor-line-strong);
+        border-radius: var(--efor-radius-btn);
+        background: var(--efor-card);
+        color: var(--efor-ink);
+        font-size: 15px;
+        font-weight: 600;
+        box-shadow: none;
+        transform: none;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #show-comment-button::before,
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #reset-button::before {
+        content: '';
+        flex: 0 0 20px;
+        width: 20px;
+        height: 20px;
+        background: currentColor;
+        -webkit-mask: var(--efor-mask) center / contain no-repeat;
+        mask: var(--efor-mask) center / contain no-repeat;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #show-comment-button::before {
+        --efor-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.9 20A9 9 0 1 0 4 16.1L2 22Z'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #reset-button::before {
+        --efor-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #show-comment-button:hover {
+        border-color: var(--efor-text-2);
+        background: var(--efor-hover);
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #reset-button {
+        order: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        width: auto !important;
+        height: 46px;
+        margin: 0 !important;
+        padding: 0 18px !important;
+        font-size: 15px;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #show-button {
+        order: 3;
+        width: auto !important;
+        min-width: 180px;
+        height: 48px;
+        margin: 0 0 0 auto !important;
+        padding: 0 26px !important;
+        font-size: 16px;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #attachment-space {
+        position: static;
+        order: 4;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-left: auto;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] .attachment-label {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 14px !important;
+    }
+
+    /* Numer wersji formularza (form.css: przypięty w prawym dolnym rogu) —
+       w B nachodziłby na panel ceny, więc idzie na lewy dół, nad stopkę. */
+    .theme-efor-v2[data-efor-group="configurator"] #version-space {
+        left: calc(var(--efor-nav-w) + var(--efor-gutter));
+        right: auto;
+        bottom: 54px;
+        z-index: 5 !important;
+        padding: 2px 8px;
+        background: transparent;
+        color: var(--efor-soft);
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .theme-efor-v2.nav-collapsed[data-efor-group="configurator"] #version-space {
+        left: calc(var(--efor-nav-w-collapsed) + var(--efor-gutter));
+    }
+}
+
+/* Panel „Podsumowanie ceny” — tylko szeroki ekran; węziej pola cen zostają
+   w siatce (i przycisk „Zapisz” pod formularzem). */
+.theme-efor-v2 .efor-price-panel {
+    display: none;
+}
+
+@media (min-width: 992px) {
+    /* Nazwane obszary, nie automatyczne rozmieszczenie: w `.content` bywają
+       też dialogi i `#dialog-container` (edit_position.njk), które inaczej
+       wypychały panel do wiersza POD formularzem. */
+    .theme-efor-v2 .content.efor-price-ready {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        grid-template-areas:
+            "title title"
+            "top top"
+            "form aside";
+        align-items: start;
+        column-gap: 24px;
+    }
+
+    .theme-efor-v2 .content.efor-price-ready > * {
+        grid-column: 1 / -1;
+        min-width: 0;
+    }
+
+    .theme-efor-v2 .content.efor-price-ready > h1 {
+        grid-area: title;
+    }
+
+    .theme-efor-v2 .content.efor-price-ready > .container:not(:has(> #dynamic-form)) {
+        grid-area: top;
+    }
+
+    .theme-efor-v2 .content.efor-price-ready > :is(.order-reminder, .container:has(> #dynamic-form)) {
+        grid-area: form;
+    }
+
+    .theme-efor-v2 .content.efor-price-ready > .efor-price-panel {
+        grid-area: aside;
+        display: block;
+        position: sticky;
+        top: 24px;
+        margin: 0 0 20px;
+    }
+
+    .theme-efor-v2 .content.efor-price-ready > .efor-price-panel[hidden] {
+        display: none !important;
+    }
+
+    /* pola przejęte przez panel znikają z siatki; ręcznie nadpisywalne zostają */
+    .theme-efor-v2 .content.efor-price-ready #dynamic-form > .efor-price-mirrored {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .content.efor-price-ready #buttons-space #show-button {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .efor-price-panel .efor-card__body {
+        display: flex;
+        flex-direction: column;
+        padding: 18px 20px 20px;
+    }
+
+    .theme-efor-v2 .efor-price-panel__media {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        margin: 0 0 8px;
+    }
+
+    .theme-efor-v2 .efor-price-panel__media[hidden] {
+        display: none;
+    }
+
+    .theme-efor-v2 .efor-price-panel__illu {
+        display: grid;
+        place-items: center;
+        height: 150px;
+        border-radius: 10px;
+        background: var(--efor-illu-fill);
+        color: var(--efor-teal);
+        overflow: hidden;
+    }
+
+    .theme-efor-v2 .efor-price-panel__illu svg {
+        width: 72%;
+        height: 100%;
+    }
+
+    .theme-efor-v2 .efor-price-panel__caption {
+        color: var(--efor-text-2);
+        font-size: 14px;
+        text-align: center;
+    }
+
+    .theme-efor-v2 .efor-price-panel__rows {
+        margin: 0;
+    }
+
+    .theme-efor-v2 .efor-price-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--efor-line);
+    }
+
+    .theme-efor-v2 .efor-price-row dt {
+        margin: 0;
+        color: var(--efor-ink);
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .theme-efor-v2 .efor-price-row dd {
+        margin: 0;
+        color: var(--efor-ink);
+        font-size: 16px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-price-total {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 14px 0 0;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: var(--efor-amber-100);
+        color: var(--efor-ink);
+    }
+
+    .theme-efor-v2 .efor-price-total[hidden] {
+        display: none;
+    }
+
+    .theme-efor-v2 .efor-price-total.is-empty {
+        background: var(--efor-sunken);
+    }
+
+    .theme-efor-v2 .efor-price-total__label {
+        font-size: 17px;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2 .efor-price-total__value {
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: -.02em;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-price-panel__hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 14px 0 0 !important;
+        color: var(--efor-text-2);
+        font-size: 14px;
+    }
+
+    .theme-efor-v2 .efor-price-panel__hint[hidden] {
+        display: none;
+    }
+
+    .theme-efor-v2 .efor-price-panel__hint svg {
+        flex: 0 0 20px;
+        width: 20px;
+        height: 20px;
+        color: var(--efor-teal);
+    }
+
+    .theme-efor-v2 .efor-price-panel__save {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        height: 54px;
+        margin-top: 16px;
+        font-size: 17px;
+    }
+
+    .theme-efor-v2 .efor-price-panel__save svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .theme-efor-v2 .efor-price-row__skeleton {
+        display: inline-block;
+        width: 72px;
+        height: 16px;
+        vertical-align: middle;
+    }
+
+    .theme-efor-v2 .efor-price-total__skeleton {
+        display: inline-block;
+        width: 120px;
+        height: 26px;
+        vertical-align: middle;
+    }
+}
+
+/* Dialog wyboru wartości (kolor, model…) — kafelki jak karty wyboru */
+.theme-efor-v2 #color-dialog {
+    border-radius: 18px;
+}
+
+.theme-efor-v2 .image-box {
+    border: 1.5px solid var(--efor-line) !important;
+    border-radius: 12px !important;
+    background: var(--efor-card) !important;
+    box-shadow: none !important;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+
+.theme-efor-v2 .image-box:hover {
+    border-color: var(--efor-amber-line) !important;
+    background: var(--efor-cream) !important;
+}
+
+.theme-efor-v2 .image-box.active,
+.theme-efor-v2 .multi-selectable.active {
+    border: 2px solid var(--efor-amber) !important;
+    background: var(--efor-cream) !important;
+    box-shadow: none !important;
+}
+
+.theme-efor-v2 #dialog-title {
+    font-weight: 800 !important;
+}
+
+/* =============================================================================
+   17. STRONA — DANE OFERTY (nowa oferta / edycja danych oferty)
+   =============================================================================
+   Makieta 2 („Bestelldaten”): jedna szeroka karta, etykiety NAD polami,
+   adres i e-mail obok siebie, komentarz z licznikiem w polu, na dole
+   [Anuluj] [Zapisz] po prawej. Markup new-order.njk zostaje — to siatka
+   Bootstrapa `.col-md-3` (etykieta) + `.col-md-9` (pole). */
+@media (min-width: 768px) {
+    .theme-efor-v2[data-efor-group="order-data"] .content {
+        text-align: left;
+    }
+
+    .theme-efor-v2[data-efor-group="order-data"] .content > .my-5 {
+        margin: 20px 0 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order-data"] .content > .my-5 > .row {
+        display: block;
+        margin: 22px 0 0;
+    }
+
+    .theme-efor-v2 #new-order-card {
+        position: relative;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 0 24px !important;
+        padding: 0;
+        flex: none;
+        overflow: hidden;
+    }
+
+    /* nagłówek karty: [① Dane zamówienia] (numer kroku jak w makiecie) */
+    .theme-efor-v2 #new-order-card::before {
+        content: var(--efor-t-cardOrderData);
+        display: block;
+        padding: 24px 28px 0 84px;
+        color: var(--efor-ink);
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: -.02em;
+        line-height: 44px;
+    }
+
+    .theme-efor-v2 #new-order-card > .card-body::before {
+        content: '1';
+        position: absolute;
+        top: 24px;
+        left: 28px;
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--efor-teal);
+        color: #fff;
+        font-size: 20px;
+        font-weight: 800;
+    }
+
+    .theme-efor-v2 #new-order-card > .card-body {
+        padding: 12px 28px 28px;
+    }
+
+    .theme-efor-v2 #new-order-card .row {
+        --bs-gutter-x: 0;
+        margin: 18px 0 0 !important;
+    }
+
+    .theme-efor-v2 #new-order-card .row > .col-md-3,
+    .theme-efor-v2 #new-order-card .row > .col-md-9,
+    .theme-efor-v2 #new-order-card .row > .col-9 {
+        flex: 0 0 100%;
+        width: 100%;
+        max-width: 100%;
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2 #new-order-card .row > .col-md-3 {
+        margin: 0 0 8px;
+    }
+
+    .theme-efor-v2 #new-order-card .row > .col-md-3:has(> label:empty) {
+        display: none;
+    }
+
+    .theme-efor-v2 #new-order-card .row > .col-md-3 label {
+        color: var(--efor-ink) !important;
+        font-size: 17px;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2 #new-order-card #commission-input {
+        max-width: 760px;
+    }
+
+    .theme-efor-v2 #new-order-card .form-control,
+    .theme-efor-v2 #new-order-card .form-select {
+        min-height: 52px;
+        font-size: 16px;
+    }
+
+    /* Adres i e-mail obok siebie (makieta: „Adresse” | „E-Mail-Empfänger”) */
+    .theme-efor-v2 #new-order-card .col-md-9:has(> #address-dropdown-container) {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 28px;
+    }
+
+    .theme-efor-v2 #new-order-card #address-checkbox-container {
+        grid-column: 1 / -1;
+    }
+
+    .theme-efor-v2 #new-order-card #address-dropdown-container,
+    .theme-efor-v2 #new-order-card #mail-dropdown-container {
+        margin: 0 !important;
+        gap: 10px !important;
+    }
+
+    .theme-efor-v2 #new-order-card .manipulate-address,
+    .theme-efor-v2 #new-order-card .manipulate-mail,
+    .theme-efor-v2 #new-order-card .add-new-address {
+        gap: 8px;
+    }
+
+    .theme-efor-v2 #new-order-card .manipulate-address .btn,
+    .theme-efor-v2 #new-order-card .manipulate-mail .btn,
+    .theme-efor-v2 #new-order-card .add-new-address .btn {
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 1px solid var(--efor-line-strong) !important;
+        border-radius: var(--efor-radius-btn) !important;
+        background: var(--efor-card) !important;
+    }
+
+    .theme-efor-v2 #new-order-card .manipulate-address .btn.d-none,
+    .theme-efor-v2 #new-order-card .manipulate-mail .btn.d-none {
+        display: none !important;
+    }
+
+    .theme-efor-v2 #new-order-card .manipulate-address .btn:hover,
+    .theme-efor-v2 #new-order-card .manipulate-mail .btn:hover,
+    .theme-efor-v2 #new-order-card .add-new-address .btn:hover {
+        border-color: var(--efor-amber) !important;
+        background: var(--efor-cream) !important;
+    }
+
+    .theme-efor-v2 #new-order-card .manipulate-address .icon,
+    .theme-efor-v2 #new-order-card .manipulate-mail .icon,
+    .theme-efor-v2 #new-order-card .add-new-address .icon {
+        width: 24px;
+        height: 24px;
+        filter: grayscale(1) brightness(.25);
+    }
+
+    .theme-efor-v2[data-theme="dark"] #new-order-card .icon {
+        filter: grayscale(1) invert(.9);
+    }
+
+    .theme-efor-v2 #new-order-card .form-check-input + .form-check-label,
+    .theme-efor-v2 #new-order-card .form-check-label {
+        font-size: 16px;
+    }
+
+    .theme-efor-v2 #new-order-card #send-address-checkbox-container {
+        margin: 6px 0 0;
+    }
+
+    /* komentarz: licznik znaków wewnątrz pola, w prawym dolnym rogu */
+    .theme-efor-v2 #new-order-card .col-md-9:has(> #comment) {
+        position: relative;
+    }
+
+    .theme-efor-v2 #new-order-card #comment {
+        min-height: 110px;
+        padding-bottom: 30px;
+        resize: vertical;
+    }
+
+    .theme-efor-v2 #new-order-card #charCount {
+        position: absolute;
+        right: 14px;
+        bottom: 10px;
+        color: var(--efor-muted);
+        font-size: 13px;
+    }
+
+    /* stopka karty: [Anuluj] [Zapisz] po prawej */
+    .theme-efor-v2 #new-order-card .card-body > .row > .d-flex.justify-content-center,
+    .theme-efor-v2 #new-order-card .d-flex.justify-content-center.gap-3 {
+        justify-content: flex-end !important;
+        gap: 14px !important;
+        margin: 26px 0 0 !important;
+        padding: 22px 0 0;
+        border-top: 1px solid var(--efor-line);
+    }
+
+    .theme-efor-v2 #new-order-card #save-order-btn,
+    .theme-efor-v2 #new-order-card #update-order,
+    .theme-efor-v2 #new-order-card .btn-outline-danger {
+        width: auto;
+        min-width: 190px;
+        height: 54px;
+        padding: 0 28px !important;
+        flex: 0 0 auto;
+        font-size: 17px;
+    }
+
+    .theme-efor-v2 #new-order-card .btn-outline-danger {
+        order: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-width: 1.5px !important;
+        border-color: var(--efor-ink) !important;
+    }
+
+    .theme-efor-v2 #new-order-card #save-order-btn,
+    .theme-efor-v2 #new-order-card #update-order {
+        order: 2;
+    }
+
+    .theme-efor-v2 #new-order-card #end-client-row .btn {
+        width: 52px;
+        height: 52px;
+        padding: 0 !important;
+    }
+}
+
+
+/* =============================================================================
+   18. STRONA — SZCZEGÓŁY POZYCJI (`/position/:id`)
+   =============================================================================
+   Makieta 1: „Specyfikacja produktu” = rząd kart ze zdjęciem, pod nią dwie
+   karty obok siebie: „Wymiary i ilość” | „Szczegóły ceny” (+ kremowa suma).
+   Podział robi CSS na klasach z position_sent.njk (`efor-price-tr`). */
+@media (min-width: 768px) {
+    .theme-efor-v2[data-efor-page="position"] .content {
+        text-align: left;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .content > .container {
+        margin: 20px 0 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .order-header {
+        border: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .order-header .text-muted {
+        color: var(--efor-muted) !important;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .order-params-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap: 12px;
+        margin: 26px 0 0 !important;
+        padding: 0 12px 12px !important;
+        border: 1px solid var(--efor-line);
+        border-radius: var(--efor-radius-card);
+        background: var(--efor-card);
+        box-shadow: var(--efor-shadow-card);
+        overflow: hidden;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .order-params-grid::before {
+        content: var(--efor-t-cardSpec);
+        grid-column: 1 / -1;
+        margin: 0 -12px 2px;
+        padding: 14px 22px;
+        background: var(--efor-teal);
+        color: #fff;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .param-card-with-image {
+        display: flex;
+        flex-direction: column;
+        margin: 0 !important;
+        padding: 10px !important;
+        border: 1px solid var(--efor-line) !important;
+        border-radius: 12px !important;
+        background: var(--efor-card) !important;
+        box-shadow: none !important;
+        text-align: left;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .param-img-container {
+        display: grid;
+        place-items: center;
+        height: 150px;
+        margin: 0 0 12px;
+        border-radius: 8px;
+        background: var(--efor-sunken);
+        overflow: hidden;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .param-img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        mix-blend-mode: multiply;
+    }
+
+    .theme-efor-v2[data-theme="dark"][data-efor-page="position"] .param-img {
+        mix-blend-mode: normal;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .param-content {
+        padding: 0 4px;
+        text-align: left;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .param-title {
+        margin: 0 0 6px;
+        color: var(--efor-ink);
+        font-size: 15px;
+        font-weight: 700;
+        text-transform: none;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .param-value {
+        color: var(--efor-ink);
+        font-size: 17px;
+        font-weight: 500;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .param-unit {
+        display: block;
+        margin-top: 2px;
+        color: var(--efor-muted);
+        font-size: 14px;
+        font-weight: 400;
+        text-transform: none;
+    }
+
+    /* tabela → dwie karty: [wymiary i ilość | szczegóły ceny] */
+    .theme-efor-v2[data-efor-page="position"] .params-table {
+        width: 100% !important;
+        margin: 8px 0 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tbody {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-flow: row dense;
+        column-gap: 24px;
+        border-radius: var(--efor-radius-card);
+        /* dwie białe „karty” pod kolumnami, z przerwą między nimi */
+        background: linear-gradient(90deg, var(--efor-card) calc(50% - 12px), transparent calc(50% - 12px), transparent calc(50% + 12px), var(--efor-card) calc(50% + 12px));
+        overflow: hidden;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tbody::before,
+    .theme-efor-v2[data-efor-page="position"] .params-table tbody::after {
+        grid-row: 1;
+        padding: 14px 22px;
+        background: var(--efor-teal);
+        color: #fff;
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tbody::before {
+        content: var(--efor-t-cardDims);
+        grid-column: 1;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tbody::after {
+        content: var(--efor-t-cardPriceDetails);
+        grid-column: 2;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tr {
+        grid-column: 1;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 22px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--efor-line);
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tr.efor-price-tr {
+        grid-column: 2;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table th,
+    .theme-efor-v2[data-efor-page="position"] .params-table td {
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: var(--efor-ink) !important;
+        font-size: 16px;
+        text-align: left;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table th {
+        font-weight: 500;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table td {
+        font-weight: 700;
+        font-size: 18px;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tr.efor-total-tr {
+        margin: 10px 12px 12px;
+        padding: 16px 14px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--efor-amber-100);
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tr.efor-total-tr th {
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .params-table tr.efor-total-tr td {
+        font-size: 26px;
+        font-weight: 800;
+    }
+
+    .theme-efor-v2[data-efor-page="position"] .comment-section {
+        border: 1px solid var(--efor-line);
+        border-radius: 12px;
+        background: var(--efor-card);
+    }
+}
+
+
+/* =============================================================================
+   19. STRONY — LISTY OFERT I ZAMÓWIEŃ, START, PANEL
+   ============================================================================= */
+@media (min-width: 768px) {
+    /* listy: tytuł po lewej, przyciski po prawej, filtry i tabela w kartach */
+    .theme-efor-v2[data-efor-group="lists"] .content > .container {
+        margin: 20px 0 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2 .orders-topbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "title buttons"
+            "filter filter";
+        align-items: end;
+        margin: 0 0 22px !important;
+    }
+
+    .theme-efor-v2 .orders-topbar-center {
+        grid-area: title;
+        justify-self: start;
+        text-align: left;
+    }
+
+    .theme-efor-v2 .orders-topbar-right {
+        grid-area: buttons;
+    }
+
+    .theme-efor-v2 .orders-topbar-left {
+        grid-area: filter;
+    }
+
+    .theme-efor-v2 .orders-topbar-left:empty {
+        display: none;
+    }
+
+    .theme-efor-v2 .orders-topbar-right .btn {
+        width: 46px;
+        height: 46px !important;
+        padding: 0 !important;
+        border: 1px solid var(--efor-line-2) !important;
+        background: var(--efor-card) !important;
+    }
+
+    .theme-efor-v2 .orders-topbar-right .icon {
+        filter: grayscale(1) brightness(.25);
+    }
+
+    .theme-efor-v2[data-theme="dark"] .orders-topbar-right .icon {
+        filter: grayscale(1) invert(.9);
+    }
+
+    .theme-efor-v2 .orders-filters-bar {
+        margin: 0 0 18px !important;
+        padding: 16px 18px !important;
+        border: 1px solid var(--efor-line) !important;
+        border-radius: var(--efor-radius-card) !important;
+        background: var(--efor-card) !important;
+        box-shadow: var(--efor-shadow-card);
+        text-align: left;
+    }
+
+    /* wyszukiwarka: ramkę ma kontener z lupą — samo pole bez drugiej ramki */
+    .theme-efor-v2 .orders-search {
+        min-height: 46px;
+        border: 1px solid var(--efor-line-2) !important;
+        border-radius: var(--efor-radius-ctl) !important;
+        background: var(--efor-card) !important;
+    }
+
+    .theme-efor-v2 .orders-search:focus-within {
+        border-color: var(--efor-teal) !important;
+        box-shadow: 0 0 0 3px var(--efor-focus-ring-teal);
+    }
+
+    .theme-efor-v2 .orders-search .orders-search__input,
+    .theme-efor-v2 .orders-search .orders-search__input:focus {
+        min-height: 0;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2 .orders-filters-bar label {
+        color: var(--efor-text-2) !important;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .table {
+        width: 100%;
+        box-shadow: var(--efor-shadow-card) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .table > tbody > tr {
+        cursor: pointer;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .table td.buttons {
+        white-space: nowrap;
+    }
+
+    /* Historia: orders.css ustawia `table-layout: fixed`, przez co ostatnia
+       kolumna („Zamów ponownie”, bez nagłówka) dostawała tyle co reszta
+       i przycisk się łamał. Układ automatyczny daje jej tyle, ile potrzebuje. */
+    .theme-efor-v2[data-efor-page="history"] .table {
+        table-layout: auto;
+    }
+
+    .theme-efor-v2[data-efor-page="history"] .table td:last-child .btn {
+        white-space: nowrap;
+    }
+
+    /* start */
+    .theme-efor-v2[data-efor-page="home"] #main-content .container {
+        margin-top: 20px !important;
+        padding: 26px 28px !important;
+    }
+
+    .theme-efor-v2[data-efor-page="home"] .add-info-box h2 {
+        font-size: 22px !important;
+        text-align: left;
+    }
+
+    /* panel użytkownika (panel.css jest na tokenach — tu tylko akcenty B) */
+    .theme-efor-v2[data-efor-page="panel"] .panel-avatar {
+        background: var(--efor-bronze) !important;
+        color: #fff;
+    }
+
+    .theme-efor-v2[data-efor-page="panel"] .panel-title {
+        font-size: 36px !important;
+        font-weight: 800 !important;
+    }
+
+    .theme-efor-v2[data-efor-page="panel"] .panel-tab.active {
+        border-color: var(--efor-amber) !important;
+        background: var(--efor-cream) !important;
+    }
+
+    .theme-efor-v2[data-efor-page="panel"] .panel-tab.active .panel-tab-icon {
+        background: var(--efor-amber) !important;
+        color: var(--efor-amber-ink) !important;
+    }
+}
+
+
+/* =============================================================================
+   20. MOBILE (< 768 px) — ten sam, dopracowany układ mobilny w palecie B
+   =============================================================================
+   Warstwa mobilna (public/styles/mobile/*) jest oparta na tokenach `--m-*`
+   (mobile/tokens.css) — wariant B podmienia tokeny, a do tego karty
+   pozycji dostają turkusowy nagłówek jak na desktopie. Kafelki wyboru
+   produktu i panel ceny są tylko od 768 / 992 px (patrz sekcje 15–16). */
+@media (max-width: 767.98px) {
+    .theme-efor-v2 {
+        --m-accent: #f7b417;
+        --m-accent-press: #df9d06;
+        --m-accent-soft: rgba(247, 180, 23, .16);
+        --m-on-accent: #1b1403;
+        --m-bg: #f7f5f1;
+        --m-card: #ffffff;
+        --m-field: #ffffff;
+        --m-field-press: #f4f2ed;
+        --m-text: #0b1324;
+        --m-text-muted: #4a5361;
+        --m-text-soft: #8a919c;
+        --m-border: #e8e6e0;
+        --m-border-strong: #cdd1d8;
+        --m-focus: rgba(247, 180, 23, .5);
+        --m-ink: #265b63;
+        --m-shadow-card: 0 1px 2px rgba(16, 24, 40, .05);
+        --m-shadow-header: 0 1px 0 #e8e6e0;
+    }
+
+    .theme-efor-v2[data-theme="dark"] {
+        --m-accent: #f7b417;
+        --m-accent-press: #df9d06;
+        --m-on-accent: #1b1403;
+        --m-bg: #0f1619;
+        --m-card: #182227;
+        --m-field: #1d2930;
+        --m-field-press: #22313a;
+        --m-text: #eef3f4;
+        --m-text-muted: #b4c1c5;
+        --m-text-soft: #7d8f95;
+        --m-border: rgba(255, 255, 255, .08);
+        --m-border-strong: rgba(255, 255, 255, .18);
+        --m-ink: #8cc3cb;
+        --m-shadow-card: 0 1px 2px rgba(0, 0, 0, .35);
+        --m-shadow-header: 0 1px 0 rgba(255, 255, 255, .06);
+    }
+
+    .theme-efor-v2 h1,
+    .theme-efor-v2 h2 {
+        font-weight: 800 !important;
+        letter-spacing: -.025em;
+    }
+
+    /* aktywna pozycja dolnego paska — bursztynowa pigułka pod ikoną */
+    .theme-efor-v2 .m-bottomnav__item[aria-current="page"],
+    .theme-efor-v2 .m-bottomnav__item.is-active {
+        color: var(--m-text);
+    }
+
+    /* karty pozycji oferty: turkusowy pasek z numerem i nazwą grupy */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card {
+        overflow: hidden;
+        border-color: var(--m-border) !important;
+    }
+
+    /* karta mobilna ma `padding: 12px 14px` (mobile/order-view.css) —
+       ujemny margines rozciąga pasek od krawędzi do krawędzi */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card {
+        padding-top: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-header {
+        margin: 0 -14px 12px !important;
+        padding: 12px 14px !important;
+        align-items: center !important;
+        background: var(--efor-teal);
+        color: #fff;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-header .mobile-item-name,
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-header .mobile-item-group,
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-header::after {
+        color: #fff !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-number {
+        border-color: rgba(255, 255, 255, .35) !important;
+        background: rgba(255, 255, 255, .14) !important;
+        color: #fff !important;
+    }
+
+    .theme-efor-v2 .ui-variant-toggle--menu {
+        color: var(--m-text) !important;
+    }
+
+    .theme-efor-v2 .efor-chooser,
+    .theme-efor-v2 .efor-positions-bar,
+    .theme-efor-v2 .efor-summary,
+    .theme-efor-v2 .efor-add-position,
+    .theme-efor-v2 .efor-order-status {
+        display: none !important;
+    }
+}
+
+
+/* =============================================================================
+   19b. PASEK ADMINA (organizacja / klient / panel admina)
+   =============================================================================
+   admin_section.css przypina go do górnej krawędzi na środku ekranu — w B
+   wchodziłby na okruszki i przełącznik wyglądu. Tu staje się drugim rzędem
+   paska górnego (pod linią), a treść strony schodzi o jego wysokość. */
+@media (min-width: 851px) {
+    .theme-efor-v2 .admin-section {
+        top: var(--efor-topbar-h) !important;
+        left: calc(var(--efor-nav-w) + var(--efor-gutter)) !important;
+        right: var(--efor-gutter);
+        transform: none;
+        justify-content: flex-start;
+        gap: 10px;
+        height: 56px;
+        max-height: none !important;
+        padding: 0 !important;
+        border-bottom: 1px solid var(--efor-line);
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2.nav-collapsed .admin-section {
+        left: calc(var(--efor-nav-w-collapsed) + var(--efor-gutter)) !important;
+    }
+
+    .theme-efor-v2 .admin-section .admin-btn {
+        height: 38px !important;
+        border: 1px solid var(--efor-line-2) !important;
+        border-radius: var(--efor-radius-btn) !important;
+        background: var(--efor-card) !important;
+        color: var(--efor-ink) !important;
+        font-weight: 600 !important;
+    }
+
+    .theme-efor-v2 .admin-section .admin-btn:hover {
+        border-color: var(--efor-amber) !important;
+        background: var(--efor-cream) !important;
+    }
+
+    .theme-efor-v2 .admin-section .admin-btn .nav-icon {
+        width: 20px;
+        height: 20px;
+        filter: grayscale(1) brightness(.25);
+    }
+
+    .theme-efor-v2[data-theme="dark"] .admin-section .admin-btn .nav-icon {
+        filter: grayscale(1) invert(.9);
+    }
+
+    .theme-efor-v2:has(.admin-section) main {
+        padding-top: calc(var(--efor-topbar-h) + 60px);
+    }
+}
+
+/* =============================================================================
+   20b. LOGOWANIE (login.njk) — propozycja, makiet logowania nie ma
+   =============================================================================
+   Zdjęcie tła zostaje; karta logowania dostaje paletę B: biała, turkusowy
+   tytuł z kreską w bursztynie, bursztynowy przycisk. Pasek górny z sekcji 6
+   dotyczy aplikacji — tu flagi języków zostają w prawym rogu. */
+.theme-efor-v2[data-efor-page="login"] header.languages {
+    position: absolute !important;
+    top: 12px;
+    left: auto;
+    right: 16px;
+    height: auto;
+    display: block !important;
+    border: 0;
+}
+
+.theme-efor-v2[data-efor-page="login"] header.languages .language-switcher {
+    display: inline-flex !important;
+    border-color: var(--efor-line);
+    background: var(--efor-card);
+}
+
+.theme-efor-v2[data-efor-page="login"] .login-box {
+    border: 1px solid var(--efor-line) !important;
+    border-radius: 18px !important;
+    background: var(--efor-card) !important;
+    backdrop-filter: none;
+    box-shadow: var(--efor-shadow-pop) !important;
+}
+
+.theme-efor-v2[data-efor-page="login"] .login-box::before {
+    height: 5px;
+    background: var(--efor-teal);
+}
+
+.theme-efor-v2[data-efor-page="login"] .login-box h3 {
+    color: var(--efor-ink) !important;
+    font-weight: 800 !important;
+}
+
+.theme-efor-v2[data-efor-page="login"] .login-box h3::after {
+    content: '';
+    display: block;
+    width: 44px;
+    height: 4px;
+    margin: 10px auto 0;
+    border-radius: 9999px;
+    background: var(--efor-amber);
+}
+
+.theme-efor-v2[data-efor-page="login"] .theme-toggle-login {
+    border: 1px solid var(--efor-line-2) !important;
+    background: var(--efor-card) !important;
+    color: var(--efor-text) !important;
+    box-shadow: none !important;
+}
+
+.theme-efor-v2[data-efor-page="login"] .login-box input {
+    height: 50px;
+    border: 1px solid var(--efor-line-2) !important;
+    border-radius: var(--efor-radius-ctl) !important;
+    background: var(--efor-card) !important;
+}
+
+.theme-efor-v2[data-efor-page="login"] .login-box button[type="submit"] {
+    height: 52px;
+    border: 0 !important;
+    border-radius: var(--efor-radius-btn) !important;
+    background: var(--efor-amber) !important;
+    color: var(--efor-amber-ink) !important;
+    font-weight: 800;
+    animation: none !important;
+}
+
+.theme-efor-v2[data-efor-page="login"] .login-box button[type="submit"]:hover {
+    background: var(--efor-amber-hover) !important;
+}
+
+.theme-efor-v2[data-efor-page="login"] #env-info {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    background: var(--efor-amber-50);
+    color: #7a5a12;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* =============================================================================
+   21. PRZEJŚCIE MIĘDZY WARIANTAMI, OGRANICZONY RUCH
+   =============================================================================
+   uiVariant.js używa View Transitions API (przenikanie całego widoku); gdy go
+   nie ma, na 400 ms dokłada klasę `efor-switching`, a ta włącza przejścia
+   kolorów wszystkich elementów. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: .28s;
+    animation-timing-function: cubic-bezier(.2, 0, 0, 1);
+}
+
+.efor-switching,
+.efor-switching *,
+.efor-switching *::before,
+.efor-switching *::after {
+    transition: background-color .3s ease, color .3s ease, border-color .3s ease, box-shadow .3s ease, fill .3s ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .theme-efor-v2 *,
+    .theme-efor-v2 *::before,
+    .theme-efor-v2 *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
+
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none;
+    }
+}
+
+
+/* =============================================================================
+   22. WYBÓR WARIANTU W PANELU UŻYTKOWNIKA (oba warianty)
+   =============================================================================
+   panel.njk, zakładka „Personalizacja”: dwa kafelki A/B z miniaturą układu.
+   Zaznaczenie (`aria-checked`, `.is-active`) ustawia uiVariant.js. */
+.ui-variant-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 18px 0 26px;
+}
+
+.ui-variant-option {
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 12px !important;
+    border: 1.5px solid var(--border-default) !important;
+    border-radius: 14px !important;
+    background: var(--bg-surface-solid) !important;
+    box-shadow: none !important;
+    color: var(--text-primary) !important;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.ui-variant-option::after {
+    display: none !important;
+}
+
+.ui-variant-option:hover {
+    border-color: var(--border-strong) !important;
+}
+
+.ui-variant-option[aria-checked="true"] {
+    border: 2px solid #f7b417 !important;
+    background: #fefaf1 !important;
+}
+
+[data-theme="dark"] .ui-variant-option[aria-checked="true"] {
+    background: rgba(247, 180, 23, .08) !important;
+}
+
+.ui-variant-option:focus-visible {
+    outline: 3px solid rgba(247, 180, 23, .55);
+    outline-offset: 2px;
+}
+
+.ui-variant-option__text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 4px 4px;
+}
+
+.ui-variant-option__name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.ui-variant-option__letter {
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #5e6e82;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.ui-variant-option[data-ui-variant-set="efor-v2"] .ui-variant-option__letter {
+    background: #f7b417;
+    color: #1b1403;
+}
+
+.ui-variant-option__desc {
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    font-weight: 400;
+    line-height: 1.4;
+}
+
+/* miniatura: [pasek boczny | pasek górny, dwie karty, przycisk] */
+.ui-variant-option__preview {
+    position: relative;
+    display: block;
+    height: 118px;
+    border-radius: 9px;
+    overflow: hidden;
+}
+
+.ui-variant-option__preview > span {
+    position: absolute;
+    display: block;
+    border-radius: 4px;
+}
+
+.uvp-nav { left: 0; top: 0; bottom: 0; width: 26%; border-radius: 0 !important; }
+.uvp-bar { left: 32%; right: 6%; top: 10%; height: 9%; }
+.uvp-card { left: 32%; right: 36%; top: 28%; bottom: 12%; }
+.uvp-card--2 { left: 68% !important; right: 6% !important; }
+.uvp-btn { right: 8%; bottom: 17%; width: 18%; height: 11%; }
+
+.ui-variant-option__preview--classic { background: #f1f5f9; }
+.ui-variant-option__preview--classic .uvp-nav { background: #ffffff; box-shadow: 1px 0 0 #e2e8f0; }
+.ui-variant-option__preview--classic .uvp-bar { background: linear-gradient(90deg, #5e6e82, #6b9dad); opacity: .35; }
+.ui-variant-option__preview--classic .uvp-card { background: #ffffff; box-shadow: inset 0 3px 0 #6b9dad; }
+.ui-variant-option__preview--classic .uvp-btn { background: #10b981; }
+
+.ui-variant-option__preview--efor { background: #f7f5f1; }
+.ui-variant-option__preview--efor .uvp-nav { background: #fefefd; box-shadow: 1px 0 0 #e8e6e0; }
+.ui-variant-option__preview--efor .uvp-nav::after {
+    content: '';
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    top: 34%;
+    height: 11%;
+    border-radius: 3px;
+    background: #f7b417;
+}
+.ui-variant-option__preview--efor .uvp-bar { background: transparent; box-shadow: 0 1px 0 #dfe1e5; border-radius: 0 !important; }
+.ui-variant-option__preview--efor .uvp-card { background: #ffffff; box-shadow: inset 0 14px 0 #265b63; }
+.ui-variant-option__preview--efor .uvp-btn { background: #f7b417; }

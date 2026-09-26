@@ -18,6 +18,19 @@
         <link rel="stylesheet" href="/styles/responsive.css?v={{ assetVersion }}">
         <link rel="stylesheet" href="/styles/intro.css">
         <script src="/scripts/themeToggle.js"></script>
+        {# ── Wariant wyglądu A (klasyczny) / B („Efor 2.0”) ──────────────────
+           Synchronicznie i jak najwcześniej: uiVariant.js ustawia klasę
+           `theme-efor-v2` na <html> przed pierwszym malowaniem, więc po
+           odświeżeniu nie ma mignięcia wariantu A. Style wariantu B są w
+           /styles/theme-efor-v2.css (wczytywany na końcu <head>), widoki
+           dokładane przez JS w /scripts/uiVariantView.js (koniec <body>).
+           Etykiety: partials/efor-v2-strings.njk (słownik w repo, bo pliki
+           tłumaczeń żyją poza nim — patrz komentarz w tamtym pliku). #}
+        <script src="/scripts/uiVariant.js?v={{ assetVersion }}"></script>
+        {% import "partials/efor-v2-strings.njk" as eforStrings %}
+        {% set eforT = eforStrings.dict[locale] or eforStrings.dict["en"] %}
+        <style id="efor-v2-strings">:root{ {%- for key in eforStrings.cssKeys %}--efor-t-{{ key }}:"{{ eforT[key] | safe }}";{% endfor -%} }</style>
+        <script>window.eforV2I18n = {{ eforT | dump | safe }};</script>
         <link rel="stylesheet" href="/styles/mobile/main.css">
         <link rel="stylesheet" href="/scripts/components/mobile-toast.css">
         <link rel="stylesheet" href="/styles/mobile/layout.css">
@@ -85,7 +98,13 @@
         }
     })();
 </script>
-{% block head %}{% endblock head %}</head><body>
+{% block head %}{% endblock head %}
+{# Wariant B PO arkuszach podstrony (blok `head`), żeby przy równej
+   specyficzności wygrywał. W wariancie A nic nie robi — każda reguła wisi pod
+   `.theme-efor-v2` (wyjątek: sam przycisk „Zmień wygląd”, opisany w pliku). #}
+<link rel="stylesheet" href="/styles/theme-efor-v2.css?v={{ assetVersion }}">
+</head><body>
+{% include "partials/efor-v2-icons.njk" %}
 {% block nav %}
     <nav class="navbar navbar-expand-lg navbar-light bg-light mobile-nav">
         <div class="container-fluid">
@@ -176,6 +195,17 @@
                             </div>
                         </li>
                     {% endif %}
+                    {# Przełącznik wariantu wyglądu — na telefonie `.languages` (gdzie
+                       siedzi wersja desktopowa) jest ukryty, więc przycisk żyje też tu.
+                       Obsługa kliknięcia: delegacja w uiVariant.js po `data-ui-variant-toggle`. #}
+                    <li class="nav-item">
+                        <button type="button" class="nav-link ui-variant-toggle ui-variant-toggle--menu" data-ui-variant-toggle aria-pressed="false"
+                                data-hint-efor="{{ eforT.toggleToEfor }}" data-hint-classic="{{ eforT.toggleToClassic }}" title="{{ eforT.toggleToEfor }}">
+                            <svg class="ui-variant-toggle__icon" aria-hidden="true"><use href="#efor-i-palette"/></svg>
+                            <span class="ui-variant-toggle__label">{{ eforT.toggle }}</span>
+                            <span class="ui-variant-toggle__state" aria-hidden="true" data-state-classic="{{ eforT.variantClassic }}" data-state-efor="{{ eforT.variantEfor }}"></span>
+                        </button>
+                    </li>
                     <li class="nav-item">
                         {# ⚠️ Prawdziwy formularz, nie link z `data-action`: wylogowanie
                            działało wyłącznie dzięki JS-owi (`base.js` podpinał handler
@@ -212,23 +242,28 @@
                 {% block extra_nav_links %}
                     <a href="/orders/clear-context" id='context-button' class="custom-nav-link context-button has-tooltip d-none" data-tooltip="{{ __('base.turn_off_context') }}">
                         <img src="/img/power.png" class='nav-icon' alt="new-order-icon">
+                        <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-power"/></svg>
                         <span class="nav-text">{{ __('base.turn_off_context') }}</span>
                     </a>
                 {% endblock %}
                 <a href="/orders/add-order" id='new-order-nav-btn' class="custom-nav-link nav-link-primary has-tooltip" data-tooltip="{{ __('base.new_order') }}">
                     <img src="/img/new-order.png" class='nav-icon' alt="new-order-icon">
+                    <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-file-plus"/></svg>
                     <span class="nav-text fw-bold nav-text-new-order">{{ __('base.new_order') }}</span>
                 </a>
                 <a href="/orders" id='orders-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="{{ __('base.your_orders') }}">
                     <img src="/img/orders.png" class='nav-icon' alt="orders-ico">
+                    <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-clipboard"/></svg>
                     <span class="nav-text">{{ __('base.your_orders') }}</span>
                 </a>
                 <a href="/orders/history" id='orders-history-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="{{ __('base.orders_history') }}">
                     <img src="/img/orders_history.png" class='nav-icon' alt="orders-ico">
+                    <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-truck"/></svg>
                     <span class="nav-text">{{ __('base.orders_history') }}</span>
                 </a>
                 <a id='employee-panel-nav-btn' class="custom-nav-link has-tooltip d-none" data-tooltip="{{ __('base.employee_panel_tooltip') }}">
                     <img src="/img/employee.png" class='nav-icon' alt="orders-ico">
+                    <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-users"/></svg>
                     <span class="nav-text">{{ __('base.employee_panel') }}</span>
                 </a>
                 {# Panel faktur — przy włączonej fladze `features.invoices`
@@ -239,6 +274,7 @@
                 {% if invoicesEnabled %}
                     <a href="/invoices" id='invoices-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="Faktury">
                         <img src="/img/orders_history.png" class='nav-icon' alt="invoices-ico">
+                        <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-receipt"/></svg>
                         <span class="nav-text">Faktury</span>
                     </a>
                 {% endif %}
@@ -251,12 +287,14 @@
                 {% if canManageCustomers %}
                     <a href="/org/customers" id='org-customers-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="Klienci organizacji">
                         <img src="/img/employee.png" class='nav-icon' alt="customers-ico">
+                        <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-contacts"/></svg>
                         <span class="nav-text">Klienci</span>
                     </a>
                 {% endif %}
                 {% if isGroup %}
                     <a href="/group/panel" class="custom-nav-link has-tooltip" data-tooltip="{{ __('group.panel_title') }}">
                         <img src="/img/orders.png" class='nav-icon' alt="group-panel-icon">
+                        <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-store"/></svg>
                         <span class="nav-text">{{ __('group.panel_title') }}</span>
                     </a>
                 {% endif %}
@@ -264,6 +302,7 @@
                 <form method="POST" action="/user/logout" class="nav-logout-form">
                     <button type="submit" id='logout-nav-btn' class="custom-nav-link has-tooltip nav-logout-btn" data-tooltip="{{ __('base.logout') }}">
                         <img src="/img/logout.png" class='nav-icon' alt="orders-ico">
+                        <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-logout"/></svg>
                         <span class="nav-text">{{ __('base.logout') }}</span>
                     </button>
                 </form>
@@ -316,6 +355,7 @@
                                 </div>
                                 <a href="/user/org-pwd" id='pwd-org-btn'class="custom-nav-link has-tooltip" data-tooltip="Hasła">
                                     <img src="/img/key-chain.png" class='nav-icon' alt="passwords">
+                                    <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-key"/></svg>
                                 </a>
                             </div>
                         </div>
@@ -333,19 +373,66 @@
         <div id='config-div'>
             <p id='config-number-info'></p>
         </div>
+        {# Wariant B: karta konta na dole paska (jak w makietach). Treść wypełnia
+           uiVariantView.js z danych, które base.js i tak pobiera (`/user/name`,
+           zdarzenie `eform:user-loaded`) — bez drugiego zapytania. W wariancie A
+           dane konta pokazuje jak dotąd `#user-info` wyżej. #}
+        <div class="efor-user-card efor-v2-only" data-efor-user-card>
+            <span class="efor-user-card__avatar" aria-hidden="true" data-efor-initials><svg><use href="#efor-i-user"/></svg></span>
+            <span class="efor-user-card__text">
+                <span class="efor-user-card__name" data-efor-user-name></span>
+                <span class="efor-user-card__mail" data-efor-user-mail></span>
+                <span class="efor-user-card__extra" data-efor-user-extra></span>
+            </span>
+        </div>
     </nav>
 {% endblock %}
 <header class="languages">
+    {# Wariant B: okruszki po lewej stronie paska górnego. Ścieżkę (sekcja z
+       aktywnego linku nawigacji + tytuł strony) dopisuje uiVariantView.js. #}
+    <nav class="efor-breadcrumb efor-v2-only" aria-label="{{ eforT.breadcrumb }}">
+        <a href="/" class="efor-breadcrumb__home" aria-label="{{ eforT.home }}"><svg aria-hidden="true"><use href="#efor-i-home"/></svg></a>
+        <ol class="efor-breadcrumb__trail" data-efor-breadcrumb></ol>
+    </nav>
     <a href="/panel" id="user-panel-header-btn" title="{{ __('panel.nav_link') }}" aria-label="{{ __('panel.nav_link') }}">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span>{{ __('panel.nav_link') }}</span>
+        {# Wariant B: awatar z inicjałami zamiast pigułki z napisem (inicjały: uiVariantView.js). #}
+        <span class="efor-avatar efor-v2-only" data-efor-initials aria-hidden="true"><svg><use href="#efor-i-user"/></svg></span>
+        <svg class="efor-avatar__chevron efor-v2-only" aria-hidden="true"><use href="#efor-i-chevron-down"/></svg>
+        <svg class="efor-classic-only" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="efor-classic-only">{{ __('panel.nav_link') }}</span>
     </a>
+    {# „Zmień wygląd” — przełącznik wariantu A ⇄ B, widoczny w obu wariantach.
+       Stan (aria-pressed, podpowiedź) ustawia uiVariant.js; litera A/B na
+       plakietce idzie z CSS (`data-state-*`), więc nie miga przy ładowaniu.
+       Tour i przełącznik motywu wstawia za nim themeToggle.js. #}
+    <button type="button" class="ui-variant-toggle" id="ui-variant-toggle" data-ui-variant-toggle aria-pressed="false"
+            data-hint-efor="{{ eforT.toggleToEfor }}" data-hint-classic="{{ eforT.toggleToClassic }}" title="{{ eforT.toggleToEfor }}">
+        <svg class="ui-variant-toggle__icon" aria-hidden="true"><use href="#efor-i-palette"/></svg>
+        <span class="ui-variant-toggle__label">{{ eforT.toggle }}</span>
+        <span class="ui-variant-toggle__state" aria-hidden="true" data-state-classic="A" data-state-efor="B"></span>
+    </button>
     <div class="language-switcher">
         <a href="/change-language?lang=pl" {% if locale=='pl' %} class="active" data-tooltip="{{ __('base.polish_tooltip') }}" {% endif %}><img src="/img/poland.png" alt="Poland flag" width="30" height="28"></a>
         <a href="/change-language?lang=en" {% if locale=='en' %} class="active" data-tooltip="{{ __('base.base.english_tooltip') }}" {% endif %}><img src="/img/united-kingdom.png" alt="UK flag" width="30" height="28"></a>
         <a href="/change-language?lang=de" {% if locale=='de' %} class="active" data-tooltip="{{ __('base.german_tooltip') }}" {% endif %}><img src="/img/germany.png" alt="Germany flag" width="30" height="28"></a>
         <a href="/change-language?lang=nl" {% if locale=='nl' %} class="active" data-tooltip="{{ __('base.netherlands_tooltip') }}" {% endif %}><img src="/img/netherlands.png" alt="Netherlands flag" width="30" height="28"></a>
         <a href="/change-language?lang=fr" {% if locale=='fr' %} class="active" data-tooltip="{{ __('base.french_tooltip') }}" {% endif %}><img src="/img/france.png" alt="France flag" width="30" height="28"></a>
+    </div>
+    {# Wariant B: lista rozwijana języków („🌐 Deutsch ▾”) zamiast rzędu flag —
+       te same adresy `/change-language`. Nazwy w językach własnych, więc bez
+       tłumaczeń. Rozwijanie: dropdown Bootstrapa (bundle w <head>). #}
+    {% set eforLangNames = { "pl": "Polski", "en": "English", "de": "Deutsch", "nl": "Nederlands", "fr": "Français" } %}
+    <div class="efor-lang dropdown efor-v2-only">
+        <button type="button" class="efor-lang__btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ eforT.language }}: {{ eforLangNames[locale] | default('English') }}">
+            <svg class="efor-lang__globe" aria-hidden="true"><use href="#efor-i-globe"/></svg>
+            <span class="efor-lang__name">{{ eforLangNames[locale] | default('English') }}</span>
+            <svg class="efor-lang__chevron" aria-hidden="true"><use href="#efor-i-chevron-down"/></svg>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end efor-lang__menu">
+            {% for code, name in eforLangNames %}
+                <li><a class="dropdown-item{% if locale == code %} active{% endif %}" href="/change-language?lang={{ code }}" hreflang="{{ code }}" lang="{{ code }}"{% if locale == code %} aria-current="true"{% endif %}>{{ name }}</a></li>
+            {% endfor %}
+        </ul>
     </div>
 </header>
 <main>
@@ -526,4 +613,8 @@
     <script type='module' src="/scripts/intro/main.js"></script><script type='module' src='/scripts/base.js'></script><script type="module" src="/scripts/getEnv.js"></script><script src="/scripts/navActiveState.js"></script><script type="module" src="/scripts/owner/owner.js"></script><script>window.loadTranslations(document.documentElement.lang || 'en');
     window.loadLangs()
 </script>
+{# Widoki wariantu B (okruszki, karty wyboru produktu, panel ceny, podsumowanie
+   oferty). Czysto prezentacyjne — czytają istniejący DOM i klikają istniejące
+   przyciski, nie liczą niczego same. W wariancie A śpią (brak obserwatorów). #}
+<script type="module" src="/scripts/uiVariantView.js?v={{ assetVersion }}"></script>
 {% block scripts %}{% endblock scripts %}</body></html>

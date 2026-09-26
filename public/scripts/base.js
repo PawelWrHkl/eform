@@ -98,6 +98,11 @@ export async function getUserName() {
         throw new Error('Błąd pobierania nazwy użytkownika: ' + data.message);
     }
 
+    // Dane konta dla widoków, które nie powinny pytać `/user/name` drugi raz —
+    // karta konta i awatar w wariancie wyglądu B (scripts/uiVariantView.js).
+    window.eformUser = data;
+    window.dispatchEvent(new CustomEvent('eform:user-loaded', { detail: data }));
+
     const escapeHtml = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

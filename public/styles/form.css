@@ -89,6 +89,16 @@ input[type="number"]:focus {
 	outline: none;
 }
 
+/* Maska "liczba się liczy" na polach cenowych (createForm.js
+   `maskPriceValuesDuringCalc`/`unmaskPriceValues`, wołane z form.js
+   `updateProcedure`) — na wolniejszym łączu kolejne asynchroniczne skrypty
+   cenowe dopisują wartość do DOM krok po kroku i widać przez moment
+   pośrednie, błędne liczby. Samo pole zostaje na miejscu (żaden reflow),
+   znika tylko tekst — stąd `color: transparent`, nie `display`/`visibility`. */
+input.price-value-masked {
+	color: transparent !important;
+}
+
 .form-content {
 	max-width: 90%;
 	float: left;

@@ -992,6 +992,30 @@ dialog::backdrop {
     box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15) !important;
 }
 
+/* Pasek "dane z pamięci lokalnej" — components/offlineBanner.js. Zawsze na
+   samej górze, ponad nawigacją, bo dotyczy WSZYSTKIEGO co widać pod nim. */
+#eform-offline-banner {
+    position: sticky;
+    top: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--color-warning-bg);
+    border-bottom: 1px solid var(--color-warning-border);
+    color: var(--color-warning);
+    font-size: var(--text-sm, 0.875rem);
+    font-weight: 600;
+    text-align: center;
+}
+
+.eform-offline-banner-time {
+    font-weight: 400;
+    opacity: 0.85;
+}
+
 /* ============================================
    CONNECTION LOST — Prominent
    ============================================ */

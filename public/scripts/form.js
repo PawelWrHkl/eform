@@ -29,7 +29,7 @@ import {
   hideLocked, hideSub, hideParams, shouldHideRegularPriceRow, canUserSeeSubPrices,
   applySubPriceLayoutDuringCalc, showSubPriceRowsImmediately,
   restoreLockedParamsFromDisplayValues, syncLockedParamsFromEnableFormulas,
-  isParamLocked, hideLockedParamRows
+  isParamLocked, hideLockedParamRows, maskPriceValuesDuringCalc, unmaskPriceValues
 } from './formTools/createForm.js'
 import { AttrLoader } from "./formTools/storage.js";
 import { Translator } from "./formTools/fileTranslator.js"
@@ -533,6 +533,20 @@ export async function updateProcedure({
   window.isPriceCalculating = false;
   disableFormButtons(true);
   applySubPriceLayoutDuringCalc(params, inputs, values, displayValues);
+  // Maskuje liczby cenowe na czas przeliczenia — patrz komentarz przy
+  // `maskPriceValuesDuringCalc` (createForm.js): bez tego, na wolniejszym
+  // łączu, widać przez moment kolejne pośrednie wartości wpisywane do DOM
+  // przez asynchroniczne skrypty cenowe (`calculateFromScript`).
+  maskPriceValuesDuringCalc(params, inputs);
+  // Siatka bezpieczeństwa: `updateProcedure` nie ma try/finally wokół całego
+  // ciała, więc wyjątek gdziekolwiek między tym miejscem a normalnym
+  // zdjęciem maski (`unmaskPriceValues` niżej) zostawiłby ceny NA STAŁE
+  // niewidoczne — dużo gorsza usterka niż migotanie, które łatamy. Ten sam
+  // wzorzec „i tak kiedyś się odblokuje" co `window.finishFlag` kawałek
+  // niżej. `unmaskPriceValues` na już odmaskowanych polach jest bezpieczne
+  // (samo `classList.remove` nieistniejącej klasy), więc podwójne
+  // wywołanie na normalnej ścieżce nic nie psuje.
+  setTimeout(() => unmaskPriceValues(params, inputs), 4000);
 
   console.log('🔒 updateProcedure rozpoczęte, UI zablokowane');
 
@@ -580,6 +594,9 @@ export async function updateProcedure({
     window.isPriceCalculating = true;
     disableFormButtons(false);
     applyPriceFactor(params, inputs, values);
+    // Dopiero teraz, po ostatnim kroku (łącznie z applyPriceFactor) — inaczej
+    // odsłonięta liczba mogłaby na moment pokazać wartość sprzed przemnożenia.
+    unmaskPriceValues(params, inputs);
     console.log('🔓 Wszystkie obliczenia zakończone, UI odblokowane');
   }
   console.log('display values 123', displayValues);

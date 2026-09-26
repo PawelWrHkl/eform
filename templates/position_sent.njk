@@ -90,7 +90,9 @@
                                                                                 {% set showRow = false %}
                                                                             {% endif %}
                                                                             {% if showRow %}
-                                                                            <tr>
+                                                                            {# Klasy tylko dla wariantu wyglądu B (theme-efor-v2.css): tabela dzieli się
+                                                                               tam na „Wymiary i ilość” oraz „Szczegóły ceny”. W wariancie A bez skutku. #}
+                                                                            <tr class="{% if isListsum %}efor-price-tr{% endif %}{% if param[1].listsum %} efor-total-tr{% endif %}">
                                                                                 <th>{{ param[1].param_description }}</th>
                                                                                 <td>
                                                                                     {{ param[1].option_value }}

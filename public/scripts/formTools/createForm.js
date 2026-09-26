@@ -632,6 +632,56 @@ export function hideRegularPriceRowsDuringCalc(params, inputs) {
     }
 }
 
+/**
+ * Maskuje TEKST wszystkich pól cenowych (row-2/listsum, katalogowych I
+ * SUB___, bez względu na to, kto akurat ma je pokazane) na czas trwania
+ * przeliczenia — zgłoszenie właściciela: przy wolniejszym łączu widać przez
+ * moment „dziwne liczby", bo `updateFieldStates` (updateFieldsAndValues.js)
+ * dopisuje każdą wartość do DOM osobno, w miarę jak kolejne asynchroniczne
+ * skrypty cenowe (`calculateFromScript`, pricesCalculator.js) się
+ * wykonują — na szybkim łączu te kroki mieszczą się w jednej klatce i nikt
+ * ich nie widzi, na wolnym każdy krok jest osobno widoczny.
+ *
+ * ⚠️ Celowo NIE `display: none` na całym wierszu (jak
+ * `hideRegularPriceRowsDuringCalc`/`showSubPriceRowsImmediately` obok) —
+ * to przełącza WIDOCZNOŚĆ WIERSZA między dwoma stałymi stanami (katalog
+ * kontra SUB) i robi to raz na przeliczenie. Tu chodzi o coś innego: sam
+ * TEKST liczby ma zniknąć na czas liczenia, a wiersz (i jego miejsce w
+ * layoucie) ma zostać dokładnie tam, gdzie był — inaczej przy KAŻDEJ
+ * zmianie pola cały panel cen migałby (pojawiał się/znikał) zamiast tylko
+ * chwilowo „ciemnieć". Stąd `color: transparent` na samym inpucie
+ * (public/styles/form.css `.price-value-masked`), nie zmiana `display`.
+ */
+export function maskPriceValuesDuringCalc(params, inputs) {
+    if (!params || !inputs) return;
+    for (const param of params) {
+        if (!param?.NAME) continue;
+        const isRowTwo = param.LISTROW == '2' || param.LISTSUM == 'true';
+        if (!isRowTwo) continue;
+        inputs[param.NAME]?.classList.add('price-value-masked');
+    }
+}
+
+/**
+ * Zdejmuje maskę z `maskPriceValuesDuringCalc` — wołane, gdy `updateProcedure`
+ * kończy CAŁĄ kolejkę przeliczeń (form.js, `window.isCalculating = false`).
+ *
+ * ⚠️ Zamiatamy WSZYSTKIE `inputs`, nie tylko te z listy `params` (jak przy
+ * maskowaniu) — pola `_S` (specyfikacja ceny, pricesCalculator.js
+ * `calculateFromScript`) potrafią dostać maskę „przy okazji": ich element
+ * powstaje w trakcie liczenia jako `parentInput.cloneNode(true)`, co kopiuje
+ * też klasę CSS rodzica, jeśli akurat była nią oznaczona w chwili klonowania.
+ * `_S` nie zawsze jest osobnym wpisem w `params`, więc pętla po `params`
+ * tego wpisu by nie odwiedziła i klasa zostałaby na stałe (nieszkodliwie —
+ * `_S` i tak ma `display: none` — ale bałaganiąco).
+ */
+export function unmaskPriceValues(params, inputs) {
+    if (!inputs) return;
+    for (const key of Object.keys(inputs)) {
+        inputs[key]?.classList?.remove('price-value-masked');
+    }
+}
+
 export function hideLocked(inputs, displayValues) {
 
     for (const [key, value] of displayValues) {

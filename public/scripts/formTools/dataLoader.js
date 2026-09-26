@@ -1,4 +1,9 @@
+import { showOfflineBanner, hideOfflineBanner } from '../components/offlineBanner.js';
+import { idbSetText, idbGetText } from './idbTextCache.js';
 
+// Prefiks kluczy cache'u plików tekstowych (param.txt/paramdict.txt/group.txt/
+// prod.txt/aliasy) w IndexedDB (idbTextCache.js) — patrz `loadData()`.
+const CACHE_PREFIX = 'eform_dl_cache::';
 
 export class DataLoader {
   constructor() {
@@ -31,25 +36,58 @@ export class DataLoader {
 
 
 
+  /**
+   * Pobiera plik tekstowy (param.txt/paramdict.txt/group.txt/prod.txt/aliasy —
+   * wszystko, co ładuje `FormsManager`/`DataLoader`, idzie przez tę jedną
+   * metodę). Odporność na słabe/zerwane łącze: każde udane pobranie zapisuje
+   * SUROWY tekst do IndexedDB (`idbTextCache.js` — NIE `localStorage`, patrz
+   * jego nagłówek: samo `prod.txt` jednej grupy to ~1 MB, a `getGroups()`
+   * ładuje je dla WSZYSTKICH grup działu naraz — jeden dział już przekracza
+   * typowy limit `localStorage`); gdy `fetch` padnie, zamiast pustego ekranu
+   * (dział/grupa/formularz nie do zbudowania) wczytujemy OSTATNIĄ znaną kopię
+   * i pokazujemy widoczny pasek (`components/offlineBanner.js`) — ceny liczone
+   * z takich danych mogą być nieaktualne, więc to nie ma być ciche.
+   *
+   * ⚠️ To NIE jest pełny tryb offline: same skrypty cenowe
+   * (`pricesCalculator.js` → `scriptLoader.js`, osobny `<script src>` na
+   * przeliczenie) nadal wymagają sieci — bez internetu formularz się zbuduje
+   * z cache'u, ale ceny mogą nie policzyć się wcale. Świadomy wybór zakresu.
+   */
   async loadData(file) {
+    const cacheKey = CACHE_PREFIX + file;
 
     try {
       const response = await fetch(file);
       if (!response.ok) throw new Error("Błąd ładowania- " + response.status);
       const text = await response.text();
 
-      const rows = text.split("\n");
+      // Fire-and-forget: zapis w IndexedDB nie może opóźniać zwrotu danych,
+      // które strona już ma w ręku.
+      idbSetText(cacheKey, { text, cachedAt: Date.now() });
+      hideOfflineBanner();
 
-      let data = [];
-      for (let i = 0; i < rows.length; i++) {
-        data.push(rows[i].split("\t"));
-      }
-
-      return data;
+      return this.parseRows(text);
     } catch (error) {
       console.warn(`Błąd ładowania - brak pliku.`,);
+
+      const cached = await idbGetText(cacheKey);
+      if (cached && typeof cached.text === 'string') {
+        console.warn(`Wczytano z pamięci lokalnej (słabe/zerwane łącze): ${file}`);
+        showOfflineBanner(cached.cachedAt);
+        return this.parseRows(cached.text);
+      }
+
       return null;
     }
+  }
+
+  parseRows(text) {
+    const rows = text.split("\n");
+    let data = [];
+    for (let i = 0; i < rows.length; i++) {
+      data.push(rows[i].split("\t"));
+    }
+    return data;
   }
 
   /**
