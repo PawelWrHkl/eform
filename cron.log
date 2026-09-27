@@ -3741,3 +3741,34 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-09-26 10:35:01 - Start ===
 === 2026-09-26 10:35:01 - Dodawanie zmian do commita ===
+[feature/configurator-tester 67dc725] Automatic commit 2026-09-26 10:35
+ 34 files changed, 16656 insertions(+), 13 deletions(-)
+ create mode 100644 public/scripts/components/offlineBanner.js
+ create mode 100644 public/scripts/formTools/idbTextCache.js
+ create mode 100644 public/scripts/uiVariant.js
+ create mode 100644 public/scripts/uiVariantView.js
+ create mode 100644 public/styles/theme-efor-v2.css
+ create mode 100644 templates/partials/efor-v2-icons.njk
+ create mode 100644 templates/partials/efor-v2-strings.njk
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_22.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-1.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-10.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-2.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-3.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-4.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-5.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-6.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-7.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-8.png
+ create mode 100755 wizualizacja efor/Obraz ChatGPT 25 wrz 2026, 14_16_30-9.png
+ create mode 100755 wizualizacja efor/c37c75a2-c6c2-4d58-b73b-e8b8f142e856 (1).png
+ create mode 100755 wizualizacja efor/c37c75a2-c6c2-4d58-b73b-e8b8f142e856.png
+=== 2026-09-26 10:35:03 - Wysyłanie do origin/main ===
+Everything up-to-date
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-09-26 10:35:04 - Koniec ===
+=== 2026-09-26 12:00:01 - Start ===
+=== 2026-09-26 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-09-27 10:35:01 - Start ===
+=== 2026-09-27 10:35:01 - Dodawanie zmian do commita ===
