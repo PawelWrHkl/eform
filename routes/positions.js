@@ -27,9 +27,11 @@ const { recalcAndSaveMaxProdDays } = require('../services/productionDays');
 // and hides it just as completely while the feature is off.
 const { resolveVatLocals } = require('../services/vatCalculator');
 
+// Zlecenie tylko do odczytu po wysyłce — także po anulowaniu (`canceled`):
+// jego pozycje oglądamy w podglądzie wysłanego zlecenia, bez formularza edycji.
 async function isOrderSent(orderId) {
   const status = await db.getOrderStatus(orderId);
-  return status === 'sent';
+  return status === 'sent' || status === 'canceled';
 }
 
 function sentOrderPath(orderId) {

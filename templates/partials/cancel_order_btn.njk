@@ -1,0 +1,20 @@
+{# Przycisk „Anuluj” na liście wysłanych zleceń — tylko dla zleceń, które
+   `services/orderCancellation.js attachCancelDeadlines` oznaczyło jako możliwe
+   do anulowania (< 24 h od wysłania i rola ma prawo). Obsługa kliknięcia,
+   dwustopniowe potwierdzenie i ukrycie po upływie terminu:
+   public/scripts/orderCancel.js.
+   ⚠️ `onclick="event.stopPropagation()"` — bez tego klik otworzyłby wiersz.
+   Skrypt słucha w fazie przechwytywania, więc i tak dostaje zdarzenie. #}
+{% if order.cancelDeadlineLabel %}
+    <button type="button"
+        class="btn order-cancel-btn order-cancel-btn--compact cancel-order-btn stop-propagation has-tooltip"
+        data-id="{{ order.id }}"
+        data-order-no="{{ order.order_idx }}"
+        data-commission="{{ order.commision }}"
+        data-seconds-left="{{ order.cancelSecondsLeft }}"
+        data-tooltip="{{ __('cancel_order.deadline_label') }} {{ order.cancelDeadlineLabel }}"
+        aria-label="{{ __('cancel_order.button') }} — {{ __('cancel_order.deadline_label') }} {{ order.cancelDeadlineLabel }}"
+        onclick="event.stopPropagation()">
+        {{ __('cancel_order.button_short') }}
+    </button>
+{% endif %}

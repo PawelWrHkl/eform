@@ -8,6 +8,7 @@ const {
     saveFile } = require('./fileManager');
 const ownerService = require('../services/owner.js');
 const { outputData, shortJsonDir } = require('../config')
+const { buildOrderFileName } = require('./orderFileName');
 const db = require("../db/db_helper.js");
 const { read } = require('pdfkit');
 const { at, forEach } = require('lodash');
@@ -189,7 +190,7 @@ class ordersManager {
             }
             await this.changeAttachmentFileNames(orderPos, posId);
         }
-        this.fileName = `${this.orgIdent}_${this.userIdent}_${this.orderNo}${suffix}`;
+        this.fileName = buildOrderFileName(this.orgIdent, this.userIdent, this.orderNo, suffix);
 
         this.fullPath = `${this.output_path}/${this.fileName}.json`;
         console.log('JSON file name set to:', this.fullPath);

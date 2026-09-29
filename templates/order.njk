@@ -185,6 +185,10 @@
                                                                 {% endblock %}
                                                                 <div class="container my-5 padding-top mobile-rm-card">
                                                                     <div class="position-relative mb-4 static-head"></div>
+                                                                    {# Komunikat nad pozycjami — np. anulowanie wysłanego zlecenia
+                                                                       (order_sent*.njk → partials/order_cancellation.njk). Poza
+                                                                       `print_space` i `table`, bo order_prices.njk nadpisuje oba. #}
+                                                                    {% block order_notice %}{% endblock %}
                                                                     {% if cleanOrderItems.length > 0 %}
                                                                         <div class="order-table-container" style="overflow-x: auto;">
                                                                             {% block table %}
@@ -659,7 +663,11 @@
                                                                                                             </div>
                                                                                                         </div>
                                                                                                     {% endif %}
-                                                                                                    {% if isGroupShop %}
+                                                                                                    {# Konto podrzędne grupy: „Wyślij do zatwierdzenia”, chyba że grupa-matka
+                                                                                                           pozwoliła mu wysyłać samemu (`groupShopCanSend`, services/groupShopSendPolicy.js)
+                                                                                                           — wtedy zwykłe „Wyślij” niżej. Zamówienie już czekające na zatwierdzenie
+                                                                                                           zostaje w kolejce grupy. #}
+                                                                                                        {% if isGroupShop and (orderDetails.status == 'pending_approval' or not groupShopCanSend) %}
                                                                                                         {% if orderDetails.status == 'pending_approval' %}
                                                                                                             <span class="badge bg-warning text-dark me-3 align-self-center" style="font-size:0.95rem;">{{ __('group.status_submitted_for_approval') }}</span>
                                                                                                         {% else %}

@@ -74,13 +74,25 @@ async function getOrderMutationBlock(orderId, sessionUser) {
         };
     }
 
+    // Anulowanie jest nieodwracalne (services/orderCancellation.js) — także dla
+    // admina: edycja i ponowna wysyłka dałyby na FTP JSON zlecenia, dla którego
+    // produkcja ma już znacznik `.cancel`.
+    if (status === 'canceled') {
+        return {
+            success: false,
+            status: 'error',
+            message: 'Zlecenie zostało anulowane — nie można go edytować ani wysłać ponownie.',
+            redirect: sentOrderPath(orderId)
+        };
+    }
+
     return null;
 }
 
 async function shouldRedirectFromActiveOrderView(orderId, sessionUser) {
     const status = await db.getOrderStatus(orderId);
 
-    if (status === 'sent') {
+    if (status === 'sent' || status === 'canceled') {
         return { redirect: sentOrderPath(orderId) };
     }
 
@@ -99,6 +111,10 @@ async function isCorrectionOrder(orderId) {
     return (await db.getOrderStatus(orderId)) === 'correction';
 }
 
+async function isCanceledOrder(orderId) {
+    return (await db.getOrderStatus(orderId)) === 'canceled';
+}
+
 module.exports = {
     sentOrderPath,
     activeOrderPath,
@@ -106,5 +122,6 @@ module.exports = {
     getOrderMutationBlock,
     shouldRedirectFromActiveOrderView,
     isSentOrder,
-    isCorrectionOrder
+    isCorrectionOrder,
+    isCanceledOrder
 };

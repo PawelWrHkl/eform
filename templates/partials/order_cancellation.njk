@@ -1,0 +1,49 @@
+{# Anulowanie wysłanego zlecenia (services/orderCancellation.js).
+   `cancellation` przychodzi z routes/orders.js (GET /history/order/:orderId):
+     • anulowane → baner „Zlecenie anulowane” z datą,
+     • w oknie 24 h i rola może anulować → termin + przycisk (public/scripts/orderCancel.js),
+     • w pozostałych przypadkach — nic.
+   Status bierzemy też wprost z `orderDetails`, żeby baner nie zniknął, gdy
+   odczyt stanu anulowania się nie powiódł (`cancellation` = null).
+
+   `noticePlacement`: 'top' (domyślnie, nad pozycjami — tylko ≥ 768 px) albo
+   'bottom' (przy sumie — tylko telefon). ⚠️ Na telefonie `#order-nav` jest
+   `position: fixed` i przykrywa górę treści podglądu na stałe (order_sent.njk
+   nie ładuje mobilnych arkuszy order.njk), więc komunikat na górze byłby
+   niewidoczny i nieklikalny; dół strony zawsze da się przewinąć do widoku. #}
+{% set orderIsCanceled = (cancellation and cancellation.canceled) or orderDetails.status == 'canceled' %}
+{% set placementClass = 'd-flex d-md-none order-cancel-notice--bottom' if noticePlacement == 'bottom' else 'd-none d-md-flex' %}
+{% if orderIsCanceled %}
+    <div class="order-cancel-notice order-cancel-notice--canceled {{ placementClass }}" role="status">
+        <span class="order-cancel-notice__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </span>
+        <div class="order-cancel-notice__body">
+            <p class="order-cancel-notice__title">{{ __('cancel_order.banner_title') }}</p>
+            <p class="order-cancel-notice__text">
+                {{ __('cancel_order.banner_text') }}
+                {% if cancellation and cancellation.canceledAtLabel %}
+                    <span class="order-cancel-notice__meta">{{ __('cancel_order.canceled_at') }}: <strong>{{ cancellation.canceledAtLabel }}</strong></span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+{% elif cancellation and cancellation.canCancel %}
+    <div class="order-cancel-notice order-cancel-notice--window {{ placementClass }}" data-cancel-window data-seconds-left="{{ cancellation.secondsLeft }}">
+        <span class="order-cancel-notice__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </span>
+        <div class="order-cancel-notice__body">
+            <p class="order-cancel-notice__title">
+                {{ __('cancel_order.deadline_label') }} <strong>{{ cancellation.deadlineLabel }}</strong>
+                <span class="order-cancel-countdown" data-cancel-countdown hidden>· {{ __('cancel_order.time_left_label') }}: <strong data-cancel-countdown-value></strong></span>
+            </p>
+            <p class="order-cancel-notice__text" data-cancel-open>{{ __('cancel_order.window_hint') }}</p>
+            <p class="order-cancel-notice__text" data-cancel-closed hidden>{{ __('cancel_order.window_closed') }}</p>
+        </div>
+        <button type="button" class="btn order-cancel-btn cancel-order-btn" data-id="{{ orderDetails.id }}" data-order-no="{{ orderDetails.order_idx }}" data-commission="{{ orderDetails.commision }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <span>{{ __('cancel_order.button') }}</span>
+        </button>
+    </div>
+{% endif %}

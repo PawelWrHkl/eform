@@ -1,0 +1,401 @@
+/* ============================================
+   ANULOWANIE ZLECENIA (do 24 h od wysłania)
+   Szablony: partials/order_cancellation.njk, partials/cancel_order_btn.njk,
+   orders_canceled.njk, panel/panel.njk (kafelek). Skrypt: scripts/orderCancel.js.
+   Wyłącznie tokeny z theme.css — tryb ciemny (`[data-theme="dark"]`) i wariant
+   B (theme-efor-v2) przepinają je same, bez osobnych reguł.
+   ============================================ */
+
+/* ── Komunikat nad pozycjami wysłanego zlecenia ── */
+.order-cancel-notice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin: 0 auto var(--space-lg);
+    padding: var(--space-md) var(--space-lg);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    background: var(--bg-glass-strong);
+    box-shadow: var(--shadow-card);
+    text-align: left;
+    animation: fadeInUp 0.3s var(--ease-out-expo) both;
+}
+
+.order-cancel-notice p {
+    margin: 0;
+}
+
+.order-cancel-notice__icon {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.order-cancel-notice__icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.order-cancel-notice__body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.order-cancel-notice__title {
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.order-cancel-notice__text {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.order-cancel-notice__meta {
+    display: inline-block;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
+.order-cancel-countdown {
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* ⚠️ Desktop, wariant A: `#order-nav` jest `position: fixed`, a odstęp pod nim
+   robi WYŁĄCZNIE `.order-table-container { margin-top: 100px !important }`
+   (order_details.css) — `.static-head` ma tu zerową wysokość. Komunikat stoi
+   PRZED tabelą, więc bez tego lądował pod przyklejonym paskiem (przycisk był
+   niewidoczny i nieklikalny). Komunikat przejmuje odstęp, a tabela za nim go
+   oddaje — łączna wysokość strony bez zmian. Wariant B i telefon mają pasek
+   w przepływie dokumentu (osobne reguły niżej / media query). */
+@media (min-width: 768px) {
+    .order-cancel-notice:not(.order-cancel-notice--bottom) {
+        margin-top: 100px;
+    }
+
+    .order-cancel-notice + .order-table-container {
+        margin-top: 0 !important;
+    }
+
+    .theme-efor-v2 .order-cancel-notice:not(.order-cancel-notice--bottom) {
+        margin-top: 0;
+    }
+}
+
+/* Telefon: kopia komunikatu przy sumie zlecenia (partials/order_cancellation.njk,
+   `noticePlacement = 'bottom'`) — górę podglądu przykrywa przyklejony pasek. */
+.order-cancel-notice--bottom {
+    margin: var(--space-md) 0;
+}
+
+/* Okno anulowania otwarte — ton ostrzegawczy */
+.order-cancel-notice--window {
+    border-color: var(--color-warning-border);
+    background: var(--color-warning-bg);
+}
+
+.order-cancel-notice--window .order-cancel-notice__icon {
+    background: var(--color-warning-border);
+    color: var(--color-warning);
+}
+
+.order-cancel-notice--window.is-expired {
+    border-color: var(--border-default);
+    background: var(--bg-surface-sunken);
+}
+
+.order-cancel-notice--window.is-expired .order-cancel-notice__icon {
+    background: var(--bg-glass-strong);
+    color: var(--text-tertiary);
+}
+
+/* Zlecenie anulowane — ton błędu */
+.order-cancel-notice--canceled {
+    border-color: var(--color-error-border);
+    background: var(--color-error-bg);
+}
+
+.order-cancel-notice--canceled .order-cancel-notice__icon {
+    background: var(--color-error-border);
+    color: var(--color-error);
+}
+
+.order-cancel-notice--canceled .order-cancel-notice__title {
+    color: var(--color-error);
+}
+
+/* ── Przycisk „Anuluj zlecenie” ── */
+.btn.order-cancel-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-error);
+    background: transparent;
+    color: var(--color-error);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    white-space: nowrap;
+    transition: all var(--transition-fast);
+}
+
+.btn.order-cancel-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.btn.order-cancel-btn:hover,
+.btn.order-cancel-btn:focus-visible {
+    background: var(--color-error);
+    border-color: var(--color-error);
+    color: #fff;
+    box-shadow: 0 2px 8px var(--color-error-glow);
+}
+
+.btn.order-cancel-btn:focus-visible {
+    outline: 2px solid var(--color-error);
+    outline-offset: 2px;
+}
+
+.btn.order-cancel-btn:disabled,
+.btn.order-cancel-btn.is-busy {
+    opacity: 0.55;
+    cursor: progress;
+    box-shadow: none;
+}
+
+/* Wersja do wiersza listy wysłanych (obok „Zamów ponownie”) */
+.btn.order-cancel-btn--compact {
+    padding: 6px 12px;
+    margin-left: 6px;
+    font-size: var(--text-xs);
+}
+
+.mobile-order-actions .btn.order-cancel-btn--compact {
+    margin-left: 0;
+}
+
+/* ── Okna potwierdzenia (createInfoDialog → #delete-dialog.order-cancel-dialog) ── */
+dialog.order-cancel-dialog {
+    width: min(520px, 92vw);
+}
+
+dialog.order-cancel-dialog #dialog-title {
+    color: var(--text-primary);
+}
+
+dialog.order-cancel-dialog.order-cancel-dialog--final #dialog-title {
+    color: var(--color-error);
+}
+
+.order-cancel-dialog__order {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+}
+
+.order-cancel-dialog__warning {
+    display: block;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-error-border);
+    background: var(--color-error-bg);
+    color: var(--text-primary);
+}
+
+dialog.order-cancel-dialog #diag-checkbox-container {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 6px;
+    margin: 4px 0 0 !important;
+    font-weight: 600;
+}
+
+dialog.order-cancel-dialog #status-info:empty {
+    display: none;
+}
+
+/* ── Status „Anulowane” (lista anulowanych) ── */
+.order-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.order-status-badge--canceled {
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error-border);
+    color: var(--color-error);
+}
+
+.orders-canceled-back {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.orders-canceled-back svg {
+    width: 18px;
+    height: 18px;
+}
+
+.mobile-order-canceled-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
+.orders-canceled-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-lg) 0;
+}
+
+.orders-canceled-empty__icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: var(--space-md);
+    border-radius: var(--radius-full);
+    background: var(--bg-surface-sunken);
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.orders-canceled-empty__icon svg {
+    width: 34px;
+    height: 34px;
+}
+
+/* ── Panel użytkownika: kafelek-łącze do osobnej podstrony ── */
+.panel-links {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+}
+
+.panel-link-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    border-radius: var(--radius-xl);
+    background: var(--bg-glass-strong);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-card);
+    color: var(--text-secondary) !important;
+    text-decoration: none !important;
+    transition: all var(--transition-fast);
+}
+
+.panel-link-card:hover,
+.panel-link-card:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: var(--border-strong);
+}
+
+.panel-link-card__icon {
+    flex: 0 0 auto;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-lg);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.panel-link-card__icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.panel-link-card__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.panel-link-card__label {
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.panel-link-card__desc {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+}
+
+.panel-link-card__count {
+    flex: 0 0 auto;
+    min-width: 32px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: var(--bg-surface-sunken);
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: var(--text-sm);
+    text-align: center !important;
+}
+
+.panel-link-card__chevron {
+    flex: 0 0 auto;
+    color: var(--text-tertiary);
+    display: flex;
+}
+
+.panel-link-card__chevron svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* ── Wąskie ekrany: przycisk pod treścią komunikatu ── */
+@media (max-width: 640px) {
+    .order-cancel-notice {
+        flex-wrap: wrap;
+        padding: var(--space-md);
+    }
+
+    .order-cancel-notice__body {
+        flex-basis: calc(100% - 60px);
+    }
+
+    .btn.order-cancel-btn:not(.order-cancel-btn--compact) {
+        width: 100%;
+    }
+
+    .order-cancel-notice__meta {
+        display: block;
+        margin-left: 0;
+    }
+}

@@ -109,7 +109,7 @@
                                         <a class="action-btn action-btn-edit p-1 stop-propagation" href='/orders/edit/{{ order.id }}'>
                                             <img src="/img/edit-text.png" alt="{{ __('orders.edit') }}"></a>
                                         {% endif %}
-                                            {% if isGroupShop %}
+                                            {% if isGroupShop and (order.status == 'pending_approval' or not groupShopCanSend) %}
                                               {% if order.status == 'pending_approval' %}
                                                 <span class="badge bg-warning text-dark align-self-center" style="font-size:0.8rem;">Do zatwierdzenia</span>
                                               {% else %}

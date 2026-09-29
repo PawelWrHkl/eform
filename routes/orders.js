@@ -27,7 +27,9 @@ const { availabeLanguages } = require('../config');
 const { translateOrderItems } = require('../services/translationDict/itemTranslator');
 const { buildItemProductionDays, recalcAndSaveMaxProdDays, getOrderDeliveryDelay } = require('../services/productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../utils/productionSendGuard');
-const { getOrderMutationBlock, shouldRedirectFromActiveOrderView, getClientGroupOrderBlock } = require('../utils/orderStatusGuard');
+const { getOrderMutationBlock, shouldRedirectFromActiveOrderView, getClientGroupOrderBlock, isCanceledOrder } = require('../utils/orderStatusGuard');
+const orderCancellation = require('../services/orderCancellation');
+const { getGroupShopSendBlock } = require('../services/groupShopSendPolicy');
 const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../services/confirmationPolicy');
 const { resolveVatLocals, vatFeatureEnabled } = require('../services/vatCalculator');
 
@@ -54,6 +56,36 @@ async function rejectSentOrderMutation(res, orderId, req) {
         return res.status(403).json(block);
     }
     return null;
+}
+
+/**
+ * Anulowanego zlecenia nie wysyła już ŻADEN tor — także admin. Produkcja ma
+ * dla niego znacznik `.cancel` (services/orderCancellation.js), więc ponowny
+ * JSON o tej samej nazwie byłby sprzecznym sygnałem. Nowe zlecenie powstaje
+ * przez „Zamów ponownie" (`POST /orders/copy/:orderId`).
+ */
+async function rejectCanceledOrderSend(req, res, orderId) {
+    if (await isCanceledOrder(orderId)) {
+        res.status(409).json({
+            success: false,
+            status: 'error',
+            message: req.__('cancel_order.error_order_canceled'),
+            redirect: sentOrderPath(orderId)
+        });
+        return true;
+    }
+    return false;
+}
+
+/** Kontekst aktora dla services/orderCancellation.js — prosto z sesji. */
+function cancellationContext(req) {
+    return {
+        orderId: req.params.orderId,
+        sessionUser: req.session?.user,
+        sessionEmployee: req.session?.employee,
+        employeePermissions: req.session?.employeePermissions,
+        contextUser: req.session?.context_user
+    };
 }
 
 /**
@@ -457,8 +489,17 @@ router.get("/history", requireLogin, loadEmployeePermissions, filterPriceData, f
         await Promise.all(ordersToBackfill.map(async (order) => {
             order.max_prod_days = await recalcAndSaveMaxProdDays(order.id);
         }));
+
+        // Zlecenia wysłane < 24 h temu dostają przycisk „Anuluj" z terminem.
+        // Błąd tu nie może zabrać klientowi listy — najwyżej zniknie przycisk
+        // (anulowanie i tak jest w podglądzie zlecenia).
+        try {
+            await orderCancellation.attachCancelDeadlines(orders, cancellationContext(req));
+        } catch (err) {
+            log('[history] Nie udało się wyznaczyć terminów anulowania:', err);
+        }
     }
-    
+
     if (req.session.user?.isOwner) {
         res.render("orders_history_owner.njk", {
             orders,
@@ -485,6 +526,49 @@ router.get("/history", requireLogin, loadEmployeePermissions, filterPriceData, f
         });
     }
 
+});
+
+
+/**
+ * Zlecenia anulowane (services/orderCancellation.js) — wejście z panelu
+ * użytkownika (`/panel`). Zakres jak w `/history`: konto podrzędne grupy →
+ * jego zlecenia, pracownik bez `can_see_all_orders` → tylko własne.
+ */
+router.get('/canceled', requireLogin, loadEmployeePermissions, filterPriceData, filterOrdersByPermission, async (req, res, next) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = 20;
+        const offset = (page - 1) * limit;
+        const currentUser = ownerService.getCurrentUser(req);
+        const shopId = getActiveGroupShopId(req);
+        const scope = shopId
+            ? { groupUserId: shopId }
+            : {
+                userId: currentUser.userId,
+                employeeId: req.orderFilter?.type === 'own' ? req.orderFilter.employeeId : null
+            };
+
+        const [orders, totalOrders] = await Promise.all([
+            db.getCanceledOrders(scope, limit, offset),
+            db.countCanceledOrders(scope)
+        ]);
+
+        return res.render('orders_canceled.njk', {
+            orders,
+            page,
+            limit,
+            totalOrders,
+            totalPages: Math.ceil(totalOrders / limit),
+            // ⚠️ Celowo `false` także dla pracownika: w orders.njk gałąź
+            // pracownika z `can_send_orders` dokłada kolumnę z „Wyślij", która
+            // nie jest blokiem — a anulowanego zlecenia się nie wysyła.
+            isEmployee: false,
+            hidePrices: req.hidePrices
+        });
+    } catch (err) {
+        log('[orders/canceled] Error:', err);
+        return next(err);
+    }
 });
 
 
@@ -538,10 +622,19 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
         totalPrice.afterClientDiscount = clientDiscountTotals.found ? clientDiscountTotals.total : null;
 
+        // Przycisk „Anuluj zlecenie" (do 24 h od wysłania) albo baner „anulowane".
+        // Awaria nie może zabrać podglądu — wtedy po prostu nie ma przycisku.
+        let cancellation = null;
+        try {
+            cancellation = await orderCancellation.getCancellationInfo(orderDetails.id, cancellationContext(req));
+        } catch (err) {
+            log(`[history/order] Nie udało się ustalić stanu anulowania zlecenia ${orderDetails.id}:`, err);
+        }
+
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render("order_sent_prices.njk",
                 {
-                    orderDetails: orderDetails, orderItems: orderItems, heads: heads, cleanOrderItems: cleanOrderItems, total: total, prices: true, totalPrice: totalPrice, statuses: statuses, admin: req.session.user?.isAdmin || false, availableLanguages: availabeLanguages, itemProductionDays, maxProdDays, hidePrices: req.hidePrices, hasSubPrices
+                    orderDetails: orderDetails, orderItems: orderItems, heads: heads, cleanOrderItems: cleanOrderItems, total: total, prices: true, totalPrice: totalPrice, statuses: statuses, admin: req.session.user?.isAdmin || false, availableLanguages: availabeLanguages, itemProductionDays, maxProdDays, hidePrices: req.hidePrices, hasSubPrices, cancellation
                 }
             );
             req.session.user.showPricesOnce = false;
@@ -549,7 +642,7 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         } else {
             return res.render("order_sent.njk",
                 {
-                    orderDetails: orderDetails, orderItems: orderItems, heads: heads, cleanOrderItems: cleanOrderItems, total: total, totalPrice: totalPrice, owner: req.session.user.isOwner, statuses: statuses, admin: req.session.user?.isAdmin || false, availableLanguages: availabeLanguages, itemProductionDays, maxProdDays, hidePrices: req.hidePrices, hasSubPrices
+                    orderDetails: orderDetails, orderItems: orderItems, heads: heads, cleanOrderItems: cleanOrderItems, total: total, totalPrice: totalPrice, owner: req.session.user.isOwner, statuses: statuses, admin: req.session.user?.isAdmin || false, availableLanguages: availabeLanguages, itemProductionDays, maxProdDays, hidePrices: req.hidePrices, hasSubPrices, cancellation
                 }
             );
         }
@@ -1171,11 +1264,14 @@ router.post('/order/:orderId/recalculate', requireLogin, checkOrderOwnership, as
 
 
 router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePermissions, requireSendPermission, async (req, res) => {
-    // Sklep grupy nie może samodzielnie wysłać — musi zatwierdzić centrala
-    if (req.session.user?.isGroupShop) {
-        return res.status(403).json({
+    // Konto podrzędne grupy wysyła samo tylko, gdy grupa-matka włączyła mu
+    // `group_user.send_order_policy` — inaczej zamówienie idzie do
+    // zatwierdzenia przez centralę (services/groupShopSendPolicy.js).
+    const groupShopSendBlock = await getGroupShopSendBlock(req.session?.user, req.params.orderId);
+    if (groupShopSendBlock) {
+        return res.status(groupShopSendBlock.status).json({
             success: false,
-            message: 'Zamówienie sklepu musi zostać zatwierdzone przez centralę. Użyj opcji „Wyślij do zatwierdzenia".'
+            message: groupShopSendBlock.message
         });
     }
 
@@ -1193,6 +1289,8 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         });
     }
 
+    if (await rejectCanceledOrderSend(req, res, req.params.orderId)) return;
+
     try {
         let extraMail = process.env.EXTRA_MAIL ? process.env.EXTRA_MAIL.split(',') : false;
         const id = req.params.orderId;
@@ -1205,7 +1303,13 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             });
         }
 
-        await db.updateOrderPriceOnSend(id, req.body.prices);
+        // Konto podrzędne grupy ma na ekranie sumę KLIENTA (`SUB___`), a
+        // `order.total_price` to cena grupy — zapis z jego ekranu podmieniłby ją
+        // w panelu grupy-matki. Zatwierdzenie z panelu grupy (routes/group.js)
+        // też tych kolumn nie rusza.
+        if (!req.session.user?.isGroupShop) {
+            await db.updateOrderPriceOnSend(id, req.body.prices);
+        }
         const statusChanged = await db.changeOrderStatus(id, 'sent');
         if (!statusChanged) {
             return res.status(400).json({
@@ -1370,6 +1474,34 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
 });
 
 
+/**
+ * Anulowanie wysłanego zlecenia — do 24 h od wysłania, nieodwracalne.
+ * Cała logika (okno czasowe, uprawnienia, znacznik `.cancel` na FTP, zapis
+ * statusu) siedzi w services/orderCancellation.js; tu tylko tłumaczymy wynik.
+ * Uprawnienia: `checkOrderOwnership` (czyje zlecenie) + reguły roli w serwisie
+ * (sklep grupy nie anuluje sam, pracownik potrzebuje `can_send_orders`).
+ */
+router.post('/order/:orderId/cancel', requireLogin, checkOrderOwnership, loadEmployeePermissions, async (req, res) => {
+    try {
+        const outcome = await orderCancellation.cancelSentOrder(cancellationContext(req));
+        const messageKey = orderCancellation.RESULT_MESSAGE_KEYS[outcome.code] || orderCancellation.RESULT_MESSAGE_KEYS.server_error;
+        return res.status(outcome.status).json({
+            success: outcome.success,
+            code: outcome.code,
+            message: req.__(messageKey),
+            ...(outcome.success ? { redirect: '/orders/canceled' } : {})
+        });
+    } catch (err) {
+        log(`[orders/cancel] zlecenie ${req.params.orderId}:`, err);
+        return res.status(500).json({
+            success: false,
+            code: 'server_error',
+            message: req.__(orderCancellation.RESULT_MESSAGE_KEYS.server_error)
+        });
+    }
+});
+
+
 router.post('/copy/:orderId', checkOrderOwnership, requireLogin, async (req, res) => {
     let sendAddress = null;
 
@@ -1511,6 +1643,8 @@ router.post('/submit-for-approval/:orderId', requireLogin, checkOrderOwnership, 
         if (!req.session.user?.isGroupShop) {
             return res.status(403).json({ success: false, message: 'Tylko sklep może wysłać zamówienie do zatwierdzenia.' });
         }
+        // Zatwierdzenie przez centralę wysłałoby anulowane zlecenie ponownie.
+        if (await rejectCanceledOrderSend(req, res, req.params.orderId)) return;
         if (!(await db.orderHasItems(req.params.orderId))) {
             return res.status(400).json({ success: false, message: 'Nie możesz wysłać pustego zamówienia.' });
         }
@@ -1732,6 +1866,11 @@ router.patch('/order/:orderId/toggle-status', requireLogin, async (req, res) => 
         if (!current) {
             return res.status(404).json({ success: false, message: 'Zamówienie nie istnieje' });
         }
+        // Bez tego przełącznik zrobiłby z anulowanego zlecenia znowu „wysłane"
+        // (`current !== 'sent'` → 'sent'), choć produkcja ma już `.cancel`.
+        if (current === orderCancellation.CANCELED_STATUS) {
+            return res.status(409).json({ success: false, message: req.__('cancel_order.error_order_canceled') });
+        }
         const newStatus = current === 'sent' ? 'active' : 'sent';
         await db.changeOrderStatus(orderId, newStatus);
         return res.json({ success: true, status: newStatus });
@@ -1746,6 +1885,7 @@ router.post('/order/:orderId/send-to-production', requireLogin, async (req, res)
     if (!req.session.user?.isAdmin) {
         return res.status(403).json({ success: false, message: 'Brak uprawnień' });
     }
+    if (await rejectCanceledOrderSend(req, res, req.params.orderId)) return;
     try {
         const orderId = req.params.orderId;
         const ownerIdent = await db.getOrderOwnerIdent(orderId);
@@ -1780,6 +1920,7 @@ router.post('/order/:orderId/admin-save-json', requireLogin, async (req, res) =>
     if (!req.session.user?.isAdmin) {
         return res.status(403).json({ success: false, message: 'Brak uprawnień' });
     }
+    if (await rejectCanceledOrderSend(req, res, req.params.orderId)) return;
     try {
         const id = req.params.orderId;
         let { orderDetails, orderItems } = await db.getOrderDataToSend(id);

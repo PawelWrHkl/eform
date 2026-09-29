@@ -90,6 +90,7 @@
         if (/^\/orders\/order\/\d+(\/(true|false))?$/.test(p)) return 'order';
         if (/^\/orders\/history\/order\/\d+/.test(p)) return 'order-sent';
         if (p === '/orders/history') return 'history';
+        if (p === '/orders/canceled') return 'canceled';
         if (p === '/orders/add-order') return 'add-order';
         if (/^\/orders\/edit\/\d+$/.test(p)) return 'edit-order';
         if (p === '/orders' || p === '/orders/organization-orders') return 'orders';
@@ -112,7 +113,8 @@
         'add-order': 'order-data',
         'edit-order': 'order-data',
         'orders': 'lists',
-        'history': 'lists'
+        'history': 'lists',
+        'canceled': 'lists'
     };
 
     function applyToRoot(value) {

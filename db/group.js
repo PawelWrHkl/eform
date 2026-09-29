@@ -173,6 +173,32 @@ function normalizeDiscountPercent(value) {
     return Math.min(100, Math.round(num * 100) / 100);
 }
 
+/**
+ * Czy konto podrzędne może samo wysyłać zamówienia (`group_user.send_order_policy`).
+ *
+ * ⚠️ Osobne zapytania zamiast dopisania kolumny do `getGroupUserById` /
+ * `addGroupUser` / `updateGroupUser`: `selectQuery`/`updateQuery` połykają
+ * błąd i zwracają `false`, więc przed migracją
+ * `migrations/add_group_user_send_order_policy.sql` nieznana kolumna po cichu
+ * wyłączyłaby edycję i zapis danych konta. Tak brak kolumny psuje wyłącznie
+ * samo ustawienie — czytane jest jako `false`, czyli dotychczasowe zachowanie.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function getGroupUserSendOrderPolicy(id) {
+    const result = await selectQuery(`SELECT send_order_policy FROM group_user WHERE id = ?`, [id]);
+    return !!Number(result?.[0]?.send_order_policy);
+}
+
+/** @returns {Promise<boolean>} `false`, gdy zapis się nie udał (np. przed migracją). */
+async function setGroupUserSendOrderPolicy(id, allowed) {
+    const response = await updateQuery(
+        `UPDATE group_user SET send_order_policy = ? WHERE id = ?`,
+        [allowed ? 1 : 0, id]
+    );
+    return !!response;
+}
+
 async function updateGroupUserPassword(id, password) {
     const hashedPassword = bcrypt.hashSync(password, 12);
     const query = `UPDATE group_user SET password = ? WHERE id = ?`;
@@ -298,6 +324,8 @@ module.exports = {
     previewNewGroupUser,
     addGroupUser,
     updateGroupUser,
+    getGroupUserSendOrderPolicy,
+    setGroupUserSendOrderPolicy,
     updateGroupUserPassword,
     deleteGroupUser,
     countGroupUsers,

@@ -3,6 +3,7 @@
         <link rel="stylesheet" href="/styles/order_sent.css">
             <link rel="stylesheet" href="/styles/mobile/order_sent.css">
                 <link rel="stylesheet" href="/styles/dialog.css">
+                <link rel="stylesheet" href="/styles/orderCancel.css?v={{ assetVersion }}">
                     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
                     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
                     <script src="https://cdn.jsdelivr.net/npm/canvg@3.0.10/lib/umd.min.js"></script>
@@ -12,6 +13,9 @@
                 {% block order_del_btn %}{% endblock %}
                 {% block order_title %}
                     {{ __('history_order.title') }}
+                {% endblock %}
+                {% block order_notice %}
+                    {% include 'partials/order_cancellation.njk' %}
                 {% endblock %}
                 {% block table_style %}
                     <table class="table align-left table-striped order-table">
@@ -24,7 +28,23 @@
                             {% block pos_btns %}{% endblock %}
                             {% block extra_rows %}
                                 {% set statusIdx = globalIndex - 1 %}
-                                {% if statuses[statusIdx] %}
+                                {% if orderDetails.status == 'canceled' %}
+                                    {# Anulowane zlecenie: zamiast statusu produkcji (który mógł
+                                       jeszcze spłynąć z `status.txt`) jeden jasny komunikat. #}
+                                    <tr class="status-row" id='status-row-{{ rowObj.item.id }}'>
+                                        <td class="status-cell" colspan="100%">
+                                            <div class="status-cards">
+                                                <div class="status-card status-card-main" data-status="cancelled">
+                                                    <div class="status-card-header">
+                                                        <span class="status-indicator"></span>
+                                                        <span class="status-card-label">{{ __('order.status_label') }}</span>
+                                                    </div>
+                                                    <div class="status-card-value">{{ __('cancel_order.status_canceled') }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% elif statuses[statusIdx] %}
                                     {# Identyfikator z POZYCJI, nie z `order_pos`: przełącznik
                                        (`public/scripts/order_sent.js`) szuka wiersza po id pozycji,
                                        a `order_pos` bywa teraz podpozycją `1-2` albo kodem produkcyjnym. #}
@@ -111,7 +131,12 @@
                             {% endblock %}
                             {% block new_pos_btn %}{% endblock %}
                             {% block send_order_btn %}
-                                {% if admin %}
+                                {# Telefon: ten sam komunikat przy sumie (patrz partials/order_cancellation.njk). #}
+                                {% set noticePlacement = 'bottom' %}
+                                {% include 'partials/order_cancellation.njk' %}
+                                {# Anulowanego nie cofamy do aktywnych — serwer i tak odmówi
+                                   (routes/orders.js toggle-status). #}
+                                {% if admin and orderDetails.status != 'canceled' %}
                                     <div class="d-flex justify-content-end w-100 p-2">
                                         <button class="btn btn-sm"
                                             style="background:#fff3cd;border:1px solid #ffc107;color:#664d03;font-size:0.8rem;"
@@ -131,6 +156,7 @@
                                     <script src="/scripts/stickyColumns.js"></script>
                                                                     <script src="/scripts/tableTooltips.js"></script>
                                     <script type='module' src="/scripts/order_sent.js"></script>
+                                    <script type='module' src="/scripts/orderCancel.js?v={{ assetVersion }}"></script>
                                     {% if admin %}
                                     <script>
                                     async function adminToggleOrderStatus(btn) {

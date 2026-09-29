@@ -31,6 +31,19 @@ router.use((req, res, next) => {
     next();
 });
 
+/**
+ * Przełącznik „Samodzielna wysyłka zamówień" z formularza konta
+ * (`group_user.send_order_policy`). Formularz zawsze wysyła ukryte `0`, a
+ * włączony przełącznik dokłada `1` — odznaczony checkbox nie wysyła nic, więc
+ * bez ukrytego pola nie dałoby się odróżnić wyłączenia od braku pola.
+ * `undefined` = pola nie było w żądaniu (ustawienia nie ruszamy).
+ */
+function parseSendOrderPolicy(body) {
+    const raw = body?.send_order_policy;
+    if (raw === undefined) return undefined;
+    return (Array.isArray(raw) ? raw : [raw]).some(v => String(v) === '1');
+}
+
 // ── GET /group/shops ─ lista sklepów ────────────────────────────────────────
 
 router.get('/shops', async (req, res, next) => {
@@ -54,7 +67,7 @@ router.get('/shops/new', async (req, res, next) => {
     try {
         const currentUser = ownerService.getCurrentUser(req);
         const preview = await db.previewNewGroupUser(currentUser.userId);
-        return res.render('group/shop_form.njk', { shop: null, mode: 'new', ...preview });
+        return res.render('group/shop_form.njk', { shop: null, mode: 'new', sendOrderPolicy: false, ...preview });
     } catch (err) {
         return next(err);
     }
@@ -68,12 +81,14 @@ router.post('/shops', async (req, res, next) => {
         const { password, street, zip, city, phone, email, tax_id } = req.body;
 
         const preview = await db.previewNewGroupUser(currentUser.userId);
+        const sendOrderPolicy = parseSendOrderPolicy(req.body) === true;
 
         if (!password || password.length < 5) {
             return res.render('group/shop_form.njk', {
                 shop: req.body,
                 mode: 'new',
                 ...preview,
+                sendOrderPolicy,
                 error: req.__('group.form_error_password_required')
             });
         }
@@ -84,6 +99,7 @@ router.post('/shops', async (req, res, next) => {
                 shop: req.body,
                 mode: 'new',
                 ...preview,
+                sendOrderPolicy,
                 error: req.__('group.form_error_email_invalid')
             });
         }
@@ -110,8 +126,15 @@ router.post('/shops', async (req, res, next) => {
             return res.render('group/shop_form.njk', {
                 shop: req.body,
                 mode: 'new',
+                sendOrderPolicy,
                 error: req.__(groupLabelKey('form_error_add_shop', currentUser.groupType))
             });
+        }
+
+        // Zapisujemy też wyłączenie — domyślna wartość kolumny nie jest
+        // gwarantowana przez kod, a nowe konto ma mieć dokładnie to, co wybrano.
+        if (result.id) {
+            await db.setGroupUserSendOrderPolicy(result.id, sendOrderPolicy);
         }
 
         return res.redirect('/group/panel?tab=shops&success=added');
@@ -132,7 +155,8 @@ router.get('/shops/:id/edit', async (req, res, next) => {
             return res.redirect('/group/panel?tab=shops&error=notfound');
         }
 
-        return res.render('group/shop_form.njk', { shop, mode: 'edit' });
+        const sendOrderPolicy = await db.getGroupUserSendOrderPolicy(shop.id);
+        return res.render('group/shop_form.njk', { shop, mode: 'edit', sendOrderPolicy });
     } catch (err) {
         log('[group/shops/:id/edit] Error:', err);
         return next(err);
@@ -167,6 +191,11 @@ router.post('/shops/:id', async (req, res, next) => {
             taxId: (tax_id || '').trim(),
             discountPercent: acceptsDiscount ? (req.body.discountPercent ?? 0) : undefined
         });
+
+        const sendOrderPolicy = parseSendOrderPolicy(req.body);
+        if (sendOrderPolicy !== undefined) {
+            await db.setGroupUserSendOrderPolicy(id, sendOrderPolicy);
+        }
 
         if (password && password.trim()) {
             await db.updateGroupUserPassword(id, password.trim());
@@ -347,6 +376,12 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
             return res.status(403).json({ success: false, message: req.__('group.error_forbidden') });
         }
 
+        // Anulowanego zlecenia nie wysyła żaden tor — produkcja ma już dla
+        // niego znacznik `.cancel` (services/orderCancellation.js).
+        if (await db.getOrderStatus(orderId) === 'canceled') {
+            return res.status(409).json({ success: false, message: req.__('cancel_order.error_order_canceled') });
+        }
+
         let extraMail = process.env.EXTRA_MAIL ? process.env.EXTRA_MAIL.split(',') : false;
 
         let { orderDetails, orderItems } = await db.getOrderDataToSend(orderId);
@@ -464,6 +499,12 @@ router.post('/reject-order/:orderId', requireLogin, requireGroup, async (req, re
         const shop = await db.getGroupUserByOrderId(orderId);
         if (!shop || shop.user_id !== currentUser.userId) {
             return res.status(403).json({ success: false, message: req.__('group.error_forbidden') });
+        }
+
+        // Cofnięcie do `active` odblokowałoby edycję i ponowną wysyłkę
+        // anulowanego zlecenia — anulowanie jest nieodwracalne.
+        if (await db.getOrderStatus(orderId) === 'canceled') {
+            return res.status(409).json({ success: false, message: req.__('cancel_order.error_order_canceled') });
         }
 
         await db.changeOrderStatus(orderId, 'active');

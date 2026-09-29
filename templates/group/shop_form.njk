@@ -93,6 +93,24 @@
                                     <div class="invalid-feedback">{{ __('group.sf_password_invalid') }}</div>
                                 </div>
 
+                                {# `group_user.send_order_policy` — ukryte `0` idzie zawsze,
+                                   bo odznaczony checkbox nie wysyła nic (routes/group.js
+                                   parseSendOrderPolicy). #}
+                                <div class="col-12">
+                                    <input type="hidden" name="send_order_policy" value="0">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               role="switch"
+                                               id="send_order_policy"
+                                               name="send_order_policy"
+                                               value="1"
+                                               {% if sendOrderPolicy %}checked{% endif %}>
+                                        <label class="form-check-label" for="send_order_policy">{{ __('group.sf_send_order_policy') }}</label>
+                                    </div>
+                                    <small class="form-text text-muted">{{ __('group.sf_send_order_policy_hint') }}</small>
+                                </div>
+
                                 <hr class="col-12 mt-2">
                                 <p class="col-12 mb-0 fw-semibold text-secondary">{{ __('group.sf_address_data') }}</p>
 

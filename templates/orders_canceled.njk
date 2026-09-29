@@ -1,0 +1,81 @@
+{% extends "orders.njk" %}
+{# Zlecenia anulowane (services/orderCancellation.js) — wejście z panelu
+   użytkownika (`/panel`), dane z routes/orders.js GET /orders/canceled.
+   Układ, tabela, karty mobilne i paginacja — z orders.njk, jak w historii
+   wysłanych (orders_history.njk). Kliknięcie otwiera podgląd zlecenia
+   (`/orders/history/order/:id`) z banerem „Zlecenie anulowane”.
+   ⚠️ Kontroler podaje tu `isEmployee: false` celowo — w orders.njk gałąź
+   pracownika z `can_send_orders` dokłada kolumnę z przyciskiem „Wyślij”, która
+   NIE jest blokiem (nie da się jej nadpisać), a anulowanego się nie wysyła. #}
+{% block title %}
+    {{ __('cancel_order.list_title') }}
+{% endblock title %}
+{% block head %}
+    <link rel="stylesheet" href="/styles/orders.css">
+    <link rel="stylesheet" href="/styles/mobile/orders.css">
+    <link rel="stylesheet" href="/styles/dialog.css">
+    <link rel="stylesheet" href="/styles/mobile/dialog.css">
+    <link rel="stylesheet" href="/styles/orderCancel.css?v={{ assetVersion }}">
+{% endblock head %}
+{% block key_nav %}
+    window.location.href='/panel'
+{% endblock %}
+{% block back_link %}
+    <button class="modern-back-btn" onclick="window.location.href='/panel'">
+{% endblock %}
+{% block site_title %}
+    <h2 class="fw-bold header">{{ __('cancel_order.list_title') }}</h2>
+{% endblock site_title %}
+{% block site_buttons %}
+    <a href="/panel" class="btn btn-light orders-canceled-back" title="{{ __('cancel_order.back_to_panel') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>{{ __('cancel_order.back_to_panel') }}</span>
+    </a>
+{% endblock %}
+{# Wyszukiwarka z orders.njk szuka tylko w aktywnych/wysłanych — tu jej nie ma. #}
+{% block filters_bar %}{% endblock %}
+{% block extra_heads %}
+    <th scope="col">{{ __('orders.sent_date') }}</th>
+    <th scope="col">{{ __('cancel_order.canceled_at') }}</th>
+    <th scope="col">{{ __('orders.status') }}</th>
+{% endblock %}
+{% block action_th %}
+    <th scope="col">{{ __('orders.action') }}</th>
+{% endblock %}
+{% block order_item_link %}
+    <tr onclick="window.location.href='/orders/history/order/{{ order.id }}'" class="order-row order-row--canceled" data-commission="{{ order.commision }}">
+{% endblock %}
+{% block mobile_order_item_link %}
+    <div class="mobile-order-card mobile-order-card--canceled" data-commission="{{ order.commision }}" onclick="window.location.href='/orders/history/order/{{ order.id }}'">
+{% endblock %}
+{% block extra_rows %}
+    <td>{{ order.sent_at_label or order.sent_date }}</td>
+    <td>{{ order.canceled_at_label or '-' }}</td>
+    <td><span class="order-status-badge order-status-badge--canceled">{{ __('cancel_order.status_canceled') }}</span></td>
+    <td>
+        <button class='btn btn-outline-secondary copy-order-btn' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>
+    </td>
+{% endblock %}
+{% block buttons_space %}{% endblock buttons_space %}
+{% block mobile_order_actions %}
+    <div class="mobile-order-canceled-meta">
+        <span class="order-status-badge order-status-badge--canceled">{{ __('cancel_order.status_canceled') }}</span>
+        {% if order.canceled_at_label %}<span>{{ __('cancel_order.canceled_at') }}: {{ order.canceled_at_label }}</span>{% endif %}
+    </div>
+    <div class="mobile-order-actions">
+        <button class='btn btn-outline-secondary copy-order-btn stop-propagation' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>
+    </div>
+{% endblock %}
+{% block empty %}
+    <div class="orders-canceled-empty">
+        <span class="orders-canceled-empty__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </span>
+        <h3 class="mb-3">{{ __('cancel_order.list_empty_title') }}</h3>
+        <p class="lead">{{ __('cancel_order.list_empty_text') }}</p>
+        <a href="/panel" class="action-btn action-btn-send p-2 mt-3">{{ __('cancel_order.back_to_panel') }}</a>
+    </div>
+{% endblock empty %}
+{% block scripts %}
+    <script type="module" src="/scripts/orders.js"></script>
+{% endblock scripts %}

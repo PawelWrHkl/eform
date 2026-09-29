@@ -850,6 +850,116 @@ async function countSearchUserOrders(userId, phrase, sent = false, employeeId = 
     }
 }
 
+// ── Anulowanie wysłanego zlecenia (services/orderCancellation.js) ──
+//
+// ⚠️ Czas porównujemy W BAZIE, na napisach w czasie warszawskim: `sent_date`
+// zapisuje `dateUtils.getDbTimestamp()` jako czas ścienny Europe/Warsaw, więc
+// porównanie z `new Date()` po stronie Node zależałoby od strefy procesu.
+// `now`/`windowStart` przychodzą z serwisu w tym samym formacie.
+
+/**
+ * Stan zlecenia potrzebny do decyzji o anulowaniu + składniki nazwy pliku.
+ * ⚠️ Celowo NIE czyta `canceled_at`/`canceled_by` — działa też przed migracją
+ * `migrations/add_order_cancellation.sql` (podgląd zamówienia go woła zawsze).
+ * `org`/`user` przez JOIN dokładnie jak w `getOrderDataToSend`, z którego
+ * powstaje nazwa wysłanego JSON-a.
+ */
+async function getOrderCancellationState(orderId, { now, windowStart, windowHours }) {
+    const query = `
+        SELECT o.id, o.status, o.order_idx, o.user_id, o.employee_id, o.group_user_id,
+               u.ident AS user_ident, org.ident AS org_ident,
+               DATE_FORMAT(o.sent_date, '%Y-%m-%d %H:%i:%s') AS sent_at,
+               DATE_FORMAT(DATE_ADD(o.sent_date, INTERVAL ? HOUR), '%Y-%m-%d %H:%i:%s') AS cancel_deadline,
+               (o.sent_date IS NOT NULL AND o.sent_date >= ?) AS within_window,
+               TIMESTAMPDIFF(SECOND, ?, DATE_ADD(o.sent_date, INTERVAL ? HOUR)) AS seconds_left
+        FROM \`order\` o
+        JOIN \`user\` u ON u.id = o.user_id
+        JOIN organization org ON org.id = o.organization_id
+        WHERE o.id = ?`;
+    const rows = await selectQuery(query, [windowHours, windowStart, now, windowHours, orderId]);
+    return rows?.[0] || null;
+}
+
+/** Kiedy i przez kogo anulowano (tylko dla `status = 'canceled'`, czyli po migracji). */
+async function getOrderCancellationRecord(orderId) {
+    const query = `
+        SELECT DATE_FORMAT(canceled_at, '%d.%m.%Y %H:%i') AS canceled_at_label, canceled_by
+        FROM \`order\` WHERE id = ?`;
+    const rows = await selectQuery(query, [orderId]);
+    return rows?.[0] || null;
+}
+
+/**
+ * Atomowe przejście `sent` → `canceled`, TYLKO w oknie czasowym.
+ * Warunek w `WHERE` (a nie wcześniejszy SELECT) rozstrzyga wyścig dwóch
+ * kliknięć i zmianę statusu w międzyczasie (np. start korekty admina).
+ * ⚠️ `sent_date` zostaje NIETKNIĘTA — w przeciwieństwie do `changeOrderStatus`.
+ *
+ * @returns {Promise<number|null>} liczba zmienionych wierszy (0/1), `null` = błąd bazy
+ */
+async function markOrderCanceled(orderId, { canceledAt, canceledBy, windowStart }) {
+    const query = `
+        UPDATE \`order\`
+        SET status = 'canceled', canceled_at = ?, canceled_by = ?
+        WHERE id = ? AND status = 'sent' AND sent_date IS NOT NULL AND sent_date >= ?`;
+    const response = await updateQuery(query, [canceledAt, canceledBy, orderId, windowStart]);
+    if (!response) return null;
+    return Number(response.affectedRows) || 0;
+}
+
+/** Które z podanych zleceń można jeszcze anulować (lista wysłanych). */
+async function getCancelableOrderDeadlines(orderIds, { now, windowStart, windowHours }) {
+    const ids = (orderIds || []).map(id => parseInt(id, 10)).filter(Number.isFinite);
+    if (ids.length === 0) return [];
+    const query = `
+        SELECT id,
+               DATE_FORMAT(DATE_ADD(sent_date, INTERVAL ? HOUR), '%Y-%m-%d %H:%i:%s') AS cancel_deadline,
+               TIMESTAMPDIFF(SECOND, ?, DATE_ADD(sent_date, INTERVAL ? HOUR)) AS seconds_left
+        FROM \`order\`
+        WHERE id IN (?) AND status = 'sent' AND sent_date IS NOT NULL AND sent_date >= ?`;
+    return (await selectQuery(query, [windowHours, now, windowHours, ids, windowStart])) || [];
+}
+
+/**
+ * Zakres listy anulowanych — ten sam podział co w historii (`/orders/history`):
+ * konto podrzędne grupy → jego zlecenia, pracownik bez `can_see_all_orders` →
+ * tylko własne, reszta → wszystkie zlecenia konta.
+ */
+function canceledScopeWhere({ userId, groupUserId, employeeId } = {}) {
+    if (groupUserId) {
+        return { where: 'o.group_user_id = ?', params: [groupUserId] };
+    }
+    if (employeeId !== null && employeeId !== undefined) {
+        return { where: 'o.user_id = ? AND o.employee_id = ?', params: [userId, employeeId] };
+    }
+    return { where: 'o.user_id = ?', params: [userId] };
+}
+
+async function getCanceledOrders(scope, limit = 20, offset = 0) {
+    const { where, params } = canceledScopeWhere(scope);
+    const query = `
+        SELECT o.id, o.user_id, o.commision, o.total_price, o.created_date, o.sent_date,
+               o.status, o.order_idx, o.employee_id, o.created_by_group_user_id,
+               DATE_FORMAT(o.sent_date, '%d.%m.%Y %H:%i') AS sent_at_label,
+               DATE_FORMAT(o.canceled_at, '%d.%m.%Y %H:%i') AS canceled_at_label,
+               e.name, e.surname, gu.name AS shop_name, gu.ident AS shop_ident
+        FROM \`order\` o
+        LEFT JOIN employee e ON e.id = o.employee_id
+        LEFT JOIN group_user gu ON gu.id = o.group_user_id
+        WHERE ${where} AND o.status = 'canceled'
+        ORDER BY o.canceled_at DESC, o.id DESC
+        LIMIT ? OFFSET ?`;
+    const rows = await selectQuery(query, [...params, limit, offset]);
+    return rows ? dateUtils.humanizeData(rows) : [];
+}
+
+async function countCanceledOrders(scope) {
+    const { where, params } = canceledScopeWhere(scope);
+    const query = `SELECT COUNT(*) AS cnt FROM \`order\` o WHERE ${where} AND o.status = 'canceled'`;
+    const rows = await selectQuery(query, params);
+    return Number(rows?.[0]?.cnt) || 0;
+}
+
 async function updateMaxProdDays(orderId, maxProdDays) {
     const query = `UPDATE \`order\` SET max_prod_days = ? WHERE id = ?`;
     try {
@@ -889,6 +999,12 @@ module.exports = {
     getDiscount,
     getOrderNo,
     updateMaxProdDays,
+    getOrderCancellationState,
+    getOrderCancellationRecord,
+    markOrderCanceled,
+    getCancelableOrderDeadlines,
+    getCanceledOrders,
+    countCanceledOrders,
     submitOrderForApproval,
     orderHasItems,
     getGroupShopOrders,

@@ -258,6 +258,20 @@ app.use(async (req, res, next) => {
 	next();
 });
 
+// ─── samodzielna wysyłka konta podrzędnego grupy ────────────────────────────
+// `group_user.send_order_policy`: szablony (order.njk, orders.njk, home.njk)
+// pokazują kontu podrzędnemu zwykłe „Wyślij" zamiast „Wyślij do
+// zatwierdzenia". Sama wysyłka sprawdza to ponownie w `POST /orders/send`.
+// Zapytanie tylko dla sesji konta podrzędnego i tylko dla żądań o HTML.
+const { canGroupShopSendOrders } = require('./services/groupShopSendPolicy');
+app.use(async (req, res, next) => {
+	res.locals.groupShopCanSend = false;
+	if (res.locals.isGroupShop && req.method === 'GET' && req.accepts('html')) {
+		res.locals.groupShopCanSend = await canGroupShopSendOrders(req.session.user);
+	}
+	next();
+});
+
 const { applySubPriceLocals } = require('./services/subPriceContext');
 app.use((req, res, next) => {
 	applySubPriceLocals(req, res);

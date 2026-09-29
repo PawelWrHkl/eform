@@ -10,6 +10,7 @@
             <link rel="stylesheet" href="/styles/mobile/orders.css">
                 <link rel="stylesheet" href="/styles/dialog.css">
                     <link rel="stylesheet" href="/styles/mobile/dialog.css">
+                    <link rel="stylesheet" href="/styles/orderCancel.css?v={{ assetVersion }}">
                     {% endblock %}
                     {% block site_title %}
                         <h2 class="fw-bold header">{{ __('orders.sent_orders') }}</h2>
@@ -87,7 +88,8 @@
                             {% endblock %}
                             {% block mobile_order_actions %}
                                 <div class="mobile-order-actions">
-                                    <button class='btn btn-outline-secondary copy-order-btn stop-propagation' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>                                    {% if isAdmin %}
+                                    <button class='btn btn-outline-secondary copy-order-btn stop-propagation' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>
+                                    {% include 'partials/cancel_order_btn.njk' %}                                    {% if isAdmin %}
                                     <button class="btn btn-sm btn-warning open-correction-btn stop-propagation ms-1" data-order-id="{{ order.id }}" onclick="event.stopPropagation()" title="Korekta zlecenia">
                                         <i class="bi bi-pencil-square me-1"></i>Korekta
                                     </button>
@@ -147,6 +149,7 @@
                                 </td>
                                 <td>
                                     <button class='btn btn-outline-secondary w-50 copy-order-btn' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>
+                                    {% include 'partials/cancel_order_btn.njk' %}
                                 </td>
                                 {% if isAdmin %}
                                 <td onclick="event.stopPropagation()">
@@ -165,6 +168,7 @@
                             {% endblock empty %}
                             {% block scripts %}
                                 <script type="module" src="/scripts/orders.js"></script>
+                                <script type="module" src="/scripts/orderCancel.js?v={{ assetVersion }}"></script>
                                 {% if isAdmin %}
                                 <script type="module" src="/scripts/admin/orderCorrections.js"></script>
                                 {% endif %}

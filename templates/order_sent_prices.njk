@@ -3,6 +3,7 @@
     <link rel="stylesheet" href="/styles/order_details.css">
         <link rel="stylesheet" href="/styles/order_sent.css">
             <link rel="stylesheet" href="/styles/mobile/order_sent.css">
+            <link rel="stylesheet" href="/styles/orderCancel.css?v={{ assetVersion }}">
                 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
                 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
                 <script src="https://cdn.jsdelivr.net/npm/canvg@3.0.10/lib/umd.min.js"></script>
@@ -10,6 +11,9 @@
             {% endblock head %}
 
             {% block order_del_btn %}{% endblock %}
+            {% block order_notice %}
+                {% include 'partials/order_cancellation.njk' %}
+            {% endblock %}
             {% block table_style %}
                 <table class="table align-left  order-table">
                     <thead class='thead-dark'>
@@ -21,7 +25,10 @@
                         {% block pos_btns %}{% endblock %}
                         {% block new_pos_btn %}{% endblock %}
                         {% block send_order_btn %}
-                            {% if admin %}
+                            {# Telefon: ten sam komunikat przy sumie (patrz partials/order_cancellation.njk). #}
+                            {% set noticePlacement = 'bottom' %}
+                            {% include 'partials/order_cancellation.njk' %}
+                            {% if admin and orderDetails.status != 'canceled' %}
                                 <div class="d-flex justify-content-end w-100 p-2">
                                     <button class="btn btn-sm"
                                         style="background:#fff3cd;border:1px solid #ffc107;color:#664d03;font-size:0.8rem;"
@@ -37,3 +44,7 @@
                             {% endblock %}
 
                         {% block edit_order_btn %}{% endblock %}
+                        {% block scripts %}
+                            {{ super() }}
+                            <script type='module' src="/scripts/orderCancel.js?v={{ assetVersion }}"></script>
+                        {% endblock scripts %}

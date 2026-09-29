@@ -3,6 +3,7 @@
 
 {% block head %}
     <link rel="stylesheet" href="/styles/panel.css">
+    <link rel="stylesheet" href="/styles/orderCancel.css?v={{ assetVersion }}">
 {% endblock %}
 
 {% block key_nav %}
@@ -216,6 +217,28 @@
                     <span class="panel-tab-text">
                         <span class="panel-tab-label">{{ __('panel.tab_personalization') }}</span>
                         <span class="panel-tab-desc">{{ __('panel.tab_personalization_desc') }}</span>
+                    </span>
+                </a>
+            </nav>
+
+            {# Łącza do OSOBNYCH podstron (nie zakładek panelu) — własny wiersz pod
+               siatką zakładek, żeby piąty kafelek nie rozbijał układu 4 kolumn.
+               Zlecenia anulowane: routes/orders.js GET /orders/canceled,
+               licznik z routes/userPanel.js (`canceledCount`, null = brak danych). #}
+            <nav class="panel-links" aria-label="{{ __('cancel_order.list_title') }}">
+                <a href="/orders/canceled" class="panel-link-card" id="panel-canceled-orders-link">
+                    <span class="panel-link-card__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </span>
+                    <span class="panel-link-card__text">
+                        <span class="panel-link-card__label">{{ __('cancel_order.panel_link_title') }}</span>
+                        <span class="panel-link-card__desc">{{ __('cancel_order.panel_link_desc') }}</span>
+                    </span>
+                    {% if canceledCount is number %}
+                        <span class="panel-link-card__count" aria-label="{{ canceledCount }}">{{ canceledCount }}</span>
+                    {% endif %}
+                    <span class="panel-link-card__chevron" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                     </span>
                 </a>
             </nav>

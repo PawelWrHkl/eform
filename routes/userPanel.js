@@ -33,10 +33,19 @@ router.get('/', async (req, res, next) => {
             const owner = await db.getOwner(currentUser.pin);
             catalogs = listCatalogFiles(owner?.orgIdent);
         }
+        // Licznik na kafelku „Zlecenia anulowane" (routes/orders.js GET /canceled).
+        // Awaria licznika nie może zabrać panelu — kafelek pokaże się bez liczby.
+        let canceledCount = null;
+        try {
+            canceledCount = await db.countCanceledOrders({ userId: currentUser.userId });
+        } catch (err) {
+            log('[panel] Nie udało się policzyć anulowanych zleceń:', err);
+        }
         return res.render('panel/panel.njk', {
             tab,
             user,
             catalogs,
+            canceledCount,
             success: req.query.success,
             error: req.query.error
         });
