@@ -3794,3 +3794,28 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-09-29 10:35:01 - Start ===
 === 2026-09-29 10:35:01 - Dodawanie zmian do commita ===
+[feature/configurator-tester ee55ee4] Automatic commit 2026-09-29 10:35
+ 37 files changed, 12286 insertions(+), 29 deletions(-)
+ create mode 100755 img/thuis.png
+ create mode 100644 migrations/add_group_user_send_order_policy.sql
+ create mode 100644 migrations/add_order_cancellation.sql
+ create mode 100644 public/scripts/orderCancel.js
+ create mode 100644 public/styles/orderCancel.css
+ create mode 100644 services/__tests__/groupShopSendPolicy.test.js
+ create mode 100644 services/__tests__/orderCancellation.test.js
+ create mode 100644 services/groupShopSendPolicy.js
+ create mode 100644 services/orderCancellation.js
+ create mode 100644 templates/orders_canceled.njk
+ create mode 100644 templates/partials/cancel_order_btn.njk
+ create mode 100644 templates/partials/order_cancellation.njk
+ create mode 100644 utils/__tests__/orderStatusGuardCanceled.test.js
+ create mode 100644 utils/orderFileName.js
+=== 2026-09-29 10:35:03 - Wysyłanie do origin/main ===
+Everything up-to-date
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-09-29 10:35:04 - Koniec ===
+=== 2026-09-29 12:00:01 - Start ===
+=== 2026-09-29 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-09-30 10:35:01 - Start ===
+=== 2026-09-30 10:35:01 - Dodawanie zmian do commita ===
