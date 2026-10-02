@@ -12,6 +12,7 @@ const portalDiscountSwitch = require('../services/portalUsageDiscountSwitch');
 const orderCorrectionsRoutes = require('./admin/orderCorrections');
 const userAdminDb = require('../db/admin/userAdmin');
 const userAdminService = require('../services/admin/userAdminService');
+const groupPriceMode = require('../services/groupPriceMode');
 const { availabeLanguages } = require('../config');
 
 router.use(async (req, res, next) => {
@@ -181,7 +182,8 @@ router.get('/users', requireLogin, requireAdmin, (req, res) => {
         abTypeOptions: userAdminService.AB_TYPE_OPTIONS,
         abLangOptions: availabeLanguages,
         minPasswordLength: userAdminService.MIN_PASSWORD_LENGTH,
-        maxDeliveryDelay: userAdminService.MAX_DELIVERY_DELAY
+        maxDeliveryDelay: userAdminService.MAX_DELIVERY_DELAY,
+        priceModeOptions: groupPriceMode.PRICE_MODE_OPTIONS
     });
 });
 
@@ -235,6 +237,43 @@ router.post('/api/users/:id/settings', requireLogin, requireAdmin, async (req, r
     } catch (err) {
         log('[admin/users] błąd zapisu ustawień:', err.message);
         return res.status(500).json({ success: false, message: 'Błąd zapisu ustawień' });
+    }
+});
+
+/*
+ * Tryb wyceny klientów grupy (`user.group_price_mode`): rabat od cen `SUB___`
+ * albo narzut na ceny zwykłe — services/groupPriceMode.js. Osobna trasa, a nie
+ * kolejne pole w `/settings`: kolumna dochodzi migracją, a dopisana do białej
+ * listy `POLA` przed migracją wywracałaby zapis WSZYSTKICH ustawień konta.
+ */
+router.post('/api/users/:id/group-price-mode', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const user = await userAdminDb.getUserForAdmin(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'Nie znaleziono użytkownika' });
+        if (user.role !== 'group') {
+            return res.status(400).json({ success: false, message: 'Tryb wyceny dotyczy wyłącznie kont z rolą „Grupa".' });
+        }
+
+        const raw = String(req.body?.mode ?? '').trim().toLowerCase();
+        // Ścisła walidacja — `normalizePriceMode` zamienia śmieci w `discount`,
+        // a tu literówka ma być błędem, nie cichym powrotem do rabatu.
+        if (raw !== groupPriceMode.PRICE_MODE_DISCOUNT && raw !== groupPriceMode.PRICE_MODE_MARKUP) {
+            return res.status(400).json({ success: false, message: `Nieznany tryb wyceny: ${req.body?.mode}` });
+        }
+
+        const saved = await groupPriceMode.setGroupPriceMode(user.id, raw);
+        if (!saved) {
+            return res.status(500).json({
+                success: false,
+                message: 'Zapis nie powiódł się — czy wykonano migrację migrations/add_group_price_mode.sql?'
+            });
+        }
+
+        log(`[admin/users] ${req.session.user?.ident || req.session.user?.pin} zmienił tryb wyceny klientów grupy ${user.ident} (id ${user.id}): ${user.group_price_mode} → ${raw}`);
+        return res.json({ success: true, user: await userAdminDb.getUserForAdmin(user.id) });
+    } catch (err) {
+        log('[admin/users] błąd zapisu trybu wyceny:', err.message);
+        return res.status(500).json({ success: false, message: 'Błąd zapisu trybu wyceny' });
     }
 });
 

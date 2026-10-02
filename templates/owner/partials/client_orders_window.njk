@@ -1,0 +1,137 @@
+{#
+  „Okno zamówień" (poziom 2): zamówienia klienta czekające na fakturę, widoczne
+  od razu po wybraniu klienta — w miejsce comboboxa, w którym trzeba było
+  wiedzieć, czego szukać. Dane: `ordersWindow` z `http/panel.js:loadOrdersWindow`.
+
+  Zaznaczone zamówienia dostają po jednym dokumencie (osobne POST
+  `/api/v1/invoices/from-order/:id`) — obsługa w `public/scripts/owner/invoices.js`.
+#}
+      <section class="inv-card inv-orders" id="inv-orders-window"
+               data-client-id="{{ client.id }}" data-level="{{ level }}">
+        <div class="inv-orders__head">
+          <h3 class="inv-card__title">
+            {{ L.orders_window_title }} · {{ client.client_name }}
+            <span class="inv-count">{{ ordersWindow.total }}</span>
+          </h3>
+          <nav class="inv-levels__row" aria-label="{{ L.orders_window_title }}">
+            <a class="inv-level{% if ordersWindow.filter == 'shipped' %} inv-level--active{% endif %}"
+               href="?level={{ level }}&orders=shipped"{% if ordersWindow.filter == 'shipped' %} aria-current="true"{% endif %}>{{ L.orders_filter_shipped }}</a>
+            <a class="inv-level{% if ordersWindow.filter == 'all' %} inv-level--active{% endif %}"
+               href="?level={{ level }}&orders=all"{% if ordersWindow.filter == 'all' %} aria-current="true"{% endif %}>{{ L.orders_filter_all }}</a>
+          </nav>
+        </div>
+        <p class="inv-hint">{{ L.orders_window_hint_shipped if ordersWindow.filter == 'shipped' else L.orders_window_hint_all }}</p>
+
+        {% if ordersWindow.items | length %}
+          <div class="inv-orders__toolbar">
+            <label class="inv-check">
+              <input type="checkbox" id="inv-orders-all">
+              <span>{{ L.orders_select_all }}</span>
+            </label>
+            <input type="search" id="inv-orders-filter" class="inv-orders__filter"
+                   placeholder="{{ L.orders_filter_placeholder }}" aria-label="{{ L.orders_filter_placeholder }}">
+            {% set shownCount = ordersWindow.items | length %}
+            {% if ordersWindow.total > shownCount %}
+              <span class="inv-hint inv-hint--warn">
+                {{ L.orders_shown | replace('{shown}', shownCount) | replace('{total}', ordersWindow.total) }}
+              </span>
+            {% endif %}
+          </div>
+
+          <div class="inv-table-wrap inv-orders__scroll">
+            <table class="inv-table inv-orders__table">
+              <thead>
+                <tr>
+                  <th class="inv-orders__check"><span class="visually-hidden">{{ L.col_select }}</span></th>
+                  <th>{{ L.number }}</th>
+                  <th>{{ L.order_name }}</th>
+                  <th>{{ L.col_sent_to_production }}</th>
+                  {% if ordersWindow.filter == 'all' %}<th>{{ L.status }}</th>{% endif %}
+                  <th>{{ L.col_shipped }}</th>
+                  <th>{{ L.col_parcels }}</th>
+                  <th class="ta-r">{{ L.col_order_value }}</th>
+                  <th>{{ L.col_notes }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for o in ordersWindow.items %}
+                  <tr class="inv-orders__row" data-order-id="{{ o.id }}"
+                      data-search="{{ (o.orderIdx ~ ' ' ~ o.name) | lower }}"
+                      data-label="{{ o.orderIdx }}{% if o.name %} · {{ o.name }}{% endif %}">
+                    <td class="inv-orders__check">
+                      <input type="checkbox" class="inv-orders__pick" value="{{ o.id }}"
+                             aria-label="{{ L.col_select }} {{ o.orderIdx }}">
+                    </td>
+                    <td class="inv-nowrap">{{ o.orderIdx }}</td>
+                    <td class="inv-order-name" title="{{ o.name }}">{{ o.name if o.name else '—' }}</td>
+                    <td class="inv-nowrap">{{ o.sentDateFmt or '—' }}</td>
+                    {% if ordersWindow.filter == 'all' %}
+                      <td class="inv-nowrap">
+                        <span class="inv-tag{% if o.prodStatus == '!sent!' %} inv-tag--ok{% endif %}">{{ o.prodStatus if o.prodStatus else L.prod_status_received }}</span>
+                      </td>
+                    {% endif %}
+                    <td class="inv-nowrap">{{ o.shippedDateFmt or '—' }}</td>
+                    <td class="inv-orders__parcels">
+                      {%- for p in o.parcels -%}
+                        {%- if p.href -%}
+                          <a class="inv-link" href="{{ p.href }}" target="_blank" rel="noopener">{{ p.fullCode }}</a>
+                        {%- else -%}
+                          <span>{{ p.fullCode }}</span>
+                        {%- endif -%}
+                      {%- else -%}—{%- endfor -%}
+                    </td>
+                    <td class="ta-r inv-nowrap">{{ (o.totalFmt ~ ' ' ~ currency) if o.totalFmt else '—' }}</td>
+                    <td class="inv-orders__notes">
+                      {% if o.unshipped %}<span class="inv-tag inv-tag--warn">{{ L.unshipped_positions | replace('{n}', o.unshipped) }}</span>{% endif %}
+                      {% if o.advancesFmt %}<span class="inv-tag">{{ L.advance_tag }} {{ o.advancesFmt }}</span>{% endif %}
+                      {% if o.zeroValue %}<span class="inv-tag inv-tag--warn">{{ L.zero_value }}</span>{% endif %}
+                      <span class="inv-orders__result" aria-live="polite"></span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <p class="inv-empty" id="inv-orders-nomatch" hidden>{{ L.orders_none_filtered }}</p>
+          </div>
+
+          <form id="inv-orders-form" class="inv-form inv-orders__form" autocomplete="off">
+            <div class="inv-form__row">
+              <label class="inv-field">
+                <span class="inv-label">{{ L.doc_type }}</span>
+                <select name="documentType" id="inv-doctype">
+                  {% for t in documentTypes %}
+                    <option value="{{ t }}"{% if t == 'invoice' %} selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              {# Widoczne tylko dla zaliczki — sterowane w invoices.js #}
+              <label class="inv-field inv-field--narrow" id="inv-advance-wrap" hidden>
+                <span class="inv-label">{{ L.advance_percent }}</span>
+                <input type="number" name="advancePercent" min="1" max="100" step="1" value="30">
+              </label>
+
+              <label class="inv-field inv-field--narrow">
+                <span class="inv-label">{{ L.lang }}</span>
+                <select name="lang">
+                  {% for l in docLangs %}
+                    <option value="{{ l }}"{% if l == panelLang %} selected{% endif %}>{{ l }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+
+            <div class="inv-form__row inv-form__row--tight">
+              <label class="inv-check">
+                <input type="checkbox" name="issue" id="inv-issue" checked>
+                <span>{{ L.issue_now }}</span>
+              </label>
+              <button type="submit" class="inv-btn inv-btn--primary" id="inv-orders-create" disabled>
+                <span class="inv-orders__label">{{ L.create_selected }}</span> <span class="inv-orders__selected">(0)</span>
+              </button>
+            </div>
+          </form>
+        {% else %}
+          <p class="inv-empty">{{ L.orders_none_shipped if ordersWindow.filter == 'shipped' else L.orders_none_all }}</p>
+        {% endif %}
+      </section>

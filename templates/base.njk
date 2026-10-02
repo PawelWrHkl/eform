@@ -617,4 +617,7 @@
    oferty). Czysto prezentacyjne — czytają istniejący DOM i klikają istniejące
    przyciski, nie liczą niczego same. W wariancie A śpią (brak obserwatorów). #}
 <script type="module" src="/scripts/uiVariantView.js?v={{ assetVersion }}"></script>
+{# Asystent eForm (czat AI) — tylko przy ASSISTANT_ENABLED i dozwolonej sesji,
+   patrz server.js (`assistantEnabled`) i services/assistant. #}
+{% if assistantEnabled %}{% include "partials/assistant-widget.njk" %}{% endif %}
 {% block scripts %}{% endblock scripts %}</body></html>

@@ -11,6 +11,9 @@
  * klient, a raz grupa pracująca w jego kontekście (`services/groupContext.js`)
  * — cena musi w obu przypadkach wyjść identyczna.
  *
+ * ⚠️ W trybie narzutu (`user.group_price_mode = 'markup'`) rabatu nie ma —
+ * patrz services/groupPriceMode.js.
+ *
  * ⚠️ Tylko `group_type = 'client'`. Dla klasycznej grupy ze sklepami kolumna
  * zostaje zerem i nic nie zmienia — inaczej włączenie tej funkcji cicho
  * przeliczyłoby ceny istniejącym grupom (np. TCN).
@@ -18,6 +21,7 @@
 
 const { selectQuery } = require('../db/core');
 const { isClientGroupType } = require('./groupType');
+const { resolveClientPricingForOrder, PRICE_MODE_MARKUP } = require('./groupPriceMode');
 const { log } = require('../utils/logging');
 
 /**
@@ -39,7 +43,15 @@ async function resolveClientDiscountForOrder(orderId) {
         if (!row) return 0;
         if (row.role !== 'group' || !isClientGroupType(row.group_type)) return 0;
         const pct = parseFloat(row.pct);
-        return Number.isFinite(pct) && pct > 0 ? Math.min(100, pct) : 0;
+        if (!(Number.isFinite(pct) && pct > 0)) return 0;
+        // Grupa rozliczana NARZUTEM (`user.group_price_mode = 'markup'`, ustawia
+        // admin): klient płaci cenę zwykłą + narzut, rabat od cen `SUB___` go nie
+        // dotyczy. Wartość `discount_percent` zostaje w bazie — wraca do gry po
+        // przełączeniu grupy z powrotem na rabat. Osobne zapytanie, patrz
+        // services/groupPriceMode.js (przed migracją = tryb rabatowy).
+        const { mode } = await resolveClientPricingForOrder(orderId);
+        if (mode === PRICE_MODE_MARKUP) return 0;
+        return Math.min(100, pct);
     } catch (err) {
         // Brak informacji nie może zablokować formularza — bez rabatu wszystko
         // działa jak dotąd.

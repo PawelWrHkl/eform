@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var edytor      = document.getElementById('ua-editor');
     var formUstawien = document.getElementById('ua-settings-form');
     var formHasla   = document.getElementById('ua-password-form');
+    var formWyceny  = document.getElementById('ua-price-mode-form');
 
     /** Ostatnio wczytany użytkownik — źródło prawdy dla „przywróć wartości". */
     var wybrany = null;
@@ -124,6 +125,17 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('ua-intro-needed').checked = Number(u.intro_needed) === 1;
         document.getElementById('ua-client-ab').checked = Number(u.client_ab) === 1;
 
+        // Wycena klientów grupy ma sens tylko dla konta grupy. `group_type`
+        // pokazujemy jako ostrzeżenie, a nie blokadę: admin może ustawić tryb,
+        // zanim przełączy grupę na typ `client`.
+        formWyceny.hidden = u.role !== 'group';
+        document.getElementById('ua-price-mode-type-warn').hidden =
+            String(u.group_type || '').trim().toLowerCase() === 'client';
+        var tryb = u.group_price_mode === 'markup' ? 'markup' : 'discount';
+        Array.prototype.forEach.call(formWyceny.querySelectorAll('input[name="group_price_mode"]'), function (el) {
+            el.checked = el.value === tryb;
+        });
+
         document.getElementById('ua-password').value = '';
         document.getElementById('ua-password2').value = '';
 
@@ -164,6 +176,35 @@ document.addEventListener('DOMContentLoaded', function () {
             wybrany = dane.user;
             wypelnij(wybrany);
             powiadom('success', 'Ustawienia zapisane');
+        } catch (e2) {
+            powiadom('error', e2.message || 'Zapis nie powiódł się');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    /* --- Tryb wyceny klientów grupy ---------------------------------- */
+
+    formWyceny.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (!wybrany) return;
+
+        var zaznaczony = formWyceny.querySelector('input[name="group_price_mode"]:checked');
+        if (!zaznaczony) return;
+
+        var btn = document.getElementById('ua-save-price-mode');
+        btn.disabled = true;
+        try {
+            var resp = await fetch('/admin/api/users/' + wybrany.id + '/group-price-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: zaznaczony.value })
+            });
+            var dane = await resp.json();
+            if (!dane.success) throw new Error(dane.message || 'Zapis nie powiódł się');
+            wybrany = dane.user;
+            wypelnij(wybrany);
+            powiadom('success', 'Tryb wyceny zapisany');
         } catch (e2) {
             powiadom('error', e2.message || 'Zapis nie powiódł się');
         } finally {

@@ -79,12 +79,22 @@
                 <option value="{{ l }}"{% if l == profile.defaultLang %} selected{% endif %}>{{ l }}</option>
               {% endfor %}
             </select></label>
+          {# Szablon = formatka organizacji (`invoice_template.background_file`).
+             Zmienia ją wyłącznie admin — owner widzi, ale nie wybiera (lista ma
+             formatki wszystkich organizacji). Wyłączone pole nie jest wysyłane,
+             a serwer i tak odrzuca `template_code` od nie-admina. #}
           <label class="inv-field"><span class="inv-label">{{ L.template }}</span>
-            <select name="template_code">
-              {% for t in templates %}
-                <option value="{{ t.code }}"{% if t.code == profile.templateCode %} selected{% endif %}>{{ t.name }}</option>
-              {% endfor %}
-            </select></label>
+            {% if canEditTemplate %}
+              <select name="template_code">
+                {% for t in templates %}
+                  <option value="{{ t.code }}"{% if t.code == profile.templateCode %} selected{% endif %}>{{ t.name }}{% if t.background_file %} · {{ t.background_file }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input type="text" value="{{ currentTemplateName }}" disabled>
+              <span class="inv-hint">{{ L.template_admin_only }}</span>
+            {% endif %}
+          </label>
           <label class="inv-field"><span class="inv-label">{{ L.accent_color }}</span>
             <input name="theme_accent" type="color" value="{{ profile.themeVars.accent if profile.themeVars.accent else '#1f2937' }}"></label>
         </div>

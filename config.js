@@ -4,6 +4,11 @@ const path = require('path');
 const ROOT_DIR = process.env.ROOT_DIR || '/mnt/eform';
 const PHOTO_PATH = path.join(ROOT_DIR, 'data');
 
+/** Przełącznik z .env: true/on/1/yes/tak → włączony, wszystko inne (także brak) → wyłączony. */
+function envSwitch(value) {
+  return ['true', 'on', '1', 'yes', 'tak'].includes(String(value || '').trim().toLowerCase());
+}
+
 module.exports = {
   rootDir: ROOT_DIR,
   dataDir: process.env.DATA_DIR || '/mnt/eform/datatest',
@@ -86,5 +91,47 @@ module.exports = {
     hmacSecret: process.env.CUSTOMER_EXPORT_HMAC_SECRET || '',
     timeoutMs: Number(process.env.CUSTOMER_EXPORT_TIMEOUT_MS) || 10000,
     attempts: Number(process.env.CUSTOMER_EXPORT_ATTEMPTS) || 4
+  },
+
+  // ── Asystent eForm (czat AI dla klientów, services/assistant) ──────────
+  // `ASSISTANT_ENABLED`: `true` = widżet dla każdego zalogowanego, `admins` =
+  // pilotaż tylko dla kont admina, cokolwiek innego (także brak) = wyłączony,
+  // a router `/assistant` w ogóle nie wstaje (konwencja `invoices`).
+  //
+  // ⚠️ Brak `OPENAI_API_KEY` przy włączonym asystencie NIE chowa widżetu:
+  // każde pytanie kończy się wtedy propozycją przekazania rozmowy konsultantowi.
+  // Bot, który nie może odpowiedzieć, ma przełączać do człowieka, a nie znikać.
+  //
+  // ⚠️ Adresat przekazań jest WYŁĄCZNIE w `.env` (`ASSISTANT_HANDOFF_EMAIL`,
+  // per marka `ASSISTANT_HANDOFF_EMAIL_<IDENT_ORGANIZACJI>`, np. `_LUXANGMBH`),
+  // bez fallbacku na adresy z bazy (`organization.email` to skrzynki zamówień
+  // produkcji) — inaczej test z dev wysłałby rozmowę do prawdziwej obsługi.
+  assistant: {
+    mode: String(process.env.ASSISTANT_ENABLED || '').trim().toLowerCase() === 'admins'
+      ? 'admins'
+      : envSwitch(process.env.ASSISTANT_ENABLED) ? 'true' : 'off',
+    apiKey: process.env.OPENAI_API_KEY || '',
+    apiUrl: process.env.OPENAI_API_URL || 'https://api.openai.com/v1/responses',
+    model: process.env.OPENAI_MODEL || 'gpt-5.6-luna',
+    reasoningEffort: process.env.ASSISTANT_REASONING_EFFORT || 'low',
+    timeoutMs: Number(process.env.ASSISTANT_TIMEOUT_MS) || 30000,
+    maxQuestionsPerHour: Number(process.env.ASSISTANT_MAX_QUESTIONS_PER_HOUR) || 40,
+    handoffEmail: process.env.ASSISTANT_HANDOFF_EMAIL || '',
+
+    // Rozmowa głosowa (OpenAI Realtime, services/assistant/voice). Osobna
+    // flaga `ASSISTANT_VOICE_ENABLED=true` — działa tylko przy włączonym
+    // asystencie. Limity chronią budżet: głos kosztuje ok. 2–10 centów/min.
+    // ⚠️ Mikrofon w przeglądarce działa wyłącznie w bezpiecznym kontekście
+    // (https albo localhost) — pod http://<ip>:8000 przycisk się nie pokaże.
+    voice: {
+      enabled: envSwitch(process.env.ASSISTANT_VOICE_ENABLED),
+      model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1-mini',
+      voice: process.env.ASSISTANT_VOICE || 'marin',
+      transcribeModel: process.env.ASSISTANT_VOICE_TRANSCRIBE_MODEL || 'gpt-realtime-whisper',
+      callsUrl: process.env.OPENAI_REALTIME_CALLS_URL || 'https://api.openai.com/v1/realtime/calls',
+      sidebandUrl: process.env.OPENAI_REALTIME_WS_URL || 'wss://api.openai.com/v1/realtime',
+      maxSessionMinutes: Number(process.env.ASSISTANT_VOICE_MAX_SESSION_MINUTES) || 10,
+      maxMinutesPerDay: Number(process.env.ASSISTANT_VOICE_MAX_MINUTES_PER_DAY) || 30
+    }
   }
 };

@@ -26,6 +26,8 @@ const { selectQuery } = require('../../../db/core');
 const { organizationIdFromSession, scopeFromSession, canAccessInvoice } = require('./session');
 const hierarchy = require('../core/hierarchy');
 const { resolvePriceBasis, PriceBasis, HKL_ORG_ID } = require('../core/pricing');
+const { parseSpeditionNumbers } = require('../../prodStatus');
+const { AUTO_ACTOR } = require('../autoInvoicing');
 const { log } = require('../../../utils/logging');
 
 const router = express.Router();
@@ -65,28 +67,27 @@ async function loadClientContext(organizationId, clientId) {
 
   // Liczniki policzone TYLKO dla wybranego klienta — przy tysiącach klientów
   // liczenie ich dla całej listy byłoby N+1 w SQL-u.
-  const counts = await selectQuery(
-    `SELECT
-       (SELECT COUNT(*) FROM \`order\` o
-         LEFT JOIN invoice i ON i.order_id = o.id
-                            AND i.document_type IN ('invoice', 'final')
-                            AND i.status <> 'cancelled'
-                            -- ⚠️ TYLKO dokumenty TEJ relacji: faktura salonu dla
-                            -- jego klienta nie zamyka sprzedaży organizacji do
-                            -- salonu. Bez tego licznik pokazywał „0 do
-                            -- zafakturowania", choć zamówienie czekało.
-                            AND i.issuer_type = 'organization' AND i.issuer_id = ? AND i.level = 2
-         WHERE o.user_id = ? AND o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL) AS pending_orders,
-       (SELECT COUNT(*) FROM invoice v
-         WHERE v.buyer_user_id = ? AND v.organization_id = ? AND v.level = 2) AS documents`,
-    [organizationId, clientId, organizationId, clientId, organizationId]
-  );
+  // „Do zafakturowania" = zamówienia wysłane do klienta (`!sent!`) bez faktury
+  // na poziomie 2 — ten sam warunek co okno zamówień pod kartą
+  // (`repository.invoiceableForClientWhere`), więc obie liczby się zgadzają.
+  // ⚠️ Liczymy tylko dokumenty TEJ relacji: faktura salonu dla jego klienta
+  // nie zamyka sprzedaży organizacji do salonu.
+  const [pendingOrders, counts] = await Promise.all([
+    repository.countInvoiceableOrdersForClient({
+      organizationId, clientId, level: hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, onlyShipped: true
+    }),
+    selectQuery(
+      `SELECT COUNT(*) AS documents FROM invoice v
+        WHERE v.buyer_user_id = ? AND v.organization_id = ? AND v.level = 2`,
+      [clientId, organizationId]
+    )
+  ]);
 
   const zeroRate = taxRules.isIntraEuZeroRate(client.seller_country, client.country);
   const sameCountry = taxRules.normalizeCountry(client.seller_country) === taxRules.normalizeCountry(client.country);
   return {
     ...client,
-    pendingOrders: counts && counts[0] ? Number(counts[0].pending_orders) : 0,
+    pendingOrders,
     documents: counts && counts[0] ? Number(counts[0].documents) : 0,
     zeroRate,
     taxHint: zeroRate ? 'zero_rate_hint' : (sameCountry ? 'domestic_hint' : 'export_hint'),
@@ -192,6 +193,52 @@ async function loadOrganizationContext({ sellerOrganizationId, buyerOrganization
   };
 }
 
+/** Data z mysql2 (obiekt `Date`) do wyświetlenia; pusta wartość → ''. */
+function formatDate(value, lang) {
+  return value ? String(new Date(value).toLocaleDateString(lang)) : '';
+}
+
+/** Ile zamówień najwyżej pokazuje okno — dalej trzeba zawęzić filtrem. */
+const ORDERS_WINDOW_LIMIT = 500;
+
+/**
+ * „Okno zamówień" na poziomie 2: zamówienia klienta czekające na fakturę,
+ * pokazane od razu po wybraniu klienta (zamiast comboboxa, w którym trzeba
+ * było wiedzieć, czego szukać).
+ *
+ * Filtr `shipped` (domyślny) — `prod_status = '!sent!'`, czyli towar wyjechał
+ * do klienta. `all` — wszystkie przekazane do produkcji: proforma i zaliczka
+ * wystawiane są zwykle PRZED wysyłką, a combobox na to pozwalał.
+ *
+ * @param {{ organizationId: number, clientId: number, level: number, filter: string, lang: string }} params
+ */
+async function loadOrdersWindow({ organizationId, clientId, level, filter, lang }) {
+  const onlyShipped = filter !== 'all';
+  const { items, total } = await repository.listInvoiceableOrdersForClient({
+    organizationId, clientId, level, onlyShipped, limit: ORDERS_WINDOW_LIMIT
+  });
+  return {
+    filter: onlyShipped ? 'shipped' : 'all',
+    total,
+    items: items.map((o) => ({
+      id: o.id,
+      orderIdx: o.order_idx,
+      name: o.commision || '',
+      prodStatus: o.prod_status || '',
+      sentDateFmt: formatDate(o.sent_date, lang),
+      shippedDateFmt: o.prod_status === '!sent!' ? formatDate(o.delivery_date, lang) : '',
+      totalFmt: o.total_float == null ? '' : money.format(money.toMinor(o.total_float, DOCUMENT_CURRENCY), DOCUMENT_CURRENCY, lang),
+      parcels: parseSpeditionNumbers(o.spedition_numbers),
+      advancesFmt: Number(o.advances_gross) > 0
+        ? money.format(money.toMinor(o.advances_gross, DOCUMENT_CURRENCY), DOCUMENT_CURRENCY, lang)
+        : '',
+      // Pozycje zamówienia mają zerową wycenę — serwer odrzuci taki dokument
+      zeroValue: Number(o.items_net) === 0,
+      unshipped: Number(o.unshipped_positions) || 0
+    }))
+  };
+}
+
 /** Lista dokumentów z kwotami sformatowanymi do wyświetlenia. */
 function decorateInvoices(rows, lang) {
   return (rows || []).map((r) => ({
@@ -199,8 +246,9 @@ function decorateInvoices(rows, lang) {
     netFmt: money.format(money.toMinor(r.total_net, r.currency), r.currency, lang),
     grossFmt: money.format(money.toMinor(r.total_gross, r.currency), r.currency, lang),
     dueFmt: money.format(money.toMinor(r.amount_due, r.currency), r.currency, lang),
-    issueDateFmt: r.issue_date ? String(new Date(r.issue_date).toLocaleDateString(lang)) : '',
-    dueDateFmt: r.due_date ? String(new Date(r.due_date).toLocaleDateString(lang)) : ''
+    issueDateFmt: formatDate(r.issue_date, lang),
+    dueDateFmt: formatDate(r.due_date, lang),
+    isAuto: r.created_by_pin === AUTO_ACTOR
   }));
 }
 
@@ -327,9 +375,14 @@ router.get('/client/:clientId', requireLogin, async (req, res) => {
     // zapamiętany w zakładkach po zmianie poziomu albo kontekstu organizacji.
     if (!ctx.client) return res.redirect(`/invoices?level=${ctx.level}`);
 
-    const [invoices, profile] = await Promise.all([
+    // Poziom 2: zamówienia klienta widoczne od razu w oknie (bez comboboxa)
+    const ordersWindowPromise = ctx.level === hierarchy.InvoiceLevel.ORGANIZATION_TO_USER
+      ? loadOrdersWindow({ organizationId, clientId: ctx.client.id, level: ctx.level, filter: req.query.orders, lang })
+      : Promise.resolve(null);
+    const [invoices, profile, ordersWindow] = await Promise.all([
       repository.listInvoices(ctx.invoiceFilter),
-      repository.getOrganizationProfile(organizationId)
+      repository.getOrganizationProfile(organizationId),
+      ordersWindowPromise
     ]);
 
     return res.render('owner/invoice_client.njk', {
@@ -341,6 +394,7 @@ router.get('/client/:clientId', requireLogin, async (req, res) => {
       priceBasisLabels: { [PriceBasis.BASE]: L.price_basis_base, [PriceBasis.SUB]: L.price_basis_sub, [PriceBasis.LIST]: L.price_basis_list },
       client: ctx.client,
       invoices: decorateInvoices(invoices, lang),
+      ordersWindow,
       profile,
       currency: DOCUMENT_CURRENCY,
       documentTypes: ctx.buyerIsEndClient
@@ -369,11 +423,18 @@ router.get('/profile', requireLogin, requireOwner, async (req, res) => {
       repository.getOrganizationProfile(organizationId),
       repository.listTemplates()
     ]);
+    // Szablon = formatka organizacji (papier firmowy). Przypisuje ją admin —
+    // owner wybierający z listy mógłby drukować faktury na cudzym papierze
+    // firmowym, bo lista zawiera formatki wszystkich organizacji.
+    const canEditTemplate = !!req.session.user?.isAdmin;
+    const currentTemplate = (templates || []).find((t) => t.code === profile?.templateCode) || null;
     return res.render('owner/invoice_profile.njk', {
       L,
       panelLang: lang,
       profile,
       templates,
+      canEditTemplate,
+      currentTemplateName: currentTemplate ? currentTemplate.name : (profile?.templateCode || 'default'),
       currency: DOCUMENT_CURRENCY,
       docLangs: ['pl', 'en', 'de'],
       paymentMethods: ['transfer', 'cash', 'card', 'cod', 'prepaid'],

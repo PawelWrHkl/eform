@@ -21,9 +21,21 @@ const path = require('path');
 const nunjucks = require('nunjucks');
 const money = require('../core/money');
 const { DocumentType, PaymentMethod } = require('../domain/constants');
+const { DEFAULT_TEMPLATE, normalizeTemplatePath, parsePageMargins } = require('../core/templates');
 const { log } = require('../../../utils/logging');
 
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
+/** Formatki organizacji (papier firmowy w PDF) — `invoice_template.background_file`. */
+const BACKGROUNDS_DIR = path.join(__dirname, '..', '..', '..', 'img', 'invoice-background');
+
+/**
+ * CSS doklejany, gdy treść idzie na formatkę: strona przezroczysta (inaczej
+ * biały `body` z `invoice.css` zakryłby papier firmowy) i treść na całą
+ * szerokość pola, które formatka zostawia między marginesami.
+ */
+const BACKGROUND_CSS = `
+body, .invoice { background: transparent !important; }
+.invoice { max-width: none !important; }`;
 const I18N_DIR = path.join(__dirname, '..', 'i18n');
 
 /** Języki z gotowym słownikiem. Brakujący język → fallback na `pl`. */
@@ -118,6 +130,40 @@ function buildThemeCss(templateVars = {}, orgVars = {}) {
 }
 
 /**
+ * Pliki szablonu wskazane w bazie (`invoice_template`) → pliki, które naprawdę
+ * wyrenderujemy.
+ *
+ * ⚠️ Zły albo brakujący plik NIE blokuje dokumentu: bierzemy szablon domyślny
+ * i zostawiamy ostrzeżenie w logu. Dane faktury są te same w każdym szablonie,
+ * a 500 przy podglądzie/PDF-ie (np. wdrożenie bez nowego pliku organizacji)
+ * oznaczałoby fakturę, której nie da się wysłać klientowi.
+ *
+ * @param {{ code?: string, templateFile?: string, stylesheet?: string }} [template]
+ * @param {{ exists?: (absPath: string) => boolean, warn?: (msg: string) => void }} [opts]
+ * @returns {{ templateFile: string, stylesheet: string }}
+ */
+function resolveTemplateFiles(template = {}, { exists = fs.existsSync, warn = log } = {}) {
+  const pick = (value, extension, fallback, kind) => {
+    if (!value) return fallback;
+    const rel = normalizeTemplatePath(value, extension);
+    const abs = rel ? path.resolve(TEMPLATES_DIR, rel) : null;
+    if (!abs || !abs.startsWith(TEMPLATES_DIR + path.sep)) {
+      warn(`[invoices] szablon „${template.code || '?'}": niedozwolona ścieżka ${kind} „${value}" — używam ${fallback}`);
+      return fallback;
+    }
+    if (!exists(abs)) {
+      warn(`[invoices] szablon „${template.code || '?'}": brak pliku ${kind} ${rel} w ${TEMPLATES_DIR} — używam ${fallback}`);
+      return fallback;
+    }
+    return rel;
+  };
+  return {
+    templateFile: pick(template.templateFile, '.njk', DEFAULT_TEMPLATE.templateFile, 'szablonu'),
+    stylesheet: pick(template.stylesheet, '.css', DEFAULT_TEMPLATE.stylesheet, 'arkusza')
+  };
+}
+
+/**
  * Buduje kompletny dokument HTML faktury (CSS inline, logo jako data URI).
  *
  * @param {Object} params
@@ -127,7 +173,7 @@ function buildThemeCss(templateVars = {}, orgVars = {}) {
  * @param {string} [params.logoDataUri]
  * @returns {string}
  */
-function renderInvoiceHtml({ invoice, profile = {}, template = {}, logoDataUri = '' }) {
+function renderInvoiceHtml({ invoice, profile = {}, template = {}, logoDataUri = '', onBackground = false }) {
   const lang = invoice.lang || profile.defaultLang || 'pl';
   const env = createEnvironment({
     lang,
@@ -135,8 +181,7 @@ function renderInvoiceHtml({ invoice, profile = {}, template = {}, logoDataUri =
     localCurrency: invoice.localCurrency || invoice.currency
   });
 
-  const templateFile = template.templateFile || 'invoice-main.njk';
-  const stylesheet = template.stylesheet || 'styles/invoice.css';
+  const { templateFile, stylesheet } = resolveTemplateFiles(template);
   const cssPath = path.join(TEMPLATES_DIR, stylesheet);
   const css = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf8') : '';
   const themeCss = buildThemeCss(template.themeVars, profile.themeVars);
@@ -160,10 +205,43 @@ function renderInvoiceHtml({ invoice, profile = {}, template = {}, logoDataUri =
   <style>
 ${css}
 ${themeCss}
+${onBackground ? BACKGROUND_CSS : ''}
   </style>
 </head>
 <body>${body}</body>
 </html>`;
+}
+
+const PX_PER_MM = 96 / 25.4;
+
+/**
+ * Skala, przy której treść mieści się na JEDNEJ stronie — o ile wystarczy
+ * niewielkie pomniejszenie.
+ *
+ * Pole treści na formatce jest niższe niż na czystym A4 (pasy nagłówka
+ * i stopki: Luxan 159 mm zamiast 184 mm), więc jednopozycyjna faktura
+ * wypychała blok „Płatność + podpisy" na drugą, prawie pustą stronę.
+ * Długie faktury i tak mają kilka stron — dla nich zostaje skala 1, żeby
+ * pomniejszenie nie było kosztem bez zysku.
+ *
+ * Pomiar: układ w trybie druku na szerokości pola treści. Przy skali `s`
+ * Chromium układa stronę na szerokości `W / s`, więc wiersze się nie
+ * wydłużają, a wysokość spada co najmniej proporcjonalnie.
+ *
+ * @param {import('playwright').Page} page
+ * @param {{ contentWidthMm: number, availableHeightMm: number, minScale?: number }} fit
+ * @returns {Promise<number>}
+ */
+async function fitScale(page, { contentWidthMm, availableHeightMm, minScale = 0.8 }) {
+  // Wysokość okna minimalna: `scrollHeight` dokumentu nigdy nie schodzi poniżej
+  // okna, więc mierzymy samo `body` (marginesy 0 w `invoice.css`).
+  await page.setViewportSize({ width: Math.round(contentWidthMm * PX_PER_MM), height: 100 });
+  await page.emulateMedia({ media: 'print' });
+  const neededMm = (await page.evaluate(() => document.body.getBoundingClientRect().height)) / PX_PER_MM;
+  if (neededMm <= availableHeightMm) return 1;
+  // 2% luzu na zaokrąglenia i podział strony po `break-inside: avoid`
+  const scale = (availableHeightMm / neededMm) * 0.98;
+  return scale >= minScale ? Number(scale.toFixed(3)) : 1;
 }
 
 /**
@@ -190,12 +268,23 @@ async function renderPdfFromHtml(html, opts = {}) {
   try {
     const context = await browser.newContext();
     const page = await context.newPage();
+    if (opts.transparent) {
+      // Chromium maluje pod stroną białe tło niezależnie od CSS — bez tego
+      // treść nałożona na formatkę zasłoniłaby ją w całości. Playwright nie ma
+      // opcji `omitBackground` (Puppeteer ma), więc wprost przez CDP.
+      const cdp = await context.newCDPSession(page);
+      await cdp.send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
+    }
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const scale = opts.fit ? await fitScale(page, opts.fit) : 1;
+    const size = opts.width && opts.height
+      ? { width: opts.width, height: opts.height }
+      : { format: opts.format || 'A4', landscape: opts.landscape === undefined ? true : !!opts.landscape };
     return await page.pdf({
-      format: opts.format || 'A4',
-      landscape: opts.landscape === undefined ? true : !!opts.landscape,
+      ...size,
+      scale,
       printBackground: true,
-      margin: { top: '12mm', right: '10mm', bottom: '14mm', left: '10mm' }
+      margin: opts.margin || { top: '12mm', right: '10mm', bottom: '14mm', left: '10mm' }
     });
   } catch (err) {
     log(`[invoices] renderPdfFromHtml error: ${err.message}`);
@@ -206,13 +295,99 @@ async function renderPdfFromHtml(html, opts = {}) {
 }
 
 /**
+ * Formatka z bazy → ścieżka bezwzględna albo `null` (dokument bez formatki).
+ * Zła nazwa albo brak pliku nie blokuje PDF-a — patrz `resolveTemplateFiles`.
+ *
+ * @param {string|null|undefined} name  np. `LUXANGMBH.pdf`
+ * @param {{ exists?: (absPath: string) => boolean, warn?: (msg: string) => void, code?: string }} [opts]
+ * @returns {string|null}
+ */
+function resolveBackgroundFile(name, { exists = fs.existsSync, warn = log, code = '?' } = {}) {
+  if (!name) return null;
+  const rel = normalizeTemplatePath(name, '.pdf');
+  const abs = rel ? path.resolve(BACKGROUNDS_DIR, rel) : null;
+  if (!abs || !abs.startsWith(BACKGROUNDS_DIR + path.sep)) {
+    warn(`[invoices] szablon „${code}": niedozwolona nazwa formatki „${name}" — PDF bez formatki`);
+    return null;
+  }
+  if (!exists(abs)) {
+    warn(`[invoices] szablon „${code}": brak formatki ${rel} w ${BACKGROUNDS_DIR} — PDF bez formatki`);
+    return null;
+  }
+  return abs;
+}
+
+const PT_PER_MM = 72 / 25.4;
+
+/**
+ * Nakłada strony treści na formatkę: każda strona wyniku = strona formatki
+ * (wektorowo, jako XObject — bez rasteryzacji) + strona treści na wierzchu.
+ * Formatka ma jedną stronę, a faktura bywa wielostronicowa — papier firmowy
+ * trafia na każdą stronę.
+ *
+ * @param {Buffer|Uint8Array} contentPdf  treść wyrenderowana na rozmiarze formatki, z przezroczystym tłem
+ * @param {Buffer|Uint8Array} backgroundPdf
+ * @returns {Promise<Buffer>}
+ */
+async function overlayOnBackground(contentPdf, backgroundPdf) {
+  const { PDFDocument } = require('pdf-lib');
+  const out = await PDFDocument.create();
+  const [background] = await out.embedPdf(backgroundPdf, [0]);
+  const content = await PDFDocument.load(contentPdf);
+  const pages = await out.embedPdf(contentPdf, content.getPageIndices());
+
+  for (const page of pages) {
+    const target = out.addPage([background.width, background.height]);
+    target.drawPage(background, { x: 0, y: 0, width: background.width, height: background.height });
+    // Treść jest renderowana dokładnie na rozmiar formatki; skalowanie do jej
+    // wymiarów zbiera tylko zaokrąglenia mm → pt z Chromium (ułamki punktu).
+    target.drawPage(page, { x: 0, y: 0, width: background.width, height: background.height });
+  }
+  return Buffer.from(await out.save());
+}
+
+/**
+ * Rozmiar pierwszej strony formatki w mm (z niego bierze się rozmiar i
+ * orientacja PDF-a faktury).
+ *
+ * @param {Buffer|Uint8Array} backgroundPdf
+ * @returns {Promise<{ widthMm: number, heightMm: number }>}
+ */
+async function backgroundPageSize(backgroundPdf) {
+  const { PDFDocument } = require('pdf-lib');
+  const doc = await PDFDocument.load(backgroundPdf);
+  const { width, height } = doc.getPage(0).getSize();
+  return { widthMm: width / PT_PER_MM, heightMm: height / PT_PER_MM };
+}
+
+/**
  * Skrót: dokument → PDF w jednym kroku.
+ *
+ * Gdy szablon ma formatkę (`template.backgroundFile`), strona dostaje jej
+ * rozmiar i orientację, treść mieści się w `template.pageMargins`, a całość
+ * jest nakładana na papier firmowy. Bez formatki — A4 poziomo jak dotąd.
+ *
  * @param {Parameters<typeof renderInvoiceHtml>[0] & { pdfOptions?: object }} params
  * @returns {Promise<Buffer>}
  */
 async function renderInvoicePdf(params) {
-  const html = renderInvoiceHtml(params);
-  return renderPdfFromHtml(html, params.pdfOptions || {});
+  const template = params.template || {};
+  const backgroundPath = resolveBackgroundFile(template.backgroundFile, { code: template.code });
+  if (!backgroundPath) {
+    return renderPdfFromHtml(renderInvoiceHtml(params), params.pdfOptions || {});
+  }
+
+  const backgroundPdf = fs.readFileSync(backgroundPath);
+  const { widthMm, heightMm } = await backgroundPageSize(backgroundPdf);
+  const m = parsePageMargins(template.pageMargins);
+  const contentPdf = await renderPdfFromHtml(renderInvoiceHtml({ ...params, onBackground: true }), {
+    width: `${widthMm.toFixed(2)}mm`,
+    height: `${heightMm.toFixed(2)}mm`,
+    margin: { top: `${m.top}mm`, right: `${m.right}mm`, bottom: `${m.bottom}mm`, left: `${m.left}mm` },
+    transparent: true,
+    fit: { contentWidthMm: widthMm - m.left - m.right, availableHeightMm: heightMm - m.top - m.bottom }
+  });
+  return overlayOnBackground(contentPdf, backgroundPdf);
 }
 
 /**
@@ -232,6 +407,12 @@ function loadLogoDataUri(photoPathValue) {
 }
 
 module.exports = {
+  TEMPLATES_DIR,
+  BACKGROUNDS_DIR,
+  resolveTemplateFiles,
+  resolveBackgroundFile,
+  overlayOnBackground,
+  backgroundPageSize,
   SUPPORTED_LANGS,
   loadDictionary,
   createTranslator,

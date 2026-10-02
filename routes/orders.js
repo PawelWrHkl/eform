@@ -10,6 +10,7 @@ const ownerService = require('../services/owner.js');
 const { getActiveGroupShopId } = require('../services/groupContext');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
+const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
 const { notifyFirstOrderIfApplicable } = require('../services/firstOrderMailer');
 const mailBot = require('../services/mailBot/mailBot');
 const path = require('path');
@@ -18,7 +19,7 @@ const { generatePdf, generateOrderDocuments, generateProductionPdf, uploadProduc
 const { formatClientLabel } = require('../utils/formatClient');
 const { buildOrderItemStructure } = require('../services/itemBuilder.js');
 const { getPriceAfterDiscount } = require('../services/getDiscount.js');
-const { SyncProdStatus, setParcelHref, parseSpeditionNumbers, alignStatusesToItems } = require('../services/prodStatus.js');
+const { setParcelHref, parseSpeditionNumbers, alignStatusesToItems } = require('../services/prodStatus.js');
 const invoiceRepository = require('../services/invoices/db/repository');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
 const { applySubPriceLocals } = require('../services/subPriceContext');
@@ -442,9 +443,9 @@ router.get("/history", requireLogin, loadEmployeePermissions, filterPriceData, f
 
     const currentUser = ownerService.getCurrentUser(req);
     let orders, totalOrders;
-    const user = await db.getOwner(currentUser.pin);
-    let status = new SyncProdStatus();
-    const files = await status.init(user.orgIdent, user.userIdent);
+    // Statusy produkcji NIE są już synchronizowane przy wejściu na tę stronę —
+    // robi to cykliczny proces dla wszystkich klientów naraz
+    // (`scripts/prodStatusSync.js`, patrz `services/prodStatusScheduler.js`).
 
     const historyShopId = getActiveGroupShopId(req);
     if (historyShopId) {
@@ -1153,8 +1154,12 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
     // (services/portalUsageDiscount.js); front rozdziela go z powrotem.
     const { total: clientDiscountPercent, portalBonus: portalUsageDiscountPercent } =
         await resolveCombinedDiscountForOrder(req.params.orderId);
+    // Grupa rozliczana narzutem (`user.group_price_mode = 'markup'`): ceną klienta
+    // są ceny zwykłe + narzut konta podrzędnego (services/groupPriceMode.js).
+    const { mode: clientPriceMode, markupPercent: clientMarkupPercent } =
+        await resolveClientPricingForOrder(req.params.orderId);
 
-    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, ...vatLocals });
+    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, clientPriceMode, clientMarkupPercent, ...vatLocals });
 });
 
 

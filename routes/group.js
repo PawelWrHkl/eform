@@ -19,6 +19,7 @@ const { getProductionSendSkipClient, shouldForceProductionSend } = require('../u
 const { groupLabelKey } = require('../services/groupType');
 const { setGroupShopContext, clearGroupShopContext, getGroupShopContext } = require('../services/groupContext');
 const { isClientGroupType } = require('../services/groupType');
+const groupPriceMode = require('../services/groupPriceMode');
 const { orderHasSubPrices } = require('../services/subPrices');
 
 // ── Middleware: wszystkie trasy wymagają zalogowania i roli 'group' ──────────
@@ -44,6 +45,17 @@ function parseSendOrderPolicy(body) {
     return (Array.isArray(raw) ? raw : [raw]).some(v => String(v) === '1');
 }
 
+/**
+ * Czy klienci TEJ grupy są rozliczani narzutem (`user.group_price_mode = 'markup'`,
+ * ustawia admin w /admin/users) — wtedy formularz i panel pokazują „Narzut"
+ * zamiast „Rabat". Tryb czytamy z bazy, nie z sesji: zmiana przez admina ma
+ * działać od razu, bez ponownego logowania grupy.
+ */
+async function isMarkupPricing(currentUser) {
+    if (!isClientGroupType(currentUser?.groupType)) return false;
+    return groupPriceMode.isMarkupMode(await groupPriceMode.getGroupPriceMode(currentUser.userId));
+}
+
 // ── GET /group/shops ─ lista sklepów ────────────────────────────────────────
 
 router.get('/shops', async (req, res, next) => {
@@ -67,7 +79,8 @@ router.get('/shops/new', async (req, res, next) => {
     try {
         const currentUser = ownerService.getCurrentUser(req);
         const preview = await db.previewNewGroupUser(currentUser.userId);
-        return res.render('group/shop_form.njk', { shop: null, mode: 'new', sendOrderPolicy: false, ...preview });
+        const markupPricing = await isMarkupPricing(currentUser);
+        return res.render('group/shop_form.njk', { shop: null, mode: 'new', sendOrderPolicy: false, isMarkupPricing: markupPricing, ...preview });
     } catch (err) {
         return next(err);
     }
@@ -82,6 +95,7 @@ router.post('/shops', async (req, res, next) => {
 
         const preview = await db.previewNewGroupUser(currentUser.userId);
         const sendOrderPolicy = parseSendOrderPolicy(req.body) === true;
+        const markupPricing = await isMarkupPricing(currentUser);
 
         if (!password || password.length < 5) {
             return res.render('group/shop_form.njk', {
@@ -89,6 +103,7 @@ router.post('/shops', async (req, res, next) => {
                 mode: 'new',
                 ...preview,
                 sendOrderPolicy,
+                isMarkupPricing: markupPricing,
                 error: req.__('group.form_error_password_required')
             });
         }
@@ -100,6 +115,7 @@ router.post('/shops', async (req, res, next) => {
                 mode: 'new',
                 ...preview,
                 sendOrderPolicy,
+                isMarkupPricing: markupPricing,
                 error: req.__('group.form_error_email_invalid')
             });
         }
@@ -107,7 +123,8 @@ router.post('/shops', async (req, res, next) => {
         // Rabat przyjmujemy WYŁĄCZNIE od grupy typu `client` — dla klasycznej
         // grupy ze sklepami pola nie ma w formularzu i nie może wjechać z
         // podrobionego POST-a (patrz services/groupDiscount.js).
-        const acceptsDiscount = isClientGroupType(currentUser.groupType);
+        // W trybie narzutu rabatu nie przyjmujemy wcale — pola nie ma w formularzu.
+        const acceptsDiscount = isClientGroupType(currentUser.groupType) && !markupPricing;
 
         const result = await db.addGroupUser({
             parentUserId: currentUser.userId,
@@ -127,6 +144,7 @@ router.post('/shops', async (req, res, next) => {
                 shop: req.body,
                 mode: 'new',
                 sendOrderPolicy,
+                isMarkupPricing: markupPricing,
                 error: req.__(groupLabelKey('form_error_add_shop', currentUser.groupType))
             });
         }
@@ -135,6 +153,11 @@ router.post('/shops', async (req, res, next) => {
         // gwarantowana przez kod, a nowe konto ma mieć dokładnie to, co wybrano.
         if (result.id) {
             await db.setGroupUserSendOrderPolicy(result.id, sendOrderPolicy);
+            // Narzut osobnym zapisem (services/groupPriceMode.js) — tak jak
+            // send_order_policy: przed migracją nie może wywrócić zakładania konta.
+            if (markupPricing) {
+                await groupPriceMode.setGroupUserMarkup(result.id, req.body.markupPercent);
+            }
         }
 
         return res.redirect('/group/panel?tab=shops&success=added');
@@ -156,7 +179,9 @@ router.get('/shops/:id/edit', async (req, res, next) => {
         }
 
         const sendOrderPolicy = await db.getGroupUserSendOrderPolicy(shop.id);
-        return res.render('group/shop_form.njk', { shop, mode: 'edit', sendOrderPolicy });
+        const markupPricing = await isMarkupPricing(currentUser);
+        if (markupPricing) shop.markup_percent = await groupPriceMode.getGroupUserMarkup(shop.id);
+        return res.render('group/shop_form.njk', { shop, mode: 'edit', sendOrderPolicy, isMarkupPricing: markupPricing });
     } catch (err) {
         log('[group/shops/:id/edit] Error:', err);
         return next(err);
@@ -178,8 +203,11 @@ router.post('/shops/:id', async (req, res, next) => {
         const { password, street, zip, city, phone, email, tax_id } = req.body;
 
         // `discountPercent: undefined` = nie ruszaj rabatu (grupa typu `shop`
-        // nie ma tego pola) — patrz db/group.js updateGroupUser.
-        const acceptsDiscount = isClientGroupType(currentUser.groupType);
+        // nie ma tego pola) — patrz db/group.js updateGroupUser. W trybie
+        // narzutu też go nie ruszamy: rabat ma wrócić nietknięty, gdy admin
+        // przełączy grupę z powrotem na rabat.
+        const markupPricing = await isMarkupPricing(currentUser);
+        const acceptsDiscount = isClientGroupType(currentUser.groupType) && !markupPricing;
 
         await db.updateGroupUser(id, {
             name: (req.body.name || '').trim(),
@@ -195,6 +223,10 @@ router.post('/shops/:id', async (req, res, next) => {
         const sendOrderPolicy = parseSendOrderPolicy(req.body);
         if (sendOrderPolicy !== undefined) {
             await db.setGroupUserSendOrderPolicy(id, sendOrderPolicy);
+        }
+
+        if (markupPricing && req.body.markupPercent !== undefined) {
+            await groupPriceMode.setGroupUserMarkup(id, req.body.markupPercent);
         }
 
         if (password && password.trim()) {
@@ -243,6 +275,32 @@ router.post('/shops/:id/discount', async (req, res, next) => {
         return res.redirect('/group/panel?tab=shops&success=updated');
     } catch (err) {
         log('[group/shops/:id/discount POST] Error:', err);
+        return next(err);
+    }
+});
+
+// ── POST /group/shops/:id/markup ─ szybka zmiana narzutu z panelu ────────────
+// Odpowiednik trasy `/discount` dla grupy rozliczanej narzutem — ta sama
+// zasada: zwykły formularz HTML i zapis WYŁĄCZNIE narzutu, bez danych adresowych.
+
+router.post('/shops/:id/markup', async (req, res, next) => {
+    try {
+        const currentUser = ownerService.getCurrentUser(req);
+        const id = parseInt(req.params.id, 10);
+        const shop = await db.getGroupUserById(id);
+
+        if (!shop || shop.user_id !== currentUser.userId) {
+            return res.redirect('/group/panel?tab=shops&error=notfound');
+        }
+        if (!(await isMarkupPricing(currentUser))) {
+            return res.redirect('/group/panel?tab=shops&error=notfound');
+        }
+
+        await groupPriceMode.setGroupUserMarkup(id, req.body.markupPercent ?? 0);
+
+        return res.redirect('/group/panel?tab=shops&success=updated');
+    } catch (err) {
+        log('[group/shops/:id/markup POST] Error:', err);
         return next(err);
     }
 });
@@ -315,6 +373,13 @@ router.get('/panel', async (req, res, next) => {
         const pendingCount = pendingOrders ? pendingOrders.length : 0;
         const totalPages = Math.ceil(ordersTotal / limit);
 
+        // Grupa rozliczana narzutem: kolumna „Narzut" zamiast „Rabat".
+        const markupPricing = await isMarkupPricing(currentUser);
+        if (markupPricing && shops) {
+            const markups = await groupPriceMode.getGroupUserMarkupsByParentId(currentUser.userId);
+            for (const shop of shops) shop.markup_percent = markups[shop.id] ?? 0;
+        }
+
         // Find shop ident for filter chip
         let shopFilterIdent = null;
         let shopFilterName = null;
@@ -326,6 +391,7 @@ router.get('/panel', async (req, res, next) => {
 
         return res.render('group/panel.njk', {
             tab,
+            isMarkupPricing: markupPricing,
             shops: shops || [],
             shopCounts: shopCounts || {},
             pendingOrders: pendingOrders || [],

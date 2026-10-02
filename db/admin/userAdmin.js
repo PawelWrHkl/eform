@@ -9,12 +9,13 @@
 const bcrypt = require('bcryptjs');
 const { selectQuery, updateQuery, insertQuery } = require('../core');
 const { POLA } = require('../../services/admin/userAdminService');
+const { getGroupPriceMode } = require('../../services/groupPriceMode');
 
 /** Kolumny pokazywane w panelu (bez `password`, bez `plain`). */
 const KOLUMNY_PODGLADU = `
     u.id, u.pin, u.ident, u.client_name, u.email, u.phone, u.role,
     u.intro_needed, u.ab_type, u.ab_lang, u.delivery_delay, u.client_ab,
-    u.organization_id, o.ident AS organization_ident
+    u.group_type, u.organization_id, o.ident AS organization_ident
 `;
 
 /**
@@ -53,7 +54,13 @@ async function getUserForAdmin(userId) {
         WHERE u.id = ?
     `;
   const rows = await selectQuery(sql, [userId]);
-  return (rows && rows[0]) || null;
+  const user = (rows && rows[0]) || null;
+  if (!user) return null;
+  // Tryb wyceny klientów grupy — osobnym zapytaniem, bo kolumna dochodzi
+  // migracją (`migrations/add_group_price_mode.sql`): dopisana do SELECT-u
+  // wyżej, przed migracją wywróciłaby podgląd KAŻDEGO konta w panelu.
+  user.group_price_mode = await getGroupPriceMode(user.id);
+  return user;
 }
 
 /**

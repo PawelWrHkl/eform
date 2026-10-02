@@ -567,6 +567,10 @@
 		"sf_discount": "Client discount (%)",
 		"sf_discount_hint": "Applied automatically after the position price is calculated for this client. 0 = no discount.",
 		"col_discount": "Discount",
-		"discount_save": "Save discount"
+		"discount_save": "Save discount",
+		"sf_markup": "Client markup (%)",
+		"sf_markup_hint": "The client sees regular prices increased by this markup. 0 = regular prices without markup.",
+		"col_markup": "Markup",
+		"markup_save": "Save markup"
 	}
 }

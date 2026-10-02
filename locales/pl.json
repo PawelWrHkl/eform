@@ -572,6 +572,10 @@
 		"sf_discount": "Rabat klienta (%)",
 		"sf_discount_hint": "Doliczany automatycznie po przeliczeniu ceny pozycji tego klienta. 0 = brak rabatu.",
 		"col_discount": "Rabat",
-		"discount_save": "Zapisz rabat"
+		"discount_save": "Zapisz rabat",
+		"sf_markup": "Narzut klienta (%)",
+		"sf_markup_hint": "Klient widzi ceny zwykłe powiększone o ten narzut. 0 = ceny zwykłe bez narzutu.",
+		"col_markup": "Narzut",
+		"markup_save": "Zapisz narzut"
 	}
 }

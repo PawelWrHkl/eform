@@ -562,6 +562,10 @@
 		"sf_discount": "Klantkorting (%)",
 		"sf_discount_hint": "Wordt automatisch toegepast na het berekenen van de prijs van de positie van deze klant. 0 = geen korting.",
 		"col_discount": "Korting",
-		"discount_save": "Korting opslaan"
+		"discount_save": "Korting opslaan",
+		"sf_markup": "Klantopslag (%)",
+		"sf_markup_hint": "De klant ziet de normale prijzen verhoogd met deze opslag. 0 = normale prijzen zonder opslag.",
+		"col_markup": "Opslag",
+		"markup_save": "Opslag opslaan"
 	}
 }

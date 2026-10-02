@@ -70,6 +70,13 @@ async function deleteQuery(query, data) {
 
 
 
+// Dla skryptów jednorazowych (`scripts/prodStatusSync.js`): otwarta pula trzyma
+// pętlę zdarzeń, więc bez zamknięcia proces nigdy się nie kończy, a `process.exit()`
+// ucina asynchroniczne dopisywanie do pliku logu (`utils/logging`).
+async function closePool() {
+    await pool.end();
+}
+
 module.exports = {
-    selectQuery, updateQuery, deleteQuery, insertQuery, connetToDb
+    selectQuery, updateQuery, deleteQuery, insertQuery, connetToDb, closePool
 }

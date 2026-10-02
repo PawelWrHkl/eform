@@ -582,7 +582,18 @@ router.put('/profile/current', requireLogin, requireOwner, async (req, res) => {
   const organizationId = organizationIdFromSession(req);
   if (!organizationId) return res.status(403).json({ success: false, message: 'Brak kontekstu organizacji' });
   try {
-    const ok = await service.updateOrganizationProfile(organizationId, req.body || {});
+    const patch = { ...(req.body || {}) };
+    // Szablon = formatka (papier firmowy) organizacji — przypisuje ją admin.
+    // Owner nie może przestawić faktur na formatkę innej organizacji.
+    if (patch.template_code !== undefined) {
+      if (!req.session?.user?.isAdmin) {
+        delete patch.template_code;
+      } else {
+        const known = (await repository.listTemplates()).some((t) => t.code === patch.template_code && Number(t.is_active) === 1);
+        if (!known) return res.status(400).json({ success: false, message: `Nieznany szablon: ${patch.template_code}` });
+      }
+    }
+    const ok = await service.updateOrganizationProfile(organizationId, patch);
     return res.json({ success: ok });
   } catch (err) {
     return sendError(res, err, 'PUT /profile/current');

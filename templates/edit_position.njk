@@ -89,6 +89,11 @@
                       // pricesCalculator.applyClientDiscount(). Sam procent jest juz
                       // wliczony w clientDiscountPercent, wiec kwota schodzi raz.
                       window.portalUsageDiscountPercent = {{ portalUsageDiscountPercent | default(0) | dump | safe }};
+                      // Tryb wyceny klienta grupy (`user.group_price_mode`, ustawia admin):
+                      // 'markup' = ceny zwykle + narzut (`group_user.markup_percent`) zamiast
+                      // cen SUB___ z rabatem — pricesCalculator.applyClientMarkup().
+                      window.clientPriceMode = {{ clientPriceMode | default('discount') | dump | safe }};
+                      window.clientMarkupPercent = {{ clientMarkupPercent | default(0) | dump | safe }};
                     </script>
                     {% if vatEnabled %}
                     <script>

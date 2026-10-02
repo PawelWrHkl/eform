@@ -142,6 +142,48 @@
                         </div>
                     </form>
 
+                    {# --- Wycena klientów grupy (`user.group_price_mode`) ---
+                       Tylko dla kont z rolą „Grupa" (pokazuje ją user_admin.js).
+                       Osobny formularz i osobna trasa — patrz routes/admin.js. #}
+                    <form id="ua-price-mode-form" class="ua-card mb-4" novalidate hidden>
+                        <h5 class="ua-card__title"><i class="bi bi-percent me-2"></i>Wycena klientów grupy</h5>
+                        <p class="ua-hint">
+                            Decyduje, jakie ceny widzą konta podrzędne tej grupy (klienci grupy).
+                            Wysokość rabatu albo narzutu ustawia grupa osobno dla każdego klienta
+                            w swoim panelu.
+                        </p>
+                        <p class="ua-hint" id="ua-price-mode-type-warn" hidden>
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            To konto ma <code>group_type</code> inny niż <code>client</code> —
+                            ustawienie zapisze się, ale zacznie działać dopiero przy typie <code>client</code>.
+                        </p>
+                        <div class="ua-switches">
+                            {% for opt in priceModeOptions %}
+                            <label class="ua-switch">
+                                <input type="radio" name="group_price_mode" value="{{ opt.value }}" id="ua-price-mode-{{ opt.value }}">
+                                <span>
+                                    <strong>{{ opt.label }}</strong>
+                                    {% if opt.value == 'markup' %}
+                                    <em>Klient widzi ceny zwykłe (cenę zakupu grupy) powiększone o narzut klienta.</em>
+                                    {% else %}
+                                    <em>Klient widzi ceny detaliczne SUB___ pomniejszone o rabat klienta (domyślnie).</em>
+                                    {% endif %}
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <span class="ua-help d-block mt-2">
+                            Zmiana dotyczy pozycji liczonych od teraz. Pozycje już zapisane w aktywnych
+                            zleceniach przyjmą nowy tryb dopiero po ponownym przeliczeniu — w edycji pozycji
+                            trzeba zmienić dowolne pole (sam zapis bez zmian zostawia stare ceny).
+                        </span>
+                        <div class="ua-actions">
+                            <button type="submit" class="btn btn-primary" id="ua-save-price-mode">
+                                <i class="bi bi-check2 me-1"></i> Zapisz tryb wyceny
+                            </button>
+                        </div>
+                    </form>
+
                     {# --- Hasło --- #}
                     <form id="ua-password-form" class="ua-card ua-card--warn" novalidate>
                         <h5 class="ua-card__title"><i class="bi bi-key me-2"></i>Zmiana hasła</h5>
@@ -175,5 +217,5 @@
 {% endblock content %}
 
 {% block scripts %}
-    <script src="/scripts/admin/user_admin.js?v=1"></script>
+    <script src="/scripts/admin/user_admin.js?v=2"></script>
 {% endblock scripts %}

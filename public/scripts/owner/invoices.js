@@ -484,6 +484,177 @@ function initCreateForm() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Poziom 2: okno zamówień klienta (zamiast comboboxa)                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Okno z zamówieniami klienta czekającymi na fakturę
+ * (`templates/owner/partials/client_orders_window.njk`).
+ *
+ * Każde zaznaczone zamówienie to OSOBNY dokument i osobne żądanie
+ * `POST /api/v1/invoices/from-order/:id` — tak samo jak przy pojedynczym
+ * wyborze z comboboxa, więc reguły VAT, cennika i numeracji zostają na serwerze.
+ * Żądania idą po kolei, nie równolegle: numeracja w serii wystawcy ma rosnąć
+ * w kolejności zamówień na liście, a błąd jednego (np. zerowa wartość) nie
+ * może przerwać pozostałych — trafia jako opis do wiersza.
+ */
+function initOrdersWindow() {
+  const root = document.getElementById('inv-orders-window');
+  const form = document.getElementById('inv-orders-form');
+  if (!root || !form) return;
+
+  const rows = Array.from(root.querySelectorAll('.inv-orders__row'));
+  const selectAll = document.getElementById('inv-orders-all');
+  const filterInput = document.getElementById('inv-orders-filter');
+  const noMatch = document.getElementById('inv-orders-nomatch');
+  const submitBtn = document.getElementById('inv-orders-create');
+  const submitLabel = submitBtn.querySelector('.inv-orders__label');
+  const counter = submitBtn.querySelector('.inv-orders__selected');
+  const docType = document.getElementById('inv-doctype');
+  const advanceWrap = document.getElementById('inv-advance-wrap');
+  const level = Number(root.dataset.level) || 2;
+
+  const pickOf = (row) => row.querySelector('.inv-orders__pick');
+  // Zaznaczenie liczy się także w wierszach ukrytych filtrem — filtr służy
+  // do znalezienia zamówienia, a nie do odznaczania wcześniej wybranych.
+  const selectedRows = () => rows.filter((r) => pickOf(r).checked && !pickOf(r).disabled);
+  const selectableVisible = () => rows.filter((r) => !r.hidden && !pickOf(r).disabled);
+
+  const refresh = () => {
+    rows.forEach((r) => r.classList.toggle('is-selected', pickOf(r).checked));
+    const count = selectedRows().length;
+    counter.textContent = `(${count})`;
+    submitBtn.disabled = count === 0;
+    if (selectAll) {
+      const visible = selectableVisible();
+      const checked = visible.filter((r) => pickOf(r).checked).length;
+      selectAll.checked = visible.length > 0 && checked === visible.length;
+      selectAll.indeterminate = checked > 0 && checked < visible.length;
+    }
+  };
+
+  // Klik w wiersz przełącza zaznaczenie — pole wyboru jest małe, a wiersz to
+  // naturalny cel. Linki (numery przesyłek) działają normalnie.
+  rows.forEach((row) => {
+    row.addEventListener('click', (event) => {
+      if (event.target.closest('a, input, label')) return;
+      const pick = pickOf(row);
+      if (pick.disabled) return;
+      pick.checked = !pick.checked;
+      refresh();
+    });
+    pickOf(row).addEventListener('change', refresh);
+  });
+
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      selectableVisible().forEach((r) => { pickOf(r).checked = selectAll.checked; });
+      refresh();
+    });
+  }
+
+  if (filterInput) {
+    filterInput.addEventListener('input', () => {
+      const query = filterInput.value.trim().toLowerCase();
+      let visible = 0;
+      rows.forEach((row) => {
+        row.hidden = !!query && !(row.dataset.search || '').includes(query);
+        if (!row.hidden) visible++;
+      });
+      if (noMatch) noMatch.hidden = visible > 0;
+      refresh();
+    });
+  }
+
+  const syncAdvance = () => {
+    if (advanceWrap) advanceWrap.hidden = docType.value !== 'advance';
+  };
+  docType.addEventListener('change', syncAdvance);
+  syncAdvance();
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const selected = selectedRows();
+    if (!selected.length) {
+      showToast('error', L.pick_orders || 'Zaznacz zamówienie', 3);
+      return;
+    }
+
+    const data = new FormData(form);
+    const payload = {
+      documentType: data.get('documentType'),
+      lang: data.get('lang'),
+      issue: data.get('issue') === 'on',
+      level
+    };
+    if (payload.documentType === 'advance') {
+      payload.advancePercent = Number(data.get('advancePercent'));
+    }
+
+    // Kilka dokumentów naraz to kilka numerów w serii — pytamy, zanim powstaną
+    if (selected.length > 1) {
+      const n = String(selected.length);
+      const ok = await confirmPrompt({
+        title: L.batch_confirm_title || 'Utworzyć dokumenty?',
+        message: (L.batch_confirm_message || 'Powstanie {n} dokumentów typu „{type}". Kontynuować?')
+          .replace('{n}', n)
+          .replace('{type}', payload.documentType),
+        confirmLabel: (L.batch_confirm_button || 'Utwórz {n}').replace('{n}', n)
+      });
+      if (!ok) return;
+    }
+
+    submitBtn.disabled = true;
+    const originalLabel = submitLabel.textContent;
+    let created = 0;
+    let failed = 0;
+
+    for (const [index, row] of selected.entries()) {
+      submitLabel.textContent = (L.batch_progress || '{done}/{n}…')
+        .replace('{done}', String(index + 1))
+        .replace('{n}', String(selected.length));
+      const result = row.querySelector('.inv-orders__result');
+      try {
+        const body = await api(`/api/v1/invoices/from-order/${encodeURIComponent(row.dataset.orderId)}`, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        created++;
+        // Zamówienie ma już dokument — drugi klik nie może wystawić kolejnego
+        pickOf(row).checked = false;
+        pickOf(row).disabled = true;
+        row.classList.remove('is-failed');
+        row.classList.add('is-done');
+        result.className = 'inv-orders__result inv-tag inv-tag--ok';
+        result.textContent = body.number ? `✓ ${body.number}` : '✓';
+      } catch (err) {
+        failed++;
+        row.classList.add('is-failed');
+        result.className = 'inv-orders__result inv-orders__result--error';
+        result.textContent = err.message;
+      }
+    }
+
+    const summary = (L.batch_done || '{ok}/{n}')
+      .replace('{ok}', String(created))
+      .replace('{n}', String(selected.length));
+    if (!failed) {
+      showToast('success', summary);
+      window.location.reload();
+      return;
+    }
+
+    // Część się nie udała: zostajemy na stronie, żeby było widać powód przy
+    // zamówieniu (przeładowanie by go zgubiło). Nieudane zostają zaznaczone.
+    showToast('error', `${summary} · ${(L.batch_failed || '{n}').replace('{n}', String(failed))}`, 6);
+    submitLabel.textContent = originalLabel;
+    refresh();
+  });
+
+  refresh();
+}
+
+/* ------------------------------------------------------------------ */
 /* Widok listy: akcje na dokumencie                                    */
 /* ------------------------------------------------------------------ */
 
@@ -577,6 +748,7 @@ function initProfileForm() {
 document.addEventListener('DOMContentLoaded', () => {
   initClientSelect();
   initCreateForm();
+  initOrdersWindow();
   initRowActions();
   initProfileForm();
 });

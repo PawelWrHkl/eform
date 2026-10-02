@@ -167,6 +167,120 @@ function registerClientDiscountKeys() {
 }
 
 /**
+ * Parametry pozycji liczone jako `<cena jednostkowa> × ILOSC` (tak w każdej
+ * grupie z `param.txt`). W trybie narzutu wartość pozycji idzie za ceną
+ * jednostkową PO narzucie, a nie jest osobno mnożona — inaczej przy większej
+ * ilości rozjeżdżałaby się o grosze z fakturą, która mnoży cenę jednostkową
+ * `SUB___CENA_KONCOWA` przez ilość.
+ */
+const MARKUP_POSITION_FROM_UNIT = {
+    WARTOSC_KONCOWA: 'CENA_KONCOWA',
+    SUMA_BRUTTO: 'CENA_SUMA',
+    SUMA_NETTO: 'CENA_SUMA'
+};
+
+/**
+ * Narzut klienta grupy (`user.group_price_mode = 'markup'`, ustawia admin;
+ * wysokość `group_user.markup_percent` — patrz services/groupPriceMode.js).
+ *
+ * Klient grupy rozliczanej narzutem płaci CENĘ ZWYKŁĄ (cenę zakupu grupy-matki)
+ * powiększoną o narzut — a nie cenę detaliczną `SUB___` z rabatem. Ceną klienta
+ * jest jednak w całej aplikacji łańcuch `SUB___*` (podgląd zamówienia, sumy, PDF,
+ * mail, faktura, eksport), więc zamiast budować drugą warstwę cen przepisujemy
+ * do niego ceny zwykłe: każdy `SUB___X` dostaje wartość swojego bliźniaka `X`
+ * (każdy parametr `SUB___` w `param.txt` ma bliźniaka o tej samej budowie):
+ *  • kwoty — `X × (1 + narzut)`,
+ *  • rabaty cennikowe (`*_RABAT`) — bez zmian, bo to procent, nie kwota.
+ * Arytmetyka łańcucha się zgadza: `(CENA×f + DOPLATA×f) × (1 − RABAT)` = `CENA_KONCOWA × f`.
+ *
+ * ⚠️ Wynik jest czystą funkcją cen ZWYKŁYCH, których ta funkcja nie dotyka —
+ * dlatego jest idempotentna przy każdym przeliczeniu, nawet gdy silnik w danym
+ * cyklu nie odświeżył któregoś `SUB___` (stara wartość i tak zostaje nadpisana).
+ *
+ * ⚠️ Narzut 0% to nadal tryb narzutu: klient widzi wtedy dokładnie ceny zwykłe.
+ * Wyłącznikiem jest tryb (`window.clientPriceMode`), nie wysokość narzutu.
+ *
+ * ⚠️ Wiersze cen zwykłych zostają nietknięte — to cena zakupu grupy-matki;
+ * kontu podrzędnemu i tak się nie pokazują (`shouldHideRegularPriceRow`,
+ * `templates/order.njk`).
+ */
+export function applyClientMarkup(values, displayValues) {
+    if (window.clientPriceMode !== 'markup' || !values) return false;
+    const markup = Math.max(0, Number(window.clientMarkupPercent) || 0);
+    const factor = 1 + markup / 100;
+    const ilosc = Math.max(1, parseFloat(values['ILOSC']) || 1);
+
+    const subKeys = Object.keys(values).filter((key) =>
+        key.startsWith('SUB___') && !key.endsWith('_S'));
+
+    const setSub = (key, value, displayText) => {
+        values[key] = value;
+        const input = document.getElementById(key);
+        if (input) input.value = displayText;
+        const row = displayValues && displayValues.get(key);
+        if (row) {
+            // Tylko `option_value` — `listsum`/`locked`/`sub`/`row`/opis muszą zostać,
+            // po nich `form.js getTotal()` i `services/subPrices.js` poznają sumy.
+            row.option_value = displayText;
+            displayValues.set(key, row);
+        }
+    };
+
+    // Najpierw ceny jednostkowe i rabaty, potem wartości pozycji (`× ILOSC`),
+    // bo te liczą się z już przeliczonych cen jednostkowych.
+    const positionKeys = [];
+    for (const key of subKeys) {
+        const base = key.slice('SUB___'.length);
+        if (MARKUP_POSITION_FROM_UNIT[base]) {
+            positionKeys.push(key);
+            continue;
+        }
+        if (values[base] === undefined || values[base] === null || values[base] === '') {
+            // Bliźniak wyłączony albo nieobecny — nie zostawiamy w widoku klienta
+            // ceny detalicznej, której w tym trybie nie ma prawa zobaczyć.
+            if (displayValues) displayValues.delete(key);
+            continue;
+        }
+        if (base.includes('RABAT')) {
+            const baseRow = displayValues && displayValues.get(base);
+            const baseInput = document.getElementById(base);
+            const text = baseRow?.option_value ?? baseInput?.value ?? String(values[base]);
+            setSub(key, values[base], text);
+            continue;
+        }
+        const num = parseFloat(values[base]);
+        if (!Number.isFinite(num)) continue;
+        const marked = parseFloat((num * factor).toFixed(2));
+        setSub(key, marked, formatNumberForDisplay(marked));
+    }
+
+    // Specyfikacja ceny detalicznej (`SUB___*_S`, tylko poza produkcją) rozpisuje
+    // kody cennika DETALICZNEGO — w tym trybie to nie jest cena klienta, a po
+    // kłódce klient by ją zobaczył. Specyfikacja ceny zwykłej (`*_S`) zostaje.
+    if (displayValues) {
+        for (const key of [...displayValues.keys()]) {
+            if (key.startsWith('SUB___') && key.endsWith('_S')) displayValues.delete(key);
+        }
+    }
+
+    for (const key of positionKeys) {
+        const base = key.slice('SUB___'.length);
+        const unit = parseFloat(values['SUB___' + MARKUP_POSITION_FROM_UNIT[base]]);
+        const own = parseFloat(values[base]);
+        const marked = Number.isFinite(unit)
+            ? parseFloat((unit * ilosc).toFixed(2))
+            : (Number.isFinite(own) ? parseFloat((own * factor).toFixed(2)) : NaN);
+        if (!Number.isFinite(marked)) {
+            if (displayValues) displayValues.delete(key);
+            continue;
+        }
+        setSub(key, marked, formatNumberForDisplay(marked));
+    }
+
+    return true;
+}
+
+/**
  * Rabat klienta grupy (`group_user.discount_percent`, wstrzykiwany jako
  * `window.clientDiscountPercent` — patrz services/groupDiscount.js).
  *
@@ -223,6 +337,13 @@ export function applyClientDiscount(values, displayValues) {
     // się z `locked: false, sub: false`, czyli rabat wylądował wśród zwykłych,
     // widocznych wierszy.
     registerClientDiscountKeys();
+
+    // Grupa rozliczana narzutem: łańcuch `SUB___` dostaje ceny zwykłe + narzut,
+    // ZANIM cokolwiek niżej go przeczyta. Rabatu klienta grupy wtedy nie ma
+    // (serwer przysyła 0), ale ewentualny ekstra rabat (`user.extra_rabat`)
+    // schodzi już z ceny PO narzucie — dokładnie tak, jak schodzi z ceny po
+    // rabacie w trybie rabatowym.
+    applyClientMarkup(values, displayValues);
 
     const pct = Number(window.clientDiscountPercent) || 0;
     if (!(pct > 0)) {

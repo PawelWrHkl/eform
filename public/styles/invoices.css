@@ -20,6 +20,9 @@
     --inv-border-strong: #b9c1d0;
     --inv-text: #1f2937;
     --inv-text-muted: #6b7280;
+    /* Zaznaczony wiersz okna zamówień i tekst błędu bez własnego tła */
+    --inv-selected: #eef3fb;
+    --inv-danger-text: #9b1c1c;
 }
 
 [data-theme="dark"] {
@@ -30,6 +33,8 @@
     --inv-border-strong: #626b85;
     --inv-text: #e9edf5;
     --inv-text-muted: #a8b0c2;
+    --inv-selected: #34405e;
+    --inv-danger-text: #fca5a5;
 }
 
 /*
@@ -791,4 +796,128 @@
     display: block;
     font-size: 0.78rem;
     color: var(--inv-text-muted);
+}
+
+/* ---------- Okno zamówień klienta (poziom 2) ----------
+   Zamiast comboboxa: wszystkie zamówienia czekające na fakturę widać od razu.
+   Wysokość jest ograniczona, a nagłówek tabeli przyklejony — przy kilkuset
+   wysłanych zamówieniach formularz pod spodem nie może uciec poza ekran. */
+
+.inv-orders__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin-bottom: 6px;
+}
+
+.inv-orders__head .inv-card__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.inv-orders__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+    margin: 12px 0 8px;
+}
+
+.inv-orders__filter {
+    flex: 1 1 220px;
+    max-width: 360px;
+    padding: 7px 10px;
+    border: 1px solid var(--inv-border-strong);
+    border-radius: 8px;
+    background: var(--inv-surface);
+    color: var(--inv-text);
+    font: inherit;
+    font-size: 0.9rem;
+}
+
+.inv-orders__scroll {
+    max-height: 460px;
+    overflow-y: auto;
+    border: 1px solid var(--inv-border);
+    border-radius: 8px;
+}
+
+.inv-orders__scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.inv-orders__check {
+    width: 38px;
+    text-align: center;
+}
+
+.inv-orders__check input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.inv-orders__row {
+    cursor: pointer;
+}
+
+.inv-orders__row:hover {
+    background: var(--inv-surface-alt);
+}
+
+.inv-orders__row.is-selected {
+    background: var(--inv-selected);
+}
+
+/* Zamówienie dostało już dokument w tej sesji — zostaje widoczne z numerem */
+.inv-orders__row.is-done {
+    cursor: default;
+    opacity: 0.65;
+}
+
+.inv-orders__parcels a,
+.inv-orders__parcels span {
+    display: block;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.inv-orders__notes {
+    min-width: 150px;
+}
+
+.inv-orders__notes .inv-tag {
+    margin: 1px 4px 1px 0;
+}
+
+.inv-orders__result--error {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.82rem;
+    color: var(--inv-danger-text);
+}
+
+.inv-orders__form {
+    margin-top: 14px;
+}
+
+.inv-tag--ok {
+    background: #e3f4e8;
+    color: #1d6b38;
+}
+
+/* Dokument wystawiony przez automat (created_by_pin = 'AUTO') */
+.inv-tag--auto {
+    margin-left: 6px;
+    background: #e8eefb;
+    color: #2b4c8c;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    vertical-align: middle;
 }

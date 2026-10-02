@@ -89,7 +89,7 @@
                                     <th>{{ __(gk('col_shop')) }}</th>
                                     <th>{{ __('group.col_pin_login') }}</th>
                                     <th>{{ __('group.col_email') }}</th>
-                                    {% if isGroupClientType %}<th>{{ __('group.col_discount') }}</th>{% endif %}
+                                    {% if isGroupClientType %}<th>{{ __('group.col_markup') if isMarkupPricing else __('group.col_discount') }}</th>{% endif %}
                                     <th>{{ __('group.col_orders') }}</th>
                                     <th>{{ __('group.col_copy_creds') }}</th>
                                     <th style="text-align:right">{{ __('group.col_actions') }}</th>
@@ -118,6 +118,20 @@
                                                bez JS-u i bez wchodzenia w edycję konta
                                                (routes/group.js POST /shops/:id/discount). #}
                                             <td>
+                                                {% if isMarkupPricing %}
+                                                {# Grupa rozliczana narzutem (ustawia admin) — ta sama
+                                                   komórka, ale zapis narzutu (POST /shops/:id/markup). #}
+                                                <form method="POST" action="/group/shops/{{ shop.id }}/markup" class="gp-discount-form" onclick="event.stopPropagation()">
+                                                    <input type="number"
+                                                           class="gp-discount-input"
+                                                           name="markupPercent"
+                                                           value="{{ shop.markup_percent | default(0) }}"
+                                                           min="0" max="1000" step="0.01"
+                                                           aria-label="{{ __('group.sf_markup') }}">
+                                                    <span class="gp-discount-suffix">%</span>
+                                                    <button type="submit" class="gp-btn gp-btn--ghost gp-btn--sm" title="{{ __('group.markup_save') }}">✓</button>
+                                                </form>
+                                                {% else %}
                                                 <form method="POST" action="/group/shops/{{ shop.id }}/discount" class="gp-discount-form" onclick="event.stopPropagation()">
                                                     <input type="number"
                                                            class="gp-discount-input"
@@ -128,6 +142,7 @@
                                                     <span class="gp-discount-suffix">%</span>
                                                     <button type="submit" class="gp-btn gp-btn--ghost gp-btn--sm" title="{{ __('group.discount_save') }}">✓</button>
                                                 </form>
+                                                {% endif %}
                                             </td>
                                         {% endif %}
                                         <td>

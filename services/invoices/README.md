@@ -307,11 +307,131 @@ logiki biznesowej.
   `/mnt/eform/languages` (mount kontenera synchronizowany z panelu admina), więc
   klucze dodane w repo nie dotarłyby do działającej instancji.
 
+## Automatyczne wystawianie faktur (`autoInvoicing.js`)
+
+Faktura powstaje sama, gdy zamówienie wyjedzie do klienta — bez wchodzenia na
+żadną stronę. Przebieg co godzinę w osobnym procesie:
+
+```
+server.js ──(co PROD_STATUS_SYNC_INTERVAL_MIN)──▶ scripts/prodStatusSync.js   (spawn, osobny proces)
+                                                   ├─ GET_LOCK na bazę          (services/prodStatusCycle.js)
+                                                   ├─ status.txt → position_statuses + order.prod_status
+                                                   │                            (services/prodStatus.js:syncAllProdStatuses)
+                                                   └─ autoInvoicing.runAutoInvoicing()
+```
+
+Zamówienie dostaje fakturę, gdy (`repository.findAutoInvoiceCandidates`):
+
+- `order.status = 'sent'` **i** `order.prod_status = '!sent!'` — samo `!sent!` nie
+  wystarcza: w bazie są zamówienia `active` z `!sent!` (numer `order_idx` nowego
+  zamówienia trafił na stary numer z pliku produkcji),
+- **wszystkie** pozycje w `position_statuses` mają `!sent!` — `prod_status` to status
+  pozycji z najpóźniejszą datą, więc nie gwarantuje, że wyjechało całe zamówienie,
+- `order.delivery_date >= INVOICE_AUTOGEN_SINCE`,
+- na tym poziomie nie ma **żadnego** dokumentu `invoice`/`final`/`advance` — także
+  anulowanego i szkicu. ⚠️ Anulowanie faktury automatu = „zajmę się tym ręcznie";
+  bez tej reguły automat wystawiałby ją od nowa co godzinę. Zamówienie z zaliczką
+  wymaga faktury końcowej (`final`), którą wystawia człowiek.
+
+Dokument wystawia `InvoiceService.createFromOrder` — ta sama ścieżka co przycisk
+w panelu (cennik, VAT, VIES, numeracja), z `created_by_pin = 'AUTO'` (na liście
+dokumentów znaczek „auto"). Błąd jednego zamówienia (np. zerowa wartość) trafia do
+logu i nie zatrzymuje pozostałych; zamówienie wraca w kolejnym przebiegu.
+
+| Zmienna `.env` | Domyślnie | Znaczenie |
+|---|---|---|
+| `INVOICE_AUTOGEN_ENABLED` | wyłączone | `true` włącza automat (wymaga też `INVOICES_ENABLED=true`) |
+| `INVOICE_AUTOGEN_SINCE` | — | **wymagane**, `RRRR-MM-DD`: tylko zamówienia wysłane od tego dnia. Bez progu pierwszy przebieg zafakturowałby całą historię |
+| `INVOICE_AUTOGEN_LEVELS` | `2` | poziomy: `1` (HKL → organizacja), `2` (organizacja → klient). 3 i 4 wymagają odbiorcy końcowego — tylko ręcznie |
+| `INVOICE_AUTOGEN_ORGS` | wszystkie | lista `organization.id` — automat tylko dla tych organizacji |
+| `INVOICE_AUTOGEN_ISSUE` | `true` | `false` → szkice bez numeru, do przejrzenia i wystawienia ręcznie |
+| `INVOICE_AUTOGEN_MAX_PER_RUN` | `100` | bezpiecznik: najwięcej zamówień na jeden przebieg |
+| `PROD_STATUS_SYNC_MODE` | `child` | `child` — cykl uruchamia `server.js`; `external` — cron/systemd (`node scripts/prodStatusSync.js`); `off` |
+| `PROD_STATUS_SYNC_INTERVAL_MIN` | `60` | co ile minut (min. 5) |
+
+Ręcznie: `npm run prodstatus:dry` (nic nie zapisuje — pokazuje różnice statusów
+i listę faktur do wystawienia), `npm run prodstatus:run` (jeden cykl),
+`npm run prodstatus:full` (przelicza nagłówki wszystkich zamówień z pliku, bez faktur).
+
+⚠️ Kilka instancji na jednej bazie (host :8000 + kontenery dev/test na bazie
+testowej) jest bezpieczne: cykl bierze `GET_LOCK('eform:prodstatus:<baza>')`, a
+pozostałe instancje pomijają termin. Automat włączaj jednak tylko w JEDNYM `.env`
+na bazę — tam, skąd faktury mają wychodzić.
+
+## Okno zamówień (widok klienta, poziom 2)
+
+`/invoices/client/:id?level=2` pokazuje od razu **wszystkie** zamówienia klienta
+czekające na fakturę (`templates/owner/partials/client_orders_window.njk`, dane z
+`repository.listInvoiceableOrdersForClient`) zamiast comboboxa z podpowiedziami:
+
+- filtr domyślny **Wysłane do klienta (`!sent!`)**; „Wszystkie w realizacji"
+  (`?orders=all`) pokazuje też zamówienia jeszcze w produkcji — proformę i zaliczkę
+  wystawia się zwykle przed wysyłką,
+- zaznaczenie kilku zamówień = osobny dokument dla każdego (kolejne
+  `POST /from-order/:id`, po kolei); błąd trafia do wiersza zamówienia,
+- „już zafakturowane" = nieanulowany `invoice`/`final` na poziomie 2 bez względu na
+  `issuer_id` — dokumenty z v1 mają `issuer_id = 0`,
+- licznik „zamówień do zafakturowania" na karcie klienta liczy ten sam warunek co okno.
+
+Pozostałe poziomy (1, 3, 4) zostają przy comboboxie.
+
+## Formatki organizacji (papier firmowy)
+
+Każda organizacja drukuje faktury na własnej **formatce** — PDF-ie z papierem
+firmowym w `img/invoice-background/` (`COZY.pdf`, `HKL.pdf`, `LUXANGMBH.pdf`).
+Treść faktury (ten sam szablon Nunjucks dla wszystkich) jest nakładana na formatkę
+na każdej stronie; formatka zostaje wektorowa.
+
+Gdzie w bazie (`db/schema_v3.sql`):
+
+```
+invoice_organization_profile.template_code ──▶ invoice_template.code
+                                                 ├─ background_file  'LUXANGMBH.pdf'
+                                                 ├─ page_margins     {"top":24,"right":12,"bottom":27,"left":12}  (mm)
+                                                 └─ template_file / stylesheet  (układ treści, domyślnie wspólny)
+```
+
+```bash
+node scripts/setInvoiceTemplate.js --list
+node scripts/setInvoiceTemplate.js LUXANGMBH --background LUXANGMBH.pdf --margins 24,12,27,12
+node scripts/setInvoiceTemplate.js Cozy      --background COZY.pdf      --margins 20,12,22,12
+node scripts/setInvoiceTemplate.js HKL       --background HKL.pdf       --margins 46,14,74,14
+node scripts/setInvoiceTemplate.js LUXANGMBH --default        # powrót do wydruku bez formatki
+```
+
+Skrypt sprawdza, że plik istnieje, zapisuje wiersz `invoice_template` (kod = ident
+organizacji) i ustawia go w profilu. Marginesy to pole treści między pasem
+nagłówka a stopką formatki — wartości wyżej zmierzone na obecnych plikach.
+
+Zasady:
+
+- **Szablon należy do wystawcy** (`core/templates.js`): poziom 1 → HKL, poziomy 2 i 4 →
+  organizacja zamówienia, poziom 3 (salon) → domyślny. Wybór po organizacji zamówienia
+  drukowałby fakturę HKL na papierze Luxanu.
+- **Rozmiar i orientacja strony pochodzą z formatki** (COZY/LUXANGMBH: 290×210 mm poziomo).
+  Gdy treść nie mieści się na jednej stronie o niewiele, PDF jest pomniejszany (min. 80%),
+  żeby blok „Płatność + podpisy" nie spadał na pustą drugą stronę. Długie faktury mają
+  skalę 100% i kolejne strony — każda na formatce.
+- **Faktura pamięta kod szablonu** (`invoice.template_code`) z chwili wystawienia. Nowa
+  formatka (np. zmienione konto w stopce) = **nowy kod** (`--code LUXANGMBH_2027`), inaczej
+  ponowny wydruk starej faktury pokaże nowe dane z formatki.
+- Zła nazwa albo brak pliku formatki/szablonu **nie blokuje** PDF-a: dokument powstaje bez
+  formatki (albo na szablonie domyślnym), a w logu zostaje ostrzeżenie.
+- Formatkę zmienia **tylko admin** (skrypt albo lista w `/invoices/profile`); owner widzi ją
+  bez możliwości zmiany — lista zawiera formatki wszystkich organizacji. API odrzuca
+  `template_code` od nie-admina.
+- Podgląd HTML (`/invoices/:id/view`) pokazuje samą treść — formatka jest tylko w PDF-ie.
+
+⚠️ `HKL.pdf` jest **pionowa** i ma nietypowy rozmiar 282×398 mm (A4 w skali ~134%), a faktura
+jest pozioma: treść zajmuje górne ~40% strony, a przy druku na A4 całość zmniejsza się do ~75%.
+Do rozważenia: pozioma formatka HKL w formacie A4 jak COZY/LUXANGMBH.
+
 ## Punkty rozszerzeń
 
 | Chcę… | Zrób to tutaj |
 |---|---|
-| Własny szablon dla organizacji | Kopia `templates/invoice-main.njk` + wiersz w `invoice_template` + `template_code` w profilu |
+| Formatka (papier firmowy) organizacji | PDF do `img/invoice-background/` + `node scripts/setInvoiceTemplate.js <ORG> --background <plik.pdf> --margins …` |
+| Własny układ treści dla organizacji | Kopia `templates/invoice-main.njk` + `--template <plik.njk>` w tym samym skrypcie |
 | Zmienić kolory/font | `theme_vars` w profilu organizacji (CSS custom properties, walidowane w `renderer.buildThemeCss`) |
 | Nowy język | `i18n/<kod>.json` + wpis w `renderer.SUPPORTED_LANGS` (test pilnuje kompletności kluczy) |
 | Inne źródło kursów (EBC, własna tabela) | Klasa z metodą `fetchRate(currency, isoDate)` przekazana do `CurrencyConverter` |

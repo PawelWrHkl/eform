@@ -7,6 +7,7 @@ const db = require("../db/db_helper.js");
 const { getOrderMutationBlock, getClientGroupOrderBlock } = require('../utils/orderStatusGuard');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
+const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
 const adminDb = require("../db/admin/db_helper.js");
 const ownerService = require('../services/owner.js');
 const fs = require('fs');
@@ -274,7 +275,10 @@ router.get('/:positionId/edit/', requireLogin, loadEmployeePermissions, filterPr
     // zapisałaby cenę bez rabatu (services/groupDiscount.js).
     const { total: clientDiscountPercent, portalBonus: portalUsageDiscountPercent } =
       await resolveCombinedDiscountForOrder(orderId);
-    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, ...vatLocals })
+    // I ten sam tryb wyceny (rabat / narzut) — services/groupPriceMode.js.
+    const { mode: clientPriceMode, markupPercent: clientMarkupPercent } =
+      await resolveClientPricingForOrder(orderId);
+    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, clientPriceMode, clientMarkupPercent, ...vatLocals })
   }
   else {
     return res.status(400).json({

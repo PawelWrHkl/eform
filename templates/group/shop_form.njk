@@ -182,10 +182,29 @@
                                     <div class="invalid-feedback">{{ __('group.sf_phone_invalid') }}</div>
                                 </div>
 
+                                {# Narzut klienta — grupa typu `client` rozliczana narzutem
+                                   (`user.group_price_mode = 'markup'`, ustawia admin). Klient
+                                   widzi wtedy ceny zwykłe + narzut, patrz services/groupPriceMode.js. #}
+                                {% if isGroupClientType and isMarkupPricing %}
+                                <div class="col-md-6">
+                                    <label for="markupPercent" class="form-label">{{ __('group.sf_markup') }}</label>
+                                    <div class="input-group">
+                                        <input type="number"
+                                               class="form-control"
+                                               id="markupPercent"
+                                               name="markupPercent"
+                                               min="0"
+                                               max="1000"
+                                               step="0.01"
+                                               value="{{ (shop.markup_percent or shop.markupPercent or '0') if shop else '0' }}">
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                    <small class="form-text text-muted">{{ __('group.sf_markup_hint') }}</small>
+                                </div>
                                 {# Rabat klienta — tylko dla grupy typu `client`
                                    (`user.group_type`). Doliczany po przeliczeniu ceny w
                                    formularzu pozycji, patrz services/groupDiscount.js. #}
-                                {% if isGroupClientType %}
+                                {% elif isGroupClientType %}
                                 <div class="col-md-6">
                                     <label for="discountPercent" class="form-label">{{ __('group.sf_discount') }}</label>
                                     <div class="input-group">

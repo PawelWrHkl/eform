@@ -1,0 +1,244 @@
+{
+	"_comment": [
+		"Proponowane pytania w oknie asystenta (chipsy pod powitaniem, przy pustej rozmowie).",
+		"`questions`: id → treść w 5 językach; opcjonalnie `requires` (flaga z knowledge.flagsFor / suggestions.js, `!` = negacja).",
+		"`pages`: wyrażenie regularne ścieżki → pytania pokazywane NAJPIERW na tym ekranie (pierwsze dopasowanie wygrywa).",
+		"`default`: najpopularniejsze pytania — dopełniają listę do `max`.",
+		"⚠️ Każde pytanie musi mieć odpowiedź w bazie wiedzy (knowledge/*.md) — sprawdza to `node scripts/assistantEval.js suggestions`.",
+		"Zmiana pliku wymaga restartu serwera."
+	],
+	"max": 5,
+	"default": ["new_order", "copy_order", "tracking", "invoice", "cancel", "password"],
+	"pages": [
+		{ "path": "^/orders/history/order/", "show": ["tracking", "cancel", "reorder", "statuses"] },
+		{ "path": "^/orders/history/?$", "show": ["reorder", "tracking", "statuses", "cancel"] },
+		{ "path": "^/orders/canceled", "show": ["reorder", "cancel"] },
+		{ "path": "^/orders/add-order", "show": ["address", "one_time_address", "order_name"] },
+		{ "path": "^/orders/edit/", "show": ["address", "one_time_address"] },
+		{ "path": "^/orders/order/\\d+/new-position|^/position/\\d+/edit", "show": ["option_blocked", "size_limits", "info_icon", "favorites"] },
+		{ "path": "^/orders/order/\\d+/?$", "show": ["add_position", "send_order", "pdf", "discount"] },
+		{ "path": "^/orders/?$", "show": ["copy_order", "delete_offer", "send_order"] },
+		{ "path": "^/invoices/end-clients", "show": ["end_client", "invoice", "invoice_email"] },
+		{ "path": "^/invoices", "show": ["invoice", "end_client", "invoice_email", "invoice_fix"] },
+		{ "path": "^/panel", "show": ["password", "catalogs", "canceled_list"] },
+		{ "path": "^/user/employee", "show": ["add_employee", "permissions"] },
+		{ "path": "^/group", "show": ["approve", "shop_account"] },
+		{ "path": "^/delivery-time", "show": ["delivery_time", "tracking"] }
+	],
+	"questions": {
+		"new_order": {
+			"pl": "Jak złożyć nowe zamówienie?",
+			"en": "How do I place a new order?",
+			"de": "Wie gebe ich eine neue Bestellung auf?",
+			"fr": "Comment passer une nouvelle commande ?",
+			"nl": "Hoe plaats ik een nieuwe bestelling?"
+		},
+		"copy_order": {
+			"pl": "Jak skopiować wcześniejsze zlecenie?",
+			"en": "How do I copy a previous order?",
+			"de": "Wie kopiere ich eine frühere Bestellung?",
+			"fr": "Comment copier une commande précédente ?",
+			"nl": "Hoe kopieer ik een eerdere bestelling?"
+		},
+		"tracking": {
+			"pl": "Gdzie sprawdzę status i numer przesyłki?",
+			"en": "Where can I check the status and tracking number?",
+			"de": "Wo sehe ich den Status und die Sendungsnummer?",
+			"fr": "Où voir le statut et le numéro de suivi ?",
+			"nl": "Waar zie ik de status en het trackingnummer?"
+		},
+		"cancel": {
+			"pl": "Jak anulować wysłane zlecenie?",
+			"en": "How do I cancel a sent order?",
+			"de": "Wie storniere ich eine gesendete Bestellung?",
+			"fr": "Comment annuler une commande envoyée ?",
+			"nl": "Hoe annuleer ik een verzonden bestelling?"
+		},
+		"invoice": {
+			"requires": "invoices",
+			"pl": "Jak wystawić fakturę mojemu klientowi?",
+			"en": "How do I issue an invoice to my customer?",
+			"de": "Wie stelle ich meinem Kunden eine Rechnung aus?",
+			"fr": "Comment établir une facture pour mon client ?",
+			"nl": "Hoe maak ik een factuur voor mijn klant?"
+		},
+		"password": {
+			"pl": "Jak zmienić hasło?",
+			"en": "How do I change my password?",
+			"de": "Wie ändere ich mein Passwort?",
+			"fr": "Comment changer mon mot de passe ?",
+			"nl": "Hoe wijzig ik mijn wachtwoord?"
+		},
+		"reorder": {
+			"pl": "Jak zamówić ponownie to samo zlecenie?",
+			"en": "How do I reorder the same order?",
+			"de": "Wie bestelle ich dieselbe Bestellung erneut?",
+			"fr": "Comment recommander la même commande ?",
+			"nl": "Hoe bestel ik dezelfde bestelling opnieuw?"
+		},
+		"statuses": {
+			"pl": "Co oznaczają statusy produkcji?",
+			"en": "What do the production statuses mean?",
+			"de": "Was bedeuten die Produktionsstatus?",
+			"fr": "Que signifient les statuts de production ?",
+			"nl": "Wat betekenen de productiestatussen?"
+		},
+		"address": {
+			"pl": "Jak wybrać lub dodać adres dostawy?",
+			"en": "How do I choose or add a delivery address?",
+			"de": "Wie wähle ich eine Lieferadresse aus oder lege eine an?",
+			"fr": "Comment choisir ou ajouter une adresse de livraison ?",
+			"nl": "Hoe kies of voeg ik een afleveradres toe?"
+		},
+		"one_time_address": {
+			"pl": "Jak wysłać zamówienie na jednorazowy adres?",
+			"en": "How do I ship an order to a one-time address?",
+			"de": "Wie liefere ich eine Bestellung an eine einmalige Adresse?",
+			"fr": "Comment livrer une commande à une adresse ponctuelle ?",
+			"nl": "Hoe lever ik een bestelling op een eenmalig adres?"
+		},
+		"order_name": {
+			"pl": "Co wpisać w nazwie zamówienia?",
+			"en": "What should I enter as the order name?",
+			"de": "Was trage ich als Bestellname ein?",
+			"fr": "Que saisir comme nom de commande ?",
+			"nl": "Wat vul ik in als naam van de bestelling?"
+		},
+		"option_blocked": {
+			"pl": "Dlaczego nie mogę wybrać jakiejś opcji?",
+			"en": "Why can’t I select an option?",
+			"de": "Warum kann ich eine Option nicht auswählen?",
+			"fr": "Pourquoi ne puis-je pas choisir une option ?",
+			"nl": "Waarom kan ik een optie niet kiezen?"
+		},
+		"size_limits": {
+			"pl": "Skąd mam wiedzieć, jakie wymiary mogę wpisać?",
+			"en": "How do I know which dimensions I can enter?",
+			"de": "Woher weiß ich, welche Maße ich eingeben kann?",
+			"fr": "Comment savoir quelles dimensions je peux saisir ?",
+			"nl": "Hoe weet ik welke maten ik kan invoeren?"
+		},
+		"info_icon": {
+			"pl": "Co oznacza ikonka „i” przy polu?",
+			"en": "What does the “i” icon next to a field mean?",
+			"de": "Was bedeutet das „i“-Symbol neben einem Feld?",
+			"fr": "Que signifie l’icône « i » à côté d’un champ ?",
+			"nl": "Wat betekent het ‘i’-pictogram naast een veld?"
+		},
+		"favorites": {
+			"pl": "Jak dodać tkaninę do ulubionych?",
+			"en": "How do I add a fabric to my favourites?",
+			"de": "Wie füge ich einen Stoff zu den Favoriten hinzu?",
+			"fr": "Comment ajouter un tissu à mes favoris ?",
+			"nl": "Hoe voeg ik een stof toe aan mijn favorieten?"
+		},
+		"add_position": {
+			"pl": "Jak dodać pozycję do oferty?",
+			"en": "How do I add an item to the offer?",
+			"de": "Wie füge ich dem Angebot eine Position hinzu?",
+			"fr": "Comment ajouter une position à l’offre ?",
+			"nl": "Hoe voeg ik een positie toe aan de offerte?"
+		},
+		"send_order": {
+			"pl": "Jak wysłać zamówienie do realizacji?",
+			"en": "How do I send the order for production?",
+			"de": "Wie sende ich die Bestellung zur Ausführung?",
+			"fr": "Comment envoyer la commande en production ?",
+			"nl": "Hoe verstuur ik de bestelling voor uitvoering?"
+		},
+		"pdf": {
+			"pl": "Jak pobrać ofertę w PDF?",
+			"en": "How do I download the offer as a PDF?",
+			"de": "Wie lade ich das Angebot als PDF herunter?",
+			"fr": "Comment télécharger l’offre en PDF ?",
+			"nl": "Hoe download ik de offerte als pdf?"
+		},
+		"discount": {
+			"pl": "Jak dać rabat mojemu klientowi?",
+			"en": "How do I give my customer a discount?",
+			"de": "Wie gebe ich meinem Kunden einen Rabatt?",
+			"fr": "Comment accorder une remise à mon client ?",
+			"nl": "Hoe geef ik mijn klant korting?"
+		},
+		"delete_offer": {
+			"pl": "Jak usunąć ofertę?",
+			"en": "How do I delete an offer?",
+			"de": "Wie lösche ich ein Angebot?",
+			"fr": "Comment supprimer une offre ?",
+			"nl": "Hoe verwijder ik een offerte?"
+		},
+		"end_client": {
+			"requires": "invoices",
+			"pl": "Jak dodać odbiorcę końcowego do faktur?",
+			"en": "How do I add an end customer for invoices?",
+			"de": "Wie lege ich einen Endkunden für Rechnungen an?",
+			"fr": "Comment ajouter un client final pour les factures ?",
+			"nl": "Hoe voeg ik een eindklant toe voor facturen?"
+		},
+		"invoice_email": {
+			"requires": "invoices",
+			"pl": "Czy mogę wysłać fakturę mailem?",
+			"en": "Can I send an invoice by e-mail?",
+			"de": "Kann ich eine Rechnung per E-Mail senden?",
+			"fr": "Puis-je envoyer une facture par e-mail ?",
+			"nl": "Kan ik een factuur per e-mail versturen?"
+		},
+		"invoice_fix": {
+			"requires": "invoices",
+			"pl": "Jak poprawić błędną fakturę?",
+			"en": "How do I fix an incorrect invoice?",
+			"de": "Wie korrigiere ich eine falsche Rechnung?",
+			"fr": "Comment corriger une facture erronée ?",
+			"nl": "Hoe corrigeer ik een onjuiste factuur?"
+		},
+		"catalogs": {
+			"pl": "Gdzie znajdę katalogi PDF?",
+			"en": "Where can I find the PDF catalogues?",
+			"de": "Wo finde ich die PDF-Kataloge?",
+			"fr": "Où trouver les catalogues PDF ?",
+			"nl": "Waar vind ik de pdf-catalogi?"
+		},
+		"canceled_list": {
+			"pl": "Gdzie są anulowane zlecenia?",
+			"en": "Where are my cancelled orders?",
+			"de": "Wo finde ich stornierte Bestellungen?",
+			"fr": "Où sont mes commandes annulées ?",
+			"nl": "Waar staan mijn geannuleerde bestellingen?"
+		},
+		"add_employee": {
+			"pl": "Jak dodać pracownika?",
+			"en": "How do I add an employee?",
+			"de": "Wie lege ich einen Mitarbeiter an?",
+			"fr": "Comment ajouter un employé ?",
+			"nl": "Hoe voeg ik een medewerker toe?"
+		},
+		"permissions": {
+			"pl": "Co oznaczają uprawnienia pracownika?",
+			"en": "What do the employee permissions mean?",
+			"de": "Was bedeuten die Mitarbeiterrechte?",
+			"fr": "Que signifient les droits des employés ?",
+			"nl": "Wat betekenen de rechten van medewerkers?"
+		},
+		"approve": {
+			"pl": "Jak zatwierdzić zamówienie sklepu?",
+			"en": "How do I approve a shop’s order?",
+			"de": "Wie genehmige ich die Bestellung eines Shops?",
+			"fr": "Comment valider la commande d’une boutique ?",
+			"nl": "Hoe keur ik de bestelling van een winkel goed?"
+		},
+		"shop_account": {
+			"pl": "Jak założyć konto dla sklepu?",
+			"en": "How do I create an account for a shop?",
+			"de": "Wie lege ich ein Konto für einen Shop an?",
+			"fr": "Comment créer un compte pour une boutique ?",
+			"nl": "Hoe maak ik een account aan voor een winkel?"
+		},
+		"delivery_time": {
+			"pl": "Ile trwa produkcja?",
+			"en": "How long does production take?",
+			"de": "Wie lange dauert die Produktion?",
+			"fr": "Combien de temps dure la production ?",
+			"nl": "Hoe lang duurt de productie?"
+		}
+	}
+}

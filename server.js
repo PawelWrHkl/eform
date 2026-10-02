@@ -1,7 +1,11 @@
 const express = require("express");
 const path = require("path");
 const nunjucks = require("nunjucks");
-const dotenv = require("dotenv").config();
+// `.env.local` (sekrety, np. OPENAI_API_KEY) PRZED `.env` — wcześniejszy plik
+// wygrywa. `.env` jest śledzony w gicie i auto-commitowany z pushem
+// (git_auto_commit.sh), a `.env.local` jest w .gitignore i exclude-list.txt
+// (update.sh go nie kopiuje). Brak `.env.local` niczego nie psuje.
+const dotenv = require("dotenv").config({ path: [path.join(__dirname, '.env.local'), path.join(__dirname, '.env')] });
 const session = require("express-session");
 const app = express();
 const cors = require('cors');
@@ -16,6 +20,7 @@ const invoicePanelRoutes = require('./services/invoices/http/panel');
 const orgCustomersRoutes = require('./routes/orgCustomers');
 const clientTermsRoutes = require('./routes/clientTerms');
 const userPanelRoutes = require('./routes/userPanel');
+const assistantRoutes = require('./routes/assistant');
 // Znacznik wersji zasobów: zmienia się przy każdym starcie procesu, czyli po
 // każdym wdrożeniu (`update.sh` restartuje kontener, `--watch` proces hosta).
 const ASSET_VERSION = Date.now().toString(36);
@@ -272,6 +277,36 @@ app.use(async (req, res, next) => {
 	next();
 });
 
+// ─── Asystent eForm (widżet czatu AI) ────────────────────────────────────────
+// `assistantBoot` = napisy widżetu w języku strony + mapa klucz → selektory
+// elementów do podświetlenia. JSON z `<` zamienionym na \u003c, bo szablon
+// wstawia go przez `| safe` do <script>.
+const assistantConfig = require('./config').assistant;
+const assistantAccess = require('./services/assistant/sessionContext');
+const assistantStrings = require('./services/assistant/strings');
+const assistantCatalog = require('./services/assistant/uiCatalog');
+const assistantSuggestions = require('./services/assistant/suggestions');
+const assistantKnowledge = require('./services/assistant/knowledge');
+app.use((req, res, next) => {
+	res.locals.assistantEnabled = false;
+	if (assistantConfig.mode !== 'off' && req.method === 'GET'
+		&& assistantAccess.isAllowed(req.session && req.session.user)) {
+		res.locals.assistantEnabled = true;
+		res.locals.assistantBoot = JSON.stringify({
+			strings: assistantStrings.forLang(res.locals.locale),
+			catalog: assistantCatalog.clientMap(),
+			// Przycisk mikrofonu (rozmowa głosowa) — services/assistant/voice.
+			voice: !!assistantConfig.voice.enabled,
+			// Proponowane pytania dla tego ekranu (i18n/suggestions.json) — faktury
+			// tylko dla kont z modułem, jak rozdział bazy wiedzy.
+			suggestions: assistantSuggestions.forPage(req.path, res.locals.locale, assistantKnowledge.flagsFor({
+				type: req.session.user.isGroupShop ? 'group_shop' : 'client'
+			}))
+		}).replace(/</g, '\\u003c');
+	}
+	next();
+});
+
 const { applySubPriceLocals } = require('./services/subPriceContext');
 app.use((req, res, next) => {
 	applySubPriceLocals(req, res);
@@ -351,6 +386,19 @@ if (features?.orgCustomers) {
 	log('[orgCustomers] moduł WYŁĄCZONY — /org/customers nie jest montowany');
 }
 
+// Asystent eForm — ta sama zasada co moduły wyżej: przy wyłączonej fladze
+// (`ASSISTANT_ENABLED` ≠ true|admins) router nie wstaje i `/assistant/*` daje 404.
+if (assistantConfig.mode !== 'off') {
+	app.use('/assistant', assistantRoutes);
+	log(`[assistant] asystent włączony (ASSISTANT_ENABLED=${assistantConfig.mode}, model ${assistantConfig.model})`);
+	if (!assistantConfig.apiKey) log('[assistant] ⚠️ brak OPENAI_API_KEY — każde pytanie skończy się propozycją przekazania do konsultanta');
+	if (!assistantConfig.handoffEmail) log('[assistant] ⚠️ brak ASSISTANT_HANDOFF_EMAIL — przekazania pójdą tylko do marek z ASSISTANT_HANDOFF_EMAIL_<ORG>');
+	log(assistantConfig.voice.enabled
+		? `[assistant] rozmowa głosowa włączona (${assistantConfig.voice.model}, głos ${assistantConfig.voice.voice}, limit ${assistantConfig.voice.maxSessionMinutes} min/rozmowę, ${assistantConfig.voice.maxMinutesPerDay} min/dzień)`
+		: '[assistant] rozmowa głosowa wyłączona (ASSISTANT_VOICE_ENABLED)');
+} else {
+	log('[assistant] asystent WYŁĄCZONY — /assistant nie jest montowany');
+}
 
 app.all('*', (req, res) => {
 	const status = 404;
@@ -378,6 +426,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
 	log(`Server działa na porcie ${PORT}`);
+	// Statusy produkcji wszystkich klientów + automatyczne faktury — co godzinę
+	// w osobnym procesie, niezależnie od tego, czy ktoś wchodzi na strony.
+	require('./services/prodStatusScheduler').startProdStatusScheduler();
 });
 
 module.exports = {

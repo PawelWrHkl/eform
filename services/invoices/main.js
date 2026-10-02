@@ -18,6 +18,7 @@ const allocations = require('./core/allocations');
 const compliance = require('./core/compliance');
 const pricing = require('./core/pricing');
 const clientDiscount = require('./core/clientDiscount');
+const templates = require('./core/templates');
 const { calcSubTotals, HKL_ORG_ID } = require('../subPrices');
 const { log: defaultLog } = require('../../utils/logging');
 
@@ -416,6 +417,23 @@ class InvoiceService {
     });
     complianceContext.warnings.forEach((w) => this.log(`[invoices] order ${orderId}: ${w}`));
 
+    // Szablon WYSTAWCY: na poziomie 1 to HKL, nie organizacja zamówienia
+    // (patrz `core/templates.js`). Własny szablon w profilu wystawcy wygrywa.
+    const templateOrgId = templates.templateOrganizationId({
+      level,
+      orderOrganizationId: source.order.organization_id,
+      manufacturerOrganizationId: HKL_ORG_ID
+    });
+    const templateOrgProfile = !templateOrgId
+      ? null
+      : (Number(templateOrgId) === Number(profile.organizationId)
+        ? profile
+        : await this.repository.getOrganizationProfile(templateOrgId));
+    const templateCode = templates.pickTemplateCode(
+      issuerProfile.templateCode,
+      templateOrgProfile && templateOrgProfile.templateCode
+    );
+
     // Adres dostawy trafia na dokument TYLKO gdy realnie różni się od adresu
     // rejestrowego nabywcy — powtarzanie tego samego adresu dwa razy to szum.
     const deliveryAddress = endClient
@@ -479,7 +497,7 @@ class InvoiceService {
       // dokument, nie doczytywana z zamówienia przy każdym renderze.
       orderName: source.order.commision || '',
       lang,
-      templateCode: issuerProfile.templateCode || profile.templateCode,
+      templateCode,
       notes: notes || source.order.comment || '',
       legalNotes: [...new Set(computed.taxLines.map((l) => l.legalNoteKey).filter(Boolean))],
       orgCode: profile.orgCode,

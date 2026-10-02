@@ -15,3 +15,5 @@ configtest/state.json
 # cichu zdjelo kill-switch po incydencie.
 configtest/run-in-progress.json
 configtest/DISABLED
+# Sekrety lokalne — NIE trafiają do gita ani na serwery (update.sh)
+.env.local

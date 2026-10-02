@@ -1,0 +1,8 @@
+{# Asystent eForm — dane startowe widżetu i jego zasoby. Markup okna buduje
+   public/scripts/assistant/widget.js (jedno miejsce, bez duplikacji w szablonie).
+   `assistantBoot` to gotowy JSON z server.js (z `<` jako <). #}
+<link rel="stylesheet" href="/styles/assistant.css?v={{ assetVersion }}">
+<script>window.eformAssistantBoot = {{ assistantBoot | safe }};</script>
+<script src="/scripts/assistant/widget.js?v={{ assetVersion }}" defer></script>
+{# Rozmowa głosowa — sama się wyłącza bez flagi `voice`, mikrofonu albo WebRTC. #}
+<script src="/scripts/assistant/voice.js?v={{ assetVersion }}" defer></script>

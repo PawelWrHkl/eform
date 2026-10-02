@@ -1,4 +1,4 @@
-const { selectQuery, insertQuery, updateQuery, deleteQuery } = require('./core')
+const { selectQuery, insertQuery, updateQuery, deleteQuery, connetToDb } = require('./core')
 const dateUtils = require("../utils/humanize_date.js");
 const e = require("express");
 const bcrypt = require('bcryptjs');
@@ -86,15 +86,55 @@ async function syncOrderFromStatuses(userIdent, orderIdx) {
                 ) AS distinct_codes
             )
         WHERE o.order_idx = ?`;
+    // ⚠️ `order.order_idx` to VARCHAR (sklepy grupowe mają numery `1-1`, `31-11`),
+    // a numer z pliku produkcji jest liczbą. Porównanie VARCHAR z liczbą rzutuje
+    // kolumnę na DOUBLE: w UPDATE trybu strict kończy się to błędem „Truncated
+    // incorrect DOUBLE value: '1-1'" dla KAŻDEGO zamówienia klienta, który ma
+    // choć jeden taki numer, a gdyby przeszło — `'1-1' = 1` dopasowałoby cudze
+    // zamówienie. Dlatego porównujemy tekst z tekstem.
     const result = await updateQuery(query, [
         userIdent,
         userIdent, orderIdx,
         userIdent, orderIdx,
         userIdent, orderIdx,
-        orderIdx
+        String(orderIdx)
     ]);
 
     return result;
+}
+
+
+/**
+ * Zapytanie, które przy błędzie RZUCA, zamiast zwrócić `false` jak `selectQuery`.
+ *
+ * ⚠️ Pełna synchronizacja porównuje plik z całą tabelą: gdyby padnięty SELECT
+ * wyglądał jak pusta tabela, każdy wiersz pliku poszedłby jako INSERT
+ * i `position_statuses` dostałaby ~3 tys. duplikatów przy pierwszej awarii bazy.
+ */
+async function strictSelect(query, values = []) {
+    const conn = await connetToDb();
+    try {
+        const [rows] = await conn.query(query, values);
+        return rows;
+    } finally {
+        await conn.end();
+    }
+}
+
+/** Wszystkie statusy pozycji — stan, z którym porównujemy `status.txt`. */
+async function getAllPositionStatuses() {
+    return strictSelect(
+        `SELECT user_ident, order_idx, order_pos, status, shipping_date, parcel_code FROM position_statuses`
+    );
+}
+
+/**
+ * Identy wszystkich klientów eForm. Plik produkcji zawiera też klientów, których
+ * w tej bazie nie ma (np. baza testowa) — ich statusy nie mają do czego się przypiąć.
+ */
+async function getKnownUserIdents() {
+    const rows = await strictSelect("SELECT ident FROM `user` WHERE ident IS NOT NULL AND ident <> ''");
+    return rows.map((r) => r.ident);
 }
 
 
@@ -103,5 +143,7 @@ module.exports = {
     insertStatus,
     getUserStatuses,
     updateStatus,
-    syncOrderFromStatuses
+    syncOrderFromStatuses,
+    getAllPositionStatuses,
+    getKnownUserIdents
 };

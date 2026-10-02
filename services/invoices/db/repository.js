@@ -563,6 +563,8 @@ async function listInvoices({ organizationId, status, documentType, orderId, buy
     `SELECT i.id, i.number, i.document_type, i.status, i.issue_date, i.due_date, i.currency,
             i.total_net, i.total_tax, i.total_gross, i.amount_due, i.buyer_name, i.order_id,
             i.level, i.issuer_type, i.issuer_id,
+            -- 'AUTO' = dokument wystawiony przez automat (autoInvoicing.js)
+            i.created_by_pin,
             -- Numer i nazwa zamówienia do rozeznania na liście.
             -- ⚠️ COALESCE ze złączeniem: dokumenty sprzed dodania kolumn
             -- (snapshot) mają je puste, więc dla nich bierzemy dane wprost
@@ -757,6 +759,168 @@ async function searchInvoiceableOrders({ organizationId, clientId = null, query,
     ]
   );
   return rows || [];
+}
+
+/**
+ * Zapytanie, które przy błędzie RZUCA. `selectQuery` zwraca wtedy `false`, czyli
+ * to samo co „brak wierszy" — przy sprawdzaniu „czy faktura już jest" taka
+ * pomyłka oznacza drugą fakturę za to samo zamówienie.
+ */
+async function strictQuery(sql, values) {
+  const conn = await connetToDb();
+  try {
+    const [rows] = await conn.query(sql, values);
+    return rows;
+  } finally {
+    await conn.end();
+  }
+}
+
+/**
+ * Wspólny warunek „zamówienie klienta czeka na fakturę" dla okna zamówień
+ * (`listInvoiceableOrdersForClient`) i licznika na karcie klienta — obie liczby
+ * muszą wychodzić z tego samego WHERE, inaczej karta i okno by się rozjeżdżały.
+ *
+ * ⚠️ `o.status = 'sent'` obowiązuje TAKŻE przy filtrze `!sent!`: w bazie są
+ * zamówienia `active` z `prod_status = '!sent!'` — `order_idx` nowego zamówienia
+ * trafił na stary numer z pliku produkcji (synchronizacja paruje statusy po
+ * numerze). Takiego zamówienia nikt nie przekazał do produkcji.
+ *
+ * ⚠️ „Już zafakturowane" = jakikolwiek nieanulowany dokument `invoice`/`final`
+ * na tym zamówieniu NA TYM POZIOMIE, bez dopasowania wystawcy: na poziomie 2
+ * wystawcą jest zawsze organizacja zamówienia, a dokumenty z v1 mają
+ * `issuer_id = 0` — dopasowanie po wystawcy pokazywałoby je jako niezafakturowane.
+ */
+function invoiceableForClientWhere({ organizationId, clientId, level, onlyShipped }) {
+  return {
+    sql: `
+       FROM \`order\` o
+       JOIN \`user\` u ON u.id = o.user_id
+      WHERE o.organization_id = ? AND o.user_id = ? AND o.status = 'sent'
+        AND (? = 0 OR o.prod_status = '!sent!')
+        AND NOT EXISTS (
+              SELECT 1 FROM invoice i
+               WHERE i.order_id = o.id AND i.level = ?
+                 AND i.document_type IN ('invoice', 'final')
+                 AND i.status <> 'cancelled')`,
+    values: [organizationId, clientId, onlyShipped ? 1 : 0, Number(level)]
+  };
+}
+
+/**
+ * Ile zamówień klienta czeka na fakturę — licznik na karcie klienta.
+ *
+ * @param {{ organizationId: number, clientId: number, level: number, onlyShipped?: boolean }} params
+ * @returns {Promise<number>}
+ */
+async function countInvoiceableOrdersForClient({ organizationId, clientId, level, onlyShipped = true }) {
+  const where = invoiceableForClientWhere({ organizationId, clientId, level, onlyShipped });
+  const rows = await selectQuery(`SELECT COUNT(*) AS c ${where.sql}`, where.values);
+  return rows && rows[0] ? Number(rows[0].c) : 0;
+}
+
+/**
+ * Pełna lista zamówień klienta do zafakturowania — „okno zamówień" w widoku
+ * klienta na poziomie 2, w miejsce comboboxa z podpowiedziami.
+ *
+ * Domyślnie tylko `prod_status = '!sent!'` (towar wyjechał do klienta — moment
+ * wystawienia faktury). `onlyShipped: false` pokazuje wszystkie przekazane do
+ * produkcji — do proformy i faktury zaliczkowej przed wysyłką.
+ *
+ * `unshipped_positions` — ile pozycji ma w pliku produkcji status inny niż
+ * `!sent!`. `order.prod_status` to status pozycji z NAJPÓŹNIEJSZĄ datą, więc
+ * zamówienie potrafi być „wysłane", choć któraś pozycja jeszcze nie wyjechała.
+ *
+ * @param {{ organizationId: number, clientId: number, level: number, onlyShipped?: boolean, limit?: number }} params
+ * @returns {Promise<{ items: Array<Record<string, any>>, total: number }>}
+ */
+async function listInvoiceableOrdersForClient({ organizationId, clientId, level, onlyShipped = true, limit = 500 }) {
+  const where = invoiceableForClientWhere({ organizationId, clientId, level, onlyShipped });
+  const [rows, total] = await Promise.all([
+    selectQuery(
+      `SELECT o.id, o.order_idx, o.commision, o.sent_date, o.delivery_date, o.total_float,
+              o.prod_status, o.spedition_numbers,
+              (SELECT COALESCE(SUM(a.total_gross), 0) FROM invoice a
+                WHERE a.order_id = o.id AND a.level = ? AND a.document_type = 'advance'
+                  AND a.status NOT IN ('cancelled', 'draft')) AS advances_gross,
+              (SELECT COALESCE(SUM(it.total_price), 0) FROM order_item it
+                WHERE it.order_id = o.id) AS items_net,
+              (SELECT COUNT(*) FROM position_statuses ps
+                WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
+                  AND ps.status <> '!sent!') AS unshipped_positions
+       ${where.sql}
+       ORDER BY ${onlyShipped ? 'o.delivery_date DESC' : 'o.sent_date DESC'}, o.id DESC
+       LIMIT ?`,
+      [Number(level), ...where.values, Number(limit)]
+    ),
+    countInvoiceableOrdersForClient({ organizationId, clientId, level, onlyShipped })
+  ]);
+  return { items: rows || [], total };
+}
+
+/**
+ * Zamówienia, dla których automat ma wystawić fakturę na danym poziomie
+ * (`services/invoices/autoInvoicing.js`).
+ *
+ * Warunki — każdy z konkretnego powodu:
+ *  - `status = 'sent'` i `prod_status = '!sent!'` — patrz `invoiceableForClientWhere`,
+ *  - WSZYSTKIE pozycje w `position_statuses` mają `!sent!`: `prod_status` to
+ *    status pozycji z najpóźniejszą datą, więc sam w sobie nie gwarantuje, że
+ *    wyjechało całe zamówienie,
+ *  - `delivery_date >= since` — próg włączenia automatu; bez niego pierwszy
+ *    przebieg zafakturowałby całą historię wysłanych zamówień,
+ *  - brak JAKIEGOKOLWIEK dokumentu `invoice`/`final`/`advance` na tym poziomie,
+ *    także anulowanego albo szkicu: anulowana faktura oznacza, że ktoś zajął się
+ *    zamówieniem ręcznie — automat wystawiałby ją od nowa co godzinę; zaliczka
+ *    wymaga faktury końcowej, którą wystawia człowiek.
+ *
+ * @param {{ level: number, since: string, organizationIds?: number[], excludeOrganizationId?: number|null, limit?: number }} params
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findAutoInvoiceCandidates({ level, since, organizationIds = [], excludeOrganizationId = null, limit = 100 }) {
+  const values = [since];
+  let filters = '';
+  if (organizationIds.length) { filters += ' AND o.organization_id IN (?)'; values.push(organizationIds); }
+  if (excludeOrganizationId) { filters += ' AND o.organization_id <> ?'; values.push(Number(excludeOrganizationId)); }
+  values.push(Number(level), Number(limit));
+
+  return strictQuery(
+    `SELECT o.id, o.order_idx, o.commision, o.organization_id, o.user_id, o.delivery_date, u.ident AS user_ident
+       FROM \`order\` o
+       JOIN \`user\` u ON u.id = o.user_id
+      WHERE o.status = 'sent'
+        AND o.prod_status = '!sent!'
+        AND o.delivery_date >= ?${filters}
+        AND NOT EXISTS (
+              SELECT 1 FROM position_statuses ps
+               WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
+                 AND ps.status <> '!sent!')
+        AND NOT EXISTS (
+              SELECT 1 FROM invoice i
+               WHERE i.order_id = o.id AND i.level = ?
+                 AND i.document_type IN ('invoice', 'final', 'advance'))
+      ORDER BY o.delivery_date, o.id
+      LIMIT ?`,
+    values
+  );
+}
+
+/**
+ * Czy zamówienie ma już dokument na tym poziomie (ta sama reguła co w
+ * `findAutoInvoiceCandidates`). Automat pyta jeszcze raz tuż przed zapisem —
+ * między wyszukaniem a wystawieniem ktoś mógł wystawić fakturę ręcznie.
+ *
+ * @param {{ orderId: number, level: number }} params
+ * @returns {Promise<boolean>}
+ */
+async function hasLevelInvoice({ orderId, level }) {
+  const rows = await strictQuery(
+    `SELECT id FROM invoice
+      WHERE order_id = ? AND level = ? AND document_type IN ('invoice', 'final', 'advance')
+      LIMIT 1`,
+    [orderId, Number(level)]
+  );
+  return rows.length > 0;
 }
 
 /**
@@ -1278,18 +1442,27 @@ async function assignEndClientToOrder({ orderId, endClientId, sessionUserId, org
 
 /**
  * Szablon dokumentu po kodzie (z fallbackiem na `default`).
+ *
+ * `backgroundFile`/`pageMargins` — formatka organizacji (`core/templates.js`).
+ * ⚠️ `SELECT *` celowo: przed migracją `db/schema_v3.sql` kolumn formatki nie ma,
+ * a dokument ma się wtedy renderować dalej, po prostu bez formatki.
+ *
  * @param {string} code
- * @returns {Promise<{ code: string, templateFile: string, stylesheet: string, themeVars: object }>}
+ * @returns {Promise<{ code: string, templateFile: string, stylesheet: string, themeVars: object, backgroundFile: string|null, pageMargins: object|null }>}
  */
 async function getTemplate(code) {
   const rows = await selectQuery('SELECT * FROM invoice_template WHERE code = ? AND is_active = 1', [code || 'default']);
   const row = rows && rows[0];
-  if (!row) return { code: 'default', templateFile: 'invoice-main.njk', stylesheet: 'styles/invoice.css', themeVars: {} };
+  if (!row) {
+    return { code: 'default', templateFile: 'invoice-main.njk', stylesheet: 'styles/invoice.css', themeVars: {}, backgroundFile: null, pageMargins: null };
+  }
   return {
     code: row.code,
     templateFile: row.template_file,
     stylesheet: row.stylesheet,
-    themeVars: parseJsonColumn(row.theme_vars) || {}
+    themeVars: parseJsonColumn(row.theme_vars) || {},
+    backgroundFile: row.background_file || null,
+    pageMargins: parseJsonColumn(row.page_margins)
   };
 }
 
@@ -1297,7 +1470,47 @@ async function getTemplate(code) {
  * @returns {Promise<Array<Record<string, any>>>}
  */
 async function listTemplates() {
-  return (await selectQuery('SELECT code, name, template_file, stylesheet, is_active FROM invoice_template ORDER BY code', [])) || [];
+  // `SELECT *`: kolumny formatki (`background_file`, `page_margins`) są dopiero
+  // po migracji `db/schema_v3.sql` — lista ma działać także przed nią.
+  return (await selectQuery('SELECT * FROM invoice_template ORDER BY code', [])) || [];
+}
+
+/**
+ * Rejestruje albo aktualizuje szablon (`scripts/setInvoiceTemplate.js`).
+ * Ścieżki są względem `services/invoices/templates/` — wołający sprawdza, że
+ * pliki istnieją, zanim wskaże je w bazie. Przy błędzie RZUCA.
+ *
+ * @param {{ code: string, name: string, templateFile: string, stylesheet: string, backgroundFile?: string|null, pageMargins?: object|null }} template
+ * @returns {Promise<void>}
+ */
+async function upsertTemplate({ code, name, templateFile, stylesheet, backgroundFile = null, pageMargins = null }) {
+  await strictQuery(
+    `INSERT INTO invoice_template (code, name, template_file, stylesheet, background_file, page_margins, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, 1)
+     ON DUPLICATE KEY UPDATE name = VALUES(name), template_file = VALUES(template_file),
+                             stylesheet = VALUES(stylesheet), background_file = VALUES(background_file),
+                             page_margins = VALUES(page_margins), is_active = 1`,
+    [code, name, templateFile, stylesheet, backgroundFile, pageMargins ? JSON.stringify(pageMargins) : null]
+  );
+}
+
+/**
+ * Który plik szablonu ma każda organizacja — do kontroli przypisań.
+ * Brak wiersza profilu albo kodu bez wiersza w `invoice_template` = domyślny,
+ * tak jak przy renderowaniu (`getTemplate`).
+ *
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function listOrganizationTemplates() {
+  return strictQuery(
+    `SELECT o.id AS organization_id, o.ident, o.name AS organization_name,
+            COALESCE(p.template_code, 'default') AS template_code, t.*
+       FROM organization o
+       LEFT JOIN invoice_organization_profile p ON p.organization_id = o.id
+       LEFT JOIN invoice_template t ON t.code = COALESCE(p.template_code, 'default')
+      ORDER BY o.id`,
+    []
+  );
 }
 
 /**
@@ -1306,9 +1519,9 @@ async function listTemplates() {
  * @returns {Promise<{ executed: number }>}
  */
 async function runSchemaMigration() {
-  // v1 + v2 (hierarchia, odbiorcy końcowi, alokacje) — kolejność ma znaczenie:
-  // v2 dokłada kolumny do tabel utworzonych w v1.
-  const raw = ['schema.sql', 'schema_v2.sql']
+  // v1 + v2 (hierarchia, odbiorcy końcowi, alokacje) + v3 (formatki) —
+  // kolejność ma znaczenie: kolejne wersje dokładają kolumny do tabel z v1.
+  const raw = ['schema.sql', 'schema_v2.sql', 'schema_v3.sql']
     .map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8'))
     .join('\n');
   // Rozbicie na instrukcje: komentarze `--` precz, potem podział po `;`
@@ -1350,6 +1563,10 @@ module.exports = {
   searchOrganizations,
   countSearchMatches,
   searchInvoiceableOrders,
+  countInvoiceableOrdersForClient,
+  listInvoiceableOrdersForClient,
+  findAutoInvoiceCandidates,
+  hasLevelInvoice,
   allocateSequence,
   getOrganizationProfile,
   upsertOrganizationProfile,
@@ -1361,5 +1578,7 @@ module.exports = {
   getOrderInvoiceSource,
   getTemplate,
   listTemplates,
+  upsertTemplate,
+  listOrganizationTemplates,
   runSchemaMigration
 };

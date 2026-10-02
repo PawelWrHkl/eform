@@ -4,6 +4,11 @@
   (`/invoices/client/:id`) — ekran wyboru klienta ma zostać ekranem wyboru.
 #}
       {# ---------- KROK 2: nowy dokument dla wybranego klienta ---------- #}
+      {# Poziom 2: okno ze wszystkimi zamówieniami klienta czekającymi na
+         fakturę (domyślnie wysłane — !sent!) zamiast comboboxa poniżej. #}
+      {% if ordersWindow %}
+        {% include "owner/partials/client_orders_window.njk" %}
+      {% else %}
       <section class="inv-card">
         <h3 class="inv-card__title">{{ L.new_from_order }} · {{ client.client_name }}</h3>
 
@@ -73,6 +78,7 @@
           </div>
         </form>
       </section>
+      {% endif %}
 
       {# ---------- Dokumenty wybranego klienta ---------- #}
       <section class="inv-card">
@@ -104,7 +110,10 @@
               <tbody>
                 {% for inv in invoices %}
                   <tr data-id="{{ inv.id }}" data-status="{{ inv.status }}">
-                    <td class="inv-nowrap">{{ inv.number if inv.number else '—' }}</td>
+                    <td class="inv-nowrap">
+                      {{- inv.number if inv.number else '—' -}}
+                      {% if inv.isAuto %} <span class="inv-tag inv-tag--auto" title="{{ L.auto_badge_title }}">{{ L.auto_badge }}</span>{% endif %}
+                    </td>
                     <td>{{ inv.document_type }}</td>
                     <td class="inv-order-name" title="{{ inv.order_name }}">
                       {{- inv.order_name if inv.order_name else '—' -}}

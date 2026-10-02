@@ -5,3 +5,4 @@ Dockerfile
 docker-compose.yml
 .env_dev
 .env
+.env.local

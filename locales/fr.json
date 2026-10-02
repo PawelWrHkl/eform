@@ -562,6 +562,10 @@
 		"sf_discount": "Remise client (%)",
 		"sf_discount_hint": "Appliquée automatiquement après le calcul du prix de la position de ce client. 0 = aucune remise.",
 		"col_discount": "Remise",
-		"discount_save": "Enregistrer la remise"
+		"discount_save": "Enregistrer la remise",
+		"sf_markup": "Majoration client (%)",
+		"sf_markup_hint": "Le client voit les prix normaux augmentés de cette majoration. 0 = prix normaux sans majoration.",
+		"col_markup": "Majoration",
+		"markup_save": "Enregistrer la majoration"
 	}
 }

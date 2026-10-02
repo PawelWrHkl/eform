@@ -562,6 +562,10 @@
 		"sf_discount": "Kundenrabatt (%)",
 		"sf_discount_hint": "Wird automatisch nach der Preisberechnung der Position dieses Kunden angewendet. 0 = kein Rabatt.",
 		"col_discount": "Rabatt",
-		"discount_save": "Rabatt speichern"
+		"discount_save": "Rabatt speichern",
+		"sf_markup": "Kundenaufschlag (%)",
+		"sf_markup_hint": "Der Kunde sieht die regulären Preise zuzüglich dieses Aufschlags. 0 = reguläre Preise ohne Aufschlag.",
+		"col_markup": "Aufschlag",
+		"markup_save": "Aufschlag speichern"
 	}
 }
