@@ -97,6 +97,9 @@ class InvoiceCalculator {
       taxAmount,
       grossAmount: netAmount + taxAmount,
       orderItemId: raw.orderItemId,
+      // Numer zamówienia pozycji — na fakturze zbiorczej każda pozycja ma swój
+      // (`invoice_item.order_number`); brak = numer z nagłówka dokumentu
+      orderNumber: raw.orderNumber,
       meta: raw.meta || {}
     };
   }

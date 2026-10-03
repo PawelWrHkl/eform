@@ -22,6 +22,7 @@ const { selectQuery, connetToDb } = require('../../../db/core');
 const { log } = require('../../../utils/logging');
 const money = require('../core/money');
 const { toIsoDay } = require('../core/dates');
+const { normalizeEndClientData } = require('../core/endClient');
 
 /** @typedef {import('../domain/types').Invoice} Invoice */
 /** @typedef {import('../domain/types').OrganizationProfile} OrganizationProfile */
@@ -743,6 +744,8 @@ async function searchInvoiceableOrders({ organizationId, clientId = null, query,
                           AND i.status <> 'cancelled'
                           AND (? = 0 OR (i.issuer_type = ? AND i.issuer_id = ? AND i.level = ?))
       WHERE o.organization_id = ? AND (? = 0 OR o.user_id = ?) AND o.status = 'sent' AND i.id IS NULL
+        -- Fakturujemy WYŁĄCZNIE zlecenia wysłane do klienta (!sent! ze status.txt)
+        AND o.prod_status = '!sent!'
         AND (? = '' OR o.order_idx LIKE ? OR o.commision LIKE ?)
         -- ⚠️ Zamówienia spięte z INNYM odbiorcą są POKAZYWANE, nie ukrywane:
         -- panel pyta wtedy „zamówienie jest odbiorcy X, przypisać do Y?".
@@ -791,30 +794,31 @@ async function strictQuery(sql, values) {
  * wystawcą jest zawsze organizacja zamówienia, a dokumenty z v1 mają
  * `issuer_id = 0` — dopasowanie po wystawcy pokazywałoby je jako niezafakturowane.
  */
-function invoiceableForClientWhere({ organizationId, clientId, level, onlyShipped }) {
+function invoiceableForClientWhere({ organizationId, clientId, level }) {
   return {
     sql: `
        FROM \`order\` o
        JOIN \`user\` u ON u.id = o.user_id
       WHERE o.organization_id = ? AND o.user_id = ? AND o.status = 'sent'
-        AND (? = 0 OR o.prod_status = '!sent!')
+        AND o.prod_status = '!sent!'
         AND NOT EXISTS (
               SELECT 1 FROM invoice i
                WHERE i.order_id = o.id AND i.level = ?
                  AND i.document_type IN ('invoice', 'final')
-                 AND i.status <> 'cancelled')`,
-    values: [organizationId, clientId, onlyShipped ? 1 : 0, Number(level)]
+                 AND i.status <> 'cancelled')
+        AND NOT ${linkedDocumentSql("AND il.document_type IN ('invoice', 'final') AND il.status <> 'cancelled'")}`,
+    values: [organizationId, clientId, Number(level), [Number(level)]]
   };
 }
 
 /**
  * Ile zamówień klienta czeka na fakturę — licznik na karcie klienta.
  *
- * @param {{ organizationId: number, clientId: number, level: number, onlyShipped?: boolean }} params
+ * @param {{ organizationId: number, clientId: number, level: number }} params
  * @returns {Promise<number>}
  */
-async function countInvoiceableOrdersForClient({ organizationId, clientId, level, onlyShipped = true }) {
-  const where = invoiceableForClientWhere({ organizationId, clientId, level, onlyShipped });
+async function countInvoiceableOrdersForClient({ organizationId, clientId, level }) {
+  const where = invoiceableForClientWhere({ organizationId, clientId, level });
   const rows = await selectQuery(`SELECT COUNT(*) AS c ${where.sql}`, where.values);
   return rows && rows[0] ? Number(rows[0].c) : 0;
 }
@@ -823,19 +827,18 @@ async function countInvoiceableOrdersForClient({ organizationId, clientId, level
  * Pełna lista zamówień klienta do zafakturowania — „okno zamówień" w widoku
  * klienta na poziomie 2, w miejsce comboboxa z podpowiedziami.
  *
- * Domyślnie tylko `prod_status = '!sent!'` (towar wyjechał do klienta — moment
- * wystawienia faktury). `onlyShipped: false` pokazuje wszystkie przekazane do
- * produkcji — do proformy i faktury zaliczkowej przed wysyłką.
+ * Wyłącznie zlecenia z `prod_status = '!sent!'` (towar wyjechał do klienta) —
+ * tylko takie można fakturować (`main.js:isShippedOrder`).
  *
  * `unshipped_positions` — ile pozycji ma w pliku produkcji status inny niż
  * `!sent!`. `order.prod_status` to status pozycji z NAJPÓŹNIEJSZĄ datą, więc
  * zamówienie potrafi być „wysłane", choć któraś pozycja jeszcze nie wyjechała.
  *
- * @param {{ organizationId: number, clientId: number, level: number, onlyShipped?: boolean, limit?: number }} params
+ * @param {{ organizationId: number, clientId: number, level: number, limit?: number }} params
  * @returns {Promise<{ items: Array<Record<string, any>>, total: number }>}
  */
-async function listInvoiceableOrdersForClient({ organizationId, clientId, level, onlyShipped = true, limit = 500 }) {
-  const where = invoiceableForClientWhere({ organizationId, clientId, level, onlyShipped });
+async function listInvoiceableOrdersForClient({ organizationId, clientId, level, limit = 500 }) {
+  const where = invoiceableForClientWhere({ organizationId, clientId, level });
   const [rows, total] = await Promise.all([
     selectQuery(
       `SELECT o.id, o.order_idx, o.commision, o.sent_date, o.delivery_date, o.total_float,
@@ -849,14 +852,112 @@ async function listInvoiceableOrdersForClient({ organizationId, clientId, level,
                 WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
                   AND ps.status <> '!sent!') AS unshipped_positions
        ${where.sql}
-       ORDER BY ${onlyShipped ? 'o.delivery_date DESC' : 'o.sent_date DESC'}, o.id DESC
+       ORDER BY o.delivery_date DESC, o.id DESC
        LIMIT ?`,
       [Number(level), ...where.values, Number(limit)]
     ),
-    countInvoiceableOrdersForClient({ organizationId, clientId, level, onlyShipped })
+    countInvoiceableOrdersForClient({ organizationId, clientId, level })
   ]);
   return { items: rows || [], total };
 }
+
+/**
+ * Dokument obejmujący zamówienie `o` przez swoje POZYCJE, a nie przez
+ * `invoice.order_id` — tak rozpoznajemy FAKTURĘ ZBIORCZĄ (dotyczy wielu
+ * zamówień, więc `order_id` ma pusty). Bez tego zamówienie z faktury zbiorczej
+ * wyglądałoby na niezafakturowane i automat wystawiłby mu drugą fakturę.
+ * Jeden placeholder `IN (?)` — lista poziomów.
+ *
+ * @param {string} [extra] dodatkowe warunki na `il` (typ dokumentu, status)
+ * @returns {string}
+ */
+function linkedDocumentSql(extra = '') {
+  return `EXISTS (SELECT 1 FROM order_item oi
+                   JOIN invoice_item ii ON ii.order_item_id = oi.id
+                   JOIN invoice il ON il.id = ii.invoice_id
+                  WHERE oi.order_id = o.id AND il.order_id IS NULL AND il.level IN (?) ${extra})`;
+}
+
+/** @type {Promise<boolean>|null} */
+let invoiceScheduleSupport = null;
+
+/**
+ * Czy jest kolumna `user.invoice_schedule` (`migrations/add_user_invoice_schedule.sql`).
+ * Kod bywa wdrażany przed migracją — wtedy fakturowanie niestandardowe po prostu
+ * nie działa, zamiast wywracać zapytania automatu. Raz na proces (cykl automatu
+ * to osobny proces, więc migracja zadziała od następnego cyklu).
+ *
+ * @returns {Promise<boolean>}
+ */
+function supportsInvoiceSchedule() {
+  if (!invoiceScheduleSupport) {
+    invoiceScheduleSupport = strictQuery(
+      `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME = 'invoice_schedule'`,
+      []
+    ).then((rows) => Number(rows[0] && rows[0].c) > 0).catch(() => false);
+  }
+  return invoiceScheduleSupport;
+}
+
+/**
+ * Harmonogram fakturowania klienta (`user.invoice_schedule`): `weekly`,
+ * `monthly` albo `null` (standard — faktura za każde zlecenie).
+ *
+ * @param {number} userId
+ * @returns {Promise<'weekly'|'monthly'|null>}
+ */
+async function getUserInvoiceSchedule(userId) {
+  if (!userId || !(await supportsInvoiceSchedule())) return null;
+  const { normalizeSchedule } = require('../core/collective');
+  const rows = await selectQuery('SELECT invoice_schedule FROM `user` WHERE id = ?', [userId]);
+  return normalizeSchedule(rows && rows[0] && rows[0].invoice_schedule);
+}
+
+/**
+ * @param {number} userId
+ * @param {'weekly'|'monthly'|null} schedule  `null` = standard
+ * @returns {Promise<boolean>}
+ */
+async function setUserInvoiceSchedule(userId, schedule) {
+  const { normalizeSchedule } = require('../core/collective');
+  const result = await strictQuery('UPDATE `user` SET invoice_schedule = ? WHERE id = ?', [normalizeSchedule(schedule), userId]);
+  return result.affectedRows > 0;
+}
+
+/**
+ * Poziomy, które dla jednego zlecenia się WYKLUCZAJĄ: odbiorca końcowy kupuje
+ * od salonu (3) ALBO bezpośrednio od organizacji (4) — nigdy od obu naraz.
+ * Dla poziomów 1 i 2 relacja to sam poziom.
+ *
+ * @param {number} level
+ * @returns {number[]}
+ */
+function relationLevels(level) {
+  const lvl = Number(level);
+  return lvl === 3 || lvl === 4 ? [3, 4] : [lvl];
+}
+
+/**
+ * Warunek „kto stoi po drugiej stronie" per poziom. Konto WŁASNE organizacji
+ * rozpoznajemy tak samo jak logowanie ownera (`middleware/loginMixture.js:isOwner`):
+ * ident użytkownika = ident organizacji.
+ *   1 — HKL → organizacja (HKL wykluczane przez `excludeOrganizationId`),
+ *   2 — organizacja → jej klient; NIE dla własnego konta organizacji
+ *       (organizacja nie wystawia faktury sama sobie),
+ *   3 — salon → odbiorca końcowy przypisany do zlecenia przez salon,
+ *   4 — organizacja → odbiorca końcowy przypisany do zlecenia własnego konta organizacji.
+ */
+const AUTO_LEVEL_SQL = Object.freeze({
+  1: '',
+  2: 'AND UPPER(u.ident) <> UPPER(org.ident)',
+  3: `AND o.end_client_id IS NOT NULL AND UPPER(u.ident) <> UPPER(org.ident)
+        AND EXISTS (SELECT 1 FROM invoice_end_client ec
+                     WHERE ec.id = o.end_client_id AND ec.owner_user_id = o.user_id)`,
+  4: `AND o.end_client_id IS NOT NULL AND UPPER(u.ident) = UPPER(org.ident)
+        AND EXISTS (SELECT 1 FROM invoice_end_client ec
+                     WHERE ec.id = o.end_client_id AND ec.organization_id = o.organization_id)`
+});
 
 /**
  * Zamówienia, dla których automat ma wystawić fakturę na danym poziomie
@@ -869,36 +970,49 @@ async function listInvoiceableOrdersForClient({ organizationId, clientId, level,
  *    wyjechało całe zamówienie,
  *  - `delivery_date >= since` — próg włączenia automatu; bez niego pierwszy
  *    przebieg zafakturowałby całą historię wysłanych zamówień,
- *  - brak JAKIEGOKOLWIEK dokumentu `invoice`/`final`/`advance` na tym poziomie,
- *    także anulowanego albo szkicu: anulowana faktura oznacza, że ktoś zajął się
- *    zamówieniem ręcznie — automat wystawiałby ją od nowa co godzinę; zaliczka
- *    wymaga faktury końcowej, którą wystawia człowiek.
+ *  - strona transakcji pasuje do poziomu (`AUTO_LEVEL_SQL`),
+ *  - brak JAKIEGOKOLWIEK dokumentu `invoice`/`final`/`advance` w tej relacji
+ *    (`relationLevels`), także anulowanego albo szkicu: anulowana faktura oznacza,
+ *    że ktoś zajął się zamówieniem ręcznie — automat wystawiałby ją od nowa co
+ *    godzinę; zaliczka wymaga faktury końcowej, którą wystawia człowiek.
  *
  * @param {{ level: number, since: string, organizationIds?: number[], excludeOrganizationId?: number|null, limit?: number }} params
  * @returns {Promise<Array<Record<string, any>>>}
  */
 async function findAutoInvoiceCandidates({ level, since, organizationIds = [], excludeOrganizationId = null, limit = 100 }) {
+  const levelSql = AUTO_LEVEL_SQL[Number(level)];
+  if (levelSql === undefined) throw new Error(`Automat nie obsługuje poziomu ${level}`);
   const values = [since];
   let filters = '';
   if (organizationIds.length) { filters += ' AND o.organization_id IN (?)'; values.push(organizationIds); }
   if (excludeOrganizationId) { filters += ' AND o.organization_id <> ?'; values.push(Number(excludeOrganizationId)); }
-  values.push(Number(level), Number(limit));
+  // Klient z fakturowaniem niestandardowym (tygodniowe/miesięczne) dostaje
+  // fakturę ZBIORCZĄ za okres (`findCollectiveCandidates`), nie za każde zlecenie
+  const scheduleSql = Number(level) === 2 && (await supportsInvoiceSchedule())
+    ? "AND (u.invoice_schedule IS NULL OR u.invoice_schedule NOT IN ('weekly', 'monthly'))"
+    : '';
+  values.push(relationLevels(level), relationLevels(level), Number(limit));
 
   return strictQuery(
-    `SELECT o.id, o.order_idx, o.commision, o.organization_id, o.user_id, o.delivery_date, u.ident AS user_ident
+    `SELECT o.id, o.order_idx, o.commision, o.organization_id, o.user_id, o.delivery_date,
+            o.end_client_id, u.ident AS user_ident
        FROM \`order\` o
        JOIN \`user\` u ON u.id = o.user_id
+       JOIN organization org ON org.id = o.organization_id
       WHERE o.status = 'sent'
         AND o.prod_status = '!sent!'
         AND o.delivery_date >= ?${filters}
+        ${levelSql}
+        ${scheduleSql}
         AND NOT EXISTS (
               SELECT 1 FROM position_statuses ps
                WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
                  AND ps.status <> '!sent!')
         AND NOT EXISTS (
               SELECT 1 FROM invoice i
-               WHERE i.order_id = o.id AND i.level = ?
+               WHERE i.order_id = o.id AND i.level IN (?)
                  AND i.document_type IN ('invoice', 'final', 'advance'))
+        AND NOT ${linkedDocumentSql("AND il.document_type IN ('invoice', 'final', 'advance')")}
       ORDER BY o.delivery_date, o.id
       LIMIT ?`,
     values
@@ -906,7 +1020,7 @@ async function findAutoInvoiceCandidates({ level, since, organizationIds = [], e
 }
 
 /**
- * Czy zamówienie ma już dokument na tym poziomie (ta sama reguła co w
+ * Czy zamówienie ma już dokument w tej relacji (ta sama reguła co w
  * `findAutoInvoiceCandidates`). Automat pyta jeszcze raz tuż przed zapisem —
  * między wyszukaniem a wystawieniem ktoś mógł wystawić fakturę ręcznie.
  *
@@ -915,12 +1029,56 @@ async function findAutoInvoiceCandidates({ level, since, organizationIds = [], e
  */
 async function hasLevelInvoice({ orderId, level }) {
   const rows = await strictQuery(
-    `SELECT id FROM invoice
-      WHERE order_id = ? AND level = ? AND document_type IN ('invoice', 'final', 'advance')
-      LIMIT 1`,
-    [orderId, Number(level)]
+    `SELECT 1 AS found FROM \`order\` o
+      WHERE o.id = ?
+        AND (EXISTS (SELECT 1 FROM invoice i
+                      WHERE i.order_id = o.id AND i.level IN (?)
+                        AND i.document_type IN ('invoice', 'final', 'advance'))
+             OR ${linkedDocumentSql("AND il.document_type IN ('invoice', 'final', 'advance')")})`,
+    [orderId, relationLevels(level), relationLevels(level)]
   );
   return rows.length > 0;
+}
+
+/**
+ * Zamówienia klientów z fakturowaniem niestandardowym (`user.invoice_schedule`),
+ * które czekają na FAKTURĘ ZBIORCZĄ poziomu 2. Te same warunki co pojedyncza
+ * faktura automatu (`findAutoInvoiceCandidates`, poziom 2) — różni je tylko to,
+ * że zamówienia trafiają razem na jeden dokument za okres (`core/collective.js`).
+ *
+ * @param {{ since: string, organizationIds?: number[] }} params
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findCollectiveCandidates({ since, organizationIds = [] }) {
+  if (!(await supportsInvoiceSchedule())) return [];
+  const values = [since];
+  let filters = '';
+  if (organizationIds.length) { filters += ' AND o.organization_id IN (?)'; values.push(organizationIds); }
+  values.push([2], [2]);
+
+  return strictQuery(
+    `SELECT o.id, o.order_idx, o.user_id, o.group_user_id, o.organization_id, o.delivery_date,
+            u.ident AS user_ident, u.invoice_schedule
+       FROM \`order\` o
+       JOIN \`user\` u ON u.id = o.user_id
+       JOIN organization org ON org.id = o.organization_id
+      WHERE o.status = 'sent'
+        AND o.prod_status = '!sent!'
+        AND o.delivery_date >= ?${filters}
+        AND u.invoice_schedule IN ('weekly', 'monthly')
+        ${AUTO_LEVEL_SQL[2]}
+        AND NOT EXISTS (
+              SELECT 1 FROM position_statuses ps
+               WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
+                 AND ps.status <> '!sent!')
+        AND NOT EXISTS (
+              SELECT 1 FROM invoice i
+               WHERE i.order_id = o.id AND i.level IN (?)
+                 AND i.document_type IN ('invoice', 'final', 'advance'))
+        AND NOT ${linkedDocumentSql("AND il.document_type IN ('invoice', 'final', 'advance')")}
+      ORDER BY o.user_id, o.delivery_date, o.id`,
+    values
+  );
 }
 
 /**
@@ -1131,11 +1289,37 @@ function mapEndClient(row) {
 }
 
 /**
+ * Domyślny kraj nowego odbiorcy: `user.country` właściciela kartoteki,
+ * a gdy pusty (są takie konta) — kraj jego organizacji.
+ *
+ * @param {number} userId
+ * @returns {Promise<string>} kod ISO-2 albo `''`
+ */
+async function getEndClientDefaultCountry(userId) {
+  if (!userId) return '';
+  const rows = await selectQuery(
+    `SELECT u.country, o.country AS org_country
+       FROM \`user\` u
+       LEFT JOIN organization o ON o.id = u.organization_id
+      WHERE u.id = ?`,
+    [userId]
+  );
+  const row = rows && rows[0];
+  if (!row) return '';
+  const iso = (value) => {
+    const code = String(value || '').trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(code) ? code : '';
+  };
+  return iso(row.country) || iso(row.org_country);
+}
+
+/**
  * @param {{ ownerUserId: number, organizationId: number, data: Record<string, any> }} params
  * @returns {Promise<number>} id nowego odbiorcy
  */
 async function createEndClient({ ownerUserId, organizationId, data }) {
-  const entries = Object.entries(data || {}).filter(([k]) => END_CLIENT_FIELDS.includes(k));
+  // Osoba prywatna bez NIP/NIP UE/numerów rejestrowych — `core/endClient.js`
+  const entries = Object.entries(normalizeEndClientData(data) || {}).filter(([k]) => END_CLIENT_FIELDS.includes(k));
   const cols = entries.map(([k]) => `\`${k}\``);
   const values = entries.map(([k, v]) => (k === 'registry_numbers' && v && typeof v === 'object' ? JSON.stringify(v) : v));
 
@@ -1160,7 +1344,8 @@ async function createEndClient({ ownerUserId, organizationId, data }) {
  * @returns {Promise<boolean>}
  */
 async function updateEndClient({ id, ownerUserId, data }) {
-  const entries = Object.entries(data || {}).filter(([k]) => END_CLIENT_FIELDS.includes(k));
+  // Zmiana typu na osobę prywatną czyści numery firmowe — `core/endClient.js`
+  const entries = Object.entries(normalizeEndClientData(data) || {}).filter(([k]) => END_CLIENT_FIELDS.includes(k));
   if (!entries.length) return false;
   const sets = entries.map(([k]) => `\`${k}\` = ?`).join(', ');
   const values = entries.map(([k, v]) => (k === 'registry_numbers' && v && typeof v === 'object' ? JSON.stringify(v) : v));
@@ -1495,6 +1680,39 @@ async function upsertTemplate({ code, name, templateFile, stylesheet, background
 }
 
 /**
+ * Wiersz szablonu po kodzie — BEZ zastępowania domyślnym (w przeciwieństwie do
+ * `getTemplate`): przypisanie formatki musi wiedzieć, czy wiersz istnieje.
+ *
+ * @param {string} code
+ * @returns {Promise<{ code: string, name: string, templateFile: string, stylesheet: string, backgroundFile: string|null, pageMargins: object|null }|null>}
+ */
+async function getTemplateRow(code) {
+  const rows = await strictQuery('SELECT * FROM invoice_template WHERE code = ?', [code]);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    code: row.code,
+    name: row.name,
+    templateFile: row.template_file,
+    stylesheet: row.stylesheet,
+    backgroundFile: row.background_file || null,
+    pageMargins: parseJsonColumn(row.page_margins)
+  };
+}
+
+/**
+ * Ile dokumentów zapamiętało ten kod szablonu. Kod używany przez wystawione
+ * faktury nie może zmienić formatki w miejscu — patrz `templateAssignment.js`.
+ *
+ * @param {string} code
+ * @returns {Promise<number>}
+ */
+async function countInvoicesWithTemplate(code) {
+  const rows = await strictQuery('SELECT COUNT(*) AS c FROM invoice WHERE template_code = ?', [code]);
+  return Number(rows[0] && rows[0].c) || 0;
+}
+
+/**
  * Który plik szablonu ma każda organizacja — do kontroli przypisań.
  * Brak wiersza profilu albo kodu bez wiersza w `invoice_template` = domyślny,
  * tak jak przy renderowaniu (`getTemplate`).
@@ -1550,6 +1768,7 @@ module.exports = {
   getIssuerProfile,
   upsertIssuerProfile,
   createEndClient,
+  getEndClientDefaultCountry,
   updateEndClient,
   deactivateEndClient,
   getEndClient,
@@ -1566,7 +1785,12 @@ module.exports = {
   countInvoiceableOrdersForClient,
   listInvoiceableOrdersForClient,
   findAutoInvoiceCandidates,
+  findCollectiveCandidates,
   hasLevelInvoice,
+  relationLevels,
+  supportsInvoiceSchedule,
+  getUserInvoiceSchedule,
+  setUserInvoiceSchedule,
   allocateSequence,
   getOrganizationProfile,
   upsertOrganizationProfile,
@@ -1579,6 +1803,8 @@ module.exports = {
   getTemplate,
   listTemplates,
   upsertTemplate,
+  getTemplateRow,
+  countInvoicesWithTemplate,
   listOrganizationTemplates,
   runSchemaMigration
 };

@@ -156,6 +156,15 @@ i adresaci dostaw, dlatego mają własną tabelę, a nie wiersz w `user`.
   N° TVA) są uzupełniane automatycznie z `tax_id`/`vat_eu_id`, więc pytanie o nie
   drugi raz było czystą duplikacją. Zostaje więc PL → REGON, DE → Steuernummer,
   NL → KVK, FR → SIREN/SIRET/NAF.
+- **Kraj nowego odbiorcy** domyślnie = `user.country` właściciela kartoteki (tego samego
+  użytkownika, który dostaje `owner_user_id`), a gdy pusty — kraj jego organizacji
+  (`repository.getEndClientDefaultCountry`). Tylko wartość startowa — do zmiany w formularzu.
+- **Osoba prywatna** (`client_type = 'person'`) nie ma numerów firmowych: formularz ukrywa
+  NIP, NIP UE i numery rejestrowe (REGON, KVK, SIREN…), a serwer czyści je przy zapisie
+  (`core/endClient.js`, wołane w `createEndClient`/`updateEndClient`). ⚠️ Samo ukrycie
+  w formularzu nie wystarcza: odbiorca przestawiony z firmy na osobę zachowałby w bazie
+  stary NIP, który trafia na fakturę i do VIES. Przełączenie typu w formularzu przed
+  zapisem niczego nie kasuje — wartości są tylko schowane.
 - **Adres dostawy** jest osobny od rejestrowego i **domyślnie NIE trafia na
   fakturę** — drukuje się dopiero po zaznaczeniu `print_delivery_address` przy
   odbiorcy (albo po przekazaniu `includeDeliveryAddress` w API dla jednego
@@ -307,6 +316,16 @@ logiki biznesowej.
   `/mnt/eform/languages` (mount kontenera synchronizowany z panelu admina), więc
   klucze dodane w repo nie dotarłyby do działającej instancji.
 
+## Tylko zlecenia wysłane do klienta (`!sent!`)
+
+Dokument (każdego typu) powstaje WYŁĄCZNIE dla zlecenia, które ma `status = 'sent'`
+i `prod_status = '!sent!'` — status z pliku produkcji `status.txt`, synchronizowany co
+godzinę (`services/prodStatus.js`). Pilnuje tego `main.js:isShippedOrder` w
+`createFromOrder`, więc reguła obowiązuje tak samo w panelu, w API i w automacie; listy
+zleceń w panelu (okno na poziomie 2, podpowiedzi na poziomach 1/3/4) pokazują tylko
+takie zlecenia. ⚠️ Same `!sent!` bez `status = 'sent'` to kolizja numeru `order_idx`
+z plikiem produkcji (zlecenie `active`), nie wysłany towar.
+
 ## Automatyczne wystawianie faktur (`autoInvoicing.js`)
 
 Faktura powstaje sama, gdy zamówienie wyjedzie do klienta — bez wchodzenia na
@@ -333,6 +352,21 @@ Zamówienie dostaje fakturę, gdy (`repository.findAutoInvoiceCandidates`):
   bez tej reguły automat wystawiałby ją od nowa co godzinę. Zamówienie z zaliczką
   wymaga faktury końcowej (`final`), którą wystawia człowiek.
 
+Które faktury powstają dla jednego zlecenia `!sent!` (`repository.js:AUTO_LEVEL_SQL`;
+„własne konto organizacji" = ident użytkownika równy identowi organizacji, jak przy
+logowaniu ownera):
+
+| Poziom | Kiedy |
+|---|---|
+| 1 — HKL → organizacja | organizacja zlecenia to nie HKL |
+| 2 — organizacja → klient | zlecenie złożył klient, NIE własne konto organizacji (organizacja nie fakturuje sama siebie) |
+| 3 — salon → odbiorca końcowy | do zlecenia salonu przypisany jest jego odbiorca (`order.end_client_id`) |
+| 4 — organizacja → odbiorca końcowy | do zlecenia własnego konta organizacji przypisany jest odbiorca organizacji |
+
+Poziomy 3 i 4 wykluczają się (`relationLevels`): dokument jednego z nich blokuje
+drugi, więc odbiorca nie dostanie dwóch faktur za to samo zlecenie. Zlecenie bez
+przypisanego odbiorcy nie dostaje faktury 3/4.
+
 Dokument wystawia `InvoiceService.createFromOrder` — ta sama ścieżka co przycisk
 w panelu (cennik, VAT, VIES, numeracja), z `created_by_pin = 'AUTO'` (na liście
 dokumentów znaczek „auto"). Błąd jednego zamówienia (np. zerowa wartość) trafia do
@@ -342,7 +376,7 @@ logu i nie zatrzymuje pozostałych; zamówienie wraca w kolejnym przebiegu.
 |---|---|---|
 | `INVOICE_AUTOGEN_ENABLED` | wyłączone | `true` włącza automat (wymaga też `INVOICES_ENABLED=true`) |
 | `INVOICE_AUTOGEN_SINCE` | — | **wymagane**, `RRRR-MM-DD`: tylko zamówienia wysłane od tego dnia. Bez progu pierwszy przebieg zafakturowałby całą historię |
-| `INVOICE_AUTOGEN_LEVELS` | `2` | poziomy: `1` (HKL → organizacja), `2` (organizacja → klient). 3 i 4 wymagają odbiorcy końcowego — tylko ręcznie |
+| `INVOICE_AUTOGEN_LEVELS` | `1,2,3,4` | poziomy — domyślnie wszystkie (tabela niżej) |
 | `INVOICE_AUTOGEN_ORGS` | wszystkie | lista `organization.id` — automat tylko dla tych organizacji |
 | `INVOICE_AUTOGEN_ISSUE` | `true` | `false` → szkice bez numeru, do przejrzenia i wystawienia ręcznie |
 | `INVOICE_AUTOGEN_MAX_PER_RUN` | `100` | bezpiecznik: najwięcej zamówień na jeden przebieg |
@@ -358,22 +392,56 @@ testowej) jest bezpieczne: cykl bierze `GET_LOCK('eform:prodstatus:<baza>')`, a
 pozostałe instancje pomijają termin. Automat włączaj jednak tylko w JEDNYM `.env`
 na bazę — tam, skąd faktury mają wychodzić.
 
+## Fakturowanie niestandardowe — faktura zbiorcza (`core/collective.js`)
+
+Klient może mieć zamiast faktury za każde zlecenie **jedną fakturę zbiorczą za okres**.
+Ustawia to admin: `/admin/users` → konto → karta **„Fakturowanie niestandardowe"**
+(`user.invoice_schedule`, migracja `migrations/add_user_invoice_schedule.sql`):
+
+| Wartość | Znaczenie | Wystawienie |
+|---|---|---|
+| puste | standard — faktura za każde zlecenie po wysyłce | co godzinę (automat) |
+| `weekly` | zbiorcza ze zleceń wysłanych w tygodniu pon–nd | we wtorek |
+| `monthly` | zbiorcza ze zleceń wysłanych w miesiącu kalendarzowym | 2. dnia następnego miesiąca |
+
+- Dotyczy faktur, w których klient jest **nabywcą** — poziom 2 (organizacja → klient).
+  Poziomy 1, 3, 4 bez zmian.
+- Okres zlecenia = **data wysyłki** (`order.delivery_date`); do faktury trafiają te same
+  zlecenia co do pojedynczej faktury automatu (`!sent!`, wszystkie pozycje wysłane, od
+  `INVOICE_AUTOGEN_SINCE`, bez dokumentu poziomu 2).
+- ⚠️ Dzień zapasu po końcu okresu (`COLLECTIVE_GRACE_DAYS = 1`): status wysyłki z ostatniego
+  dnia trafia do `status.txt` z opóźnieniem — faktura tuż po północy pominęłaby takie zlecenie
+  i za ten sam okres powstałaby druga.
+- Jedna faktura = klient + sklep grupowy + okres (sklep z własnym NIP-em to osobny nabywca).
+  Zaległe zlecenia z dawnych okresów dostają fakturę za SWÓJ okres — data sprzedaży musi
+  odpowiadać dostawom.
+- Dokument (`InvoiceService.createCollective` → ta sama ścieżka `buildDocument` co faktura
+  za jedno zamówienie): pozycje wszystkich zamówień, każda z numerem swojego zamówienia
+  (`invoice_item.order_number`); data sprzedaży i dostawy = koniec okresu; `invoice.order_id`
+  pusty, `order_ref` = lista numerów (skracana do 64 znaków), w uwagach okres i pełna lista
+  w języku dokumentu (`collective.note` w `i18n/*.json`).
+- ⚠️ „Zafakturowane" rozpoznajemy także po POZYCJACH (`repository.linkedDocumentSql`) —
+  faktura zbiorcza nie ma `order_id`, więc samo `invoice.order_id = o.id` uznałoby jej
+  zamówienia za niezafakturowane i automat wystawiłby im drugie faktury.
+- Ręczna faktura z okna zamówień wyjmuje zlecenie z faktury zbiorczej — karta klienta i okno
+  pokazują ostrzeżenie dla klientów z harmonogramem.
+- Kod działa także przed migracją (`supportsInvoiceSchedule`) — wtedy fakturowanie
+  niestandardowe jest po prostu nieaktywne.
+
 ## Okno zamówień (widok klienta, poziom 2)
 
 `/invoices/client/:id?level=2` pokazuje od razu **wszystkie** zamówienia klienta
 czekające na fakturę (`templates/owner/partials/client_orders_window.njk`, dane z
 `repository.listInvoiceableOrdersForClient`) zamiast comboboxa z podpowiedziami:
 
-- filtr domyślny **Wysłane do klienta (`!sent!`)**; „Wszystkie w realizacji"
-  (`?orders=all`) pokazuje też zamówienia jeszcze w produkcji — proformę i zaliczkę
-  wystawia się zwykle przed wysyłką,
+- wyłącznie zlecenia z **`!sent!`** w `status.txt` (patrz „Tylko zlecenia wysłane do klienta"),
 - zaznaczenie kilku zamówień = osobny dokument dla każdego (kolejne
   `POST /from-order/:id`, po kolei); błąd trafia do wiersza zamówienia,
 - „już zafakturowane" = nieanulowany `invoice`/`final` na poziomie 2 bez względu na
   `issuer_id` — dokumenty z v1 mają `issuer_id = 0`,
 - licznik „zamówień do zafakturowania" na karcie klienta liczy ten sam warunek co okno.
 
-Pozostałe poziomy (1, 3, 4) zostają przy comboboxie.
+Pozostałe poziomy (1, 3, 4) zostają przy comboboxie — także tylko zlecenia `!sent!`.
 
 ## Formatki organizacji (papier firmowy)
 
@@ -390,6 +458,13 @@ invoice_organization_profile.template_code ──▶ invoice_template.code
                                                  ├─ page_margins     {"top":24,"right":12,"bottom":27,"left":12}  (mm)
                                                  └─ template_file / stylesheet  (układ treści, domyślnie wspólny)
 ```
+
+**W panelu:** `/invoices/profile` → sekcja **„Formatka (papier firmowy)"** (tylko admin,
+w kontekście wybranej organizacji): plik z listy, cztery marginesy, przycisk **„Podgląd PDF"**
+(ostatnia faktura organizacji na wybranej formatce, z ustawieniami z formularza — bez zapisu),
+zapis razem z resztą profilu. Owner widzi przypisaną formatkę bez możliwości zmiany.
+
+**Skryptem** (ta sama logika — `templateAssignment.js`):
 
 ```bash
 node scripts/setInvoiceTemplate.js --list
@@ -412,12 +487,14 @@ Zasady:
   Gdy treść nie mieści się na jednej stronie o niewiele, PDF jest pomniejszany (min. 80%),
   żeby blok „Płatność + podpisy" nie spadał na pustą drugą stronę. Długie faktury mają
   skalę 100% i kolejne strony — każda na formatce.
-- **Faktura pamięta kod szablonu** (`invoice.template_code`) z chwili wystawienia. Nowa
-  formatka (np. zmienione konto w stopce) = **nowy kod** (`--code LUXANGMBH_2027`), inaczej
-  ponowny wydruk starej faktury pokaże nowe dane z formatki.
+- **Faktura pamięta kod szablonu** (`invoice.template_code`) z chwili wystawienia. Gdy obecny
+  kod organizacji mają już wystawione faktury, zmiana formatki albo marginesów tworzy **nową
+  wersję** (`LUXANGMBH_202610021015`) — panel i skrypt robią to same; stary wiersz zostaje,
+  więc ponowny wydruk starej faktury nie pokaże nowych danych z formatki (np. innego konta).
+  Dopóki kod nie ma faktur, zmiany idą w miejsce.
 - Zła nazwa albo brak pliku formatki/szablonu **nie blokuje** PDF-a: dokument powstaje bez
   formatki (albo na szablonie domyślnym), a w logu zostaje ostrzeżenie.
-- Formatkę zmienia **tylko admin** (skrypt albo lista w `/invoices/profile`); owner widzi ją
+- Formatkę zmienia **tylko admin** (skrypt albo sekcja w `/invoices/profile`); owner widzi ją
   bez możliwości zmiany — lista zawiera formatki wszystkich organizacji. API odrzuca
   `template_code` od nie-admina.
 - Podgląd HTML (`/invoices/:id/view`) pokazuje samą treść — formatka jest tylko w PDF-ie.

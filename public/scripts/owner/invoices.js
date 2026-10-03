@@ -701,6 +701,24 @@ function initProfileForm() {
   const form = document.getElementById('inv-profile-form');
   if (!form) return;
 
+  // Podgląd formatki z ustawieniami z formularza, jeszcze przed zapisem
+  const previewBtn = document.getElementById('inv-bg-preview');
+  if (previewBtn) {
+    previewBtn.addEventListener('click', () => {
+      const file = document.getElementById('inv-bg-file')?.value || '';
+      if (!file) {
+        showToast('error', L.background_pick || 'Wybierz formatkę', 3);
+        return;
+      }
+      const params = new URLSearchParams({ file });
+      ['top', 'right', 'bottom', 'left'].forEach((side) => {
+        const input = form.querySelector(`[name="bg_margin_${side}"]`);
+        if (input && input.value !== '') params.set(side, input.value);
+      });
+      window.open(`/api/v1/invoices/profile/background-preview?${params}`, '_blank', 'noopener');
+    });
+  }
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = new FormData(form);
@@ -709,10 +727,16 @@ function initProfileForm() {
     const patch = {};
     const patterns = {};
     const footers = {};
+    // Formatka (tylko admin — sekcja w ogóle nie renderuje się ownerowi)
+    const background = document.getElementById('inv-bg-section') ? { file: '', margins: {} } : null;
 
     for (const [key, rawValue] of data.entries()) {
       const value = typeof rawValue === 'string' ? rawValue.trim() : rawValue;
-      if (key.startsWith('pattern_')) {
+      if (key === 'background_file') {
+        if (background) background.file = value;
+      } else if (key.startsWith('bg_margin_')) {
+        if (background && value !== '') background.margins[key.slice('bg_margin_'.length)] = Number(value);
+      } else if (key.startsWith('pattern_')) {
         // Puste pole = użyj wzorca domyślnego, więc nie zapisujemy pustych
         if (value) patterns[key.slice('pattern_'.length)] = value;
       } else if (key.startsWith('footer_')) {
@@ -726,16 +750,26 @@ function initProfileForm() {
 
     if (Object.keys(patterns).length) patch.number_patterns = patterns;
     if (Object.keys(footers).length) patch.footer_notes = footers;
+    if (background) patch.background = background;
 
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-      await api('/api/v1/invoices/profile/current', {
+      const result = await api('/api/v1/invoices/profile/current', {
         method: 'PUT',
         body: JSON.stringify(patch)
       });
-      showToast('success', L.saved || 'OK');
+      const template = result && result.template;
+      if (template && template.versioned) {
+        // Wystawione faktury mają zapamiętany stary kod — mówimy to wprost,
+        // żeby „nowa wersja" nie wyglądała na zdublowany szablon
+        showToast('success', (L.background_versioned || '{code}').replace('{code}', template.code), 6);
+      } else {
+        showToast('success', L.saved || 'OK');
+      }
+      // Nowy kod szablonu jest pokazany na stronie — odświeżamy po zmianie
+      if (template && template.changed) setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
       // Najczęstszy błąd to zły wzorzec numeracji (walidowany na serwerze)
       showToast('error', `${L.error || 'Error'}: ${err.message}`, 5);

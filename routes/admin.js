@@ -12,6 +12,13 @@ const portalDiscountSwitch = require('../services/portalUsageDiscountSwitch');
 const orderCorrectionsRoutes = require('./admin/orderCorrections');
 const userAdminDb = require('../db/admin/userAdmin');
 const userAdminService = require('../services/admin/userAdminService');
+
+/** Sposób fakturowania klienta (`user.invoice_schedule`) — puste = standard. */
+const INVOICE_SCHEDULE_OPTIONS = [
+    { value: '', label: 'Standardowe', hint: 'Osobna faktura za każde zlecenie zaraz po wysyłce (!sent!).' },
+    { value: 'weekly', label: 'Tygodniowe', hint: 'Jedna faktura zbiorcza ze wszystkich zleceń wysłanych w tygodniu (pon–nd), wystawiana we wtorek.' },
+    { value: 'monthly', label: 'Miesięczne', hint: 'Jedna faktura zbiorcza ze wszystkich zleceń wysłanych w miesiącu, wystawiana 2. dnia następnego miesiąca.' }
+];
 const groupPriceMode = require('../services/groupPriceMode');
 const { availabeLanguages } = require('../config');
 
@@ -183,7 +190,8 @@ router.get('/users', requireLogin, requireAdmin, (req, res) => {
         abLangOptions: availabeLanguages,
         minPasswordLength: userAdminService.MIN_PASSWORD_LENGTH,
         maxDeliveryDelay: userAdminService.MAX_DELIVERY_DELAY,
-        priceModeOptions: groupPriceMode.PRICE_MODE_OPTIONS
+        priceModeOptions: groupPriceMode.PRICE_MODE_OPTIONS,
+        invoiceScheduleOptions: INVOICE_SCHEDULE_OPTIONS
     });
 });
 
@@ -274,6 +282,40 @@ router.post('/api/users/:id/group-price-mode', requireLogin, requireAdmin, async
     } catch (err) {
         log('[admin/users] błąd zapisu trybu wyceny:', err.message);
         return res.status(500).json({ success: false, message: 'Błąd zapisu trybu wyceny' });
+    }
+});
+
+/*
+ * Fakturowanie niestandardowe (`user.invoice_schedule`): faktura ZBIORCZA za
+ * tydzień albo miesiąc zamiast faktury za każde zlecenie — wystawia ją automat
+ * (services/invoices/autoInvoicing.js, core/collective.js). Osobna trasa z tego
+ * samego powodu co tryb wyceny: kolumna dochodzi migracją.
+ */
+router.post('/api/users/:id/invoice-schedule', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const user = await userAdminDb.getUserForAdmin(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'Nie znaleziono użytkownika' });
+
+        const raw = String(req.body?.schedule ?? '').trim().toLowerCase();
+        // Ścisła walidacja: literówka ma być błędem, a nie cichym powrotem do standardu
+        if (raw !== '' && !INVOICE_SCHEDULE_OPTIONS.some((o) => o.value === raw)) {
+            return res.status(400).json({ success: false, message: `Nieznany sposób fakturowania: ${req.body?.schedule}` });
+        }
+
+        const invoices = require('../services/invoices/db/repository');
+        if (!(await invoices.supportsInvoiceSchedule())) {
+            return res.status(500).json({
+                success: false,
+                message: 'Brak kolumny user.invoice_schedule — wykonaj migrację migrations/add_user_invoice_schedule.sql'
+            });
+        }
+        await invoices.setUserInvoiceSchedule(user.id, raw || null);
+
+        log(`[admin/users] ${req.session.user?.ident || req.session.user?.pin} zmienił fakturowanie konta ${user.ident} (id ${user.id}): ${user.invoice_schedule || 'standard'} → ${raw || 'standard'}`);
+        return res.json({ success: true, user: await userAdminDb.getUserForAdmin(user.id) });
+    } catch (err) {
+        log('[admin/users] błąd zapisu sposobu fakturowania:', err.message);
+        return res.status(500).json({ success: false, message: 'Błąd zapisu sposobu fakturowania' });
     }
 });
 

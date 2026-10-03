@@ -136,6 +136,13 @@
     min-width: 0;
 }
 
+/* `display: flex` wyżej wygrywa z atrybutem `hidden` (styl przeglądarki ma
+   niższy priorytet niż arkusz strony), więc ukrywane pola potrzebują reguły. */
+.inv-field[hidden],
+.inv-subsection[hidden] {
+    display: none;
+}
+
 .inv-field--grow {
     flex: 1 1 320px;
 }

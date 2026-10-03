@@ -28,6 +28,8 @@ const hierarchy = require('../core/hierarchy');
 const { resolvePriceBasis, PriceBasis, HKL_ORG_ID } = require('../core/pricing');
 const { parseSpeditionNumbers } = require('../../prodStatus');
 const { AUTO_ACTOR } = require('../autoInvoicing');
+const { listBackgrounds } = require('../templateAssignment');
+const { parsePageMargins } = require('../core/templates');
 const { log } = require('../../../utils/logging');
 
 const router = express.Router();
@@ -72,15 +74,17 @@ async function loadClientContext(organizationId, clientId) {
   // (`repository.invoiceableForClientWhere`), więc obie liczby się zgadzają.
   // ⚠️ Liczymy tylko dokumenty TEJ relacji: faktura salonu dla jego klienta
   // nie zamyka sprzedaży organizacji do salonu.
-  const [pendingOrders, counts] = await Promise.all([
+  const [pendingOrders, counts, invoiceSchedule] = await Promise.all([
     repository.countInvoiceableOrdersForClient({
-      organizationId, clientId, level: hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, onlyShipped: true
+      organizationId, clientId, level: hierarchy.InvoiceLevel.ORGANIZATION_TO_USER
     }),
     selectQuery(
       `SELECT COUNT(*) AS documents FROM invoice v
         WHERE v.buyer_user_id = ? AND v.organization_id = ? AND v.level = 2`,
       [clientId, organizationId]
-    )
+    ),
+    // Fakturowanie niestandardowe (faktura zbiorcza za okres) — `core/collective.js`
+    repository.getUserInvoiceSchedule(clientId)
   ]);
 
   const zeroRate = taxRules.isIntraEuZeroRate(client.seller_country, client.country);
@@ -88,6 +92,7 @@ async function loadClientContext(organizationId, clientId) {
   return {
     ...client,
     pendingOrders,
+    invoiceSchedule,
     documents: counts && counts[0] ? Number(counts[0].documents) : 0,
     zeroRate,
     taxHint: zeroRate ? 'zero_rate_hint' : (sameCountry ? 'domestic_hint' : 'export_hint'),
@@ -127,7 +132,8 @@ async function loadEndClientContext({ organizationId, endClientId, ownerUserId, 
        (SELECT COUNT(*) FROM \`order\` o
          LEFT JOIN invoice i ON i.order_id = o.id AND i.level = ? AND i.issuer_id = ?
                             AND i.document_type IN ('invoice', 'final') AND i.status <> 'cancelled'
-         WHERE o.user_id = ? AND o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL) AS pending_orders,
+         WHERE o.user_id = ? AND o.organization_id = ? AND o.status = 'sent' AND o.prod_status = '!sent!'
+           AND i.id IS NULL) AS pending_orders,
        (SELECT COUNT(*) FROM invoice v WHERE v.buyer_end_client_id = ? AND v.level = ?) AS documents`,
     [level, orgScope ? organizationId : ownerUserId, ordersOwner, organizationId, endClientId, level]
   );
@@ -175,7 +181,8 @@ async function loadOrganizationContext({ sellerOrganizationId, buyerOrganization
        (SELECT COUNT(*) FROM \`order\` o
          LEFT JOIN invoice i ON i.order_id = o.id AND i.level = 1
                             AND i.document_type IN ('invoice', 'final') AND i.status <> 'cancelled'
-         WHERE o.organization_id = ? AND o.status = 'sent' AND i.id IS NULL) AS pending_orders,
+         WHERE o.organization_id = ? AND o.status = 'sent' AND o.prod_status = '!sent!'
+           AND i.id IS NULL) AS pending_orders,
        (SELECT COUNT(*) FROM invoice v WHERE v.organization_id = ? AND v.level = 1) AS documents`,
     [buyerOrganizationId, buyerOrganizationId]
   );
@@ -206,27 +213,23 @@ const ORDERS_WINDOW_LIMIT = 500;
  * pokazane od razu po wybraniu klienta (zamiast comboboxa, w którym trzeba
  * było wiedzieć, czego szukać).
  *
- * Filtr `shipped` (domyślny) — `prod_status = '!sent!'`, czyli towar wyjechał
- * do klienta. `all` — wszystkie przekazane do produkcji: proforma i zaliczka
- * wystawiane są zwykle PRZED wysyłką, a combobox na to pozwalał.
+ * Wyłącznie zlecenia wysłane do klienta (`prod_status = '!sent!'` ze status.txt) —
+ * tylko takie można fakturować (`main.js:isShippedOrder`).
  *
- * @param {{ organizationId: number, clientId: number, level: number, filter: string, lang: string }} params
+ * @param {{ organizationId: number, clientId: number, level: number, lang: string }} params
  */
-async function loadOrdersWindow({ organizationId, clientId, level, filter, lang }) {
-  const onlyShipped = filter !== 'all';
+async function loadOrdersWindow({ organizationId, clientId, level, lang }) {
   const { items, total } = await repository.listInvoiceableOrdersForClient({
-    organizationId, clientId, level, onlyShipped, limit: ORDERS_WINDOW_LIMIT
+    organizationId, clientId, level, limit: ORDERS_WINDOW_LIMIT
   });
   return {
-    filter: onlyShipped ? 'shipped' : 'all',
     total,
     items: items.map((o) => ({
       id: o.id,
       orderIdx: o.order_idx,
       name: o.commision || '',
-      prodStatus: o.prod_status || '',
       sentDateFmt: formatDate(o.sent_date, lang),
-      shippedDateFmt: o.prod_status === '!sent!' ? formatDate(o.delivery_date, lang) : '',
+      shippedDateFmt: formatDate(o.delivery_date, lang),
       totalFmt: o.total_float == null ? '' : money.format(money.toMinor(o.total_float, DOCUMENT_CURRENCY), DOCUMENT_CURRENCY, lang),
       parcels: parseSpeditionNumbers(o.spedition_numbers),
       advancesFmt: Number(o.advances_gross) > 0
@@ -377,7 +380,7 @@ router.get('/client/:clientId', requireLogin, async (req, res) => {
 
     // Poziom 2: zamówienia klienta widoczne od razu w oknie (bez comboboxa)
     const ordersWindowPromise = ctx.level === hierarchy.InvoiceLevel.ORGANIZATION_TO_USER
-      ? loadOrdersWindow({ organizationId, clientId: ctx.client.id, level: ctx.level, filter: req.query.orders, lang })
+      ? loadOrdersWindow({ organizationId, clientId: ctx.client.id, level: ctx.level, lang })
       : Promise.resolve(null);
     const [invoices, profile, ordersWindow] = await Promise.all([
       repository.listInvoices(ctx.invoiceFilter),
@@ -419,22 +422,26 @@ router.get('/profile', requireLogin, requireOwner, async (req, res) => {
   res.locals.owner = !!req.session.user?.isOwner;
   res.locals.admin = !!req.session.user?.isAdmin;
   try {
-    const [profile, templates] = await Promise.all([
-      repository.getOrganizationProfile(organizationId),
-      repository.listTemplates()
-    ]);
-    // Szablon = formatka organizacji (papier firmowy). Przypisuje ją admin —
-    // owner wybierający z listy mógłby drukować faktury na cudzym papierze
-    // firmowym, bo lista zawiera formatki wszystkich organizacji.
+    // Formatka (papier firmowy) organizacji. Przypisuje ją admin — owner
+    // wybierający z listy mógłby drukować faktury na cudzym papierze firmowym,
+    // bo w katalogu są formatki wszystkich organizacji.
     const canEditTemplate = !!req.session.user?.isAdmin;
-    const currentTemplate = (templates || []).find((t) => t.code === profile?.templateCode) || null;
+    const profile = await repository.getOrganizationProfile(organizationId);
+    const [orgTemplate, backgrounds] = await Promise.all([
+      profile && profile.templateCode && profile.templateCode !== 'default'
+        ? repository.getTemplateRow(profile.templateCode)
+        : Promise.resolve(null),
+      canEditTemplate ? listBackgrounds() : Promise.resolve([])
+    ]);
     return res.render('owner/invoice_profile.njk', {
       L,
       panelLang: lang,
       profile,
-      templates,
       canEditTemplate,
-      currentTemplateName: currentTemplate ? currentTemplate.name : (profile?.templateCode || 'default'),
+      orgTemplate,
+      // Marginesy do formularza: zapisane albo domyślne dla formatki
+      bgMargins: parsePageMargins(orgTemplate && orgTemplate.pageMargins),
+      backgrounds,
       currency: DOCUMENT_CURRENCY,
       docLangs: ['pl', 'en', 'de'],
       paymentMethods: ['transfer', 'cash', 'card', 'cod', 'prepaid'],
@@ -460,9 +467,14 @@ router.get('/end-clients', requireLogin, async (req, res) => {
   res.locals.owner = !!req.session.user?.isOwner;
   res.locals.admin = !!req.session.user?.isAdmin;
   try {
+    // Kraj właściciela kartoteki — ten sam użytkownik, którego `owner_user_id`
+    // dostaje nowy odbiorca (`routes.js:sessionUserId`). Tylko wartość
+    // domyślna formularza, do zmiany.
+    const defaultCountry = await repository.getEndClientDefaultCountry(Number(req.session.user?.userId) || null);
     return res.render('owner/end_clients.njk', {
       L,
       panelLang: lang,
+      defaultCountry,
       // Te same definicje, których używa `core/compliance.js` przy budowaniu
       // dokumentu — jedno źródło prawdy o numerach rejestrowych per kraj.
       registryFields: require('../core/compliance').REGISTRY_FIELDS

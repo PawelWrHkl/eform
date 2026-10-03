@@ -9,10 +9,17 @@
  * cała jego produkcja ma status `!sent!` (warunki: `findAutoInvoiceCandidates`
  * w `db/repository.js`).
  *
+ * FAKTURY ZBIORCZE: klient z fakturowaniem niestandardowym (`user.invoice_schedule`
+ * = weekly/monthly, ustawia admin w /admin/users) nie dostaje faktury poziomu 2 za
+ * każde zlecenie — po zamknięciu okresu automat wystawia mu JEDNĄ fakturę ze
+ * wszystkich zleceń z tego okresu (`core/collective.js`, `InvoiceService.createCollective`).
+ *
  * Konfiguracja (`.env`, domyślnie WYŁĄCZONE — brak zmiennej = nic się nie dzieje):
  *   INVOICE_AUTOGEN_ENABLED=true        włącznik
  *   INVOICE_AUTOGEN_SINCE=2026-10-01    WYMAGANE: tylko zamówienia wysłane od tego dnia
- *   INVOICE_AUTOGEN_LEVELS=2            poziomy (1 = HKL→organizacja, 2 = organizacja→klient)
+ *   INVOICE_AUTOGEN_LEVELS=1,2,3,4      poziomy (domyślnie wszystkie): 1 = HKL→organizacja,
+ *                                       2 = organizacja→klient, 3 = salon→odbiorca końcowy,
+ *                                       4 = organizacja→odbiorca końcowy
  *   INVOICE_AUTOGEN_ORGS=3,5            opcjonalnie: tylko te organizacje (id); puste = wszystkie
  *   INVOICE_AUTOGEN_ISSUE=true          `false` → szkice do przejrzenia zamiast faktur z numerem
  *   INVOICE_AUTOGEN_MAX_PER_RUN=100     bezpiecznik na jeden przebieg
@@ -21,8 +28,11 @@
  * rozliczonych poza eForm. Bez progu pierwszy przebieg wystawiłby im wszystkim
  * faktury z bieżącą datą.
  *
- * ⚠️ Poziomy 3 i 4 (sprzedaż do odbiorcy końcowego) są poza automatem: wymagają
- * odbiorcy przypisanego do zamówienia i wystawia je salon albo organizacja ręcznie.
+ * Jedno zlecenie `!sent!` może dostać naraz: fakturę HKL dla organizacji (1),
+ * organizacji dla klienta (2 — nie dla własnego konta organizacji) i sprzedaży do
+ * odbiorcy końcowego przypisanego do zlecenia: od salonu (3) ALBO od organizacji
+ * (4, gdy zlecenie złożyło własne konto organizacji). Zlecenie bez odbiorcy nie
+ * dostaje faktury 3/4 — reguły w `db/repository.js:AUTO_LEVEL_SQL`.
  */
 
 const { InvoiceService, DocumentType } = require('./main');
@@ -30,13 +40,20 @@ const defaultRepository = require('./db/repository');
 const { InvoiceLevel } = require('./core/hierarchy');
 const { HKL_ORG_ID } = require('./core/pricing');
 const { features } = require('../../config');
+const { groupCollectiveCandidates } = require('./core/collective');
+const { todayIso } = require('./core/dates');
 const { log: defaultLog } = require('../../utils/logging');
 
 /** `created_by_pin` dokumentów automatu — po nim panel oznacza je na liście. */
 const AUTO_ACTOR = 'AUTO';
 
-/** Poziomy, które automat w ogóle obsługuje. */
-const SUPPORTED_LEVELS = [InvoiceLevel.MANUFACTURER_TO_ORGANIZATION, InvoiceLevel.ORGANIZATION_TO_USER];
+/** Poziomy, które automat obsługuje — wszystkie relacje handlowe. */
+const SUPPORTED_LEVELS = [
+  InvoiceLevel.MANUFACTURER_TO_ORGANIZATION,
+  InvoiceLevel.ORGANIZATION_TO_USER,
+  InvoiceLevel.USER_TO_END_CLIENT,
+  InvoiceLevel.ORGANIZATION_TO_END_CLIENT
+];
 
 const DEFAULT_MAX_PER_RUN = 100;
 
@@ -70,9 +87,9 @@ function readAutoInvoiceConfig(env = process.env, { invoicesEnabled = !!features
     : null;
 
   const requestedLevels = env.INVOICE_AUTOGEN_LEVELS === undefined || String(env.INVOICE_AUTOGEN_LEVELS).trim() === ''
-    ? [InvoiceLevel.ORGANIZATION_TO_USER]
+    ? [...SUPPORTED_LEVELS]
     : parseIdList(env.INVOICE_AUTOGEN_LEVELS);
-  const levels = [...new Set(requestedLevels)].filter((lv) => SUPPORTED_LEVELS.includes(lv)).sort();
+  const levels = [...new Set(requestedLevels)].filter((lv) => SUPPORTED_LEVELS.includes(lv)).sort((a, b) => a - b);
   const ignoredLevels = requestedLevels.filter((lv) => !SUPPORTED_LEVELS.includes(lv));
 
   const maxPerRun = Number(env.INVOICE_AUTOGEN_MAX_PER_RUN);
@@ -108,12 +125,13 @@ function readAutoInvoiceConfig(env = process.env, { invoicesEnabled = !!features
  * @param {Object} [opts]
  * @param {boolean} [opts.dryRun=false] tylko wypisz kandydatów, nic nie wystawiaj
  * @param {ReturnType<typeof readAutoInvoiceConfig>} [opts.config]
- * @param {Object} [opts.deps] `{ repository, service, log }` — podmiana w testach
+ * @param {Object} [opts.deps] `{ repository, service, log, now }` — podmiana w testach
  * @returns {Promise<{ skipped?: string, created: object[], failed: object[], planned: object[], skippedExisting: number }>}
  */
 async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig(), deps = {} } = {}) {
   const repository = deps.repository || defaultRepository;
   const log = deps.log || defaultLog;
+  const now = deps.now || (() => new Date());
   const result = { created: [], failed: [], planned: [], skippedExisting: 0 };
 
   if (config.problems.length) {
@@ -165,6 +183,46 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
         log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
       } catch (err) {
         result.failed.push({ orderId: order.id, level, error: err.message });
+        log(`[invoices:auto] BŁĄD — ${label}: ${err.message}`);
+      }
+    }
+  }
+
+  // Faktury zbiorcze — poziom 2 dla klientów z harmonogramem tygodniowym/miesięcznym
+  if (config.levels.includes(InvoiceLevel.ORGANIZATION_TO_USER) && budget > 0 && repository.findCollectiveCandidates) {
+    const rows = await repository.findCollectiveCandidates({ since: config.since, organizationIds: config.organizationIds });
+    const groups = groupCollectiveCandidates(rows, { todayIso: todayIso(now()) });
+    for (const group of groups) {
+      if (budget <= 0) break;
+      budget--;
+      const label = `faktura zbiorcza ${group.period.key} (${group.schedule}) — klient ${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')}`;
+
+      if (dryRun) {
+        result.planned.push({ collective: true, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER });
+        log(`[invoices:auto] DRY-RUN: wystawiłbym — ${label}`);
+        continue;
+      }
+
+      try {
+        // Między wyszukaniem a wystawieniem ktoś mógł zafakturować zlecenie ręcznie
+        const orderIds = [];
+        for (const orderId of group.orderIds) {
+          if (!(await repository.hasLevelInvoice({ orderId, level: InvoiceLevel.ORGANIZATION_TO_USER }))) orderIds.push(orderId);
+        }
+        if (!orderIds.length) {
+          result.skippedExisting += group.orderIds.length;
+          continue;
+        }
+        const created = await service.createCollective({
+          orderIds,
+          period: group.period,
+          issue: config.issue,
+          createdByPin: AUTO_ACTOR
+        });
+        result.created.push({ collective: true, userId: group.userId, period: group.period.key, orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, invoiceId: created.id, number: created.number });
+        log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
+      } catch (err) {
+        result.failed.push({ collective: true, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, error: err.message });
         log(`[invoices:auto] BŁĄD — ${label}: ${err.message}`);
       }
     }

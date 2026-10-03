@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var formUstawien = document.getElementById('ua-settings-form');
     var formHasla   = document.getElementById('ua-password-form');
     var formWyceny  = document.getElementById('ua-price-mode-form');
+    var formFakturowania = document.getElementById('ua-invoice-schedule-form');
 
     /** Ostatnio wczytany użytkownik — źródło prawdy dla „przywróć wartości". */
     var wybrany = null;
@@ -136,6 +137,12 @@ document.addEventListener('DOMContentLoaded', function () {
             el.checked = el.value === tryb;
         });
 
+        // Fakturowanie niestandardowe — puste = standard (faktura za każde zlecenie)
+        var harmonogram = u.invoice_schedule === 'weekly' || u.invoice_schedule === 'monthly' ? u.invoice_schedule : '';
+        Array.prototype.forEach.call(formFakturowania.querySelectorAll('input[name="invoice_schedule"]'), function (el) {
+            el.checked = el.value === harmonogram;
+        });
+
         document.getElementById('ua-password').value = '';
         document.getElementById('ua-password2').value = '';
 
@@ -205,6 +212,35 @@ document.addEventListener('DOMContentLoaded', function () {
             wybrany = dane.user;
             wypelnij(wybrany);
             powiadom('success', 'Tryb wyceny zapisany');
+        } catch (e2) {
+            powiadom('error', e2.message || 'Zapis nie powiódł się');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    /* --- Fakturowanie niestandardowe ---------------------------------- */
+
+    formFakturowania.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (!wybrany) return;
+
+        var zaznaczony = formFakturowania.querySelector('input[name="invoice_schedule"]:checked');
+        if (!zaznaczony) return;
+
+        var btn = document.getElementById('ua-save-invoice-schedule');
+        btn.disabled = true;
+        try {
+            var resp = await fetch('/admin/api/users/' + wybrany.id + '/invoice-schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule: zaznaczony.value })
+            });
+            var dane = await resp.json();
+            if (!dane.success) throw new Error(dane.message || 'Zapis nie powiódł się');
+            wybrany = dane.user;
+            wypelnij(wybrany);
+            powiadom('success', 'Sposób fakturowania zapisany');
         } catch (e2) {
             powiadom('error', e2.message || 'Zapis nie powiódł się');
         } finally {

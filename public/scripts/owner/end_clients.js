@@ -132,9 +132,10 @@ function renderRegistryFields(country, values = {}) {
   const fields = (REGISTRY_DEFS[code] || []).filter((f) => !f.fromTaxId && !f.fromVatEu);
 
   // Kraj bez dodatkowych numerów (poza NIP-em i VAT-UE) nie potrzebuje tej
-  // podgrupy — pusty nagłówek „Numery rejestrowe" tylko myli.
+  // podgrupy — pusty nagłówek „Numery rejestrowe" tylko myli. Osoba prywatna
+  // nie ma numerów rejestrowych wcale (REGON, KVK, SIREN… to numery firm).
   const block = document.getElementById('ec-registry-block');
-  if (block) block.hidden = !fields.length;
+  if (block) block.hidden = !fields.length || isPerson();
 
   registryHint.textContent = fields.length
     ? `${code}: ${fields.map((f) => f.label).join(', ')}`
@@ -145,6 +146,30 @@ function renderRegistryFields(country, values = {}) {
       <span class="inv-label">${escapeHtml(f.label)}${f.required ? ' *' : ''}</span>
       <input name="registry_${escapeHtml(f.key)}" value="${escapeHtml(values[f.key] || '')}">
     </label>`).join('');
+}
+
+const typeSelect = document.getElementById('ec-type');
+/** Kraj nowego odbiorcy: `user.country` właściciela kartoteki (serwer), do zmiany w formularzu. */
+const DEFAULT_COUNTRY = form.dataset.defaultCountry || '';
+
+/** @returns {boolean} odbiorca to osoba prywatna */
+function isPerson() {
+  return typeSelect.value === 'person';
+}
+
+/**
+ * Osoba prywatna nie ma NIP-u, NIP-u UE ani numerów rejestrowych — pola
+ * znikają z formularza. Wartości zostają w polach (tylko ukryte), więc
+ * przypadkowe przełączenie typu i powrót na „firmę" przed zapisem niczego nie
+ * kasuje; przy zapisie osoby wysyłamy je puste (serwer też je czyści).
+ */
+function syncClientType() {
+  const person = isPerson();
+  form.querySelectorAll('[data-company-only]').forEach((el) => { el.hidden = person; });
+  // Firma bez NIP-u nie da się poprawnie zafakturować w B2B — serwer waliduje to samo
+  document.getElementById('ec-tax-id').required = !person;
+  const block = document.getElementById('ec-registry-block');
+  if (block) block.hidden = person || !registryWrap.querySelector('input');
 }
 
 const deliveryToggle = document.getElementById('ec-print-delivery');
@@ -181,8 +206,12 @@ function openForm(client) {
       if (field.type === 'checkbox') field.checked = !!Number(value);
       else field.value = value == null ? '' : value;
     }
+  } else {
+    // Nowy odbiorca zwykle jest z kraju salonu — wartość domyślna, nie blokada
+    form.elements.namedItem('country').value = DEFAULT_COUNTRY;
   }
-  renderRegistryFields(client ? client.country : 'PL', client ? client.registry_numbers : {});
+  renderRegistryFields(client ? client.country : DEFAULT_COUNTRY, client ? client.registry_numbers : {});
+  syncClientType();
   // Odbiorca z zapisanym adresem dostawy ma sekcję otwartą także wtedy, gdy
   // druk jest wyłączony — inaczej wpisany adres wyglądałby na skasowany.
   if (deliveryToggle && deliveryFields) {
@@ -211,6 +240,12 @@ form.addEventListener('submit', async (event) => {
     }
   }
   payload.registry_numbers = registry;
+  // Osoba prywatna: numery firmowe puste, nawet jeśli zostały w ukrytych polach
+  if (payload.client_type === 'person') {
+    payload.tax_id = '';
+    payload.vat_eu_id = '';
+    payload.registry_numbers = {};
+  }
   // Niezaznaczony checkbox nie trafia do `FormData`, więc wartość ustawiamy
   // jawnie — inaczej odznaczenie nigdy by się nie zapisało.
   payload.print_delivery_address = form.elements.namedItem('print_delivery_address').checked ? 1 : 0;
@@ -252,11 +287,7 @@ form.elements.namedItem('country').addEventListener('change', (event) => {
   renderRegistryFields(event.target.value, current);
 });
 
-// Typ „osoba prywatna" nie wymaga NIP-u — serwer waliduje to samo
-document.getElementById('ec-type').addEventListener('change', (event) => {
-  const taxId = document.getElementById('ec-tax-id');
-  taxId.required = event.target.value === 'company';
-});
+typeSelect.addEventListener('change', syncClientType);
 
 rowsEl.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-ec-action]');

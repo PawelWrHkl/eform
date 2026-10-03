@@ -79,25 +79,45 @@
                 <option value="{{ l }}"{% if l == profile.defaultLang %} selected{% endif %}>{{ l }}</option>
               {% endfor %}
             </select></label>
-          {# Szablon = formatka organizacji (`invoice_template.background_file`).
-             Zmienia ją wyłącznie admin — owner widzi, ale nie wybiera (lista ma
-             formatki wszystkich organizacji). Wyłączone pole nie jest wysyłane,
-             a serwer i tak odrzuca `template_code` od nie-admina. #}
-          <label class="inv-field"><span class="inv-label">{{ L.template }}</span>
-            {% if canEditTemplate %}
-              <select name="template_code">
-                {% for t in templates %}
-                  <option value="{{ t.code }}"{% if t.code == profile.templateCode %} selected{% endif %}>{{ t.name }}{% if t.background_file %} · {{ t.background_file }}{% endif %}</option>
-                {% endfor %}
-              </select>
-            {% else %}
-              <input type="text" value="{{ currentTemplateName }}" disabled>
-              <span class="inv-hint">{{ L.template_admin_only }}</span>
-            {% endif %}
-          </label>
           <label class="inv-field"><span class="inv-label">{{ L.accent_color }}</span>
             <input name="theme_accent" type="color" value="{{ profile.themeVars.accent if profile.themeVars.accent else '#1f2937' }}"></label>
         </div>
+
+        {# Formatka = papier firmowy organizacji (PDF z `img/invoice-background/`),
+           na który nakładana jest treść faktury w PDF-ie. Zmienia ją wyłącznie
+           admin — w katalogu są formatki wszystkich organizacji. Zapis tworzy
+           szablon organizacji (`services/invoices/templateAssignment.js`). #}
+        <h3 class="inv-card__title">{{ L.background_title }}</h3>
+        {% if canEditTemplate %}
+          <p class="inv-hint">{{ L.background_hint }}</p>
+          <div class="inv-grid" id="inv-bg-section">
+            <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.background_file }}</span>
+              <select name="background_file" id="inv-bg-file">
+                <option value="">{{ L.background_none }}</option>
+                {% for b in backgrounds %}
+                  <option value="{{ b.file }}"{% if orgTemplate and orgTemplate.backgroundFile == b.file %} selected{% endif %}>
+                    {{ b.file }}{% if b.widthMm %} · {{ b.widthMm }}×{{ b.heightMm }} mm, {{ L['background_' ~ b.orientation] }}{% endif %}
+                  </option>
+                {% endfor %}
+              </select></label>
+            {% for side in ['top', 'right', 'bottom', 'left'] %}
+              <label class="inv-field"><span class="inv-label">{{ L['margin_' ~ side] }}</span>
+                <input name="bg_margin_{{ side }}" type="number" min="0" max="120" step="0.5" value="{{ bgMargins[side] }}"></label>
+            {% endfor %}
+          </div>
+          <div class="inv-form__row inv-form__row--tight">
+            <button type="button" class="inv-btn inv-btn--ghost" id="inv-bg-preview">{{ L.background_preview }}</button>
+            <span class="inv-hint">{{ L.background_preview_hint }}</span>
+          </div>
+          {% if orgTemplate %}
+            <p class="inv-hint">{{ L.background_current_code }}: <strong>{{ orgTemplate.code }}</strong></p>
+          {% endif %}
+        {% else %}
+          <p>
+            <strong>{{ orgTemplate.backgroundFile if orgTemplate and orgTemplate.backgroundFile else L.background_none }}</strong>
+          </p>
+          <p class="inv-hint">{{ L.template_admin_only }}</p>
+        {% endif %}
 
         <h3 class="inv-card__title">{{ L.numbering }}</h3>
         <p class="inv-hint">{{ L.pattern_hint }}</p>

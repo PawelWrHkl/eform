@@ -87,7 +87,9 @@
           <button type="button" class="inv-dialog__close" id="ec-close" aria-label="{{ L.cancel_doc }}">&times;</button>
         </div>
 
-        <form id="ec-form">
+        {# `data-default-country` — kraj z `user.country` właściciela kartoteki
+           (albo jego organizacji); wstawiany przy NOWYM odbiorcy, do zmiany. #}
+        <form id="ec-form" data-default-country="{{ defaultCountry }}">
           <input type="hidden" name="id" id="ec-id">
           <p class="inv-hint inv-hint--form">{{ L.form_required_hint }}</p>
 
@@ -107,9 +109,12 @@
                 <input name="name" required></label>
               <label class="inv-field"><span class="inv-label">{{ L.client_country }} *</span>
                 <input name="country" maxlength="2" placeholder="PL" required></label>
-              <label class="inv-field"><span class="inv-label">{{ L.tax_id }}</span>
+              {# Numery firmowe — ukryte dla osoby prywatnej (`data-company-only`,
+                 przełącza `end_clients.js`). Serwer i tak je czyści przy zapisie
+                 osoby (`core/endClient.js`), żeby stary NIP nie trafił na fakturę. #}
+              <label class="inv-field" data-company-only><span class="inv-label">{{ L.tax_id }}</span>
                 <input name="tax_id" id="ec-tax-id"></label>
-              <label class="inv-field"><span class="inv-label">{{ L.vat_eu_id }}</span>
+              <label class="inv-field" data-company-only><span class="inv-label">{{ L.vat_eu_id }}</span>
                 <input name="vat_eu_id" placeholder="DE123456789"></label>
             </div>
 

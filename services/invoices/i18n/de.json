@@ -82,5 +82,6 @@
   "party.delivery_address": "Lieferadresse",
   "header.order_name": "Auftragsname",
   "totals.net_before_discount": "Netto vor Rabatt",
-  "totals.client_discount": "Kundenrabatt"
+  "totals.client_discount": "Kundenrabatt",
+  "collective.note": "Sammelrechnung für den Zeitraum {start} – {end}. Aufträge: {orders}."
 }

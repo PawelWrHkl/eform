@@ -72,6 +72,50 @@ function buildDeliveryAddress(endClient, { force } = {}) {
   return sameAsRegistered ? null : address;
 }
 
+/**
+ * `invoice.order_ref` faktury zbiorczej (VARCHAR(64)): numery zamówień, a gdy
+ * się nie mieszczą — pierwszy i ostatni z liczbą. Pełna lista jest w uwagach
+ * i przy każdej pozycji.
+ *
+ * @param {Array<{ order: { order_idx?: string, id: number } }>} sources
+ * @returns {string}
+ */
+function collectiveOrderRef(sources) {
+  const numbers = sources.map((s) => String(s.order.order_idx || s.order.id));
+  const all = numbers.join(', ');
+  if (all.length <= 64) return all;
+  return `${numbers[0]}…${numbers[numbers.length - 1]} (${numbers.length})`.slice(0, 64);
+}
+
+/**
+ * Adnotacja na fakturze zbiorczej w języku dokumentu: okres i lista zamówień.
+ *
+ * @param {string} lang
+ * @param {{ start: string, end: string }} period
+ * @param {Array<{ order: { order_idx?: string, id: number } }>} sources
+ * @returns {string}
+ */
+function collectiveNote(lang, period, sources) {
+  const t = renderer.createTranslator(lang);
+  const fmt = (isoDay) => new Intl.DateTimeFormat(lang).format(new Date(`${isoDay}T00:00:00`));
+  return t('collective.note')
+    .replace('{start}', fmt(period.start))
+    .replace('{end}', fmt(period.end))
+    .replace('{orders}', sources.map((s) => String(s.order.order_idx || s.order.id)).join(', '));
+}
+
+/** Status produkcji zlecenia wysłanego do klienta (`status.txt`). */
+const SHIPPED_PROD_STATUS = '!sent!';
+
+/**
+ * Czy zlecenie można fakturować: przekazane do produkcji i wysłane do klienta.
+ * @param {{ status?: string, prod_status?: string }} order
+ * @returns {boolean}
+ */
+function isShippedOrder(order) {
+  return !!order && order.status === 'sent' && order.prod_status === SHIPPED_PROD_STATUS;
+}
+
 class InvoiceService {
   /**
    * @param {Object} [deps]
@@ -123,8 +167,96 @@ class InvoiceService {
    * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
    */
   async createFromOrder(params) {
+    const source = await this.loadInvoiceableSource(params.orderId);
+    return this.buildDocument({ ...params, sources: [source] });
+  }
+
+  /**
+   * FAKTURA ZBIORCZA — jeden dokument ze wszystkich zamówień klienta z okresu
+   * (fakturowanie niestandardowe: `user.invoice_schedule`, `core/collective.js`).
+   *
+   * Ta sama ścieżka co faktura za jedno zamówienie (`buildDocument`): cennik,
+   * VAT, VIES, numeracja i szablon liczone raz dla wspólnej pary stron. Każda
+   * pozycja niesie numer swojego zamówienia, a data sprzedaży/dostawy to koniec
+   * okresu (dostawy okresowe).
+   *
+   * @param {Object} params
+   * @param {number[]} params.orderIds   zamówienia jednego klienta (i sklepu grupowego) z jednej organizacji
+   * @param {{ key: string, start: string, end: string }} params.period
+   * @param {number} [params.level=2]    faktura zbiorcza dotyczy relacji organizacja → klient
+   * @param {boolean} [params.issue=true]
+   * @param {string} [params.lang]
+   * @param {string} [params.createdByPin]
+   * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
+   */
+  async createCollective({ orderIds, period, level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, issue = true, lang, createdByPin }) {
+    if (!Array.isArray(orderIds) || !orderIds.length) throw new Error('Faktura zbiorcza wymaga listy zamówień');
+    if (Number(level) !== hierarchy.InvoiceLevel.ORGANIZATION_TO_USER) {
+      throw new Error('Faktura zbiorcza dotyczy wyłącznie poziomu 2 (organizacja → klient)');
+    }
+    if (!period || !period.start || !period.end) throw new Error('Faktura zbiorcza wymaga okresu rozliczeniowego');
+
+    const sources = [];
+    for (const id of orderIds) sources.push(await this.loadInvoiceableSource(id));
+    const first = sources[0];
+    // Jedna para stron na dokumencie: ten sam klient, ta sama organizacja i ten
+    // sam sklep grupowy (sklep z własnym NIP-em jest osobnym nabywcą)
+    const sameParties = sources.every((s) => Number(s.user.id) === Number(first.user.id)
+      && Number(s.order.organization_id) === Number(first.order.organization_id)
+      && Number(s.order.group_user_id || 0) === Number(first.order.group_user_id || 0));
+    if (!sameParties) {
+      throw new Error('Faktura zbiorcza wymaga zamówień jednego klienta (i jednego sklepu grupowego) w jednej organizacji');
+    }
+
+    return this.buildDocument({
+      level,
+      documentType: DocumentType.INVOICE,
+      issue,
+      lang,
+      createdByPin,
+      sources,
+      collective: { period },
+      saleDate: period.end,
+      deliveryDate: period.end
+    });
+  }
+
+  /**
+   * Zamówienie, które wolno fakturować — z pozycjami i wysłane do klienta.
+   *
+   * @param {number} orderId
+   * @returns {Promise<{ order: any, orderItems: any[], organization: any, user: any, groupShop: any }>}
+   */
+  async loadInvoiceableSource(orderId) {
+    const source = await this.repository.getOrderInvoiceSource(orderId);
+    if (!source) throw new Error(`Zamówienie ${orderId} nie istnieje`);
+    if (!source.orderItems.length) throw new Error(`Zamówienie ${orderId} nie ma pozycji`);
+    // Dokument wystawiamy WYŁĄCZNIE dla zlecenia wysłanego do klienta: status
+    // `!sent!` z pliku produkcji (`status.txt` → `order.prod_status`,
+    // `services/prodStatus.js`). Jedna reguła dla panelu, API i automatu.
+    // `status = 'sent'` obok: zlecenia `active` z `!sent!` to kolizje numeru
+    // `order_idx` z plikiem produkcji, nie wysłany towar.
+    if (!isShippedOrder(source.order)) {
+      throw new Error(
+        `Faktura wymaga zlecenia wysłanego do klienta: zamówienie ${source.order.order_idx || orderId} `
+        + `nie ma statusu !sent! w pliku produkcji (status.txt).`
+      );
+    }
+    return source;
+  }
+
+  /**
+   * Dokument z jednego zamówienia (`createFromOrder`) albo z wielu
+   * (`createCollective`). Strony transakcji, profil wystawcy i cennik biorą się
+   * z pierwszego zamówienia — przy fakturze zbiorczej wszystkie mają te same.
+   *
+   * @param {Object} params  parametry `createFromOrder` + `sources` i opcjonalnie `collective`
+   * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
+   */
+  async buildDocument(params) {
     const {
-      orderId,
+      sources,
+      collective = null,
       documentType = DocumentType.INVOICE,
       issue = false,
       advancePercent,
@@ -132,10 +264,16 @@ class InvoiceService {
       notes,
       createdByPin
     } = params;
-
-    const source = await this.repository.getOrderInvoiceSource(orderId);
-    if (!source) throw new Error(`Zamówienie ${orderId} nie istnieje`);
-    if (!source.orderItems.length) throw new Error(`Zamówienie ${orderId} nie ma pozycji`);
+    const source = sources[0];
+    const orderId = collective ? null : source.order.id;
+    /** Do logów i komunikatów: numer zamówienia albo okres faktury zbiorczej. */
+    const ref = collective
+      ? `zbiorcza ${collective.period.key} (${sources.length} zam.)`
+      : (source.order.order_idx || orderId);
+    if (collective && (documentType !== DocumentType.INVOICE
+      || (Array.isArray(params.allocations) && params.allocations.length) || serviceItems.length)) {
+      throw new Error('Faktura zbiorcza: wyłącznie typ invoice, bez częściowego fakturowania i bez usług dodatkowych');
+    }
 
     // POZIOM HIERARCHII: 1 producent→organizacja, 2 organizacja→użytkownik,
     // 3 użytkownik→odbiorca końcowy. Domyślnie 2 (zachowanie z v1).
@@ -219,7 +357,7 @@ class InvoiceService {
         buyer,
         opts: { isService, isInstallation, vatEuVerified: vies.verified }
       });
-      if (treatment.notes.length) treatment.notes.forEach((n) => this.log(`[invoices] order ${orderId}: ${n}`));
+      if (treatment.notes.length) treatment.notes.forEach((n) => this.log(`[invoices] order ${ref}: ${n}`));
       return treatment;
     };
 
@@ -234,27 +372,29 @@ class InvoiceService {
       organizationId: source.order.organization_id,
       override: typeof params.useSubPrices === 'boolean' ? params.useSubPrices : undefined
     });
-    this.log(`[invoices] order ${orderId}: cennik ${priceBasis.basis} — ${priceBasis.reason}`);
+    this.log(`[invoices] order ${ref}: cennik ${priceBasis.basis} — ${priceBasis.reason}`);
 
 
     let retailValueByItemId = null;
     if (priceBasis.useRetailPrices) {
       const isHkl = Number(source.order.organization_id) === Number(HKL_ORG_ID);
-      retailValueByItemId = new Map(source.orderItems.map((it) => {
+      retailValueByItemId = new Map(sources.flatMap((s) => s.orderItems).map((it) => {
         const visible = isHkl ? Number(it.unit_price) : Number(calcSubTotals([it]).subVisible);
 
         return [it.id, Number.isFinite(visible) && visible > 0 ? visible : 0];
       }));
     }
 
-    let rawItems = orderMapper.mapOrderItemsToInvoiceItems({
-      orderItems: source.orderItems,
+    // Faktura zbiorcza: pozycje wszystkich zamówień, każda z numerem SWOJEGO
+    // zamówienia (kolumna „Zamówienie" w tabeli pozycji, `invoice_item.order_number`)
+    let rawItems = sources.flatMap((s) => orderMapper.mapOrderItemsToInvoiceItems({
+      orderItems: s.orderItems,
       resolveTax,
       currency,
       useSubPrices: priceBasis.useSubPrices,
       useListPrices: priceBasis.useListPrices === true,
       retailValueByItemId
-    });
+    }).map((item) => (collective ? { ...item, orderNumber: String(s.order.order_idx || s.order.id) } : item)));
 
 
     let requestedAllocations = null;
@@ -335,7 +475,7 @@ class InvoiceService {
       }
       const rates = new Set(rawItems.map((i) => `${i.taxCategory}|${i.taxRate}`));
       if (rates.size > 1) {
-        this.log(`[invoices] order ${orderId}: zaliczka na zamówieniu z wieloma stawkami VAT — użyto stawki pierwszej pozycji`);
+        this.log(`[invoices] order ${ref}: zaliczka na zamówieniu z wieloma stawkami VAT — użyto stawki pierwszej pozycji`);
       }
       const base = money.sum(rawItems.map((i) => i.unitPriceNetMinor));
       const first = rawItems[0];
@@ -365,7 +505,7 @@ class InvoiceService {
       discountMinor = applied.discountMinor;
       discountBaseMinor = applied.baseMinor;
       if (discountMinor > 0) {
-        this.log(`[invoices] order ${orderId}: rabat odbiorcy ${discountInfo.type === 'percentage' ? `${discountInfo.percent}%` : `${discountInfo.valueMajor} ${currency}`} → -${(discountMinor / 100).toFixed(2)} ${currency}`);
+        this.log(`[invoices] order ${ref}: rabat odbiorcy ${discountInfo.type === 'percentage' ? `${discountInfo.percent}%` : `${discountInfo.valueMajor} ${currency}`} → -${(discountMinor / 100).toFixed(2)} ${currency}`);
       }
     }
 
@@ -378,7 +518,7 @@ class InvoiceService {
       } catch (err) {
         // Brak kursu nie może blokować wystawienia — dokument powstaje bez
         // przeliczenia, a szablon drukuje ostrzeżenie (patrz `vat_summary.njk`).
-        this.log(`[invoices] order ${orderId}: brak kursu ${currency}/${localCurrency} na ${saleDate}: ${err.message}`);
+        this.log(`[invoices] order ${ref}: brak kursu ${currency}/${localCurrency} na ${saleDate}: ${err.message}`);
       }
     }
 
@@ -399,7 +539,7 @@ class InvoiceService {
     // wymusić (np. dokument korygujący do zera).
     if (!params.allowZeroTotal && computed.totalNet === 0) {
       throw new Error(
-        `Zamówienie ${source.order.order_idx || orderId} ma zerową wartość netto — dokument nie został wystawiony. `
+        `${collective ? `Faktura zbiorcza ${collective.period.key}` : `Zamówienie ${source.order.order_idx || orderId}`} ma zerową wartość netto — dokument nie został wystawiony. `
         + 'Uzupełnij ceny pozycji zamówienia albo wymuś utworzenie parametrem allowZeroTotal.'
       );
     }
@@ -415,7 +555,7 @@ class InvoiceService {
       localCurrency,
       deliveryDate
     });
-    complianceContext.warnings.forEach((w) => this.log(`[invoices] order ${orderId}: ${w}`));
+    complianceContext.warnings.forEach((w) => this.log(`[invoices] order ${ref}: ${w}`));
 
     // Szablon WYSTAWCY: na poziomie 1 to HKL, nie organizacja zamówienia
     // (patrz `core/templates.js`). Własny szablon w profilu wystawcy wygrywa.
@@ -491,14 +631,18 @@ class InvoiceService {
         }
         : null,
       orderId,
-      orderRef: source.order.order_idx || String(orderId),
+      orderRef: collective ? collectiveOrderRef(sources) : (source.order.order_idx || String(orderId)),
       // Nazwa zamówienia (`order.commision`) — po niej klient rozpoznaje, czego
       // faktura dotyczy; sam numer zamówienia nic mu nie mówi. Kopiowana na
       // dokument, nie doczytywana z zamówienia przy każdym renderze.
-      orderName: source.order.commision || '',
+      orderName: collective
+        ? `Zbiorcza ${collective.period.key} · ${sources.length} zam.`
+        : (source.order.commision || ''),
       lang,
       templateCode,
-      notes: notes || source.order.comment || '',
+      notes: collective
+        ? [collectiveNote(lang, collective.period, sources), notes].filter(Boolean).join(' ')
+        : (notes || source.order.comment || ''),
       legalNotes: [...new Set(computed.taxLines.map((l) => l.legalNoteKey).filter(Boolean))],
       orgCode: profile.orgCode,
       createdByPin
@@ -744,6 +888,8 @@ class InvoiceService {
 
 module.exports = {
   InvoiceService,
+  SHIPPED_PROD_STATUS,
+  isShippedOrder,
   // Ponowny eksport rdzenia — pozwala używać kalkulatora/reguł bez serwisu
   // (np. w podglądzie „ile wyjdzie VAT-u" na froncie zamówienia).
   InvoiceCalculator,

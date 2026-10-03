@@ -139,7 +139,7 @@ test('serwis: zamówienie o zerowej wartości nie tworzy dokumentu', async () =>
   const repository = {
     async getOrderInvoiceSource() {
       return {
-        order: { id: 1, organization_id: 3, order_idx: '999', status: 'sent' },
+        order: { id: 1, organization_id: 3, order_idx: '999', status: 'sent', prod_status: '!sent!' },
         // Realny przypadek z bazy: pozycje z zerową/NULL-ową ceną
         orderItems: [{ id: 1, total_price: '0.00', json_parameters: {} }, { id: 2, total_price: null, json_parameters: {} }],
         organization: { id: 3, name: 'HKL', country: 'PL' },
@@ -180,7 +180,7 @@ test('serwis: allowZeroTotal pozwala wymusić dokument na zero', async () => {
   const repository = {
     async getOrderInvoiceSource() {
       return {
-        order: { id: 1, organization_id: 3, order_idx: '999' },
+        order: { id: 1, organization_id: 3, order_idx: '999', status: 'sent', prod_status: '!sent!' },
         orderItems: [{ id: 1, total_price: '0.00', json_parameters: {} }],
         organization: { id: 3, name: 'HKL', country: 'PL' },
         user: { id: 9, client_name: 'Klient', country: 'PL' },
@@ -210,4 +210,29 @@ test('serwis: allowZeroTotal pozwala wymusić dokument na zero', async () => {
   assert.equal(result.id, 5);
   assert.equal(saved.totalGross, 0);
   assert.equal(saved.currency, 'EUR', 'waluta zawsze EUR — patrz DOCUMENT_CURRENCY');
+});
+
+test('serwis: zlecenie bez !sent! w status.txt nie dostaje dokumentu', async () => {
+  const { InvoiceService, isShippedOrder } = require('../main');
+  let created = false;
+  const order = { id: 1, organization_id: 3, order_idx: '999', status: 'sent', prod_status: '!production!' };
+  const repository = {
+    async getOrderInvoiceSource() {
+      return {
+        order,
+        orderItems: [{ id: 1, total_price: '100.00', json_parameters: {} }],
+        organization: { id: 3, name: 'HKL', country: 'PL' },
+        user: { id: 9, client_name: 'Klient', country: 'PL' },
+        groupShop: null
+      };
+    },
+    async createInvoice() { created = true; return { id: 1, number: null }; }
+  };
+  const service = new InvoiceService({ repository, log: () => {}, vies: { check: async () => ({ checked: false, valid: false }) } });
+
+  await assert.rejects(() => service.createFromOrder({ orderId: 1 }), /!sent!/);
+  assert.equal(created, false);
+  // `active` z `!sent!` to kolizja numeru z plikiem produkcji, nie wysyłka
+  assert.equal(isShippedOrder({ status: 'active', prod_status: '!sent!' }), false);
+  assert.equal(isShippedOrder({ status: 'sent', prod_status: '!sent!' }), true);
 });

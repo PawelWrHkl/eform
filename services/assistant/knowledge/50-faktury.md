@@ -41,7 +41,7 @@
 ## Faktura dla klienta (konto organizacji)
 1. „Faktury” → na karcie „{{inv:choose_relation}}” wybierz „{{inv:level_2}}”.
 2. W „{{inv:select_client}}” wyszukaj i wybierz klienta.
-3. W „{{inv:orders_window_title}}” widać zamówienia klienta bez faktury: „{{inv:orders_filter_shipped}}” (domyślnie — te, które wyjechały) albo „{{inv:orders_filter_all}}” (także w produkcji, np. pod proformę lub zaliczkę). Zaznacz zamówienia (albo „{{inv:orders_select_all}}”).
+3. W „{{inv:orders_window_title}}” widać zamówienia klienta bez faktury, które już wyjechały do klienta (status produkcji „!sent!”) — tylko takie można zafakturować. Zaznacz zamówienia (albo „{{inv:orders_select_all}}”).
 4. Wybierz „{{inv:doc_type}}”, język i „{{inv:issue_now}}”, potem „{{inv:create_selected}}”. Każde zaznaczone zamówienie dostaje osobny dokument.
 - Typy: „proforma”, „advance” = faktura zaliczkowa (pole „{{inv:advance_percent}}”, 1–100%), „invoice” = faktura VAT, „final” = faktura końcowa, która odlicza wcześniejsze zaliczki. Zaliczka i proforma nie zamykają zamówienia — potem wystawia się fakturę końcową.
 - Rabat z Centrum rabatów nie trafia na faktury organizacji.

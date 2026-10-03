@@ -39,27 +39,27 @@ test('konfiguracja: wyłączony moduł faktur blokuje automat', () => {
   assert.match(cfg.problems.join(' '), /INVOICES_ENABLED/);
 });
 
-test('konfiguracja: domyślnie poziom 2, wystawianie z numerem, limit 100', () => {
+test('konfiguracja: domyślnie wszystkie poziomy 1–4, wystawianie z numerem, limit 100', () => {
   const cfg = readAutoInvoiceConfig({ INVOICE_AUTOGEN_ENABLED: 'true', INVOICE_AUTOGEN_SINCE: '2026-10-01' }, ON);
   assert.equal(cfg.active, true);
-  assert.deepEqual(cfg.levels, [2]);
+  assert.deepEqual(cfg.levels, [1, 2, 3, 4]);
   assert.equal(cfg.issue, true);
   assert.equal(cfg.maxPerRun, 100);
   assert.deepEqual(cfg.organizationIds, []);
 });
 
-test('konfiguracja: poziomy spoza 1–2 są pomijane z ostrzeżeniem, reszta działa', () => {
+test('konfiguracja: nieznane poziomy są pomijane z ostrzeżeniem, reszta działa', () => {
   const cfg = readAutoInvoiceConfig({
     INVOICE_AUTOGEN_ENABLED: 'true',
     INVOICE_AUTOGEN_SINCE: '2026-10-01',
-    INVOICE_AUTOGEN_LEVELS: '2, 1, 3',
+    INVOICE_AUTOGEN_LEVELS: '3, 1, 7',
     INVOICE_AUTOGEN_ORGS: '3;5 x',
     INVOICE_AUTOGEN_ISSUE: 'false',
     INVOICE_AUTOGEN_MAX_PER_RUN: '20'
   }, ON);
-  assert.deepEqual(cfg.levels, [1, 2]);
+  assert.deepEqual(cfg.levels, [1, 3]);
   assert.equal(cfg.active, true);
-  assert.match(cfg.problems.join(' '), /pominięto: 3/);
+  assert.match(cfg.problems.join(' '), /pominięto: 7/);
   assert.deepEqual(cfg.organizationIds, [3, 5]);
   assert.equal(cfg.issue, false);
   assert.equal(cfg.maxPerRun, 20);
@@ -115,9 +115,20 @@ test('przebieg: wystawia fakturę z numerem jako AUTO, typ invoice', async () =>
 
   assert.deepEqual(result.created.map((c) => c.number), ['2026/1', '2026/2']);
   assert.deepEqual(service.calls[0], { orderId: 1, level: 2, documentType: 'invoice', issue: true, createdByPin: AUTO_ACTOR });
-  assert.equal(repository.queries[0].since, '2026-10-01');
-  // Poziom 2 nie wyklucza żadnej organizacji
-  assert.equal(repository.queries[0].excludeOrganizationId, null);
+  // Domyślnie automat przechodzi WSZYSTKIE poziomy, każdy z tym samym progiem
+  assert.deepEqual(repository.queries.map((q) => q.level), [1, 2, 3, 4]);
+  assert.ok(repository.queries.every((q) => q.since === '2026-10-01'));
+  // Tylko poziom 1 wyklucza organizację (HKL nie sprzedaje sam sobie)
+  assert.deepEqual(repository.queries.map((q) => q.excludeOrganizationId), [HKL_ORG_ID, null, null, null]);
+});
+
+test('przebieg: poziomy 3 i 4 wystawiane jak pozostałe (odbiorca z zamówienia)', async () => {
+  const service = fakeService();
+  await runAutoInvoicing({
+    config: config(),
+    deps: { repository: fakeRepository({ 3: [order(7)], 4: [order(8)] }), service, log: quiet }
+  });
+  assert.deepEqual(service.calls.map((c) => [c.level, c.orderId]), [[3, 7], [4, 8]]);
 });
 
 test('przebieg: INVOICE_AUTOGEN_ISSUE=false → szkice bez numeru', async () => {

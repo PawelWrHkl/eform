@@ -82,5 +82,6 @@
   "party.delivery_address": "Delivery address",
   "header.order_name": "Order name",
   "totals.net_before_discount": "Net before discount",
-  "totals.client_discount": "Customer discount"
+  "totals.client_discount": "Customer discount",
+  "collective.note": "Collective invoice for the period {start} – {end}. Orders: {orders}."
 }

@@ -3841,3 +3841,64 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-02 10:35:01 - Start ===
 === 2026-10-02 10:35:01 - Dodawanie zmian do commita ===
+[feature/configurator-tester 8b8c6d0] Automatic commit 2026-10-02 10:35
+ 94 files changed, 26978 insertions(+), 6582 deletions(-)
+ create mode 100644 migrations/add_group_price_mode.sql
+ create mode 100644 public/scripts/assistant/voice.js
+ create mode 100644 public/scripts/assistant/widget.js
+ create mode 100644 public/styles/assistant.css
+ create mode 100644 routes/assistant.js
+ create mode 100644 scripts/assistantEval.js
+ create mode 100644 scripts/assistantGaps.js
+ create mode 100644 scripts/prodStatusSync.js
+ create mode 100644 scripts/setInvoiceTemplate.js
+ create mode 100644 services/__tests__/clientMarkup.test.js
+ create mode 100644 services/__tests__/groupPriceMode.test.js
+ create mode 100644 services/__tests__/prodStatusCycle.test.js
+ create mode 100644 services/__tests__/prodStatusSync.test.js
+ create mode 100644 services/assistant/__tests__/assistantService.test.js
+ create mode 100644 services/assistant/__tests__/building-blocks.test.js
+ create mode 100644 services/assistant/__tests__/handoff.test.js
+ create mode 100644 services/assistant/__tests__/voice.test.js
+ create mode 100644 services/assistant/assistantService.js
+ create mode 100644 services/assistant/handoff.js
+ create mode 100644 services/assistant/i18n/strings.json
+ create mode 100644 services/assistant/i18n/suggestions.json
+ create mode 100644 services/assistant/knowledge.js
+ create mode 100644 services/assistant/knowledge/00-o-portalu.md
+ create mode 100644 services/assistant/knowledge/10-nawigacja-i-konto.md
+ create mode 100644 services/assistant/knowledge/20-oferta-i-pozycje.md
+ create mode 100644 services/assistant/knowledge/30-wysylka-i-historia.md
+ create mode 100644 services/assistant/knowledge/40-pracownicy-i-grupy.md
+ create mode 100644 services/assistant/knowledge/50-faktury.md
+ create mode 100644 services/assistant/knowledge/51-faktury-niedostepne.md
+ create mode 100644 services/assistant/knowledge/90-czego-nie-ma.md
+ create mode 100644 services/assistant/labels.js
+ create mode 100644 services/assistant/openaiClient.js
+ create mode 100644 services/assistant/prompt.js
+ create mode 100644 services/assistant/sessionContext.js
+ create mode 100644 services/assistant/strings.js
+ create mode 100644 services/assistant/suggestions.js
+ create mode 100644 services/assistant/uiCatalog.js
+ create mode 100644 services/assistant/voice/realtimeClient.js
+ create mode 100644 services/assistant/voice/sideband.js
+ create mode 100644 services/assistant/voice/voiceService.js
+ create mode 100644 services/groupPriceMode.js
+ create mode 100644 services/invoices/__tests__/autoInvoicing.test.js
+ create mode 100644 services/invoices/__tests__/templates.test.js
+ create mode 100644 services/invoices/autoInvoicing.js
+ create mode 100644 services/invoices/core/templates.js
+ create mode 100644 services/invoices/db/schema_v3.sql
+ create mode 100644 services/prodStatusCycle.js
+ create mode 100644 services/prodStatusScheduler.js
+ create mode 100644 templates/owner/partials/client_orders_window.njk
+ create mode 100644 templates/partials/assistant-widget.njk
+=== 2026-10-02 10:35:03 - Wysyłanie do origin/main ===
+Everything up-to-date
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-02 10:35:04 - Koniec ===
+=== 2026-10-02 12:00:01 - Start ===
+=== 2026-10-02 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-03 10:35:01 - Start ===
+=== 2026-10-03 10:35:01 - Dodawanie zmian do commita ===

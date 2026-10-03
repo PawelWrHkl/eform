@@ -184,6 +184,40 @@
                         </div>
                     </form>
 
+                    {# --- Fakturowanie niestandardowe (`user.invoice_schedule`) ---
+                       Faktura zbiorcza za tydzień/miesiąc zamiast faktury za każde
+                       zlecenie. Wystawia ją automat po zamknięciu okresu
+                       (services/invoices/autoInvoicing.js). Osobna trasa — patrz routes/admin.js. #}
+                    <form id="ua-invoice-schedule-form" class="ua-card mb-4" novalidate>
+                        <h5 class="ua-card__title"><i class="bi bi-receipt me-2"></i>Fakturowanie niestandardowe</h5>
+                        <p class="ua-hint">
+                            Dotyczy faktur, które organizacja wystawia temu kontu (poziom 2: organizacja → klient).
+                            Do faktury trafiają wyłącznie zlecenia wysłane do klienta (<code>!sent!</code> w status.txt),
+                            według daty wysyłki.
+                        </p>
+                        <div class="ua-switches">
+                            {% for opt in invoiceScheduleOptions %}
+                            <label class="ua-switch">
+                                <input type="radio" name="invoice_schedule" value="{{ opt.value }}" id="ua-invoice-schedule-{{ opt.value or 'standard' }}">
+                                <span>
+                                    <strong>{{ opt.label }}</strong>
+                                    <em>{{ opt.hint }}</em>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <span class="ua-help d-block mt-2">
+                            Zmiana działa od następnego przebiegu automatu (co godzinę). Zlecenia, które już mają
+                            fakturę, zostają bez zmian; zaległe zlecenia z zamkniętych okresów trafią do faktury
+                            zbiorczej za swój okres.
+                        </span>
+                        <div class="ua-actions">
+                            <button type="submit" class="btn btn-primary" id="ua-save-invoice-schedule">
+                                <i class="bi bi-check2 me-1"></i> Zapisz sposób fakturowania
+                            </button>
+                        </div>
+                    </form>
+
                     {# --- Hasło --- #}
                     <form id="ua-password-form" class="ua-card ua-card--warn" novalidate>
                         <h5 class="ua-card__title"><i class="bi bi-key me-2"></i>Zmiana hasła</h5>

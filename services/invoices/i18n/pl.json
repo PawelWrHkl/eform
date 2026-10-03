@@ -82,5 +82,6 @@
   "party.delivery_address": "Adres dostawy",
   "header.order_name": "Nazwa zamówienia",
   "totals.net_before_discount": "Wartość przed rabatem",
-  "totals.client_discount": "Rabat dla odbiorcy"
+  "totals.client_discount": "Rabat dla odbiorcy",
+  "collective.note": "Faktura zbiorcza za okres {start} – {end}. Zamówienia: {orders}."
 }

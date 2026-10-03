@@ -10,6 +10,7 @@ const bcrypt = require('bcryptjs');
 const { selectQuery, updateQuery, insertQuery } = require('../core');
 const { POLA } = require('../../services/admin/userAdminService');
 const { getGroupPriceMode } = require('../../services/groupPriceMode');
+const { getUserInvoiceSchedule } = require('../../services/invoices/db/repository');
 
 /** Kolumny pokazywane w panelu (bez `password`, bez `plain`). */
 const KOLUMNY_PODGLADU = `
@@ -60,6 +61,9 @@ async function getUserForAdmin(userId) {
   // migracją (`migrations/add_group_price_mode.sql`): dopisana do SELECT-u
   // wyżej, przed migracją wywróciłaby podgląd KAŻDEGO konta w panelu.
   user.group_price_mode = await getGroupPriceMode(user.id);
+  // Fakturowanie niestandardowe (`user.invoice_schedule`) — z tego samego powodu
+  // osobno: kolumna z migracji `migrations/add_user_invoice_schedule.sql`.
+  user.invoice_schedule = await getUserInvoiceSchedule(user.id);
   return user;
 }
 

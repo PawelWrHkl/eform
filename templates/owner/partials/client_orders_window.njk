@@ -13,14 +13,15 @@
             {{ L.orders_window_title }} · {{ client.client_name }}
             <span class="inv-count">{{ ordersWindow.total }}</span>
           </h3>
-          <nav class="inv-levels__row" aria-label="{{ L.orders_window_title }}">
-            <a class="inv-level{% if ordersWindow.filter == 'shipped' %} inv-level--active{% endif %}"
-               href="?level={{ level }}&orders=shipped"{% if ordersWindow.filter == 'shipped' %} aria-current="true"{% endif %}>{{ L.orders_filter_shipped }}</a>
-            <a class="inv-level{% if ordersWindow.filter == 'all' %} inv-level--active{% endif %}"
-               href="?level={{ level }}&orders=all"{% if ordersWindow.filter == 'all' %} aria-current="true"{% endif %}>{{ L.orders_filter_all }}</a>
-          </nav>
         </div>
-        <p class="inv-hint">{{ L.orders_window_hint_shipped if ordersWindow.filter == 'shipped' else L.orders_window_hint_all }}</p>
+        {# Wyłącznie zlecenia z !sent! w status.txt — tylko takie można fakturować
+           (serwer pilnuje tego w `main.js:isShippedOrder`). #}
+        <p class="inv-hint">{{ L.orders_window_hint_shipped }}</p>
+        {# Klient z fakturą zbiorczą: pojedyncza faktura wystawiona tutaj wyjmie
+           zlecenie z faktury zbiorczej — mówimy to, zanim ktoś kliknie. #}
+        {% if client.invoiceSchedule %}
+          <p class="inv-hint inv-hint--warn">{{ L.schedule_window_warn | replace('{schedule}', L['schedule_' ~ client.invoiceSchedule]) }}</p>
+        {% endif %}
 
         {% if ordersWindow.items | length %}
           <div class="inv-orders__toolbar">
@@ -46,7 +47,6 @@
                   <th>{{ L.number }}</th>
                   <th>{{ L.order_name }}</th>
                   <th>{{ L.col_sent_to_production }}</th>
-                  {% if ordersWindow.filter == 'all' %}<th>{{ L.status }}</th>{% endif %}
                   <th>{{ L.col_shipped }}</th>
                   <th>{{ L.col_parcels }}</th>
                   <th class="ta-r">{{ L.col_order_value }}</th>
@@ -65,11 +65,6 @@
                     <td class="inv-nowrap">{{ o.orderIdx }}</td>
                     <td class="inv-order-name" title="{{ o.name }}">{{ o.name if o.name else '—' }}</td>
                     <td class="inv-nowrap">{{ o.sentDateFmt or '—' }}</td>
-                    {% if ordersWindow.filter == 'all' %}
-                      <td class="inv-nowrap">
-                        <span class="inv-tag{% if o.prodStatus == '!sent!' %} inv-tag--ok{% endif %}">{{ o.prodStatus if o.prodStatus else L.prod_status_received }}</span>
-                      </td>
-                    {% endif %}
                     <td class="inv-nowrap">{{ o.shippedDateFmt or '—' }}</td>
                     <td class="inv-orders__parcels">
                       {%- for p in o.parcels -%}
@@ -132,6 +127,6 @@
             </div>
           </form>
         {% else %}
-          <p class="inv-empty">{{ L.orders_none_shipped if ordersWindow.filter == 'shipped' else L.orders_none_all }}</p>
+          <p class="inv-empty">{{ L.orders_none_shipped }}</p>
         {% endif %}
       </section>

@@ -115,7 +115,7 @@ function fakeRepository({ orgTemplates = {}, issuerTemplate = 'default' } = {}) 
     saved,
     async getOrderInvoiceSource() {
       return {
-        order: { id: 1, organization_id: 5, order_idx: '11' },
+        order: { id: 1, organization_id: 5, order_idx: '11', status: 'sent', prod_status: '!sent!' },
         orderItems: [{ id: 1, total_price: '0.00', json_parameters: {} }],
         organization: { id: 5, name: 'Luxan GmbH', country: 'DE' },
         user: { id: 9, client_name: 'Salon', country: 'DE' },

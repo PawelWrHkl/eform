@@ -583,20 +583,76 @@ router.put('/profile/current', requireLogin, requireOwner, async (req, res) => {
   if (!organizationId) return res.status(403).json({ success: false, message: 'Brak kontekstu organizacji' });
   try {
     const patch = { ...(req.body || {}) };
-    // Szablon = formatka (papier firmowy) organizacji — przypisuje ją admin.
+    const isAdmin = req.session?.user?.isAdmin === true;
+    // Szablon i formatka (papier firmowy) organizacji — przypisuje je admin.
     // Owner nie może przestawić faktur na formatkę innej organizacji.
-    if (patch.template_code !== undefined) {
-      if (!req.session?.user?.isAdmin) {
-        delete patch.template_code;
-      } else {
-        const known = (await repository.listTemplates()).some((t) => t.code === patch.template_code && Number(t.is_active) === 1);
-        if (!known) return res.status(400).json({ success: false, message: `Nieznany szablon: ${patch.template_code}` });
+    const background = patch.background;
+    delete patch.background;
+    if (!isAdmin) delete patch.template_code;
+    if (isAdmin && patch.template_code !== undefined) {
+      const known = (await repository.listTemplates()).some((t) => t.code === patch.template_code && Number(t.is_active) === 1);
+      if (!known) return res.status(400).json({ success: false, message: `Nieznany szablon: ${patch.template_code}` });
+    }
+
+    let template = null;
+    if (isAdmin && background && typeof background === 'object') {
+      const { assignOrganizationTemplate } = require('../templateAssignment');
+      try {
+        template = await assignOrganizationTemplate({
+          organizationId,
+          backgroundFile: background.file || null,
+          pageMargins: background.margins
+        });
+      } catch (err) {
+        // Błędy walidacji (brak pliku, zła nazwa) to wina danych z formularza
+        return res.status(400).json({ success: false, message: err.message });
       }
     }
+
     const ok = await service.updateOrganizationProfile(organizationId, patch);
-    return res.json({ success: ok });
+    return res.json({ success: ok || !!(template && template.changed), template });
   } catch (err) {
     return sendError(res, err, 'PUT /profile/current');
+  }
+});
+
+/**
+ * Podgląd formatki przed zapisem: ostatnia faktura organizacji wyrenderowana
+ * na wskazanej formatce z marginesami z formularza. Tylko admin (to on
+ * przypisuje formatki). Nic nie zapisuje.
+ */
+router.get('/profile/background-preview', requireLogin, requireOwner, async (req, res) => {
+  const organizationId = organizationIdFromSession(req);
+  if (!organizationId) return res.status(403).send('Brak kontekstu organizacji');
+  if (req.session?.user?.isAdmin !== true) return res.status(403).send('Formatki przypisuje administrator');
+
+  const renderer = require('../render/renderer');
+  const file = String(req.query.file || '');
+  if (!renderer.resolveBackgroundFile(file, { code: 'podgląd' })) {
+    return res.status(400).send(`Nie ma formatki „${file}" w img/invoice-background`);
+  }
+  try {
+    const [latest] = await repository.listInvoices({ organizationId, limit: 1 });
+    if (!latest) return res.status(404).send('Ta organizacja nie ma jeszcze żadnej faktury do podglądu — wystaw pierwszą (może być szkic).');
+
+    const ctx = await service.buildRenderContext(latest.id);
+    const pageMargins = {};
+    for (const side of ['top', 'right', 'bottom', 'left']) {
+      if (req.query[side] !== undefined && req.query[side] !== '') pageMargins[side] = Number(req.query[side]);
+    }
+    const buffer = await renderer.renderInvoicePdf({
+      ...ctx,
+      template: { ...ctx.template, code: 'podgląd', backgroundFile: file, pageMargins }
+    });
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="podglad-formatki.pdf"',
+      'Content-Length': String(buffer.length)
+    });
+    return res.send(buffer);
+  } catch (err) {
+    log(`[invoices] GET /profile/background-preview: ${err.message}`);
+    return res.status(500).send('Błąd generowania podglądu');
   }
 });
 
