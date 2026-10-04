@@ -3902,3 +3902,21 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-03 10:35:01 - Start ===
 === 2026-10-03 10:35:01 - Dodawanie zmian do commita ===
+[feature/configurator-tester b44c69a] Automatic commit 2026-10-03 10:35
+ 38 files changed, 11412 insertions(+), 228 deletions(-)
+ create mode 100644 migrations/add_user_invoice_schedule.sql
+ create mode 100644 services/invoices/__tests__/collective.test.js
+ create mode 100644 services/invoices/__tests__/endClient.test.js
+ create mode 100644 services/invoices/__tests__/templateAssignment.test.js
+ create mode 100644 services/invoices/core/collective.js
+ create mode 100644 services/invoices/core/endClient.js
+ create mode 100644 services/invoices/templateAssignment.js
+=== 2026-10-03 10:35:03 - Wysyłanie do origin/main ===
+Everything up-to-date
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-03 10:35:04 - Koniec ===
+=== 2026-10-03 12:00:01 - Start ===
+=== 2026-10-03 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-04 10:35:01 - Start ===
+=== 2026-10-04 10:35:01 - Dodawanie zmian do commita ===
