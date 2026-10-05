@@ -3945,3 +3945,5 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Everything up-to-date
 Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
 === 2026-10-05 11:36:01 - Koniec ===
+=== 2026-10-05 11:44:25 - Start ===
+=== 2026-10-05 11:44:25 - BŁĄD: drzewo jest na gałęzi 'main', a nie 'nie-ta-galaz' — pomijam commit i push ===
