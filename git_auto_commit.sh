@@ -53,6 +53,13 @@ create_github_repo_if_needed() {
 }
 
 commit_and_push() {
+  local current_branch
+  current_branch=$($GIT symbolic-ref --short HEAD 2>/dev/null || echo "(detached HEAD)")
+  if [ "$current_branch" != "$BRANCH" ]; then
+    echo "=== $(date '+%Y-%m-%d %H:%M:%S') - BŁĄD: drzewo jest na gałęzi '$current_branch', a nie '$BRANCH' — pomijam commit i push ===" >> "$LOG_FILE"
+    exit 1
+  fi
+
   if [ -n "$($GIT status --porcelain)" ]; then
     echo "=== $(date '+%Y-%m-%d %H:%M:%S') - Dodawanie zmian do commita ===" >> "$LOG_FILE"
     $GIT add . >> "$LOG_FILE" 2>&1
