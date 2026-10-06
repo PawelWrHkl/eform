@@ -169,7 +169,18 @@
 		return m;
 	}
 
+	// Narzędzia, które wykonuje PRZEGLĄDARKA. Pozostałe (dane konta: find_orders, get_order…)
+	// wykonuje serwer przez sideband — tu je pomijamy, żeby nie dublować odpowiedzi.
+	var CLIENT_TOOLS = { highlight_element: 1, show_consultant_form: 1, open_page: 1, open_order: 1, start_tour: 1 };
+	var PAGES = (window.eformAssistantBoot && window.eformAssistantBoot.pages) || {};
+
+	/** Przejście na inną stronę — po chwili, żeby asystent zdążył powiedzieć, dokąd idzie. */
+	function navigateSoon(href) {
+		setTimeout(function () { window.location.href = href; }, 1500);
+	}
+
 	function runTool(ev) {
+		if (!CLIENT_TOOLS[ev.name]) return;
 		var args = {};
 		try { args = JSON.parse(ev.arguments || '{}'); } catch (_) { args = {}; }
 		var out;
@@ -178,8 +189,18 @@
 		} else if (ev.name === 'show_consultant_form') {
 			A.openConsultantForm('model');
 			out = { shown: true };
-		} else {
-			out = { error: 'unknown_tool' };
+		} else if (ev.name === 'open_page') {
+			var href = PAGES[String(args.page || '')];
+			out = href ? { opening: true } : { error: 'unknown_page' };
+			if (href) navigateSoon(href);
+		} else if (ev.name === 'start_tour') {
+			// Pokaz palcem (tour.js weryfikuje kroki z katalogu); przejścia między stronami wznowią rozmowę.
+			out = { started: !!(A.tour && A.tour.start(args.steps)) };
+		} else if (ev.name === 'open_order') {
+			var id = parseInt(args.order_id, 10);
+			out = id > 0 ? { opening: true } : { error: 'bad_order_id' };
+			// Serwer sprawdza, że zlecenie należy do konta, i wybiera właściwy widok.
+			if (id > 0) navigateSoon('/assistant/go/order/' + id);
 		}
 		send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: ev.call_id, output: JSON.stringify(out) } });
 	}
@@ -187,9 +208,11 @@
 	/** Odpowiedź złożona z samego wywołania narzędzia — poproś model o dokończenie wypowiedzi. */
 	function afterResponse(resp) {
 		if (!call || !resp || !Array.isArray(resp.output)) return;
-		var hadTool = resp.output.some(function (o) { return o && o.type === 'function_call'; });
+		var calls = resp.output.filter(function (o) { return o && o.type === 'function_call'; });
 		var hadSpeech = resp.output.some(function (o) { return o && o.type === 'message'; });
-		if (hadTool && !hadSpeech) send({ type: 'response.create' });
+		// Narzędzie serwera w tej odpowiedzi → dalszą wypowiedź zleca serwer (po wynikach).
+		var serverTool = calls.some(function (c) { return c.name && !CLIENT_TOOLS[c.name]; });
+		if (calls.length && !hadSpeech && !serverTool) send({ type: 'response.create' });
 	}
 
 	function onEvent(ev) {

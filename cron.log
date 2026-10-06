@@ -3947,3 +3947,8 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 === 2026-10-05 11:36:01 - Koniec ===
 === 2026-10-05 11:44:25 - Start ===
 === 2026-10-05 11:44:25 - BŁĄD: drzewo jest na gałęzi 'main', a nie 'nie-ta-galaz' — pomijam commit i push ===
+=== 2026-10-05 12:00:01 - Start ===
+=== 2026-10-05 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-06 10:35:01 - Start ===
+=== 2026-10-06 10:35:01 - Dodawanie zmian do commita ===

@@ -169,9 +169,9 @@ test('sesja: model, głos, transkrypcja, VAD; highlight_element tylko z elementa
 	assert.equal(s.audio.output.voice, 'marin');
 	assert.equal(s.audio.input.transcription.model, 'whisper-test');
 	assert.equal(s.audio.input.turn_detection.type, 'semantic_vad');
-	assert.deepEqual(s.tools.map((t) => t.name), ['highlight_element', 'show_consultant_form']);
+	assert.deepEqual(s.tools.map((t) => t.name), ['highlight_element', 'show_consultant_form', 'start_tour']);
 	assert.deepEqual(s.tools[0].parameters.properties.key.enum, ['nav_history']);
-	assert.deepEqual(voice.buildTools([]).map((t) => t.name), ['show_consultant_form']);
+	assert.deepEqual(voice.buildTools([]).map((t) => t.name), ['show_consultant_form', 'start_tour']);
 });
 
 test('instrukcje głosowe: te same reguły zakresu i przekazania co czat + narzędzia', () => {
@@ -347,4 +347,46 @@ test('endCallFor: przeglądarka kończy tylko własną rozmowę', async () => {
 	assert.ok(voice._calls.has(callId));
 	assert.equal(voice.endCallFor(p.userKey, callId, d), true);
 	assert.ok(!voice._calls.has(callId));
+});
+
+// ── narzędzia z danymi konta i przejścia w rozmowie głosowej ─────────────
+const SCOPE = { userId: 42, pin: 'P', lang: 'pl', isEmployee: false, isGroup: false, isGroupShop: false, isOwner: false, employeeId: null, groupUserId: null, invoices: false, cancelCtx: {} };
+
+test('narzędzia głosu: open_page (enum stron konta), open_order i dane konta — tylko z zakresem konta', () => {
+	const names = voice.buildTools(['nav_history'], ['history', 'offers'], SCOPE).map((t) => t.name);
+	assert.deepEqual(names, ['highlight_element', 'show_consultant_form', 'open_page', 'open_order', 'find_orders', 'get_order', 'get_account_overview', 'get_delivery_times', 'list_employees', 'list_catalogs', 'get_import_log', 'start_tour']);
+	const openPage = voice.buildTools([], ['history'], SCOPE).find((t) => t.name === 'open_page');
+	assert.deepEqual(openPage.parameters.properties.page.enum, ['history']);
+	assert.ok(voice.buildTools([], ['history'], SCOPE).every((t) => t.strict === undefined), 'Realtime bez pola strict');
+	assert.deepEqual(voice.buildTools([], [], null).map((t) => t.name), ['show_consultant_form', 'start_tour'], 'bez zakresu — bez danych');
+});
+
+test('sideband: find_orders wykonuje SERWER w zakresie rozmowy, wynik → function_call_output, potem response.create', async () => {
+	const ran = [];
+	const d = deps({ runTool: async (name, args, scope) => { ran.push({ name, args, scope }); return { orders: [{ ref: '[[order:2]]', number: '798' }] }; } });
+	await voice.startCall(input({}, { scope: SCOPE }), d);
+	assert.ok(d.lastCreate.session.tools.some((t) => t.name === 'find_orders'));
+	assert.match(d.lastCreate.session.instructions, /STRONY PORTALU \(klucz dla open_page/);
+	const sb = d.connectSideband.created[0];
+	sb.emit({ type: 'response.function_call_arguments.done', response_id: 'resp_1', call_id: 'call_9', name: 'find_orders', arguments: '{"query":"798","kind":"any","sent_from":null,"sent_to":null,"limit":3}' });
+	sb.emit({ type: 'response.done', response: { id: 'resp_1', output: [{ type: 'function_call', name: 'find_orders' }] } });
+	await new Promise((r) => setTimeout(r, 10));
+	assert.equal(ran[0].scope, SCOPE);
+	assert.deepEqual(ran[0].args.query, '798');
+	assert.deepEqual(sb.sent.map((e) => e.type), ['conversation.item.create', 'response.create']);
+	assert.equal(sb.sent[0].item.type, 'function_call_output');
+	assert.equal(sb.sent[0].item.call_id, 'call_9');
+	assert.match(sb.sent[0].item.output, /798/);
+});
+
+test('sideband: narzędzia przeglądarki (open_page, highlight) serwer pomija', async () => {
+	const ran = [];
+	const d = deps({ runTool: async (n) => { ran.push(n); return {}; } });
+	await voice.startCall(input({}, { scope: SCOPE }), d);
+	const sb = d.connectSideband.created[0];
+	sb.emit({ type: 'response.function_call_arguments.done', response_id: 'r2', call_id: 'c1', name: 'open_page', arguments: '{"page":"history"}' });
+	sb.emit({ type: 'response.done', response: { id: 'r2', output: [{ type: 'function_call', name: 'open_page' }] } });
+	await new Promise((r) => setTimeout(r, 10));
+	assert.deepEqual(ran, []);
+	assert.deepEqual(sb.sent, []);
 });

@@ -132,6 +132,13 @@ module.exports = {
       sidebandUrl: process.env.OPENAI_REALTIME_WS_URL || 'wss://api.openai.com/v1/realtime',
       maxSessionMinutes: Number(process.env.ASSISTANT_VOICE_MAX_SESSION_MINUTES) || 10,
       maxMinutesPerDay: Number(process.env.ASSISTANT_VOICE_MAX_MINUTES_PER_DAY) || 30
+    },
+
+    // Animowana maskotka (chomik, public/scripts/assistant/avatar.js) na
+    // przycisku „Pomoc" i w nagłówku okna. Czysto wizualna: wyłączona = okno
+    // jak dotąd, bez ładowania plików maskotki.
+    avatar: {
+      enabled: envSwitch(process.env.ASSISTANT_AVATAR_ENABLED)
     }
   }
 };

@@ -43,6 +43,15 @@
 		} catch (_) { /* tryb prywatny itp. — okno po prostu się nie odtworzy */ }
 	}
 
+	/** Sygnał stanu czatu dla modułów okna (maskotka): open | close | thinking | answer. */
+	function emit(stateName, extra) {
+		try {
+			var detail = { state: stateName };
+			if (extra) Object.keys(extra).forEach(function (k) { detail[k] = extra[k]; });
+			window.dispatchEvent(new CustomEvent('eform-assistant:state', { detail: detail }));
+		} catch (_) { /* stare przeglądarki bez CustomEvent */ }
+	}
+
 	// ── budowa DOM ──────────────────────────────────────────────────────────
 	function h(tag, attrs, children) {
 		var el = document.createElement(tag);
@@ -213,17 +222,111 @@
 			return;
 		}
 		var cls = 'ea-msg ea-msg-assistant' + voice + (m.status === 'handoff_sent' ? ' ea-msg-note' : '');
-		var bubble = h('div', { class: cls, text: text });
-		if (m.highlight && findTarget(m.highlight)) {
+		var bubble = h('div', { class: cls });
+		appendRichText(bubble, text, m.refs);
+		if (m.tour && m.tour.length && window.eformAssistant && window.eformAssistant.tour) {
+			var play = h('button', { type: 'button', class: 'ea-show-btn ea-tour-play', text: S.tourShow || '▶' });
+			play.addEventListener('click', function () { window.eformAssistant.tour.start(m.tour); });
+			bubble.appendChild(h('br'));
+			bubble.appendChild(play);
+		} else if (m.highlight && findTarget(m.highlight)) {
 			var show = h('button', { type: 'button', class: 'ea-show-btn', text: S.show || '' });
 			show.addEventListener('click', function () { highlight(m.highlight); });
 			bubble.appendChild(h('br'));
 			bubble.appendChild(show);
 		}
+		if (m.id && !m.voice && (m.status === 'answered' || m.status === 'handoff' || m.status === 'off_topic')) bubble.appendChild(feedbackBar(m));
 		messagesEl.appendChild(bubble);
 		if (isLast && m.status === 'handoff' && !state.handoffSent) {
 			messagesEl.appendChild(handoffCard('model'));
 		}
+	}
+
+	/** 👍/👎 pod odpowiedzią — ocena trafia do dziennika (luki w bazie wiedzy). */
+	function feedbackBar(m) {
+		var bar = h('div', { class: 'ea-feedback' });
+		if (m.feedback) {
+			bar.appendChild(h('span', { class: 'ea-feedback-thanks', text: S.feedbackThanks || '' }));
+			return bar;
+		}
+		[['up', '👍', S.feedbackUp], ['down', '👎', S.feedbackDown]].forEach(function (v) {
+			var b = h('button', { type: 'button', class: 'ea-feedback-btn', 'aria-label': v[2] || v[0], title: v[2] || v[0], text: v[1] });
+			b.addEventListener('click', function () {
+				m.feedback = v[0];
+				bar.textContent = '';
+				bar.appendChild(h('span', { class: 'ea-feedback-thanks', text: S.feedbackThanks || '' }));
+				api('POST', '/assistant/feedback', { id: m.id, value: v[0] });
+			});
+			bar.appendChild(b);
+		});
+		return bar;
+	}
+
+	// ── odnośniki i akcje w odpowiedziach ([[page:…]], [[order:ID]], [[action:copy:ID]]) ──
+	// Serwer (tools.resolveRefs) zostawia w tekście tylko sprawdzone znaczniki i podaje
+	// do nich `refs` { znacznik: { type, href, label } }. Tekst trafia do DOM jako węzły
+	// tekstowe — znacznik bez wpisu w refs po prostu znika.
+	var TOKEN_RE = /\[\[(?:page|order|action|catalog):[a-z_0-9:]+\]\]/g;
+
+	function appendRichText(el, text, refs) {
+		var last = 0;
+		var m;
+		refs = refs || {};
+		TOKEN_RE.lastIndex = 0;
+		while ((m = TOKEN_RE.exec(text)) !== null) {
+			if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+			var ref = refs[m[0]];
+			if (ref) el.appendChild(ref.type === 'copy' ? copyButton(ref) : linkFor(ref));
+			last = m.index + m[0].length;
+		}
+		if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+	}
+
+	function linkFor(ref) {
+		// Adresy tylko względne, z portalu (serwer ich pilnuje; tu druga linia obrony).
+		var href = String(ref.href || '');
+		if (href.charAt(0) !== '/' || href.charAt(1) === '/') return document.createTextNode(ref.label || '');
+		if (ref.type === 'file') return h('a', { class: 'ea-link ea-link-file', href: href, download: '', text: ref.label || href });
+		return h('a', { class: 'ea-link', href: href, text: ref.label || href });
+	}
+
+	/** Przycisk akcji kopiowania: 1. klik = pytanie o potwierdzenie, 2. klik = kopia (POST /orders/copy/:id). */
+	function copyButton(ref) {
+		var btn = h('button', { type: 'button', class: 'ea-action', text: (S.copyAction || '').replace('{number}', ref.number) });
+		var armed = false;
+		var timer = null;
+		btn.addEventListener('click', function () {
+			if (!armed) {
+				armed = true;
+				btn.textContent = S.copyConfirm || '';
+				btn.classList.add('ea-action-armed');
+				timer = setTimeout(function () {
+					armed = false;
+					btn.textContent = (S.copyAction || '').replace('{number}', ref.number);
+					btn.classList.remove('ea-action-armed');
+				}, 6000);
+				return;
+			}
+			clearTimeout(timer);
+			btn.disabled = true;
+			btn.textContent = S.copyWorking || '…';
+			api('POST', '/orders/copy/' + encodeURIComponent(ref.orderId)).then(function (r) {
+				var redirect = r.data && r.data.redirect;
+				if (r.ok && redirect && redirect.charAt(0) === '/' && redirect.charAt(1) !== '/') {
+					btn.textContent = S.copyDone || '';
+					window.location.href = redirect;
+				} else {
+					btn.disabled = false;
+					armed = false;
+					btn.textContent = (r.data && r.data.message) || S.networkError || '';
+				}
+			}).catch(function () {
+				btn.disabled = false;
+				armed = false;
+				btn.textContent = S.networkError || '';
+			});
+		});
+		return btn;
 	}
 
 	/** Proponowane pytania (server.js → i18n/suggestions.json) — klik = wysłanie pytania. */
@@ -287,6 +390,7 @@
 					state.handoffSent = true;
 					state.messages.push({ role: 'assistant', text: r.data.message, status: 'handoff_sent' });
 					render();
+					emit('answer', { status: 'handoff_sent', length: (r.data.message || '').length });
 					return;
 				}
 				submit.disabled = false;
@@ -326,6 +430,7 @@
 		ensureLoaded().then(function () {
 			state.messages.push({ role: 'user', text: question });
 			render();
+			emit('thinking');
 			return api('POST', '/assistant/ask', { question: question, page: pageContext() });
 		}).then(function (r) {
 			state.busy = false;
@@ -335,16 +440,22 @@
 			if (!d.answer) {
 				state.messages.push({ role: 'assistant', text: S.networkError || '', status: 'error' });
 			} else {
-				state.messages.push({ role: 'assistant', text: d.answer, status: d.status, highlight: d.highlight || null });
+				state.messages.push({ role: 'assistant', text: d.answer, status: d.status, highlight: d.highlight || null, refs: d.refs || null, tour: d.tour || null, id: d.messageId || null });
 				if (d.status === 'handoff') state.handoffSent = false;
 			}
 			render();
+			emit('answer', { status: d.answer ? d.status : 'error', length: (d.answer || '').length });
+			// Pokaz krok po kroku startuje sam (klient o niego prosił) — po chwili na przeczytanie zapowiedzi.
+			if (d.tour && d.tour.length && window.eformAssistant && window.eformAssistant.tour) {
+				setTimeout(function () { window.eformAssistant.tour.start(d.tour); }, 1200);
+			}
 			if (d.highlight && window.innerWidth >= 768) highlight(d.highlight);
 		}).catch(function () {
 			state.busy = false;
 			sendBtn.disabled = false;
 			state.messages.push({ role: 'assistant', text: S.networkError || '', status: 'error' });
 			render();
+			emit('answer', { status: 'error', length: 0 });
 		});
 	}
 
@@ -371,6 +482,7 @@
 		root.classList.toggle('ea-open', open);
 		launcher.setAttribute('aria-expanded', open ? 'true' : 'false');
 		storeSet(OPEN_KEY, open ? '1' : null);
+		emit(open ? 'open' : 'close');
 		if (open) {
 			ensureLoaded();
 			setTimeout(function () { textarea.focus(); }, 0);
@@ -434,6 +546,7 @@
 		api: api,
 		ensureLoaded: ensureLoaded,
 		open: function () { setOpen(true); },
+		close: function () { setOpen(false); },
 		isOpen: function () { return !panel.hidden; },
 		/** Dodaje wypowiedź (obiekt jest żywy: zmiana `text` + refresh() aktualizuje dymek). */
 		addMessage: function (m) { state.messages.push(m); scheduleRender(); return m; },

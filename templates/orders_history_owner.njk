@@ -27,7 +27,7 @@
                                 {{ __('orders.sent_date') }}</th>
                             <th scope="col">{{ __('orders.status') }}</th>
                             <th scope="col">{{ __('translate.delivery') }}</th>
-                            <th scope="col">{{ __('orders.tracking_numbers') or 'Numery przesyłek' }}</th>
+                            <th scope="col" data-col="tracking">{{ __('orders.tracking_numbers') or 'Numery przesyłek' }}</th>
                         {% endblock %}
                         {% block all_orders_btn %}
                             <div id='showAllOrders-container' class='mt-3'>

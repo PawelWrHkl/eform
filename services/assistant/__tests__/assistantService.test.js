@@ -66,8 +66,10 @@ test('poprawna odpowiedź: zwraca status, tekst i dozwolony highlight, zapisuje 
 	const session = {};
 	const r = await assistant.ask(session, baseInput, d);
 
-	assert.deepEqual(r, { status: 'answered', answer: 'Klicken Sie auf „Angebot kopieren".', highlight: 'copy_order' });
+	const { messageId, ...rest } = r;
+	assert.deepEqual(rest, { status: 'answered', answer: 'Klicken Sie auf „Angebot kopieren".', highlight: 'copy_order' });
 	assert.equal(session.assistant.messages.length, 2);
+	assert.equal(messageId, session.assistant.messages[1].id, 'id odpowiedzi — do oceny 👍/👎');
 	assert.equal(session.assistant.messages[0].role, 'user');
 	assert.equal(session.assistant.messages[1].highlight, 'copy_order');
 	assert.equal(d.logged.length, 1);
@@ -190,4 +192,21 @@ test('sesja trzyma najwyżej 40 wypowiedzi', async () => {
 	for (let i = 0; i < 25; i++) await assistant.ask(session, { ...baseInput, question: `p${i}` }, d);
 	assert.equal(session.assistant.messages.length, 40);
 	assert.equal(session.assistant.messages[39].role, 'assistant');
+});
+
+test('relevantHighlight: zostaje element, o którym mowa (także w innej odmianie), znika niezwiązany', () => {
+	const els = [
+		{ key: 'add_position', label: 'Dodaj pozycję' },
+		{ key: 'nav_employee_panel', label: 'Panel pracowników' },
+		{ key: 'nav_new_order', label: 'Utwórz nową ofertę' },
+		{ key: 'offer_row', label: null }
+	];
+	const f = assistant.relevantHighlight;
+	assert.equal(f('add_position', 'Na tym ekranie może Pan/Pani dodać pozycję lub wysłać zamówienie.', els), 'add_position');
+	assert.equal(f('nav_employee_panel', 'Obecnie nie ma zamówień sklepów oczekujących na zatwierdzenie.', els), null);
+	assert.equal(f('nav_new_order', 'Ikonka „i” pokazuje opis parametru.', els), null);
+	assert.equal(f('nav_new_order', 'Proszę kliknąć „Utwórz nową ofertę”.', els), 'nav_new_order');
+	assert.equal(f('offer_row', 'Kliknij wiersz.', els), 'offer_row', 'bez etykiety — nie da się sprawdzić');
+	assert.equal(f('nav_employee_panel', 'Pokażę.', els, [{ element: 'nav_employee_panel' }]), 'nav_employee_panel', 'pierwszy krok pokazu');
+	assert.equal(f(null, 'x', els), null);
 });

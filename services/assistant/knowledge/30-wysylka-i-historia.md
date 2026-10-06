@@ -37,6 +37,7 @@
 
 ## Kopiowanie zamówienia
 - Na liście „{{base.your_orders}}”: „{{orders.copy_offer}}”. Na liście „{{base.orders_history}}” i na liście zleceń anulowanych: „{{orders.reorder}}”.
+- Przycisk kopiowania jest tylko w wierszu listy. W podglądzie zamówienia (po kliknięciu w wiersz) go nie ma.
 1. Kliknij przycisk kopiowania przy zamówieniu.
 2. Potwierdź w oknie „{{orders.open_as_new}}” przyciskiem „{{orders.accept}}”.
 3. Pojawi się „{{orders.copied_success_label}}” i otworzy się nowa oferta z nowym numerem — można ją edytować i wysłać.

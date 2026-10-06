@@ -287,20 +287,31 @@ const assistantStrings = require('./services/assistant/strings');
 const assistantCatalog = require('./services/assistant/uiCatalog');
 const assistantSuggestions = require('./services/assistant/suggestions');
 const assistantKnowledge = require('./services/assistant/knowledge');
+const assistantPages = require('./services/assistant/pages');
+const assistantTools = require('./services/assistant/tools');
 app.use((req, res, next) => {
 	res.locals.assistantEnabled = false;
 	if (assistantConfig.mode !== 'off' && req.method === 'GET'
 		&& assistantAccess.isAllowed(req.session && req.session.user)) {
 		res.locals.assistantEnabled = true;
+		res.locals.assistantAvatar = !!assistantConfig.avatar.enabled;
 		res.locals.assistantBoot = JSON.stringify({
 			strings: assistantStrings.forLang(res.locals.locale),
 			catalog: assistantCatalog.clientMap(),
 			// Przycisk mikrofonu (rozmowa głosowa) — services/assistant/voice.
 			voice: !!assistantConfig.voice.enabled,
+			// Pokaz krok po kroku: ekrany i flagi kliknięcia elementów (tylko dostępne dla konta).
+			tour: assistantCatalog.clientTourMeta(assistantTools.scopeFromRequest(req, res.locals.locale)),
+			// Strony dla przejść w rozmowie głosowej (open_page) — tylko dostępne dla konta.
+			pages: Object.fromEntries(assistantPages.forScope(assistantTools.scopeFromRequest(req, res.locals.locale), res.locals.locale)
+				.map((p) => [p.key, p.href])),
+			// Dymek maskotki schowany „×" — do końca sesji (routes/assistant.js /bubble/hide).
+			bubbleHidden: !!req.session.assistantBubbleHidden,
 			// Proponowane pytania dla tego ekranu (i18n/suggestions.json) — faktury
 			// tylko dla kont z modułem, jak rozdział bazy wiedzy.
 			suggestions: assistantSuggestions.forPage(req.path, res.locals.locale, assistantKnowledge.flagsFor({
-				type: req.session.user.isGroupShop ? 'group_shop' : 'client'
+				type: req.session.user.isGroupShop ? 'group_shop'
+					: (req.session.user.isGroup || (req.session.context_user && req.session.context_user.isGroup)) ? 'group' : 'client'
 			}))
 		}).replace(/</g, '\\u003c');
 	}
@@ -396,6 +407,7 @@ if (assistantConfig.mode !== 'off') {
 	log(assistantConfig.voice.enabled
 		? `[assistant] rozmowa głosowa włączona (${assistantConfig.voice.model}, głos ${assistantConfig.voice.voice}, limit ${assistantConfig.voice.maxSessionMinutes} min/rozmowę, ${assistantConfig.voice.maxMinutesPerDay} min/dzień)`
 		: '[assistant] rozmowa głosowa wyłączona (ASSISTANT_VOICE_ENABLED)');
+	log(`[assistant] maskotka ${assistantConfig.avatar.enabled ? 'włączona' : 'wyłączona'} (ASSISTANT_AVATAR_ENABLED)`);
 } else {
 	log('[assistant] asystent WYŁĄCZONY — /assistant nie jest montowany');
 }

@@ -131,7 +131,7 @@ async function sendHandoff(p, deps = {}) {
 	const client = clientName && ident && clientName !== ident ? `${clientName} (${ident})` : (clientName || ident || 'nieznany klient');
 
 	const lines = [
-		'Klient poprosił o kontakt przez asystenta eForm.',
+		'Klient poprosił o kontakt przez Eforka (asystenta eForm).',
 		'',
 		`Klient: ${client}`,
 		`Organizacja: ${clean(profile.org_name, 160) || '-'}${orgIdent ? ` [${orgIdent}]` : ''}`,

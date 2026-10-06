@@ -60,7 +60,8 @@ function flagsFor(account, deps = {}) {
 	const features = deps.features || require('../../config').features || {};
 	const type = account && account.type;
 	return {
-		invoices: !!features.invoices && type !== 'group_shop'
+		invoices: !!features.invoices && type !== 'group_shop',
+		group: type === 'group'
 	};
 }
 

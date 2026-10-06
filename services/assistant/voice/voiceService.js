@@ -30,6 +30,9 @@ const prompt = require('../prompt');
 const uiCatalog = require('../uiCatalog');
 const realtimeClient = require('./realtimeClient');
 const { connectSideband } = require('./sideband');
+const toolsModule = require('../tools');
+const pages = require('../pages');
+const tourModule = require('../tour');
 
 const HISTORY_FOR_VOICE = 12;
 /** Ponowne połączenie po przejściu na inną stronę „kontynuuje" tylko świeżą rozmowę. */
@@ -54,8 +57,12 @@ function addUsage(userKey, seconds, now = Date.now()) {
 	usage.set(userKey, { day: today(now), seconds: used + Math.max(0, seconds) });
 }
 
-/** Narzędzia sesji głosowej. Enum `key` = elementy widoczne na ekranie w chwili połączenia. */
-function buildTools(availableKeys) {
+/**
+ * Narzędzia sesji głosowej. Enum `key` = elementy widoczne na ekranie w chwili połączenia,
+ * `page` = strony dostępne dla konta. Narzędzia z danymi konta (tools.js) wykonuje SERWER
+ * przez sideband; highlight/formularz/przejścia — przeglądarka (voice.js).
+ */
+function buildTools(availableKeys, pageKeys = [], scope = null) {
 	const tools = [{
 		type: 'function',
 		name: 'show_consultant_form',
@@ -67,6 +74,44 @@ function buildTools(availableKeys) {
 			additionalProperties: false
 		}
 	}];
+	if (pageKeys.length) {
+		tools.push({
+			type: 'function',
+			name: 'open_page',
+			description: 'Przechodzi w przeglądarce użytkownika na stronę portalu (rozmowa wznowi się na nowej stronie).',
+			parameters: {
+				type: 'object',
+				properties: { page: { type: 'string', enum: pageKeys } },
+				required: ['page'],
+				additionalProperties: false
+			}
+		});
+	}
+	if (scope && scope.userId) {
+		tools.push({
+			type: 'function',
+			name: 'open_order',
+			description: 'Otwiera zlecenie użytkownika (order_id z wyników find_orders/get_order).',
+			parameters: {
+				type: 'object',
+				properties: { order_id: { type: 'integer' } },
+				required: ['order_id'],
+				additionalProperties: false
+			}
+		});
+		tools.push(...toolsModule.realtimeTools(scope));
+	}
+	tools.push({
+		type: 'function',
+		name: 'start_tour',
+		description: 'Pokaz krok po kroku: Eforek prowadzi palcem po ekranach portalu (elementy z KATALOGU ELEMENTÓW).',
+		parameters: {
+			type: 'object',
+			properties: { steps: { type: 'array', items: tourModule.stepSchema(scope || {}) } },
+			required: ['steps'],
+			additionalProperties: false
+		}
+	});
 	if (availableKeys.length) {
 		tools.unshift({
 			type: 'function',
@@ -83,7 +128,7 @@ function buildTools(availableKeys) {
 	return tools;
 }
 
-function buildSessionConfig(instructions, availableKeys, cfg) {
+function buildSessionConfig(instructions, availableKeys, cfg, pageKeys = [], scope = null) {
 	return {
 		type: 'realtime',
 		model: cfg.model,
@@ -96,7 +141,7 @@ function buildSessionConfig(instructions, availableKeys, cfg) {
 			},
 			output: { voice: cfg.voice }
 		},
-		tools: buildTools(availableKeys),
+		tools: buildTools(availableKeys, pageKeys, scope),
 		tool_choice: 'auto'
 	};
 }
@@ -194,6 +239,11 @@ function handleEvent(call, ev, deps = {}) {
 				call.handoffSuggested = true;
 			}
 			call.toolCalls.push(ev.name);
+			// Dane konta — wykonuje serwer (przeglądarka ich nie zna i ich nie obsługuje).
+			if (toolsModule.SERVER_TOOLS.has(ev.name) && ev.call_id) {
+				call.serverToolResponses.add(ev.response_id || 'unknown');
+				runServerTool(call, ev, deps);
+			}
 			break;
 		}
 		case 'response.done': {
@@ -201,6 +251,16 @@ function handleEvent(call, ev, deps = {}) {
 			if (u) {
 				call.tokens.input += Number(u.input_tokens) || 0;
 				call.tokens.output += Number(u.output_tokens) || 0;
+			}
+			// Po odpowiedzi z narzędziem serwera: gdy wszystkie wyniki są już odesłane — model mówi dalej.
+			const rid = (ev.response && ev.response.id) || 'unknown';
+			if (call.serverToolResponses.has(rid) || call.serverToolResponses.has('unknown')) {
+				call.serverToolResponses.delete(rid);
+				call.serverToolResponses.delete('unknown');
+				Promise.all(call.pendingTools || []).then(() => {
+					call.pendingTools = [];
+					if (!call.ended && call.sideband) call.sideband.send({ type: 'response.create' });
+				});
 			}
 			break;
 		}
@@ -210,6 +270,24 @@ function handleEvent(call, ev, deps = {}) {
 		}
 		default:
 	}
+}
+
+/** Narzędzie z danymi konta w rozmowie głosowej: wynik → function_call_output (przez sideband). */
+function runServerTool(call, ev, deps = {}) {
+	let args = {};
+	try { args = JSON.parse(ev.arguments || '{}'); } catch (_) { args = {}; }
+	const run = deps.runTool || toolsModule.runTool;
+	const job = Promise.resolve(run(ev.name, args, call.scope, deps))
+		.catch(() => ({ error: 'temporary_failure' }))
+		.then((result) => {
+			if (call.ended || !call.sideband) return;
+			call.sideband.send({
+				type: 'conversation.item.create',
+				item: { type: 'function_call_output', call_id: ev.call_id, output: JSON.stringify(result).slice(0, 12000) }
+			});
+		});
+	call.pendingTools = (call.pendingTools || []).concat(job);
+	return job;
 }
 
 // ── start / koniec ─────────────────────────────────────────────────────────
@@ -249,18 +327,24 @@ async function startCall(p, deps = {}) {
 	const state = assistantService.getState(p.session);
 	flushInto(state);
 	const history = state.messages.slice(-HISTORY_FOR_VOICE).map((m) => ({ role: m.role, text: m.text }));
-	const elements = uiCatalog.describeAvailable(p.page && p.page.elements, p.lang, deps);
+	const scope = p.scope && p.scope.userId ? p.scope : null;
+	const elements = uiCatalog.describeAvailable(p.page && p.page.elements, p.lang, deps, scope);
 	const getKnowledge = deps.getKnowledgeText || knowledge.getKnowledgeText;
 	const getContact = deps.getContactText || knowledge.getContactText;
+	const pageList = pages.forScope(scope || { lang: p.lang }, p.lang, deps);
 	const instructions = prompt.buildVoiceInstructions(getKnowledge(p.lang, deps, knowledge.flagsFor(p.account, deps)), {
 		lang: p.lang,
 		account: p.account,
 		orgIdent: p.orgIdent,
 		page: p.page,
 		elements,
-		contactText: await getContact(p.orgIdent, p.lang)
+		contactText: await getContact(p.orgIdent, p.lang),
+		pages: pageList,
+		tools: scope ? toolsModule.realtimeTools(scope).map((t) => t.name) : [],
+		tourCatalog: uiCatalog.describeForTour(scope || {}, p.lang, deps),
+		voice: true
 	}, history);
-	const session = buildSessionConfig(instructions, elements.map((e) => e.key), cfg);
+	const session = buildSessionConfig(instructions, elements.map((e) => e.key), cfg, pageList.map((pg) => pg.key), scope);
 
 	const create = deps.createCall || ((args) => realtimeClient.createCall(args, cfg));
 	const { sdp, callId } = await create({ sdp: p.sdp, session, safetyId: assistantService.safetyId(p.userKey) });
@@ -276,6 +360,8 @@ async function startCall(p, deps = {}) {
 		toolCalls: [],
 		tokens: { input: 0, output: 0 },
 		handoffSuggested: false,
+		scope,
+		serverToolResponses: new Set(),
 		cfg,
 		ended: false,
 		sideband: null,

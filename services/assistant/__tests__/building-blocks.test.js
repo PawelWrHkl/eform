@@ -147,12 +147,13 @@ test('rozdziały warunkowe: <!-- wymaga: invoices --> tylko z flagą, <!-- wymag
 	assert.equal(knowledge.getKnowledgeText('pl', d), 'zawsze\n\nBEZ FAKTUR', 'bez flag — wariant bezpieczny');
 });
 
-test('flagsFor: faktury tylko przy włączonym module i nie dla konta sklepu grupy (jak menu portalu)', () => {
+test('flagsFor: faktury tylko przy włączonym module i nie dla konta sklepu grupy (jak menu portalu); group dla centrali grupy', () => {
 	const on = { features: { invoices: true } };
-	assert.deepEqual(knowledge.flagsFor({ type: 'client' }, on), { invoices: true });
-	assert.deepEqual(knowledge.flagsFor({ type: 'employee' }, on), { invoices: true });
-	assert.deepEqual(knowledge.flagsFor({ type: 'group_shop' }, on), { invoices: false });
-	assert.deepEqual(knowledge.flagsFor({ type: 'client' }, { features: { invoices: false } }), { invoices: false });
+	assert.deepEqual(knowledge.flagsFor({ type: 'client' }, on), { invoices: true, group: false });
+	assert.deepEqual(knowledge.flagsFor({ type: 'employee' }, on), { invoices: true, group: false });
+	assert.deepEqual(knowledge.flagsFor({ type: 'group_shop' }, on), { invoices: false, group: false });
+	assert.deepEqual(knowledge.flagsFor({ type: 'group' }, on), { invoices: true, group: true });
+	assert.deepEqual(knowledge.flagsFor({ type: 'client' }, { features: { invoices: false } }), { invoices: false, group: false });
 });
 
 test('etykiety {{inv:…}}: język panelu faktur, a dla fr/nl polski (tak jak w samym panelu)', () => {
@@ -183,30 +184,48 @@ test('dane kontaktowe: brak pliku marki → null, bez wyjątku', async () => {
 });
 
 // ── katalog elementów ─────────────────────────────────────────────────────
-test('każdy selektor katalogu istnieje w szablonach portalu', () => {
-	const templatesDir = path.join(REPO, 'templates');
-	const all = [];
-	(function walk(dir) {
-		for (const f of fs.readdirSync(dir)) {
-			const p = path.join(dir, f);
-			if (fs.statSync(p).isDirectory()) walk(p);
-			else if (f.endsWith('.njk')) all.push(fs.readFileSync(p, 'utf8'));
-		}
-	})(templatesDir);
-	const html = all.join('\n');
-	const themeToggle = fs.readFileSync(path.join(REPO, 'public/scripts/themeToggle.js'), 'utf8');
+test('każdy selektor katalogu istnieje w szablonach portalu (albo w skryptach dla elementów `js`)', () => {
+	const read = (dir, ext) => {
+		const all = [];
+		(function walk(d) {
+			for (const f of fs.readdirSync(d)) {
+				const p = path.join(d, f);
+				if (fs.statSync(p).isDirectory()) { if (f !== 'assistant') walk(p); } else if (f.endsWith(ext)) all.push(fs.readFileSync(p, 'utf8'));
+			}
+		})(path.join(REPO, dir));
+		return all.join('\n');
+	};
+	const html = read('templates', '.njk');
+	const scripts = read('public/scripts', '.js');
 
-	for (const entry of uiCatalog.CATALOG) {
-		// Pierwszy wariant selektora musi dać się znaleźć w źródłach (id/klasa/atrybut).
-		const sel = entry.selectors[0];
+	const check = (entry, sel, source) => {
 		const id = sel.match(/#([\w-]+)/);
 		const cls = sel.match(/\.([\w-]+)/);
-		const token = id ? id[1] : cls[1];
-		const found = id
-			? new RegExp(`id=["']${token}["']`).test(html) || themeToggle.includes(`'${token}'`)
-			: new RegExp(`class=["'][^"']*\\b${token}\\b`).test(html);
-		assert.ok(found, `${entry.key}: selektor ${sel} nie występuje w templates/`);
+		const attr = sel.match(/\[([\w-]+)[\^]?=?"?([^"\]]*)"?\]/);
+		let found;
+		if (id) found = new RegExp(`id=["']${id[1]}["']|\\.id = '${id[1]}'|['"]${id[1]}['"]`).test(source);
+		else if (cls) found = new RegExp(`class(Name)?=?["'][^"']*\\b${cls[1]}\\b|['"]${cls[1]}['"]|\\b${cls[1]}\\b`).test(source);
+		else found = source.includes(attr[2] || attr[1]);
+		if (found && attr && (id || cls)) found = source.includes(attr[2] || attr[1]);
+		assert.ok(found, `${entry.key}: selektor ${sel} nie występuje w ${source === scripts ? 'public/scripts' : 'templates/'}`);
+	};
+	for (const entry of uiCatalog.CATALOG) {
+		// Pierwszy wariant selektora musi dać się znaleźć w źródłach (id / klasa / atrybut),
+		// tak samo „pusty stan" listy.
+		check(entry, entry.selectors[0], entry.js ? scripts : html);
+		for (const sel of entry.empty || []) check(entry, sel, html);
 	}
+});
+
+test('katalog: ekrany istnieją, kliknięcie tylko dla przejść (nigdy zapis/wysyłka/usunięcie), navTo wskazuje stronę', () => {
+	const pagesMod = require('../pages');
+	const pageKeys = new Set(pagesMod.PAGES.map((p) => p.key));
+	for (const e of uiCatalog.CATALOG) {
+		assert.ok(e.screens.length && e.screens.every((sc) => uiCatalog.SCREENS[sc]), `${e.key}: ekran`);
+		if (e.navTo) assert.ok(pageKeys.has(e.navTo), `${e.key}: navTo ${e.navTo}`);
+	}
+	const NEVER_CLICK = ['send_order', 'send_order_list', 'submit_for_approval', 'delete_order', 'delete_position', 'duplicate_position', 'save_new_order', 'save_position', 'change_password_btn', 'permission_toggle', 'save_employee', 'cancel_order_btn', 'logout_btn', 'copy_order', 'print_pdf', 'print_short_pdf', 'export_excel', 'catalog_download', 'reset_form', 'group_approve_btn', 'group_reject_btn'];
+	for (const key of NEVER_CLICK) assert.ok(uiCatalog.BY_KEY.get(key) && !uiCatalog.BY_KEY.get(key).click, `${key} nie może być klikany przez Eforka`);
 });
 
 test('klucze katalogu są unikalne, opisane, a mapa dla przeglądarki ma wyłącznie selektory', () => {
@@ -221,9 +240,31 @@ test('klucze katalogu są unikalne, opisane, a mapa dla przeglądarki ma wyłąc
 	assert.ok(Object.values(map).every((v) => Array.isArray(v)));
 });
 
-test('describeAvailable pomija klucze spoza katalogu', () => {
+test('describeAvailable pomija klucze spoza katalogu, a z zakresem konta — także niedostępne dla konta', () => {
 	const out = uiCatalog.describeAvailable(['nav_history', 'zly', 'nav_history', 42], 'pl', { localesDir: os.tmpdir() });
 	assert.deepEqual(out.map((e) => e.key), ['nav_history']);
+	// Pracownik: przeglądarka (np. nieaktualna strona) zgłasza „Panel pracowników" i „Wyślij" — model ich nie dostaje.
+	const employee = { isEmployee: true, cancelCtx: { employeePermissions: { can_send_orders: false } } };
+	const emp = uiCatalog.describeAvailable(['nav_history', 'nav_employee_panel', 'send_order'], 'pl', { localesDir: os.tmpdir() }, employee);
+	assert.deepEqual(emp.map((e) => e.key), ['nav_history']);
+});
+
+test('uprawnienia w katalogu: wysyłka tylko z prawem wysyłki, zatwierdzanie tylko dla grupy, „do zatwierdzenia" tylko dla sklepu', () => {
+	const allowed = (key, scope) => uiCatalog.elementAllowed(uiCatalog.BY_KEY.get(key), scope);
+	const emp = (can) => ({ isEmployee: true, cancelCtx: { employeePermissions: { can_send_orders: can } } });
+	assert.equal(allowed('send_order', {}), true);
+	assert.equal(allowed('send_order', emp(false)), false);
+	assert.equal(allowed('send_order', emp(true)), true);
+	assert.equal(allowed('submit_for_approval', {}), false);
+	assert.equal(allowed('submit_for_approval', { isGroupShop: true }), true);
+	assert.equal(allowed('group_approve_btn', {}), false);
+	assert.equal(allowed('group_approve_btn', { isGroup: true }), true);
+	// Meta dla przeglądarki: „pojawi się po wyborze" i pusty stan list.
+	const meta = uiCatalog.clientTourMeta({ isGroup: true });
+	assert.equal(meta.elements.dynamic_form.w, 'choice');
+	assert.deepEqual(meta.elements.catalog_download.e, ['.panel-empty']);
+	assert.ok(meta.elements.group_approve_btn.e.length);
+	assert.equal(uiCatalog.clientTourMeta(emp(false)).elements.send_order, undefined);
 });
 
 // ── napisy ────────────────────────────────────────────────────────────────
@@ -288,16 +329,24 @@ test('suggestions.forPage: najpierw pytania ekranu, potem popularne, bez powtór
 	const s = require('../suggestions');
 	const q = (id, lang = 'pl') => s.DATA.questions[id][lang];
 	const home = s.forPage('/', 'pl', { invoices: true });
-	assert.deepEqual(home, ['new_order', 'copy_order', 'tracking', 'invoice', 'cancel'].map((id) => q(id)));
+	assert.deepEqual(home, ['my_last_order', 'new_order', 'copy_order', 'invoice', 'tracking'].map((id) => q(id)));
 	assert.ok(!s.forPage('/', 'pl', { invoices: false }).includes(q('invoice')), 'bez modułu faktur — bez pytania o fakturę');
 
 	const history = s.forPage('/orders/history', 'de', { invoices: false });
-	assert.equal(history[0], q('reorder', 'de'));
+	assert.equal(history[0], q('my_last_order', 'de'));
 	assert.equal(new Set(history).size, history.length, 'bez powtórzeń');
 	assert.equal(history.length, 5);
 
-	assert.equal(s.forPage('/orders/order/123', 'pl')[0], q('add_position'));
-	assert.equal(s.forPage('/orders/order/123/new-position/', 'pl')[0], q('option_blocked'));
-	assert.equal(s.forPage('/orders/history/order/55', 'pl')[0], q('tracking'));
-	assert.equal(s.forPage('/', 'xx')[0], q('new_order', 'en'), 'nieznany język → angielski');
+	assert.deepEqual(s.forPage('/orders/order/123', 'pl').slice(0, 2), [q('this_screen'), q('add_position')]);
+	assert.deepEqual(s.forPage('/orders/order/123/new-position/', 'pl').slice(0, 2), [q('this_screen'), q('option_blocked')]);
+	assert.deepEqual(s.forPage('/orders/history/order/55', 'pl').slice(0, 2), [q('this_screen'), q('tracking')]);
+	assert.equal(s.forPage('/orders/import-log', 'pl')[0], q('import_errors'));
+	assert.equal(s.forPage('/group/panel', 'pl', { group: true })[0], q('pending_list'));
+	assert.ok(!s.forPage('/group/panel', 'pl', { group: false }).includes(q('pending_list')), 'kolejka zatwierdzeń tylko dla centrali grupy');
+	assert.equal(s.forPage('/', 'xx')[0], q('my_last_order', 'en'), 'nieznany język → angielski');
+});
+
+test('kontekst: dzisiejsza data w czasie polskim (pytania „w tym miesiącu", „w zeszłym tygodniu")', () => {
+	const msg = prompt.buildContextMessage({ lang: 'pl', account: { type: 'client' }, page: {}, elements: [], now: Date.UTC(2026, 9, 4, 22, 30) });
+	assert.match(msg, /Dzisiaj: 2026-10-05 \(poniedziałek\)/);
 });

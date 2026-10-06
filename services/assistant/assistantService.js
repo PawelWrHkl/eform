@@ -26,6 +26,9 @@ const knowledge = require('./knowledge');
 const labels = require('./labels');
 const uiCatalog = require('./uiCatalog');
 const strings = require('./strings');
+const tools = require('./tools');
+const pages = require('./pages');
+const tourModule = require('./tour');
 
 const MAX_QUESTION_CHARS = 1000;
 /** Ile ostatnich wypowiedzi idzie do modelu jako historia. */
@@ -33,6 +36,8 @@ const HISTORY_FOR_MODEL = 12;
 /** Ile wypowiedzi trzymamy w sesji (transkrypt dla konsultanta). */
 const MAX_STORED_MESSAGES = 40;
 const MAX_ANSWER_CHARS = 2000;
+/** Ile razy model może sięgnąć po narzędzia, zanim musi odpowiedzieć. */
+const MAX_TOOL_ROUNDS = 3;
 
 function emptyState() {
 	return { id: crypto.randomUUID(), startedAt: new Date().toISOString(), messages: [], handoff: null, lastHandoffReason: null };
@@ -50,7 +55,8 @@ function resetState(session) {
 }
 
 function pushMessage(state, msg) {
-	state.messages.push({ ...msg, at: new Date().toISOString() });
+	// id — do oceny odpowiedzi (👍/👎) bez polegania na pozycji w liście.
+	state.messages.push({ ...msg, id: crypto.randomBytes(6).toString('hex'), at: new Date().toISOString() });
 	if (state.messages.length > MAX_STORED_MESSAGES) state.messages.splice(0, state.messages.length - MAX_STORED_MESSAGES);
 }
 
@@ -96,7 +102,28 @@ function parseModelReply(text, availableKeys) {
 	const answer = typeof data.answer === 'string' ? data.answer.trim().slice(0, MAX_ANSWER_CHARS) : '';
 	if (!answer) return null;
 	const highlight = typeof data.highlight === 'string' && availableKeys.includes(data.highlight) ? data.highlight : null;
-	return { status: data.status, answer, highlight };
+	const reply = { status: data.status, answer, highlight };
+	// Kroki pokazu weryfikuje ask() (zależą od konta) — tu tylko przekazujemy surowe.
+	if (Array.isArray(data.tour) && data.tour.length) Object.defineProperty(reply, 'rawTour', { value: data.tour, enumerable: false });
+	return reply;
+}
+
+/**
+ * Podświetlenie musi dotyczyć tego, o czym mowa: model lubi dokleić dowolny
+ * element z ekranu (np. „Panel pracowników" przy pytaniu o zatwierdzenia).
+ * Zostaje, gdy odpowiedź wspomina etykietę elementu (rdzeń dowolnego słowa
+ * etykiety ≥ 4 litery — odmiana: „Dodaj pozycję" ↔ „dodać pozycję"), gdy to
+ * pierwszy krok pokazu, albo gdy element nie ma etykiety (nie da się sprawdzić).
+ */
+function relevantHighlight(key, answer, elements, tour) {
+	if (!key) return null;
+	if (tour && tour.length && tour[0].element === key) return key;
+	const el = (elements || []).find((e) => e.key === key);
+	if (!el || !el.label) return key;
+	const norm = (t) => String(t || '').toLocaleLowerCase('pl').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
+	const text = norm(answer);
+	const stems = norm(el.label).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4).map((w) => w.slice(0, Math.max(4, Math.min(6, w.length - 2))));
+	return !stems.length || stems.some((st) => text.includes(st)) ? key : null;
 }
 
 /** Skrót identyfikatora klienta dla OpenAI (wykrywanie nadużyć bez danych osobowych). */
@@ -134,52 +161,102 @@ async function ask(session, input, deps = {}) {
 	const history = state.messages.slice(-HISTORY_FOR_MODEL);
 	pushMessage(state, { role: 'user', text: question });
 
+	// Zakres danych konta (tools.scopeFromRequest) — bez niego Eforek nie ma narzędzi,
+	// tylko bazę wiedzy (np. w testach i w scripts/assistantEval.js).
+	const scope = input.scope && input.scope.userId ? input.scope : null;
+
 	const page = input.page || {};
-	const elements = uiCatalog.describeAvailable(page.elements, lang, deps);
+	const elements = uiCatalog.describeAvailable(page.elements, lang, deps, scope);
 	const availableKeys = elements.map((e) => e.key);
+	const toolDefs = scope ? tools.responsesTools(scope) : [];
+	const pageList = pages.forScope(scope || { lang }, lang, deps);
 
 	let result;
 	let reason = null;
-	let usageInfo = null;
+	const usageInfo = { in: 0, out: 0 };
+	const toolLog = [];
 	try {
 		const getKnowledge = deps.getKnowledgeText || knowledge.getKnowledgeText;
 		const getContact = deps.getContactText || knowledge.getContactText;
 		const contactText = await getContact(input.orgIdent, lang);
 
-		const body = {
-			model: cfg.model,
-			instructions: prompt.buildInstructions(getKnowledge(lang, deps, knowledge.flagsFor(input.account, deps))),
-			input: [
-				...history.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text })),
-				{
-					role: 'developer',
-					content: prompt.buildContextMessage({
-						lang,
-						account: input.account,
-						orgIdent: input.orgIdent,
-						page,
-						elements,
-						contactText
-					})
-				},
-				{ role: 'user', content: question }
-			],
-			text: { format: prompt.buildResponseFormat(availableKeys), verbosity: 'low' },
-			reasoning: { effort: cfg.reasoningEffort },
-			max_output_tokens: 3000,
-			// Rozmowy klientów nie są przechowywane po stronie OpenAI.
-			store: false,
-			safety_identifier: safetyId(input.userKey)
-		};
-
+		const conversation = [
+			...history.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text })),
+			{
+				role: 'developer',
+				content: prompt.buildContextMessage({
+					lang,
+					account: input.account,
+					orgIdent: input.orgIdent,
+					page,
+					elements,
+					contactText,
+					pages: pageList,
+					tools: toolDefs.map((t) => t.name),
+					tourCatalog: uiCatalog.describeForTour(scope || {}, lang, deps)
+				})
+			},
+			{ role: 'user', content: question }
+		];
+		const instructions = prompt.buildInstructions(getKnowledge(lang, deps, knowledge.flagsFor(input.account, deps)));
 		const call = deps.createResponse || ((b) => openaiClient.createResponse(b, cfg));
-		const payload = await call(body);
-		usageInfo = payload && payload.usage ? { in: payload.usage.input_tokens, out: payload.usage.output_tokens } : null;
-		const out = openaiClient.extractOutput(payload);
+		const runTool = deps.runTool || tools.runTool;
+
+		// Pętla narzędzi: model może kilka razy poprosić o dane (find_orders → get_order…),
+		// w ostatniej rundzie narzędzia są wyłączone, więc musi odpowiedzieć.
+		let out = null;
+		for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+			const body = {
+				model: cfg.model,
+				instructions,
+				input: conversation,
+				text: { format: prompt.buildResponseFormat(availableKeys, tourModule.stepSchema(scope || {})), verbosity: 'low' },
+				reasoning: { effort: cfg.reasoningEffort },
+				max_output_tokens: 3000,
+				// Rozmowy klientów nie są przechowywane po stronie OpenAI.
+				store: false,
+				safety_identifier: safetyId(input.userKey)
+			};
+			if (toolDefs.length) {
+				body.tools = toolDefs;
+				body.tool_choice = round < MAX_TOOL_ROUNDS ? 'auto' : 'none';
+				// store:false → rozumowanie modelu wraca do nas zaszyfrowane i odsyłamy je w kolejnej rundzie.
+				body.include = ['reasoning.encrypted_content'];
+			}
+			const payload = await call(body);
+			if (payload && payload.usage) {
+				usageInfo.in += Number(payload.usage.input_tokens) || 0;
+				usageInfo.out += Number(payload.usage.output_tokens) || 0;
+			}
+			const calls = (Array.isArray(payload && payload.output) ? payload.output : []).filter((it) => it && it.type === 'function_call');
+			if (calls.length && round < MAX_TOOL_ROUNDS) {
+				conversation.push(...payload.output);
+				for (const c of calls) {
+					let args = {};
+					try { args = JSON.parse(c.arguments || '{}'); } catch (_) { args = {}; }
+					const res = await runTool(c.name, args, scope, deps);
+					toolLog.push({ name: c.name, args, error: (res && res.error) || null });
+					conversation.push({ type: 'function_call_output', call_id: c.call_id, output: JSON.stringify(res).slice(0, 12000) });
+				}
+				continue;
+			}
+			out = openaiClient.extractOutput(payload);
+			break;
+		}
 		if (out.refusal) reason = 'refusal';
 		else if (out.status && out.status !== 'completed') reason = `incomplete:${out.reason || out.status}`;
 		result = reason ? null : parseModelReply(out.text, availableKeys);
 		if (!result && !reason) reason = 'bad_reply';
+		if (result) {
+			const steps = tourModule.sanitizeTour(result.rawTour, scope || {});
+			if (steps.length) result.tour = steps;
+			result.highlight = relevantHighlight(result.highlight, result.answer, elements, result.tour);
+			// [[page:…]] / [[order:ID]] / [[action:copy:ID]] → odnośniki (zlecenia sprawdzane w zakresie konta).
+			const resolveRefs = deps.resolveRefs || tools.resolveRefs;
+			const r = await resolveRefs(result.answer, scope, lang, deps);
+			result.answer = r.text || result.answer;
+			if (r.refs && Object.keys(r.refs).length) result.refs = r.refs;
+		}
 	} catch (err) {
 		reason = err && err.code ? `api:${err.code}` : 'api:error';
 		(deps.log || log)('[assistant] błąd wywołania modelu:', err && err.message);
@@ -190,7 +267,8 @@ async function ask(session, input, deps = {}) {
 	}
 	if (result.status === 'handoff') state.lastHandoffReason = reason || 'model_handoff';
 
-	pushMessage(state, { role: 'assistant', text: result.answer, status: result.status, highlight: result.highlight });
+	pushMessage(state, { role: 'assistant', text: result.answer, status: result.status, highlight: result.highlight, refs: result.refs || null, tour: result.tour || null });
+	result.messageId = state.messages[state.messages.length - 1].id;
 
 	appendConversationLog({
 		at: new Date().toISOString(),
@@ -204,11 +282,39 @@ async function ask(session, input, deps = {}) {
 		status: result.status,
 		answer: result.answer,
 		highlight: result.highlight,
+		tour: result.tour ? result.tour.map((st) => `${st.element || st.page}${st.click ? '*' : ''}`) : undefined,
+		tools: toolLog.length ? toolLog : undefined,
 		reason,
-		usage: usageInfo
+		usage: usageInfo.in || usageInfo.out ? usageInfo : null
 	}, deps);
 
 	return reason ? { ...result, reason } : result;
+}
+
+/**
+ * Ocena odpowiedzi Eforka przez klienta (👍 'up' / 👎 'down'). Zapisuje ją przy
+ * wiadomości i w dzienniku rozmów — scripts/assistantGaps.js zbiera 👎 jako luki.
+ * @returns {boolean} false, gdy nie ma takiej odpowiedzi w tej rozmowie
+ */
+function rateMessage(state, messageId, value, meta = {}, deps = {}) {
+	if (value !== 'up' && value !== 'down') return false;
+	const i = state.messages.findIndex((m) => m.id === messageId && m.role === 'assistant');
+	if (i < 0) return false;
+	const m = state.messages[i];
+	m.feedback = value;
+	const question = state.messages.slice(0, i).reverse().find((x) => x.role === 'user');
+	appendConversationLog({
+		at: new Date().toISOString(),
+		type: 'feedback',
+		conversation: state.id,
+		user: meta.userKey || null,
+		lang: meta.lang || null,
+		value,
+		question: question ? question.text : null,
+		answer: m.text,
+		status: m.status || null
+	}, deps);
+	return true;
 }
 
 /** Komunikat systemowy w transkrypcie (np. potwierdzenie przekazania) — bez wywołania modelu. */
@@ -223,7 +329,11 @@ function publicMessages(state) {
 		text: m.text,
 		status: m.status || null,
 		highlight: m.highlight || null,
-		voice: m.channel === 'voice'
+		refs: m.refs || null,
+		tour: m.tour || null,
+		voice: m.channel === 'voice',
+		id: m.id || null,
+		feedback: m.feedback || null
 	}));
 }
 
@@ -232,11 +342,13 @@ module.exports = {
 	getState,
 	resetState,
 	addNote,
+	rateMessage,
 	appendMessage: pushMessage,
 	appendConversationLog,
 	safetyId,
 	publicMessages,
 	parseModelReply,
+	relevantHighlight,
 	takeQuota,
 	MAX_QUESTION_CHARS,
 	_usage: usage

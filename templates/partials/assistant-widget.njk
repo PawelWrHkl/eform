@@ -2,7 +2,12 @@
    public/scripts/assistant/widget.js (jedno miejsce, bez duplikacji w szablonie).
    `assistantBoot` to gotowy JSON z server.js (z `<` jako <). #}
 <link rel="stylesheet" href="/styles/assistant.css?v={{ assetVersion }}">
+{% if assistantAvatar %}<link rel="stylesheet" href="/styles/assistant-avatar.css?v={{ assetVersion }}">{% endif %}
 <script>window.eformAssistantBoot = {{ assistantBoot | safe }};</script>
 <script src="/scripts/assistant/widget.js?v={{ assetVersion }}" defer></script>
 {# Rozmowa głosowa — sama się wyłącza bez flagi `voice`, mikrofonu albo WebRTC. #}
 <script src="/scripts/assistant/voice.js?v={{ assetVersion }}" defer></script>
+{# Pokaz krok po kroku (palec Eforka) — kroki z czatu i z narzędzia głosowego start_tour. #}
+<script src="/scripts/assistant/tour.js?v={{ assetVersion }}" defer></script>
+{# Maskotka (ASSISTANT_AVATAR_ENABLED) — po voice.js, bo słucha jego zdarzeń. #}
+{% if assistantAvatar %}<script src="/scripts/assistant/avatar.js?v={{ assetVersion }}" defer></script>{% endif %}

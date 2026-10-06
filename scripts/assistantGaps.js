@@ -11,7 +11,8 @@
  * powtórzeń. Pytania `handoff` z powodu „asystent nie znał odpowiedzi"
  * (bez `reason` technicznego) to kandydaci do dopisania w
  * services/assistant/knowledge/*.md. Awarie API (`reason: api:*`) są liczone
- * osobno — to nie luki w wiedzy.
+ * osobno — to nie luki w wiedzy. Na końcu: odpowiedzi ocenione przez klientów 👎
+ * (wpisy `type: feedback`) — treść pytania i odpowiedzi, do poprawy w bazie wiedzy.
  *
  * Tylko odczyt plików, bez bazy i bez sieci.
  */
@@ -33,6 +34,8 @@ const groups = { handoff: new Map(), off_topic: new Map() };
 let technical = 0;
 let answered = 0;
 let total = 0;
+const disliked = [];
+let liked = 0;
 
 for (let i = 0; i < days; i++) {
 	const day = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
@@ -42,6 +45,11 @@ for (let i = 0; i < days; i++) {
 		if (!line.trim()) continue;
 		let e;
 		try { e = JSON.parse(line); } catch (_) { continue; }
+		if (e.type === 'feedback') {
+			if (e.value === 'up') liked++;
+			else if (e.value === 'down') disliked.push(e);
+			continue;
+		}
 		if (e.type || !e.question) continue; // wpisy rozmów głosowych mają `type`
 		total++;
 		if (e.status === 'answered') { answered++; continue; }
@@ -68,4 +76,10 @@ for (const [status, title] of [['handoff', 'PRZEKAZANE KONSULTANTOWI (kandydaci 
 		console.log(`      [${[...it.langs].join(',')}] ${[...it.paths].slice(0, 3).join(' ')}`);
 	}
 	console.log('');
+}
+
+console.log(`── OCENY KLIENTÓW: 👍 ${liked}, 👎 ${disliked.length}`);
+for (const e of disliked.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 50)) {
+	console.log(`👎 [${e.lang || '-'}] ${String(e.question || '').replace(/\s+/g, ' ').slice(0, 140)}`);
+	console.log(`      → ${String(e.answer || '').replace(/\s+/g, ' ').slice(0, 200)}`);
 }

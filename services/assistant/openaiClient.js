@@ -20,15 +20,50 @@ class AssistantApiError extends Error {
 	}
 }
 
+// Ponawianie po chwilowych błędach: limit tokenów/zapytań na minutę (429 — wspólny dla
+// całej organizacji OpenAI, więc przy wielu klientach naraz zdarza się w szczycie)
+// i przeciążenie po stronie OpenAI (500/502/503). Brak środków na koncie
+// (insufficient_quota) też ma kod 429, ale ponawianie nic nie da.
+const RETRY_STATUSES = new Set([429, 500, 502, 503]);
+const MAX_ATTEMPTS = 4;
+const MAX_WAIT_MS = 5000;
+
+/** Ile czekać przed ponowieniem: nagłówki retry-after(-ms), „try again in 1.3s/62ms" z treści, inaczej rosnąco. */
+function retryDelay(res, message, attempt) {
+	const h = (name) => (res && res.headers && typeof res.headers.get === 'function' ? res.headers.get(name) : null);
+	let ms = Number(h('retry-after-ms'));
+	if (!(ms > 0)) ms = Number(h('retry-after')) * 1000;
+	if (!(ms > 0)) {
+		const m = /try again in ([\d.]+)\s*(ms|s)\b/i.exec(message || '');
+		if (m) ms = Number(m[1]) * (m[2].toLowerCase() === 's' ? 1000 : 1);
+	}
+	if (!(ms > 0)) ms = 500 * 2 ** (attempt - 1);
+	// Odrobina losowości, żeby kilka czekających rozmów nie wróciło w tej samej milisekundzie.
+	return Math.min(MAX_WAIT_MS, Math.ceil(ms) + 150 + Math.floor(Math.random() * 250));
+}
+
 /**
  * @param {object} body treść żądania Responses API
  * @param {{apiKey:string, apiUrl:string, timeoutMs:number}} cfg
- * @param {{fetch?:Function}} [deps]
+ * @param {{fetch?:Function, sleep?:Function}} [deps]
  * @returns {Promise<object>} surowa odpowiedź API
  */
 async function createResponse(body, cfg, deps = {}) {
-	const fetchImpl = deps.fetch || globalThis.fetch;
 	if (!cfg.apiKey) throw new AssistantApiError('Brak OPENAI_API_KEY', { code: 'no_api_key' });
+	const sleep = deps.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return await requestOnce(body, cfg, deps);
+		} catch (err) {
+			const retryable = err instanceof AssistantApiError && RETRY_STATUSES.has(err.status) && err.code !== 'insufficient_quota';
+			if (!retryable || attempt >= MAX_ATTEMPTS) throw err;
+			await sleep(retryDelay(err.response, err.message, attempt));
+		}
+	}
+}
+
+async function requestOnce(body, cfg, deps) {
+	const fetchImpl = deps.fetch || globalThis.fetch;
 
 	let res;
 	try {
@@ -55,10 +90,12 @@ async function createResponse(body, cfg, deps = {}) {
 
 	if (!res.ok) {
 		const apiMessage = payload && payload.error && payload.error.message;
-		throw new AssistantApiError(`OpenAI HTTP ${res.status}: ${apiMessage || 'brak treści błędu'}`, {
+		const err = new AssistantApiError(`OpenAI HTTP ${res.status}: ${apiMessage || 'brak treści błędu'}`, {
 			status: res.status,
 			code: (payload && payload.error && payload.error.code) || 'http_error'
 		});
+		Object.defineProperty(err, 'response', { value: res, enumerable: false });
+		throw err;
 	}
 	if (!payload) throw new AssistantApiError('OpenAI: odpowiedź nie jest JSON-em', { code: 'bad_payload' });
 	return payload;
@@ -88,4 +125,4 @@ function extractOutput(payload) {
 	return out;
 }
 
-module.exports = { createResponse, extractOutput, AssistantApiError };
+module.exports = { createResponse, extractOutput, AssistantApiError, _retryDelay: retryDelay };

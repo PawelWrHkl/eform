@@ -1,0 +1,263 @@
+/* =============================================================================
+   Asystent eForm — maskotka „Eforek" (mały biały piesek, własny projekt)
+   public/scripts/assistant/avatar.js. Stan = [data-state] na .ea-avatar.
+   Ładowane tylko przy ASSISTANT_AVATAR_ENABLED=true.
+   ============================================================================= */
+
+.ea-avatar {
+	--av-fur: #ffffff;
+	--av-line: #bfc7d2;
+	--av-chest: #f1f4f8;
+	--av-muzzle: #f7f8fa;
+	--av-ear: #efe2cd;
+	--av-ear-line: #d9c8ad;
+	--av-ink: #26262b;
+	--av-cheek: #f6a9a3;
+	--av-mouth-in: #7d2f36;
+	--av-tongue: #f28b9a;
+	--av-collar: #e0574a;
+	--av-tag: #f4c542;
+	--mouth: 0;
+	display: inline-block;
+	flex: none;
+	line-height: 0;
+}
+
+.ea-avatar svg { width: 100%; height: 100%; overflow: visible; display: block; }
+.ea-avatar .av-fur { fill: var(--av-fur); stroke: var(--av-line); stroke-width: 1.3; stroke-linejoin: round; }
+.ea-avatar .av-chest { fill: var(--av-chest); }
+.ea-avatar .av-muzzle { fill: var(--av-muzzle); stroke: #e3e7ed; stroke-width: 0.8; }
+.ea-avatar .av-ear-fill { fill: var(--av-ear); stroke: var(--av-ear-line); stroke-width: 1.2; stroke-linejoin: round; }
+.ea-avatar .av-toe { fill: none; stroke: var(--av-line); stroke-width: 1; stroke-linecap: round; }
+.ea-avatar .av-tuft { fill: none; stroke: var(--av-line); stroke-width: 1.4; stroke-linecap: round; }
+.ea-avatar .av-cheek { fill: var(--av-cheek); opacity: 0.5; }
+.ea-avatar .av-pupil,
+.ea-avatar .av-nose { fill: var(--av-ink); }
+.ea-avatar .av-glint { fill: #fff; }
+.ea-avatar .av-smile,
+.ea-avatar .av-brows path { fill: none; stroke: #4a4a52; stroke-width: 1.3; stroke-linecap: round; }
+.ea-avatar .av-mouth-in { fill: var(--av-mouth-in); }
+.ea-avatar .av-tongue { fill: var(--av-tongue); }
+.ea-avatar .av-collar-band { fill: none; stroke: var(--av-collar); stroke-width: 3.4; stroke-linecap: round; }
+.ea-avatar .av-tag { fill: var(--av-tag); stroke: #d4a52c; stroke-width: 0.8; }
+.ea-avatar .av-shadow { fill: rgba(15, 23, 42, 0.16); }
+
+/* Elementy pokazywane tylko w danym stanie */
+.ea-avatar .av-brows,
+.ea-avatar .av-think,
+.ea-avatar .av-waves { opacity: 0; transition: opacity 0.2s ease; }
+.ea-avatar .av-waves path { fill: none; stroke: var(--brand-accent, #6b9dad); stroke-width: 2; stroke-linecap: round; }
+.ea-avatar .av-think circle,
+.ea-avatar .av-think .av-cloud { fill: #fff; stroke: #4a4a52; stroke-width: 0.8; }
+.ea-avatar .av-think .av-dots circle { fill: #4a4a52; stroke: none; }
+
+/* Pyszczek: zamknięty = uśmiech; otwarty = skala (--mouth 0…1) */
+.ea-avatar .av-mouth { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(var(--mouth)); }
+.ea-avatar .av-smile { opacity: calc(1 - var(--mouth) * 1.5); }
+
+/* Punkty obrotu */
+.ea-avatar .av-head,
+.ea-avatar .av-body,
+.ea-avatar .av-eyes,
+.ea-avatar .av-eye,
+.ea-avatar .av-ear,
+.ea-avatar .av-tail,
+.ea-avatar .av-paw-r { transform-box: fill-box; }
+.ea-avatar .av-head { transform-origin: 50% 90%; }
+.ea-avatar .av-body { transform-origin: 50% 100%; }
+.ea-avatar .av-eye { transform-origin: 50% 50%; }
+.ea-avatar .av-ear-l { transform-origin: 70% 4%; }
+.ea-avatar .av-ear-r { transform-origin: 30% 4%; }
+.ea-avatar .av-tail { transform-origin: 8% 92%; }
+.ea-avatar .av-paw-r { transform-origin: 50% 4%; }
+
+/* ── idle: oddech, mruganie, merdanie ── */
+.ea-avatar .av-body { animation: av-breathe 3.6s ease-in-out infinite; }
+.ea-avatar .av-eye { animation: av-blink 4.8s infinite; }
+.ea-avatar .av-tail { animation: av-wag-idle 5s ease-in-out infinite; }
+.ea-avatar .av-ear,
+.ea-avatar .av-head { transition: transform 0.25s ease; }
+
+@keyframes av-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.012, 1.03); } }
+@keyframes av-blink { 0%, 93%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.12); } }
+@keyframes av-wag-idle {
+	0%, 62%, 100% { transform: rotate(0); }
+	68%, 80% { transform: rotate(-16deg); }
+	74%, 86% { transform: rotate(10deg); }
+}
+@keyframes av-wag-fast { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(14deg); } }
+
+/* ── wave: łapa w górę, macha; ogon merda ── */
+.ea-avatar[data-state="wave"] .av-paw-r { animation: av-wave 0.8s ease-in-out 2; }
+.ea-avatar[data-state="wave"] .av-tail { animation: av-wag-fast 0.3s ease-in-out infinite; }
+.ea-avatar[data-state="wave"] .av-head { transform: rotate(-6deg); }
+@keyframes av-wave {
+	0%, 100% { transform: rotate(0); }
+	20%, 80% { transform: rotate(-112deg); }
+	50% { transform: rotate(-138deg); }
+}
+
+/* ── thinking ── */
+.ea-avatar[data-state="thinking"] .av-think { opacity: 1; }
+.ea-avatar[data-state="thinking"] .av-eyes { transform: translate(2px, -2px); }
+.ea-avatar[data-state="thinking"] .av-head { transform: rotate(6deg); }
+.ea-avatar[data-state="thinking"] .av-dots circle { animation: av-dot 1.2s ease-in-out infinite; }
+.ea-avatar[data-state="thinking"] .av-dots circle:nth-child(2) { animation-delay: 0.2s; }
+.ea-avatar[data-state="thinking"] .av-dots circle:nth-child(3) { animation-delay: 0.4s; }
+@keyframes av-dot { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+
+/* ── talking (czat) ── */
+.ea-avatar[data-state="talking"] .av-mouth { animation: av-talk 0.28s ease-in-out infinite alternate; }
+.ea-avatar[data-state="talking"] .av-smile { opacity: 0; }
+.ea-avatar[data-state="talking"] .av-head { animation: av-nod 1.4s ease-in-out infinite; }
+.ea-avatar[data-state="talking"] .av-tail { animation: av-wag-fast 0.5s ease-in-out infinite; }
+@keyframes av-talk { from { transform: scaleY(0.15); } to { transform: scaleY(1); } }
+@keyframes av-nod { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(2.5deg); } }
+
+/* ── speaking (głos — pyszczek z JS przez --mouth) ── */
+.ea-avatar[data-state="speaking"] .av-head { animation: av-nod 1.8s ease-in-out infinite; }
+
+/* ── listening (głos): uszy w górę, fale ── */
+.ea-avatar[data-state="listening"] .av-ear-l { transform: rotate(28deg); }
+.ea-avatar[data-state="listening"] .av-ear-r { transform: rotate(-28deg); }
+.ea-avatar[data-state="listening"] .av-head { transform: rotate(-6deg); }
+.ea-avatar[data-state="listening"] .av-waves { opacity: 1; }
+.ea-avatar[data-state="listening"] .av-waves path { animation: av-wave-pulse 1.4s ease-in-out infinite; }
+.ea-avatar[data-state="listening"] .av-waves path:nth-child(2) { animation-delay: 0.25s; }
+@keyframes av-wave-pulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+
+/* ── sorry / shake / happy ── */
+.ea-avatar[data-state="sorry"] .av-brows { opacity: 1; }
+.ea-avatar[data-state="sorry"] .av-ear-l { transform: rotate(-10deg); }
+.ea-avatar[data-state="sorry"] .av-ear-r { transform: rotate(10deg); }
+.ea-avatar[data-state="sorry"] .av-head { transform: rotate(-3deg) translateY(1.5px); }
+.ea-avatar[data-state="sorry"] .av-tail { animation: none; transform: rotate(18deg); }
+.ea-avatar[data-state="sorry"] .av-smile { transform: translateY(2px) scaleY(-1); transform-box: fill-box; transform-origin: 50% 50%; }
+.ea-avatar[data-state="shake"] .av-head { animation: av-shake 0.36s ease-in-out 3; }
+@keyframes av-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-7deg); } 75% { transform: rotate(7deg); } }
+.ea-avatar[data-state="happy"] .av-body,
+.ea-avatar[data-state="happy"] .av-head,
+.ea-avatar[data-state="happy"] .av-paw-r { animation: av-hop 0.45s ease-out 3; }
+.ea-avatar[data-state="happy"] .av-tail { animation: av-wag-fast 0.25s ease-in-out infinite; }
+@keyframes av-hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+/* ── w nagłówku okna ── */
+.ea-avatar-header {
+	width: 42px;
+	height: 42px;
+	margin: -6px 2px -6px -6px;
+	padding: 3px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.95);
+	box-sizing: border-box;
+}
+.ea-avatar-on .ea-title { white-space: nowrap; }
+.ea-avatar-on .ea-subtitle { font-size: 11.5px; line-height: 1.25; }
+
+/* ── przycisk = piesek z dymkiem ── */
+.ea-pet {
+	position: fixed;
+	right: 16px;
+	bottom: calc(var(--ea-bottom) - 10px);
+	z-index: 1045;
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+}
+#eform-assistant.ea-open .ea-pet { display: none; }
+
+.ea-pet .ea-launcher.ea-has-avatar {
+	/* relative, nie static: globalne `button::after` (theme.css) ma position:absolute —
+	   przy static rozlewał się na cały .ea-pet i przechwytywał kliknięcia w dymek. */
+	position: relative;
+	/* zero przesunięć z ogólnego .ea-launcher (right/bottom dla position: fixed) —
+	   przy relative przesuwałyby pieska na dymek */
+	inset: auto;
+	flex: none;
+	width: 84px;
+	height: 84px;
+	padding: 0;
+	border-radius: 50%;
+	background: transparent;
+	box-shadow: none;
+	justify-content: center;
+}
+.ea-pet .ea-launcher.ea-has-avatar:hover { background: transparent; }
+.ea-pet .ea-launcher.ea-has-avatar:hover .ea-avatar { transform: translateY(-3px); }
+.ea-pet .ea-launcher.ea-has-avatar > svg:not(.av-svg),
+.ea-pet .ea-launcher-text { display: none; }
+.ea-avatar-launcher { width: 84px; height: 84px; transition: transform 0.2s ease; filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.18)); }
+
+.ea-bubble-wrap {
+	position: relative;
+	z-index: 1;
+	min-width: 0;
+	margin-bottom: 46px;
+	animation: ea-bubble-in 0.35s ease-out both;
+}
+.ea-pet.ea-bubble-hidden .ea-bubble-wrap { display: none; }
+
+#eform-assistant .ea-bubble {
+	display: block;
+	max-width: 230px;
+	padding: 10px 28px 10px 14px;
+	border: 1px solid var(--ea-border);
+	border-radius: 16px 16px 4px 16px;
+	background: var(--ea-surface);
+	color: var(--ea-text);
+	font: inherit;
+	font-size: 13.5px;
+	font-weight: 600;
+	line-height: 1.35;
+	text-align: left;
+	cursor: pointer;
+	box-shadow: 0 10px 28px rgba(15, 23, 42, 0.2);
+}
+#eform-assistant .ea-bubble:hover { border-color: var(--ea-accent); }
+/* ogonek dymka w stronę pieska */
+.ea-bubble-wrap::after {
+	content: "";
+	position: absolute;
+	right: -7px;
+	bottom: 6px;
+	width: 14px;
+	height: 14px;
+	background: var(--ea-surface);
+	border-right: 1px solid var(--ea-border);
+	border-bottom: 1px solid var(--ea-border);
+	transform: rotate(-45deg);
+}
+#eform-assistant .ea-bubble-close {
+	position: absolute;
+	top: 4px;
+	right: 5px;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--ea-muted);
+	font-size: 16px;
+	line-height: 1;
+	cursor: pointer;
+	box-shadow: none;
+}
+#eform-assistant .ea-bubble-close:hover { background: var(--bg-hover, rgba(94, 110, 130, 0.08)); color: var(--ea-text); }
+
+@keyframes ea-bubble-in { from { opacity: 0; transform: translateY(6px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 767.98px) {
+	.ea-pet { right: 8px; bottom: calc(var(--ea-bottom) - 8px); }
+	.ea-pet .ea-launcher.ea-has-avatar,
+	.ea-avatar-launcher { width: 68px; height: 68px; }
+	.ea-bubble-wrap { margin-bottom: 38px; }
+	#eform-assistant .ea-bubble { max-width: 190px; font-size: 12.5px; padding: 8px 26px 8px 12px; }
+	.ea-avatar-header { width: 40px; height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ea-avatar *,
+	.ea-avatar[data-state] *,
+	.ea-bubble-wrap { animation: none !important; transition: none !important; }
+}

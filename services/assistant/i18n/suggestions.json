@@ -8,30 +8,31 @@
 		"Zmiana pliku wymaga restartu serwera."
 	],
 	"max": 5,
-	"default": ["new_order", "copy_order", "tracking", "invoice", "cancel", "password"],
+	"default": ["my_last_order", "new_order", "copy_order", "invoice", "tracking", "cancel", "password"],
 	"pages": [
-		{ "path": "^/orders/history/order/", "show": ["tracking", "cancel", "reorder", "statuses"] },
-		{ "path": "^/orders/history/?$", "show": ["reorder", "tracking", "statuses", "cancel"] },
+		{ "path": "^/orders/import-log", "show": ["import_errors"] },
+		{ "path": "^/orders/history/order/", "show": ["this_screen", "tracking", "cancel", "reorder", "statuses"] },
+		{ "path": "^/orders/history/?$", "show": ["my_last_order", "reorder", "cancelable", "tracking", "statuses"] },
 		{ "path": "^/orders/canceled", "show": ["reorder", "cancel"] },
 		{ "path": "^/orders/add-order", "show": ["address", "one_time_address", "order_name"] },
 		{ "path": "^/orders/edit/", "show": ["address", "one_time_address"] },
-		{ "path": "^/orders/order/\\d+/new-position|^/position/\\d+/edit", "show": ["option_blocked", "size_limits", "info_icon", "favorites"] },
-		{ "path": "^/orders/order/\\d+/?$", "show": ["add_position", "send_order", "pdf", "discount"] },
+		{ "path": "^/orders/order/\\d+/new-position|^/position/\\d+/edit", "show": ["this_screen", "option_blocked", "size_limits", "info_icon", "favorites"] },
+		{ "path": "^/orders/order/\\d+/?$", "show": ["this_screen", "add_position", "send_order", "pdf", "discount"] },
 		{ "path": "^/orders/?$", "show": ["copy_order", "delete_offer", "send_order"] },
 		{ "path": "^/invoices/end-clients", "show": ["end_client", "invoice", "invoice_email"] },
 		{ "path": "^/invoices", "show": ["invoice", "end_client", "invoice_email", "invoice_fix"] },
 		{ "path": "^/panel", "show": ["password", "catalogs", "canceled_list"] },
 		{ "path": "^/user/employee", "show": ["add_employee", "permissions"] },
-		{ "path": "^/group", "show": ["approve", "shop_account"] },
+		{ "path": "^/group", "show": ["pending_list", "approve", "shop_account"] },
 		{ "path": "^/delivery-time", "show": ["delivery_time", "tracking"] }
 	],
 	"questions": {
 		"new_order": {
-			"pl": "Jak złożyć nowe zamówienie?",
-			"en": "How do I place a new order?",
-			"de": "Wie gebe ich eine neue Bestellung auf?",
-			"fr": "Comment passer une nouvelle commande ?",
-			"nl": "Hoe plaats ik een nieuwe bestelling?"
+			"pl": "Pokaż mi, jak złożyć nowe zamówienie",
+			"en": "Show me how to place a new order",
+			"de": "Zeig mir, wie ich eine neue Bestellung aufgebe",
+			"fr": "Montrez-moi comment passer une nouvelle commande",
+			"nl": "Laat zien hoe ik een nieuwe bestelling plaats"
 		},
 		"copy_order": {
 			"pl": "Jak skopiować wcześniejsze zlecenie?",
@@ -63,11 +64,11 @@
 			"nl": "Hoe maak ik een factuur voor mijn klant?"
 		},
 		"password": {
-			"pl": "Jak zmienić hasło?",
-			"en": "How do I change my password?",
-			"de": "Wie ändere ich mein Passwort?",
-			"fr": "Comment changer mon mot de passe ?",
-			"nl": "Hoe wijzig ik mijn wachtwoord?"
+			"pl": "Pokaż mi, jak zmienić hasło",
+			"en": "Show me how to change my password",
+			"de": "Zeig mir, wie ich mein Passwort ändere",
+			"fr": "Montrez-moi comment changer mon mot de passe",
+			"nl": "Laat zien hoe ik mijn wachtwoord wijzig"
 		},
 		"reorder": {
 			"pl": "Jak zamówić ponownie to samo zlecenie?",
@@ -239,6 +240,42 @@
 			"de": "Wie lange dauert die Produktion?",
 			"fr": "Combien de temps dure la production ?",
 			"nl": "Hoe lang duurt de productie?"
+		},
+		"my_last_order": {
+			"pl": "Co z moim ostatnim zamówieniem?",
+			"en": "What’s the status of my latest order?",
+			"de": "Wie ist der Stand meiner letzten Bestellung?",
+			"fr": "Où en est ma dernière commande ?",
+			"nl": "Hoe staat het met mijn laatste bestelling?"
+		},
+		"cancelable": {
+			"pl": "Które zlecenia mogę jeszcze anulować?",
+			"en": "Which orders can I still cancel?",
+			"de": "Welche Bestellungen kann ich noch stornieren?",
+			"fr": "Quelles commandes puis-je encore annuler ?",
+			"nl": "Welke bestellingen kan ik nog annuleren?"
+		},
+		"this_screen": {
+			"pl": "Co mogę zrobić na tym ekranie?",
+			"en": "What can I do on this screen?",
+			"de": "Was kann ich auf dieser Seite tun?",
+			"fr": "Que puis-je faire sur cette page ?",
+			"nl": "Wat kan ik op dit scherm doen?"
+		},
+		"pending_list": {
+			"requires": "group",
+			"pl": "Które zamówienia sklepów czekają na zatwierdzenie?",
+			"en": "Which shop orders are waiting for approval?",
+			"de": "Welche Shop-Bestellungen warten auf Genehmigung?",
+			"fr": "Quelles commandes de boutiques attendent une validation ?",
+			"nl": "Welke winkelbestellingen wachten op goedkeuring?"
+		},
+		"import_errors": {
+			"pl": "Czy moje ostatnie importy przeszły bez błędów?",
+			"en": "Did my recent imports go through without errors?",
+			"de": "Sind meine letzten Importe fehlerfrei durchgelaufen?",
+			"fr": "Mes derniers imports se sont-ils déroulés sans erreur ?",
+			"nl": "Zijn mijn laatste imports zonder fouten verlopen?"
 		}
 	}
 }

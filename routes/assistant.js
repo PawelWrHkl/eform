@@ -9,8 +9,10 @@
  *   POST /assistant/ask      — { question, page } → { status, answer, highlight }
  *   POST /assistant/handoff  — { email, phone?, note?, trigger?, page? } → mail do konsultanta
  *   POST /assistant/reset    — nowa rozmowa
+ *   POST /assistant/bubble/hide — „×" na dymku maskotki: dymek znika do końca sesji
  *   POST /assistant/voice/session — { sdp, page, resume } → { sdp, callId, maxSeconds } (rozmowa głosowa)
  *   POST /assistant/voice/end     — { callId } (także sendBeacon przy zamykaniu strony)
+ *   GET  /assistant/go/order/:id  — przejście do zlecenia z rozmowy (sprawdza zakres konta)
  *
  * Wypowiedzi z rozmowy głosowej zbiera sideband poza żądaniem; do sesji
  * trafiają przez `voiceService.flushInto` na początku każdej trasy czatu.
@@ -27,6 +29,8 @@ const strings = require('../services/assistant/strings');
 const prompt = require('../services/assistant/prompt');
 const { normalizeLang } = require('../services/assistant/labels');
 const voiceService = require('../services/assistant/voice/voiceService');
+const tools = require('../services/assistant/tools');
+const { loadEmployeePermissions } = require('../middleware/employeePermissions');
 const config = require('../config');
 const { log } = require('../utils/logging');
 
@@ -73,13 +77,16 @@ router.get('/state', async (req, res) => {
 	});
 });
 
-router.post('/ask', async (req, res) => {
+// `loadEmployeePermissions` — świeże uprawnienia pracownika z bazy (jak listy zleceń),
+// bo od nich zależy, które zlecenia widzą narzędzia Eforka.
+router.post('/ask', loadEmployeePermissions, async (req, res) => {
 	try {
 		voiceService.flushInto(assistantService.getState(req.session));
 		const profile = await sessionContext.getProfile(req);
 		const result = await assistantService.ask(req.session, {
 			question: req.body && req.body.question,
 			lang: langOf(req),
+			scope: tools.scopeFromRequest(req, langOf(req)),
 			account: await sessionContext.describeAccount(req),
 			orgIdent: (profile && profile.org_ident) || (typeof req.session.user.organization === 'string' ? req.session.user.organization : ''),
 			userKey: sessionContext.userKey(req),
@@ -138,6 +145,31 @@ router.post('/handoff', async (req, res) => {
 	}
 });
 
+// Odnośnik do zlecenia z rozmowy (głos: narzędzie open_order) — sprawdza, że zlecenie
+// należy do konta, i przekierowuje do właściwego widoku (oferta albo wysłane).
+router.get('/go/order/:id', loadEmployeePermissions, async (req, res) => {
+	const scope = tools.scopeFromRequest(req, langOf(req));
+	const { refs } = await tools.resolveRefs(`[[order:${Number(req.params.id) || 0}]]`, scope, langOf(req));
+	const ref = Object.values(refs)[0];
+	return res.redirect(ref ? ref.href : '/orders/history');
+});
+
+// „×" na dymku maskotki — dymek znika do końca sesji logowania (server.js → assistantBoot.bubbleHidden).
+router.post('/bubble/hide', (req, res) => {
+	req.session.assistantBubbleHidden = true;
+	res.json({ success: true });
+});
+
+// 👍/👎 pod odpowiedzią Eforka.
+router.post('/feedback', (req, res) => {
+	const body = req.body || {};
+	const ok = assistantService.rateMessage(assistantService.getState(req.session), str(body.id, 40), body.value, {
+		userKey: sessionContext.userKey(req),
+		lang: langOf(req)
+	});
+	res.status(ok ? 200 : 400).json({ success: ok });
+});
+
 router.post('/reset', (req, res) => {
 	assistantService.resetState(req.session);
 	res.json({ success: true });
@@ -150,7 +182,7 @@ const VOICE_MESSAGES = {
 	bad_sdp: 'voiceUnavailable'
 };
 
-router.post('/voice/session', async (req, res) => {
+router.post('/voice/session', loadEmployeePermissions, async (req, res) => {
 	const lang = langOf(req);
 	const S = strings.forLang(lang);
 	if (!config.assistant.voice.enabled) return res.status(404).json({ success: false, error: 'voice_disabled', message: S.voiceUnavailable });
@@ -165,7 +197,8 @@ router.post('/voice/session', async (req, res) => {
 			orgIdent: (profile && profile.org_ident) || (typeof req.session.user.organization === 'string' ? req.session.user.organization : ''),
 			page: sanitizePage(body.page),
 			sdp: typeof body.sdp === 'string' ? body.sdp : '',
-			resume: body.resume === true
+			resume: body.resume === true,
+			scope: tools.scopeFromRequest(req, lang)
 		});
 		return res.json({ success: true, ...result });
 	} catch (err) {

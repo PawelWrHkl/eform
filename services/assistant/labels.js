@@ -13,17 +13,21 @@ const fs = require('fs');
 const path = require('path');
 const { localesDir, availabeLanguages } = require('../../config');
 
-const cache = new Map(); // lang → { mtimeMs, data }
+const cache = new Map(); // plik → { mtimeMs, data, checkedAt }
+/** Pliki tłumaczeń leżą na udziale sieciowym — mtime sprawdzamy najwyżej co 5 s. */
+const STAT_TTL_MS = 5000;
 
 function loadLocale(lang, deps = {}) {
 	const dir = deps.localesDir || localesDir;
 	const file = path.join(dir, `${lang}.json`);
 	try {
-		const { mtimeMs } = fs.statSync(file);
 		const hit = cache.get(file);
-		if (hit && hit.mtimeMs === mtimeMs) return hit.data;
+		const now = Date.now();
+		if (hit && now - hit.checkedAt < STAT_TTL_MS) return hit.data;
+		const { mtimeMs } = fs.statSync(file);
+		if (hit && hit.mtimeMs === mtimeMs) { hit.checkedAt = now; return hit.data; }
 		const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-		cache.set(file, { mtimeMs, data });
+		cache.set(file, { mtimeMs, data, checkedAt: now });
 		return data;
 	} catch (_) {
 		return {};

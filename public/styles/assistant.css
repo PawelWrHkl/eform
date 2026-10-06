@@ -236,6 +236,45 @@
 	font-size: 11px;
 }
 
+/* ── Odnośniki i akcje w odpowiedziach Eforka ── */
+#eform-assistant .ea-link {
+	display: inline-block;
+	margin: 1px 0;
+	padding: 1px 8px;
+	border-radius: 6px;
+	background: var(--brand-primary-light, #edf1f5);
+	color: var(--ea-accent);
+	font-weight: 600;
+	text-decoration: none;
+	white-space: normal;
+}
+#eform-assistant .ea-link::before { content: "→ "; }
+#eform-assistant .ea-link-file::before { content: "⤓ "; }
+/* 👍/👎 pod odpowiedzią */
+#eform-assistant .ea-feedback { display: flex; gap: 4px; justify-content: flex-end; margin-top: 4px; min-height: 22px; }
+#eform-assistant .ea-feedback-btn { border: 0; background: transparent; cursor: pointer; font-size: 14px; line-height: 1; padding: 3px 5px; border-radius: 6px; opacity: .45; transition: opacity .15s, background .15s; }
+#eform-assistant .ea-feedback-btn:hover, #eform-assistant .ea-feedback-btn:focus-visible { opacity: 1; background: rgba(0,0,0,.06); }
+#eform-assistant .ea-feedback-thanks { font-size: 11px; opacity: .6; }
+#eform-assistant .ea-link:hover { background: var(--ea-accent); color: #fff; }
+[data-theme="dark"] #eform-assistant .ea-link { background: rgba(255, 255, 255, 0.08); color: var(--text-primary, #e2e8f0); }
+
+#eform-assistant .ea-action {
+	display: block;
+	margin: 8px 0 2px;
+	padding: 7px 12px;
+	border: 1px solid var(--ea-accent);
+	border-radius: 8px;
+	background: var(--ea-accent);
+	color: #fff;
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	box-shadow: none;
+}
+#eform-assistant .ea-action.ea-action-armed { background: #f59e0b; border-color: #f59e0b; color: #1f2937; }
+#eform-assistant .ea-action:disabled { opacity: 0.7; cursor: default; }
+
 /* ── Proponowane pytania (chipsy pod powitaniem) ── */
 .ea-suggestions {
 	display: flex;
@@ -388,4 +427,96 @@
 
 @media print {
 	#eform-assistant { display: none !important; }
+}
+
+/* ── Pokaz krok po kroku (public/scripts/assistant/tour.js) ──
+   Warstwa nad stroną i oknem asystenta (z-index 1100), ale pod modalami intro.js.
+   pointer-events: none — klient może sam kliknąć wskazany element; klikalny jest
+   tylko dymek. */
+.ea-tour {
+	position: fixed;
+	inset: 0;
+	z-index: 1100;
+	pointer-events: none;
+}
+.ea-tour[hidden] { display: none; }
+/* W trakcie pokazu dymek pieska („Potrzebujesz pomocy?") tylko by przeszkadzał. */
+#eform-assistant.ea-touring .ea-bubble-wrap { display: none !important; }
+
+.ea-tour-ring {
+	position: fixed;
+	border: 3px solid #f59e0b;
+	border-radius: 10px;
+	box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.42), 0 0 0 7px rgba(245, 158, 11, 0.3);
+	transition: left 0.35s ease, top 0.35s ease, width 0.35s ease, height 0.35s ease, opacity 0.2s ease;
+	animation: ea-ring-pulse 1.6s ease-in-out infinite;
+}
+.ea-tour-ring.ea-tour-ring-off { opacity: 0; animation: none; }
+@keyframes ea-ring-pulse {
+	0%, 100% { box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.42), 0 0 0 5px rgba(245, 158, 11, 0.35); }
+	50% { box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.42), 0 0 0 11px rgba(245, 158, 11, 0.12); }
+}
+
+.ea-tour-finger {
+	position: fixed;
+	left: 0;
+	top: 0;
+	width: 46px;
+	height: 46px;
+	transition: transform 0.8s cubic-bezier(0.3, 0.8, 0.3, 1);
+	filter: drop-shadow(0 5px 8px rgba(15, 23, 42, 0.35));
+	will-change: transform;
+}
+.ea-tour-finger[hidden] { display: none; }
+.ea-tour-finger svg { width: 100%; height: 100%; display: block; transform-origin: 30% 10%; }
+.ea-tour-finger.ea-tour-tap svg { animation: ea-tour-tap 0.38s ease; }
+@keyframes ea-tour-tap { 50% { transform: scale(0.8) translate(-2px, -3px); } }
+
+.ea-tour-ripple {
+	position: fixed;
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	border: 3px solid #f59e0b;
+	opacity: 0;
+}
+.ea-tour-ripple.ea-tour-ripple-on { animation: ea-tour-ripple 0.6s ease-out; }
+@keyframes ea-tour-ripple { from { opacity: 0.9; transform: scale(0.3); } to { opacity: 0; transform: scale(1.8); } }
+
+.ea-tour-callout {
+	position: fixed;
+	box-sizing: border-box;
+	padding: 12px 14px;
+	border: 1px solid var(--ea-border, #cbd5e1);
+	border-radius: 14px;
+	background: var(--ea-surface, #fff);
+	color: var(--ea-text, #0f172a);
+	box-shadow: 0 14px 36px rgba(15, 23, 42, 0.3);
+	font-size: 14px;
+	line-height: 1.45;
+	pointer-events: auto;
+	transition: left 0.3s ease, top 0.3s ease;
+}
+.ea-tour-step {
+	margin-bottom: 4px;
+	color: var(--brand-accent, #6b9dad);
+	font-size: 11.5px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+.ea-tour-text { margin: 0; }
+.ea-tour-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+#eform-assistant .ea-tour-actions .ea-btn { padding: 6px 14px; font-size: 13px; box-shadow: none; }
+
+@media (prefers-reduced-motion: reduce) {
+	.ea-tour-ring,
+	.ea-tour-finger,
+	.ea-tour-callout { transition: none; animation: none; }
+	.ea-tour-finger.ea-tour-tap svg,
+	.ea-tour-ripple.ea-tour-ripple-on { animation: none; }
+}
+
+@media print {
+	.ea-tour { display: none !important; }
 }
