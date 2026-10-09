@@ -8,6 +8,7 @@ const { getOrderMutationBlock, getClientGroupOrderBlock } = require('../utils/or
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
 const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
+const { currencyLocalsForOrder } = require('../services/currency');
 const adminDb = require("../db/admin/db_helper.js");
 const ownerService = require('../services/owner.js');
 const fs = require('fs');
@@ -278,7 +279,9 @@ router.get('/:positionId/edit/', requireLogin, loadEmployeePermissions, filterPr
     // I ten sam tryb wyceny (rabat / narzut) — services/groupPriceMode.js.
     const { mode: clientPriceMode, markupPercent: clientMarkupPercent } =
       await resolveClientPricingForOrder(orderId);
-    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, clientPriceMode, clientMarkupPercent, ...vatLocals })
+    // I ta sama waluta cen klienta zamówienia (services/currency.js).
+    const currencyLocals = await currencyLocalsForOrder(orderId);
+    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, clientPriceMode, clientMarkupPercent, ...vatLocals, ...currencyLocals })
   }
   else {
     return res.status(400).json({
@@ -305,7 +308,8 @@ router.get('/:positionId/admin-redit/', requireLogin, async (req, res) => {
     // Resolved AFTER setContextUserByIdent so it reflects the order owner
     // (client), not the admin's own org/country.
     const vatLocals = await resolveVatLocals(req);
-    return res.render('admin_edit_position.njk', { position: result, orderId: orderId, hidePrices: false, ...vatLocals })
+    const currencyLocals = await currencyLocalsForOrder(orderId);
+    return res.render('admin_edit_position.njk', { position: result, orderId: orderId, hidePrices: false, ...vatLocals, ...currencyLocals })
   }
   else {
     return res.status(400).json({ success: false })

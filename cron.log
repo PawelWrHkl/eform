@@ -4000,3 +4000,22 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-08 10:35:01 - Start ===
 === 2026-10-08 10:35:01 - Dodawanie zmian do commita ===
+[main e509a24] Automatic commit 2026-10-08 10:35
+ 2 files changed, 10502 insertions(+)
+=== 2026-10-08 10:35:03 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 54.63 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 100 vulnerabilities on PawelWrHkl/eform's default branch (3 critical, 63 high, 29 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   274e43d..e509a24  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-08 10:35:09 - Koniec ===
+=== 2026-10-08 12:00:01 - Start ===
+=== 2026-10-08 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-09 10:35:01 - Start ===
+=== 2026-10-09 10:35:01 - Dodawanie zmian do commita ===

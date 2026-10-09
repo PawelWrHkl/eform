@@ -5,25 +5,24 @@ import { buildValuesToDisplay } from "./updateFieldsAndValues.js";
 import { validateFormInput } from "./validateUtils.js";
 import { shouldHideRegularPriceRow } from "./createForm.js";
 import { formatVatRateLabel } from "./vatLabel.js";
-import { getEnvVersion } from "../getEnv.js";
+import { savedLabelWithCurrency } from "./currencyLabel.js";
 
-// Specyfikacja ceny (_S) pokazuje się na WSZYSTKICH wersjach poza produkcyjną
-// — sama widoczność w podglądzie zamówienia i tak jest zablokowana za `entry.locked`
-// (przycisk kłódki w order.njk), to tylko decyduje, czy dane w ogóle powstają.
-// ⚠️ `getEnvVersion()` odpytuje `/env` asynchronicznie, więc flaga na starcie
-// strony bywa jeszcze `false` — SESSION_STORAGE_KEY cache'uje ostatni wynik per
-// karta przeglądarki, żeby KOLEJNE przeliczenia w tej samej sesji nie czekały
-// na fetch i nie gubiły wiersza `_S` przy pierwszym, szybkim przeliczeniu.
-const SESSION_STORAGE_KEY = 'eform_isNonProdEnv';
-let _isNonProdEnv = false;
-try {
-    _isNonProdEnv = sessionStorage.getItem(SESSION_STORAGE_KEY) === '1';
-} catch (_) { /* prywatna karta / storage wyłączony — zostaje false */ }
-getEnvVersion().then(v => {
-    _isNonProdEnv = !!v && v !== 'Produkcyjna';
-    console.log('Wersja środowiska:', v, '| _isNonProdEnv:', _isNonProdEnv);
-    try { sessionStorage.setItem(SESSION_STORAGE_KEY, _isNonProdEnv ? '1' : '0'); } catch (_) { /* ignore */ }
-});
+/**
+ * Czy tworzyć specyfikację ceny (`<PARAM>_S`) — przełącznik `PRICE_SPEC_ENABLED`
+ * z `.env` (config.js `features.priceSpec`), wstawiany przez `base.njk` jako
+ * `window.priceSpecEnabled`, a w silniku JSDOM przez `jsdomEnv.js`.
+ * Wyłączona: `_S` nie tworzy pola ani wiersza, a wiersz zapisany wcześniej
+ * znika przy przeliczeniu. Zapisane pozycje chowa po stronie serwera
+ * `services/orderService.js dropPriceSpecRows`.
+ *
+ * Do 2026-10-08 warunkiem było „wersja z `/env` ≠ Produkcyjna", pobierane
+ * asynchronicznie (z cache'em w sessionStorage na wyścig z pierwszym
+ * przeliczeniem). Flaga z szablonu jest gotowa przed startem modułów.
+ */
+function isPriceSpecEnabled() {
+    return window.priceSpecEnabled === true;
+}
+
 function formatNumberForDisplay(value) {
     const num = parseFloat(value);
 
@@ -254,7 +253,7 @@ export function applyClientMarkup(values, displayValues) {
         setSub(key, marked, formatNumberForDisplay(marked));
     }
 
-    // Specyfikacja ceny detalicznej (`SUB___*_S`, tylko poza produkcją) rozpisuje
+    // Specyfikacja ceny detalicznej (`SUB___*_S`, tylko przy `PRICE_SPEC_ENABLED=true`) rozpisuje
     // kody cennika DETALICZNEGO — w tym trybie to nie jest cena klienta, a po
     // kłódce klient by ją zobaczył. Specyfikacja ceny zwykłej (`*_S`) zostaje.
     if (displayValues) {
@@ -621,7 +620,7 @@ export function applyVatToGrossValue(values, displayValues) {
 
         const existingVatValue = displayValues.get(vatValueKey) || {};
         displayValues.set(vatValueKey, {
-            param_description: existingVatValue.param_description || t('form.wartosc_vat_label'),
+            param_description: savedLabelWithCurrency(existingVatValue.param_description, t('form.wartosc_vat_label')),
             option_value: String(vatValue),
             option_description: '',
             locked: false,
@@ -631,7 +630,7 @@ export function applyVatToGrossValue(values, displayValues) {
 
         const existingBrutto = displayValues.get(bruttoKey) || {};
         displayValues.set(bruttoKey, {
-            param_description: existingBrutto.param_description || t('form.wartosc_brutto_label'),
+            param_description: savedLabelWithCurrency(existingBrutto.param_description, t('form.wartosc_brutto_label')),
             option_value: String(grossValue),
             option_description: '',
             locked: false,
@@ -739,8 +738,21 @@ export function calculateFromScript(param, values, inputs, displayValues, groupN
                         // pozostają w starym stanie i kolejne formuły używają nieaktualnych wartości.
                         values[scriptParamName] = scriptValue;
 
+                        // Wyłączona specyfikacja: wiersz `-spec` zapisany wcześniej (przy
+                        // edycji `displayValues` przychodzą z bazy) znika przy przeliczeniu,
+                        // żeby ponowny zapis pozycji już go nie niósł.
+                        // ⚠️ Także gdy grupa definiuje `CENA_S` wprost w param.txt (ma własne
+                        // pole) — inaczej wiersz budowałby się niżej mimo wyłączonej flagi.
+                        // Specyfikacja = `<PARAM>_S` obok swojej ceny `<PARAM>` (ta sama
+                        // reguła co orderService.js dropPriceSpecRows).
+                        const specParent = scriptParamName.endsWith('_S') ? scriptParamName.slice(0, -2) : null;
+                        if (!isPriceSpecEnabled() && specParent && (inputs[specParent] || specParent in values)) {
+                            displayValues?.delete(scriptParamName);
+                            continue;
+                        }
+
                         // If param ends with _S and no input exists, create a hidden clone from the parent param
-                        const isNewSuffix = _isNonProdEnv && !inputs[scriptParamName] && scriptParamName.endsWith('_S');
+                        const isNewSuffix = isPriceSpecEnabled() && !inputs[scriptParamName] && scriptParamName.endsWith('_S');
                         if (isNewSuffix) {
                             const parentName = scriptParamName.slice(0, -2);
                             const parentInput = inputs[parentName];
@@ -772,13 +784,21 @@ export function calculateFromScript(param, values, inputs, displayValues, groupN
                             const priceParam = window.params?.find(p => p.NAME === scriptParamName);
                             const isRowTwo = priceParam && (priceParam.LISTROW == '2' || priceParam.LISTSUM == 'true');
                             const hideRegular = shouldHideRegularPriceRow(isRowTwo);
+                            // ⚠️ Lustro ceny zwykłej do `SUB___` (CENA → SUB___CENA) TYLKO, gdy
+                            // `SUB___` nie ma własnego skryptu cennika. Inaczej cena zakupu HKL
+                            // nadpisywała cenę detaliczną klienta przy każdym przeliczeniu
+                            // skryptu `CENA` — a sumy liczone ze skryptu `SUB___` zostawały
+                            // (zgłoszenie 2026-10-09, Luxan GmbH: „LISTENPREIS 72.18 + AUFPREIS
+                            // 15.7 = 300.70", gdzie 72.18 to cena HKL, a nie detaliczna 285).
+                            const subParam = window.params?.find(p => p.NAME === subVariantName);
+                            const subHasOwnScript = !!(subParam && subParam.SCRIPTS == 'true' && subParam.SOURCE);
 
                             const applyPriceToInput = (name) => {
                                 if (name === scriptParamName) {
                                     buildValuesToDisplay(allOptionsByParameter, strVal, scriptParamName, displayValues, 'INPUT', true);
                                     return;
                                 }
-                                if (inputs[name] && !scriptParamName.startsWith('SUB___')) {
+                                if (inputs[name] && !scriptParamName.startsWith('SUB___') && !subHasOwnScript) {
                                     inputs[name].value = scriptValue;
                                     values[name] = scriptValue;
                                     buildValuesToDisplay(allOptionsByParameter, strVal, name, displayValues, 'INPUT', true);

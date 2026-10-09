@@ -424,12 +424,16 @@ function stubDisplayEntries(values) {
  *                                        clientScripts.js); without it, params whose
  *                                        SCRIPTS is the literal 'true' price as blank/0.
  * @param {string} [opts.userIdent]       Order owner's user.ident (see opts.orgIdent).
+ * @param {string} [opts.currency]        Client's price currency (services/currency.js:
+ *                                        resolveCurrencyForOrder/ForUserIdent) — goes to
+ *                                        the end of every monetary param label
+ *                                        ("CENA HKL netto [PLN]"). Omitted = EUR.
  * @returns {Promise<{values, displayValues, total, shortJson}>}
  */
 async function calculatePrices(opts) {
   const {
     groupNumber, version, lang, values = {}, displayValues = null, uid, singlePass = false,
-    orgIdent, userIdent, isGroup, isGroupShop
+    orgIdent, userIdent, isGroup, isGroupShop, currency
   } = opts || {};
   if (!groupNumber || !version) {
     throw new Error('formEngine.calculatePrices: groupNumber and version are required');
@@ -438,7 +442,7 @@ async function calculatePrices(opts) {
   // isGroup/isGroupShop gate whether SUB___* (client-facing) params are built
   // at all — see form.js buildHtml. Callers that need those prices must ask for
   // them explicitly; the default stays as it was.
-  const env = await bootEngine({ lang: lang || 'pl', uid, orgIdent, userIdent, isGroup, isGroupShop });
+  const env = await bootEngine({ lang: lang || 'pl', uid, orgIdent, userIdent, isGroup, isGroupShop, currency });
 
   try {
     const initialDisplayValues = displayValues
@@ -585,6 +589,10 @@ async function recalculatePosition(positionId, overrides = {}) {
     }
   }
 
+  // Waluta klienta zamówienia — do opisów parametrów kwotowych.
+  const { resolveCurrencyForOrder } = require('../currency');
+  const currency = overrides.currency || await resolveCurrencyForOrder(row.order_id);
+
   const result = await calculatePrices({
     groupNumber,
     version,
@@ -592,7 +600,8 @@ async function recalculatePosition(positionId, overrides = {}) {
     values,
     displayValues,
     orgIdent,
-    userIdent
+    userIdent,
+    currency
   });
 
   await updatePosition(

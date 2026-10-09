@@ -13,6 +13,7 @@ const { getProductionSendSkipClient } = require('../../utils/productionSendGuard
 const { orderHasSubPrices, calcSubTotals, resolveSubPricePdfView } = require('../../services/subPrices');
 const { availabeLanguages } = require('../../config');
 const { log } = require('../../utils/logging');
+const { currencyLocalsForOrder } = require('../../services/currency');
 
 function isJsonRequest(req) {
     if (req.method !== 'GET') return true;
@@ -199,7 +200,11 @@ router.get('/:orderId/positions-data', requireCorrectionOrder, async (req, res) 
             lang: item.lang || 'pl'
         }));
 
-        return res.json({ success: true, positions });
+        // Waluta klienta zamówienia — jak w routes/orders.js (positions-data);
+        // recalculateOrder.js ustawia z niej `window.priceCurrency`.
+        const { priceCurrency } = await currencyLocalsForOrder(req.params.orderId);
+
+        return res.json({ success: true, positions, priceCurrency });
     } catch (err) {
         log('Error fetching correction positions:', err);
         return res.status(500).json({ success: false, message: 'Błąd serwera' });

@@ -77,6 +77,21 @@ module.exports = {
     // jest w ogóle montowany (adresy zwracają 404) — ta sama konwencja co
     // `invoices`: brak zmiennej = wyłączone.
     orgCustomers: String(process.env.ORG_CUSTOMERS_ENABLED).toLowerCase() === 'true',
+
+    // Specyfikacja ceny (`<PARAM>_S`, np. `CENA_S` = „416(PG3)*1.1") — skrypt
+    // cennika zwraca ją obok ceny, a `pricesCalculator.js calculateFromScript`
+    // przy włączonej fladze tworzy z niej ukryte pole i wiersz „<opis>-spec"
+    // (`locked`, widoczny w podglądzie po kłódce). Wyłączona:
+    //  • wartość `_S` zostaje tylko w `values` — nie powstaje pole ani wiersz,
+    //    a wiersz zapisany wcześniej znika z pozycji przy przeliczeniu,
+    //  • wiersze `-spec` już zapisanych pozycji nie pokazują się nigdzie
+    //    (podgląd, druk, PDF, mail — `services/orderService.js`).
+    // Zmienna `PRICE_SPEC_ENABLED` w `.env` KAŻDEGO środowiska osobno
+    // (`update.sh` nie kopiuje `.env`). Brak zmiennej = wyłączone — ta sama
+    // konwencja co `vat`. Ta sama flaga steruje przeglądarką
+    // (`window.priceSpecEnabled`, base.njk) i silnikiem JSDOM (import,
+    // przeliczanie, tester — services/formEngine/jsdomEnv.js).
+    priceSpec: envSwitch(process.env.PRICE_SPEC_ENABLED),
   },
 
   // ── Eksport klientów do systemu zewnętrznego ───────────────────────────

@@ -654,12 +654,101 @@ export function hideRegularPriceRowsDuringCalc(params, inputs) {
  */
 export function maskPriceValuesDuringCalc(params, inputs) {
     if (!params || !inputs) return;
-    for (const param of params) {
+    priceMask.params = params;
+    priceMask.inputs = inputs;
+    // Nowe liczenie: odsłonięcie czeka na JEGO koniec (`revealPriceValuesWhenSettled`).
+    priceMask.revealRequested = false;
+    const focused = document.activeElement;
+    for (const el of priceInputs(params, inputs)) {
+        // Pole, w które użytkownik właśnie wpisuje (ręczna cena), zostaje
+        // widoczne — inaczej pisałby na ślepo przez ponad sekundę.
+        if (el === focused) continue;
+        el.classList.add('price-value', 'price-value-masked');
+    }
+    startPriceStabilityWatch();
+}
+
+/** Ceny odsłaniamy dopiero, gdy od tylu ms ŻADNA się nie zmieniła (decyzja z 2026-10-09). */
+const PRICE_STABLE_MS = 1000;
+/**
+ * Siatka bezpieczeństwa: tyle ms bez żadnej zmiany odsłania ceny nawet bez
+ * sygnału końca liczenia — `updateProcedure` nie ma try/finally, więc wyjątek
+ * w trakcie liczenia zostawiłby je zakryte na stałe.
+ */
+const PRICE_MASK_WATCHDOG_MS = 5000;
+const PRICE_WATCH_INTERVAL_MS = 100;
+const priceMask = { params: null, inputs: null, revealRequested: false, timer: null, snapshot: '', changedAt: 0 };
+
+/**
+ * Pola dokładane przez form.js poza `params` (VAT, rabat klienta grupy) —
+ * też są cenami i też dostają wartości w trakcie liczenia.
+ */
+const EXTRA_PRICE_FIELD_IDS = ['VAT', 'WARTOSC_VAT', 'WARTOSC_BRUTTO', 'RABAT_KLIENTA', 'WARTOSC_PO_RABACIE'];
+
+function priceInputs(params, inputs) {
+    const found = new Set();
+    for (const param of params || []) {
         if (!param?.NAME) continue;
         const isRowTwo = param.LISTROW == '2' || param.LISTSUM == 'true';
-        if (!isRowTwo) continue;
-        inputs[param.NAME]?.classList.add('price-value-masked');
+        if (isRowTwo && inputs?.[param.NAME]) found.add(inputs[param.NAME]);
     }
+    for (const id of EXTRA_PRICE_FIELD_IDS) {
+        const el = inputs?.[id] || document.getElementById(id);
+        if (el) found.add(el);
+    }
+    return found;
+}
+
+/**
+ * Odcisk wartości wszystkich pól cenowych. Silnik wpisuje ceny przez
+ * `input.value = …` (właściwość, nie atrybut) — to nie budzi ani zdarzeń, ani
+ * MutationObservera, więc zmiany wykrywamy porównaniem co `PRICE_WATCH_INTERVAL_MS`.
+ */
+function priceSnapshot() {
+    return [...priceInputs(priceMask.params, priceMask.inputs)]
+        .map((el) => `${el.id}=${el.value}`).join('|');
+}
+
+function startPriceStabilityWatch() {
+    // Start liczenia liczy się jak zmiana — sekunda ciszy biegnie od nowa.
+    priceMask.snapshot = priceSnapshot();
+    priceMask.changedAt = Date.now();
+    if (!priceMask.timer) priceMask.timer = setInterval(checkPriceStability, PRICE_WATCH_INTERVAL_MS);
+}
+
+function checkPriceStability() {
+    const now = Date.now();
+    const snapshot = priceSnapshot();
+    if (snapshot !== priceMask.snapshot) {
+        priceMask.snapshot = snapshot;
+        priceMask.changedAt = now;
+        return;
+    }
+    const quietFor = now - priceMask.changedAt;
+    const calcDone = priceMask.revealRequested && !window.isCalculating;
+    if ((calcDone && quietFor >= PRICE_STABLE_MS) || quietFor >= PRICE_MASK_WATCHDOG_MS) {
+        unmaskPriceValues(priceMask.params, priceMask.inputs);
+    }
+}
+
+/**
+ * Sygnał „liczenie skończone" — ceny odsłaniają się dopiero, gdy od
+ * `PRICE_STABLE_MS` (1 s) żadna wartość się nie zmieniła, a nie w chwili
+ * opróżnienia kolejki.
+ *
+ * ⚠️ Jedna zmiana pola potrafi uruchomić kilka `updateProcedure` po sobie
+ * (pola zależne, kolejne zdarzenia `change`), a skrypty cenowe i poprawki po
+ * liczeniu (np. „Według cennika" z `checkIfPriceIsCorrect` po 150 ms) wpisują
+ * wartości jeszcze chwilę później. Do 2026-10-09 maska schodziła od razu
+ * (potem po 220 ms) i szef widział na ułamek sekundy ceny pośrednie. Nowe
+ * liczenie (`maskPriceValuesDuringCalc`) cofa ten sygnał, każda zmiana
+ * wartości zeruje odliczanie.
+ */
+export function revealPriceValuesWhenSettled(params, inputs) {
+    if (!priceMask.timer) return; // maska już zdjęta — nie ma czego odsłaniać
+    if (params) priceMask.params = params;
+    if (inputs) priceMask.inputs = inputs;
+    priceMask.revealRequested = true;
 }
 
 /**
@@ -677,8 +766,14 @@ export function maskPriceValuesDuringCalc(params, inputs) {
  */
 export function unmaskPriceValues(params, inputs) {
     if (!inputs) return;
+    clearInterval(priceMask.timer);
+    priceMask.timer = null;
+    priceMask.revealRequested = false;
     for (const key of Object.keys(inputs)) {
         inputs[key]?.classList?.remove('price-value-masked');
+    }
+    for (const id of EXTRA_PRICE_FIELD_IDS) {
+        document.getElementById(id)?.classList.remove('price-value-masked');
     }
 }
 

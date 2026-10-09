@@ -11,6 +11,7 @@ const { getActiveGroupShopId } = require('../services/groupContext');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
 const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
+const { currencyLocalsForOrder } = require('../services/currency');
 const { notifyFirstOrderIfApplicable } = require('../services/firstOrderMailer');
 const mailBot = require('../services/mailBot/mailBot');
 const path = require('path');
@@ -1158,8 +1159,11 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
     // są ceny zwykłe + narzut konta podrzędnego (services/groupPriceMode.js).
     const { mode: clientPriceMode, markupPercent: clientMarkupPercent } =
         await resolveClientPricingForOrder(req.params.orderId);
+    // Waluta cen klienta zamówienia — dopisywana do opisów parametrów kwotowych
+    // (services/currency.js → formTools/currencyLabel.js).
+    const currencyLocals = await currencyLocalsForOrder(req.params.orderId);
 
-    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, clientPriceMode, clientMarkupPercent, ...vatLocals });
+    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, clientPriceMode, clientMarkupPercent, ...vatLocals, ...currencyLocals });
 });
 
 
@@ -1196,7 +1200,11 @@ router.get('/order/:orderId/positions-data', requireLogin, checkOrderOwnership, 
             lang: item.lang || 'pl'
         }));
 
-        return res.json({ success: true, positions });
+        // Waluta klienta — przeliczenie poprawia nią znacznik waluty w opisach
+        // pozycji (recalculateOrder.js → formTools/currencyLabel.js).
+        const { priceCurrency } = await currencyLocalsForOrder(req.params.orderId);
+
+        return res.json({ success: true, positions, priceCurrency });
     } catch (err) {
         log('Error fetching positions for recalculate:', err);
         return res.status(500).json({ success: false, message: 'Błąd serwera' });

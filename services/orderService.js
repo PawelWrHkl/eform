@@ -1,4 +1,5 @@
 const _ = require("n_");
+const { features } = require('../config');
 
 // Rabat klienta grupy zapisany przed zmianą nazw kluczy — patrz niżej.
 const LEGACY_CLIENT_DISCOUNT_KEYS = new Set(['RABAT_KLIENTA', 'WARTOSC_PO_RABACIE']);
@@ -29,6 +30,27 @@ function paramOptionValue(param) {
   return null;
 }
 
+/**
+ * Wiersz specyfikacji ceny (`CENA_S`, `SUB___DOPLATA_S`, … — opis „<cena>-spec")
+ * to `<PARAM>_S` stojący obok swojej ceny `<PARAM>` w tej samej pozycji.
+ * Wymóg rodzica chroni ewentualny zwykły parametr z końcówką `_S`.
+ */
+function isPriceSpecRow(key, rows) {
+  return typeof key === 'string' && key.endsWith('_S') && rows.has(key.slice(0, -2));
+}
+
+/**
+ * Przy wyłączonym `PRICE_SPEC_ENABLED` (config.js `features.priceSpec`) wiersze
+ * `-spec` znikają też z pozycji zapisanych, zanim flaga została wyłączona —
+ * inaczej nadal pokazywałyby się pod kłódką w podglądzie, druku, PDF-ie i mailu.
+ */
+function dropPriceSpecRows(rows) {
+  for (const key of [...rows.keys()]) {
+    if (isPriceSpecRow(key, rows)) rows.delete(key);
+  }
+  return rows;
+}
+
 async function jsonTextBackToMap(orderItems) {
   let total = {}
   let cleanOrderItems = [];
@@ -54,6 +76,7 @@ async function jsonTextBackToMap(orderItems) {
     }
 
     const jsonParameters = new Map(parsed);
+    if (!features.priceSpec) dropPriceSpecRows(jsonParameters);
     let currentHeaderKeys1 = [];
     let currentDisplayHeaders1 = [];
     let currentHeaderKeys2 = [];
@@ -429,4 +452,4 @@ function removeEmptyColumns(table) {
   };
 }
 
-module.exports = { jsonTextBackToMap };
+module.exports = { jsonTextBackToMap, dropPriceSpecRows };

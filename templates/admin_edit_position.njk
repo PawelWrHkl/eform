@@ -108,6 +108,10 @@
                   {% endblock content %}
                   {% block scripts %}
                     {# VAT block gated by features.vat (config.js) — see form.njk. #}
+                    <script>
+                      // Waluta cen klienta zamówienia — patrz form.njk.
+                      window.priceCurrency = {{ priceCurrency | default(null) | dump | safe }};
+                    </script>
                     {% if vatEnabled %}
                     <script>
                       window.vatEnabled = true;

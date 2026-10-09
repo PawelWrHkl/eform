@@ -3,7 +3,8 @@
  * the eform DB using the same primitives as the regular create-order flow:
  *
  *   - `db.insertSendAddress`  — destination address (send_address row)
- *   - `db.insertNewOrder`     — `order` row (status='active'; order_idx
+ *   - `db.insertNewOrder`     — `order` row (status='active'; order_idx is the
+ *                               payload's `orderno` when it has one, otherwise
  *                               assigned by the BEFORE-INSERT trigger)
  *   - `db.insertNewForm`      — one `order_item` row per position
  *   - `db.updateOrderPrice`   — recomputes total_* columns from items
@@ -23,6 +24,7 @@ const formEngine = () => require('../formEngine');
 const translationRepo = () => require('../translationDict/dbRepository');
 const { translateParametersToCanonical } = require('./parameterTranslator');
 const { validateParameterValues } = require('./optionValidator');
+const { normalizeOrderNo } = require('./orderValidator');
 const { primeClientOverlay } = require('../formEngine/clientScripts');
 const { resolveTwinParameters } = require('./twinParamResolver');
 const {
@@ -368,8 +370,11 @@ function buildSendAddress(payload) {
  * @param {object} ctx.payload   Output of `resolveOrderUser({ payload }).payload`.
  * @param {object} ctx.user      DB user row from `userResolver`.
  * @param {string} ctx.lang      Language code for parameter translation.
- * @param {object} [ctx.deps]    Dependency injection for tests.
- * @returns {Promise<{orderId: number, sendAddressId: number|null, itemIds: number[]}>}
+ * @param {object} [ctx.deps]    Dependency injection for tests. A payload with
+ *                               `orderno` needs the transactional `orders`
+ *                               (findOrderByIdx, hasExternalOrderIdxColumn).
+ * @returns {Promise<{orderId: number, orderIdx: string|null, sendAddressId: number|null,
+ *   itemIds: number[], warnings: string[]}>}
  */
 async function importResolvedOrder({ payload, user, lang, deps = {} }) {
   const ordersDb = deps.orders || orders();
@@ -447,6 +452,33 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     throw new Error('importResolvedOrder: payload and user are required');
   }
 
+  const warnings = [];
+
+  // The client's own order number becomes our order_idx, so the order carries
+  // the same number in eForm, in the production file `<org>_<user>_<order_idx>`
+  // and in the production statuses keyed by it. A number this client already
+  // has would make two orders share all of that — refuse the file instead.
+  let externalOrderIdx = normalizeOrderNo(payload.orderno);
+  if (externalOrderIdx && !(await ordersDb.hasExternalOrderIdxColumn())) {
+    // Without the migration the trigger would count this number and give the
+    // client's next manual order the one right after it — a number from the
+    // client's own range. Keep eForm numbering until the migration is in.
+    const warning = `Numer zlecenia klienta ${externalOrderIdx} NIE został użyty — brak migracji `
+      + 'migrations/add_order_idx_external.sql, zamówienie dostało numer eForm.';
+    logger(`WARN: ${warning}`);
+    warnings.push(warning);
+    externalOrderIdx = null;
+  }
+  if (externalOrderIdx) {
+    const existing = await ordersDb.findOrderByIdx(user.id, externalOrderIdx);
+    if (existing) {
+      throw new Error(
+        `Order number ${externalOrderIdx} already exists for client ${user.ident} `
+        + `(order id=${existing.id}, status=${existing.status}) — not importing it again`
+      );
+    }
+  }
+
   // 0. Translate + validate every item BEFORE writing anything. This makes the
   // import fail fast (and prevents orphan order/send_address rows) when any
   // parameter value is not a valid option for its group. Validation runs on the
@@ -485,7 +517,9 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     if (!sendAddressId) throw new Error('insertSendAddress failed');
   }
 
-  // 2. Order header.
+  // 2. Order header. Only the transactional insert takes the options argument —
+  // db/orders.js would read a 10th argument as created_by_group_user_id.
+  const insertOptions = externalOrderIdx ? [{ orderIdx: externalOrderIdx }] : [];
   const orderId = await ordersDb.insertNewOrder(
     payload.commission || '',     // commision
     null,                          // delivery_address_id (use send_address only)
@@ -495,9 +529,11 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     0,                             // totalPrice (recomputed below)
     null,                          // employee_id
     null,                          // contact_info_id (mailId param name in fn)
-    null                           // group_user_id
+    null,                          // group_user_id
+    ...insertOptions
   );
   if (!orderId) throw new Error('insertNewOrder failed');
+  const orderIdx = externalOrderIdx || await ordersDb.getOrderNo(orderId) || null;
 
   // 3. Items.
   const itemIds = [];
@@ -692,8 +728,9 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
   await positionsDb.reindexOrderPositions(orderId);
   await positionsDb.updateOrderPrice(orderId, null);
 
-  logger(`Imported order id=${orderId} for user=${user.ident} positions=${itemIds.length}`);
-  return { orderId, sendAddressId, itemIds };
+  logger(`Imported order id=${orderId} nr=${orderIdx}${externalOrderIdx ? ' (orderno klienta)' : ''} `
+    + `for user=${user.ident} positions=${itemIds.length}`);
+  return { orderId, orderIdx, sendAddressId, itemIds, warnings };
 }
 
 module.exports = {

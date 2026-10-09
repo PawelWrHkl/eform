@@ -26,7 +26,7 @@ const transporter = nodemailer.createTransport({
 
 /**
  * Build HTML body for the import run summary.
- * @param {Array<{file:string, ok:boolean, orderId:number|null, error:string|null}>} results
+ * @param {Array<{file:string, ok:boolean, orderId:number|null, orderIdx:string|null, error:string|null}>} results
  */
 function buildHtml(results) {
   const ok = results.filter((r) => r.ok);
@@ -51,6 +51,7 @@ function buildHtml(results) {
         <td style="padding:4px 8px;border:1px solid #ccc;">${escHtml(r.file)}</td>
         <td style="padding:4px 8px;border:1px solid #ccc;color:#1a7a1a;">✅ sukces</td>
         <td style="padding:4px 8px;border:1px solid #ccc;">${r.orderId ?? '—'}</td>
+        <td style="padding:4px 8px;border:1px solid #ccc;">${escHtml(r.orderIdx ?? '—')}</td>
         <td style="padding:4px 8px;border:1px solid #ccc;">${sendStatus}</td>
         <td style="padding:4px 8px;border:1px solid #ccc;">${warnings}</td>
       </tr>`;
@@ -62,6 +63,7 @@ function buildHtml(results) {
       <tr>
         <td style="padding:4px 8px;border:1px solid #ccc;">${escHtml(r.file)}</td>
         <td style="padding:4px 8px;border:1px solid #ccc;color:#c0392b;">❌ błąd</td>
+        <td style="padding:4px 8px;border:1px solid #ccc;">—</td>
         <td style="padding:4px 8px;border:1px solid #ccc;">—</td>
         <td style="padding:4px 8px;border:1px solid #ccc;">—</td>
         <td style="padding:4px 8px;border:1px solid #ccc;font-family:monospace;font-size:12px;white-space:pre-wrap;">${escHtml(r.error || 'nieznany błąd')}</td>
@@ -83,6 +85,7 @@ function buildHtml(results) {
         <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Plik</th>
         <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Status</th>
         <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Order ID</th>
+        <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Nr zlecenia</th>
         <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Wysyłka</th>
         <th style="padding:6px 8px;border:1px solid #ccc;text-align:left;">Błąd / Uwagi</th>
       </tr>
@@ -103,7 +106,7 @@ function escHtml(str) {
 
 /**
  * Send import summary email. Never throws.
- * @param {Array<{file:string, ok:boolean, orderId:number|null, error:string|null}>} results
+ * @param {Array<{file:string, ok:boolean, orderId:number|null, orderIdx:string|null, error:string|null}>} results
  */
 async function sendImportSummary(results) {
   const to = process.env.IMPORT_NOTIFY_EMAIL || process.env.EXTRA_MAIL;

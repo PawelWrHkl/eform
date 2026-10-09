@@ -377,6 +377,9 @@ async function fetchPositions(orderId) {
     }
     const data = await response.json();
     if (!data.success) throw new Error(data.message || 'Błąd pobierania pozycji');
+    // Waluta klienta zamówienia (services/currency.js) — bez niej przeliczenie
+    // nie poprawia znacznika waluty w opisach pozycji (formTools/currencyLabel.js).
+    if (typeof data.priceCurrency === 'string') window.priceCurrency = data.priceCurrency;
     return data.positions || [];
 }
 

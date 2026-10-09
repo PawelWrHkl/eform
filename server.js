@@ -207,6 +207,9 @@ app.use((req, res, next) => {
 const { features } = require('./config');
 app.use((req, res, next) => {
 	res.locals.vatEnabled = !!features?.vat;
+	// Specyfikacja ceny `_S` (`PRICE_SPEC_ENABLED`) — base.njk wystawia ją jako
+	// `window.priceSpecEnabled` dla pricesCalculator.js calculateFromScript.
+	res.locals.priceSpecEnabled = !!features?.priceSpec;
 	// Konto podrzędne grupy (`group_user`) nie ma dostępu do fakturowania ani
 	// do kartoteki odbiorców końcowych — składa wyłącznie zamówienia. Flaga
 	// gasi zarówno wejście w menu, jak i sekcję odbiorcy w formularzu

@@ -7,7 +7,10 @@
  *                     3. resolve user (DB), back-fill missing fields
  *                     4. translate parameters to canonical keys
  *                     5. insert the order + items inside a single DB
- *                        transaction (rolled back on any failure)
+ *                        transaction (rolled back on any failure); the
+ *                        payload's `orderno` becomes the order number
+ *                        (`order_idx`), a number the client already has
+ *                        fails the file
  *                     6. move local + remote file to processed/error
  *
  * Returns a per-file summary array so the CLI / cron can report progress.
@@ -82,6 +85,7 @@ async function processOneFile(fileName) {
     file: fileName,
     ok: false,
     orderId: null,
+    orderIdx: null,
     sent: false,
     sendError: null,
     warnings: [],
@@ -146,6 +150,8 @@ async function processOneFile(fileName) {
 
       result.ok = true;
       result.orderId = importResult.orderId;
+      result.orderIdx = importResult.orderIdx;
+      result.warnings.push(...(importResult.warnings || []));
 
       // Log import result
       await importLogger.logSuccess({

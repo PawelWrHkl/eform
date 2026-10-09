@@ -25,6 +25,12 @@ async function insertSendAddress(conn, address) {
   return result && result.insertId ? result.insertId : false;
 }
 
+/**
+ * Without `orderIdx` the `before_insert_order` trigger numbers the order. With
+ * it the order takes that number and is marked `order_idx_external`, which the
+ * trigger skips when numbering the client's later manual orders — call only
+ * once hasExternalOrderIdxColumn() says the migration is in.
+ */
 async function insertNewOrder(
   conn,
   commision,
@@ -35,11 +41,17 @@ async function insertNewOrder(
   totalPrice = 0,
   employeeId = null,
   mailId = null,
-  groupUserId = null
+  groupUserId = null,
+  { orderIdx = null } = {}
 ) {
   if (groupUserId) {
     throw new Error('FTP import does not support group shop order numbering');
   }
+
+  const idxColumns = orderIdx ? `,
+    order_idx,
+    order_idx_external` : '';
+  const idxValues = orderIdx ? ',?,1' : '';
 
   const query = `INSERT INTO \`order\`
     (user_id,
@@ -53,12 +65,12 @@ async function insertNewOrder(
     send_address_id,
     contact_info_id,
     employee_id,
-    group_user_id)
+    group_user_id${idxColumns})
     values (?,?,?,?,
     (select u.organization_id from eform.\`user\` u where u.id =?)
-    ,?,'active',?,?,?,?,?)`;
+    ,?,'active',?,?,?,?,?${idxValues})`;
 
-  const response = await conn.query(query, [
+  const params = [
     userId,
     addressId || null,
     commision,
@@ -70,10 +82,42 @@ async function insertNewOrder(
     mailId || null,
     employeeId || null,
     groupUserId || null
-  ]);
+  ];
+  if (orderIdx) params.push(orderIdx);
+
+  const response = await conn.query(query, params);
 
   const result = firstResult(response);
   return result && result.insertId ? result.insertId : false;
+}
+
+/** Any order of this client (group shop orders included) already numbered `orderIdx`. */
+async function findOrderByIdx(conn, userId, orderIdx) {
+  const [rows] = await conn.query(
+    'SELECT id, status FROM `order` WHERE user_id = ? AND order_idx = ? ORDER BY id LIMIT 1',
+    [userId, orderIdx]
+  );
+  return rows && rows[0] ? rows[0] : null;
+}
+
+async function getOrderNo(conn, orderId) {
+  const [rows] = await conn.query('SELECT order_idx FROM `order` WHERE id = ?', [orderId]);
+  return rows && rows[0] ? rows[0].order_idx : null;
+}
+
+// Positive result only: once migrations/add_order_idx_external.sql is in, it
+// stays in, while a missing column must be re-checked so a running import
+// daemon picks the migration up without a restart.
+let externalOrderIdxColumnSeen = false;
+
+async function hasExternalOrderIdxColumn(conn) {
+  if (externalOrderIdxColumnSeen) return true;
+  const [rows] = await conn.query(
+    `SELECT 1 FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'order' AND COLUMN_NAME = 'order_idx_external'`
+  );
+  externalOrderIdxColumnSeen = !!(rows && rows.length);
+  return externalOrderIdxColumnSeen;
 }
 
 async function getPosCounter(conn, orderId) {
@@ -210,7 +254,10 @@ function makeTransactionalDeps(conn) {
   return {
     orders: {
       insertSendAddress: (address) => insertSendAddress(conn, address),
-      insertNewOrder: (...args) => insertNewOrder(conn, ...args)
+      insertNewOrder: (...args) => insertNewOrder(conn, ...args),
+      findOrderByIdx: (userId, orderIdx) => findOrderByIdx(conn, userId, orderIdx),
+      getOrderNo: (orderId) => getOrderNo(conn, orderId),
+      hasExternalOrderIdxColumn: () => hasExternalOrderIdxColumn(conn)
     },
     positions: {
       insertNewForm: (formData) => insertNewForm(conn, formData),

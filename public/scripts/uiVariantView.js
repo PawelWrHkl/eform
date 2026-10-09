@@ -18,6 +18,8 @@
    adaptera nie może zepsuć strony — każdy mount/unmount jest w try/catch.
    ============================================================================= */
 
+import { KNOWN_CURRENCIES, currencySymbol } from './formTools/currencyLabel.js';
+
 const store = window.eformUiVariant;
 const T = window.eforV2I18n || {};
 const root = document.documentElement;
@@ -730,7 +732,9 @@ function isShown(area) {
     return area.style.display !== 'none' && !area.classList.contains('d-none');
 }
 
-const UNIT_RE = /\s*\[(€|eur|m2|m²|%)\]\s*/i;
+// Jednostka z etykiety pola cenowego: waluta (`[€]` ze starych reguł albo kod
+// dopisywany na końcu przez formTools/currencyLabel.js — „[PLN]”), m², %.
+const UNIT_RE = new RegExp(`\\s*\\[(€|${KNOWN_CURRENCIES.join('|')}|m2|m²|%)\\]\\s*`, 'i');
 
 function formatValue(raw, unit, lang) {
     const value = squash(raw);
@@ -739,12 +743,12 @@ function formatValue(raw, unit, lang) {
     if (!unit || !Number.isFinite(num)) return value;
     const u = unit.toLowerCase();
     if (u === '%') return value.includes('%') ? value : `${value}%`;
-    const digits = u === '€' || u === 'eur' ? 2 : undefined;
+    const isArea = u === 'm2' || u === 'm²';
     let text = value;
     try {
-        text = new Intl.NumberFormat(lang, digits ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 3 }).format(num);
+        text = new Intl.NumberFormat(lang, isArea ? { maximumFractionDigits: 3 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
     } catch (_) { /* nieznany język — zostaje surowa liczba */ }
-    return `${text} ${u === 'm2' || u === 'm²' ? 'm²' : '€'}`;
+    return `${text} ${isArea ? 'm²' : currencySymbol(unit)}`;
 }
 
 function collectPriceRows(form) {

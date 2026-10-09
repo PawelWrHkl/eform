@@ -52,7 +52,8 @@
                                                 {# Jeden przycisk „Pokaż cenę po rabacie" dla grupy i klienta końcowego:
                                                    odsłania NARAZ wiersz cen SUB i wiersz rabatu, po podaniu hasła tego konta
                                                    (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
-                                                   (przełącznik cen SUB przez sesję) jest dla tych ról ukryty niżej. #}
+                                                   (przełącznik cen SUB przez sesję, „Pokaż cenę zakupu klienta") wrócił 2026-10-09
+                                                   dla grupy-matki (`isGroup`); konto podrzędne (`isGroupShop`) nadal go nie ma. #}
                                                 {% if (isGroup or isGroupShop) and not hidePrices %}
                                                     <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
                                                         <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
@@ -62,7 +63,7 @@
                                                 <button id="unlockBtn" class="btn">
                                                     <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
                                                 {% endif %}
-                                                    {% if (canViewSubPrices or viewAsOrganization) and not isGroup and not isGroupShop %}
+                                                    {% if (isGroup or canViewSubPrices or viewAsOrganization) and not isGroupShop %}
                                                         <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
                                                             <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
                                                     {% endif %}
@@ -127,7 +128,8 @@
                                                                     {# Jeden przycisk „Pokaż cenę po rabacie" dla grupy i klienta końcowego:
                                                                        odsłania NARAZ wiersz cen SUB i wiersz rabatu, po podaniu hasła tego konta
                                                                        (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
-                                                                       (przełącznik cen SUB przez sesję) jest dla tych ról ukryty niżej. #}
+                                                                       (przełącznik cen SUB przez sesję, „Pokaż cenę zakupu klienta") wrócił 2026-10-09
+                                                   dla grupy-matki (`isGroup`); konto podrzędne (`isGroupShop`) nadal go nie ma. #}
                                                                     {% if (isGroup or isGroupShop) and not hidePrices %}
                                                                         <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
                                                                             <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
@@ -137,7 +139,7 @@
                                                                     <button id="unlockBtn" class="btn">
                                                                         <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
                                                                     {% endif %}
-                                                                        {% if (canViewSubPrices or viewAsOrganization) and not isGroup and not isGroupShop %}
+                                                                        {% if (isGroup or canViewSubPrices or viewAsOrganization) and not isGroupShop %}
                                                                             <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
                                                                                 <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
                                                                         {% endif %}

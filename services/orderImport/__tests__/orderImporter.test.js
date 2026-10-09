@@ -57,7 +57,8 @@ test('importResolvedOrder runs the full pipeline with stubs', async () => {
     async insertNewOrder(commision, addressId, userId, comment, sendAddressId) {
       calls.order.push({ commision, addressId, userId, comment, sendAddressId });
       return 999;
-    }
+    },
+    async getOrderNo() { return '17'; }
   };
   const positionsDb = {
     async insertNewForm(formData) {
@@ -151,6 +152,8 @@ test('importResolvedOrder runs the full pipeline with stubs', async () => {
   });
 
   assert.equal(res.orderId, 999);
+  assert.equal(res.orderIdx, '17');
+  assert.deepEqual(res.warnings, []);
   assert.equal(res.sendAddressId, 77);
   assert.deepEqual(res.itemIds, [1001]);
 
@@ -182,7 +185,8 @@ test('importResolvedOrder skips send_address when payload has none', async () =>
   let sendAddressCalled = false;
   const ordersDb = {
     async insertSendAddress() { sendAddressCalled = true; return 1; },
-    async insertNewOrder() { return 5; }
+    async insertNewOrder() { return 5; },
+    async getOrderNo() { return '5'; }
   };
   const positionsDb = {
     async insertNewForm() { return [{ insertId: 1 }]; },
@@ -367,7 +371,8 @@ test('importResolvedOrder persists no value for a param disabled by param.txt', 
     deps: {
       orders: {
         async insertSendAddress() { return null; },
-        async insertNewOrder() { return 2905; }
+        async insertNewOrder() { return 2905; },
+        async getOrderNo() { return '305'; }
       },
       positions: positionsDb,
       itemBuilder,
@@ -472,7 +477,8 @@ test('importResolvedOrder seeds price-group descriptions from client_aliases', a
     deps: {
       orders: {
         async insertSendAddress() { return null; },
-        async insertNewOrder() { return 2920; }
+        async insertNewOrder() { return 2920; },
+        async getOrderNo() { return '320'; }
       },
       positions: {
         async insertNewForm(formData) { inserted.push(formData); return [{ insertId: 1 }]; },
@@ -613,4 +619,117 @@ test('restoreParametersAfterRecalc honours a browser verdict of "no slope here"'
   );
 
   assert.equal(out.WYMIAROWANIE_SLOPOW, '');
+});
+
+// ── orderno → order_idx ──────────────────────────────────────────────────────
+// Fully injected (no translation_dictionary / param.txt / DB), see
+// orderimport tests notes: a user without org_ident skips primeClientOverlay.
+
+function orderNoHarness(ordersOverrides = {}) {
+  const calls = { sendAddress: 0, order: [], findOrderByIdx: [], getOrderNo: 0, columnChecks: 0, items: 0 };
+  const orders = {
+    async insertSendAddress() { calls.sendAddress += 1; return 77; },
+    async insertNewOrder(...args) { calls.order.push(args); return 3200; },
+    async findOrderByIdx(userId, orderIdx) { calls.findOrderByIdx.push([userId, orderIdx]); return null; },
+    async getOrderNo() { calls.getOrderNo += 1; return '307'; },
+    async hasExternalOrderIdxColumn() { calls.columnChecks += 1; return true; },
+    ...ordersOverrides
+  };
+  const deps = {
+    orders,
+    positions: {
+      async insertNewForm() { calls.items += 1; return [{ insertId: 1 }]; },
+      async reindexOrderPositions() {},
+      async updateOrderPrice() {},
+      async getAppVersion() { return '1'; }
+    },
+    itemBuilder: { buildOrderItemStructure: () => ({}) },
+    translator: async (p) => p,
+    twinResolver: async (_g, parameters) => ({ parameters, notes: [] }),
+    optionValidator: async () => ({ ok: true, errors: [] }),
+    formEngine: {
+      async calculatePrices({ values }) {
+        return { values, displayValues: {}, total: { total: 0, total_hidden: 0, total_sub: 0 }, shortJson: {} };
+      },
+      displayValuesToWireFormat: () => '[]',
+      stubDisplayEntries: () => []
+    },
+    displayBuilder: async () => ({}),
+    groupNameResolver: async () => 'G',
+    departmentNameResolver: async () => 'D',
+    translationRepo: { async getGroupTranslations() { return { paramdict: {} }; } },
+    readFormParamDefs: async () => null,
+    loadClientDescriptions: async () => new Map(),
+    normalizeSlopeParams: async () => ({ rebuilt: [], notes: [] }),
+    log: () => {}
+  };
+  return { calls, deps };
+}
+
+const orderNoPayload = (orderno) => ({
+  userIdent: 'TCN',
+  orderno,
+  items: [{ product: '71', posid: 1, parameters: { MODEL: 'BB24', ILOSC: 1 } }]
+});
+const orderNoUser = { id: 3559, ident: 'TCN' };
+
+test('importResolvedOrder numbers the order with the client orderno', async () => {
+  const { calls, deps } = orderNoHarness();
+  const res = await importResolvedOrder({ payload: orderNoPayload('272905'), user: orderNoUser, lang: 'pl', deps });
+
+  assert.deepEqual(calls.findOrderByIdx, [[3559, '272905']]);
+  assert.equal(calls.order.length, 1);
+  assert.deepEqual(calls.order[0][9], { orderIdx: '272905' });
+  assert.equal(calls.getOrderNo, 0);
+  assert.equal(res.orderIdx, '272905');
+  assert.deepEqual(res.warnings, []);
+});
+
+test('importResolvedOrder stores a numeric orderno as text', async () => {
+  const { calls, deps } = orderNoHarness();
+  const res = await importResolvedOrder({ payload: orderNoPayload(272905), user: orderNoUser, lang: 'pl', deps });
+
+  assert.deepEqual(calls.order[0][9], { orderIdx: '272905' });
+  assert.equal(res.orderIdx, '272905');
+});
+
+test('importResolvedOrder refuses an orderno the client already has and writes nothing', async () => {
+  const { calls, deps } = orderNoHarness({
+    async findOrderByIdx() { return { id: 3195, status: 'sent' }; }
+  });
+
+  await assert.rejects(
+    importResolvedOrder({ payload: orderNoPayload('272905'), user: orderNoUser, lang: 'pl', deps }),
+    /Order number 272905 already exists for client TCN \(order id=3195, status=sent\)/
+  );
+  assert.equal(calls.sendAddress, 0);
+  assert.equal(calls.order.length, 0);
+  assert.equal(calls.items, 0);
+});
+
+test('importResolvedOrder keeps eForm numbering until the order_idx_external migration is in', async () => {
+  const { calls, deps } = orderNoHarness({
+    async hasExternalOrderIdxColumn() { return false; }
+  });
+  const res = await importResolvedOrder({ payload: orderNoPayload('272905'), user: orderNoUser, lang: 'pl', deps });
+
+  assert.deepEqual(calls.findOrderByIdx, []);
+  assert.equal(calls.order[0].length, 9);
+  assert.equal(res.orderIdx, '307');
+  assert.equal(res.warnings.length, 1);
+  assert.match(res.warnings[0], /272905/);
+  assert.match(res.warnings[0], /add_order_idx_external\.sql/);
+});
+
+test('importResolvedOrder without orderno leaves numbering to the trigger', async () => {
+  for (const orderno of [undefined, null, '', '   ']) {
+    const { calls, deps } = orderNoHarness();
+    const res = await importResolvedOrder({ payload: orderNoPayload(orderno), user: orderNoUser, lang: 'pl', deps });
+
+    assert.equal(calls.columnChecks, 0);
+    assert.deepEqual(calls.findOrderByIdx, []);
+    assert.equal(calls.order[0].length, 9);
+    assert.equal(res.orderIdx, '307');
+    assert.deepEqual(res.warnings, []);
+  }
 });

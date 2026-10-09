@@ -98,6 +98,11 @@
         }
     })();
 </script>
+{# Specyfikacja ceny `_S` — flaga `PRICE_SPEC_ENABLED` z `.env` (config.js
+   `features.priceSpec`). Zwykły, synchroniczny skrypt w <head>: moduły
+   (`type="module"`) startują później, więc pricesCalculator.js ma wartość od
+   pierwszego przeliczenia. #}
+<script>window.priceSpecEnabled = {{ priceSpecEnabled | default(false) | dump | safe }};</script>
 {% block head %}{% endblock head %}
 {# Wariant B PO arkuszach podstrony (blok `head`), żeby przy równej
    specyficzności wygrywał. W wariancie A nic nie robi — każda reguła wisi pod

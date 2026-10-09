@@ -94,6 +94,8 @@
                       // cen SUB___ z rabatem — pricesCalculator.applyClientMarkup().
                       window.clientPriceMode = {{ clientPriceMode | default('discount') | dump | safe }};
                       window.clientMarkupPercent = {{ clientMarkupPercent | default(0) | dump | safe }};
+                      // Waluta cen klienta zamówienia — patrz form.njk.
+                      window.priceCurrency = {{ priceCurrency | default(null) | dump | safe }};
                     </script>
                     {% if vatEnabled %}
                     <script>

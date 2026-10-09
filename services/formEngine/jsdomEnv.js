@@ -31,7 +31,7 @@
 
 const { JSDOM, VirtualConsole } = require('jsdom');
 
-const { dataDir } = require('../../config');
+const { dataDir, features } = require('../../config');
 const { buildHarnessHtml } = require('./harnessHtml');
 const { FormEngineResourceLoader, PUBLIC_DIR } = require('./resourceLoader');
 const { getBundle } = require('./bundler');
@@ -77,12 +77,20 @@ function defaultTranslate(key) {
 }
 
 function installPreloadGlobals(window, opts) {
-  const { lang, isGroup, isGroupShop, langs, orgIdent, userIdent } = opts;
+  const { lang, isGroup, isGroupShop, langs, orgIdent, userIdent, currency } = opts;
 
   window.t = defaultTranslate;
+  // Waluta cen klienta (services/currency.js) — ta sama, którą przeglądarka
+  // dostaje z szablonu; form.js dopisuje ją do opisów parametrów kwotowych
+  // (formTools/currencyLabel.js). Brak = EUR i bez ruszania zapisanych opisów.
+  if (currency) window.priceCurrency = currency;
   window.langs = langs || ['pl', 'en', 'de', 'fr', 'nl'];
   window.isGroup = !!isGroup;
   window.isGroupShop = !!isGroupShop;
+  // Specyfikacja ceny `_S` — ta sama flaga `PRICE_SPEC_ENABLED`, którą
+  // przeglądarka dostaje z base.njk (config.js `features.priceSpec`), więc
+  // import i przeliczanie tworzą wiersze `_S` dokładnie tam, gdzie formularz.
+  window.priceSpecEnabled = !!features.priceSpec;
 
   // Some scripts read these at module-evaluation time.
   window.shortJson = {};
@@ -204,8 +212,9 @@ function patchFetch(window, { uid }) {
     }
 
     if (url === '/env' || url.endsWith('/env')) {
-      // Match the Testowa environment so price-script side effects (e.g. *_S spec
-      // fields) are created the same way as in the browser recalculate flow.
+      // Etykieta wersji dla skryptów, które o nią pytają. Specyfikacja ceny
+      // `_S` już od niej NIE zależy — steruje nią `window.priceSpecEnabled`
+      // (`PRICE_SPEC_ENABLED`, ustawiane w installPreloadGlobals).
       return Promise.resolve(jsonResponse({ body: { version: 'Testowa' } }));
     }
 
@@ -293,6 +302,8 @@ function loadEngine(window) {
  *                                    used to resolve per-client price scripts.
  * @param {string} [opts.userIdent] - Order owner's user.ident (e.g. "TCN"),
  *                                    used to resolve per-client price scripts.
+ * @param {string} [opts.currency]  - Client's price currency (services/currency.js),
+ *                                    appended to monetary param labels.
  * @returns {Promise<{window, dispose: () => void, PUBLIC_DIR: string}>}
  */
 async function bootEngine(opts = {}) {
@@ -337,7 +348,8 @@ async function bootEngine(opts = {}) {
     isGroup: opts.isGroup,
     isGroupShop: opts.isGroupShop,
     orgIdent: opts.orgIdent,
-    userIdent: opts.userIdent
+    userIdent: opts.userIdent,
+    currency: opts.currency
   });
   patchFetch(window, { uid: opts.uid });
 

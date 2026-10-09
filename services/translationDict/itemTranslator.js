@@ -10,6 +10,20 @@
 
 const repo = require('./dbRepository');
 const { log } = require('../../utils/logging');
+const { currencyOfLabel, withCurrencyLabel } = require('../currency');
+
+/**
+ * Opis parametru w języku docelowym. Słownik zna surowy opis z param.txt, a
+ * opis zapisany z pozycją niesie na końcu walutę klienta („… [PLN]”,
+ * public/scripts/formTools/currencyLabel.js) — przenosimy ją na tłumaczenie,
+ * inaczej dokument w innym języku gubiłby walutę.
+ */
+function translatedLabel(display, paramName, dict) {
+  const translated = paramName && dict.params[paramName];
+  if (!translated) return display;
+  const currency = currencyOfLabel(display);
+  return currency ? withCurrencyLabel(translated, currency) : translated;
+}
 
 /**
  * Translate cleanOrderItems into the target language.
@@ -74,41 +88,37 @@ async function translateOrderItems(orderItems, cleanOrderItems, targetLang) {
 
     // Translate headers1 display names
     table.headers1 = table.headers1.map(display => {
-      const paramName = displayToParam1[display];
-      return (paramName && dict.params[paramName]) || display;
+      return translatedLabel(display, displayToParam1[display], dict);
     });
 
     // Translate headers2 display names
     if (table.headers2) {
       table.headers2 = table.headers2.map(display => {
-        const paramName = displayToParam2[display];
-        return (paramName && dict.params[paramName]) || display;
+        return translatedLabel(display, displayToParam2[display], dict);
       });
     }
 
     // Build old display → new display map for row key remapping
     const remap1 = {};
     for (const [oldDisplay, paramName] of Object.entries(displayToParam1)) {
-      remap1[oldDisplay] = (paramName && dict.params[paramName]) || oldDisplay;
+      remap1[oldDisplay] = translatedLabel(oldDisplay, paramName, dict);
     }
     const remap2 = {};
     for (const [oldDisplay, paramName] of Object.entries(displayToParam2)) {
-      remap2[oldDisplay] = (paramName && dict.params[paramName]) || oldDisplay;
+      remap2[oldDisplay] = translatedLabel(oldDisplay, paramName, dict);
     }
 
     // Update headerKeys to match translated display names
     if (table.headerKeys1) {
       table.headerKeys1 = table.headerKeys1.map(hk => {
-        const paramName = hk.split('||')[1];
-        const newDisplay = dict.params[paramName] || hk.split('||')[0];
-        return newDisplay + '||' + paramName;
+        const [oldDisplay, paramName] = hk.split('||');
+        return translatedLabel(oldDisplay, paramName, dict) + '||' + paramName;
       });
     }
     if (table.headerKeys2) {
       table.headerKeys2 = table.headerKeys2.map(hk => {
-        const paramName = hk.split('||')[1];
-        const newDisplay = dict.params[paramName] || hk.split('||')[0];
-        return newDisplay + '||' + paramName;
+        const [oldDisplay, paramName] = hk.split('||');
+        return translatedLabel(oldDisplay, paramName, dict) + '||' + paramName;
       });
     }
 

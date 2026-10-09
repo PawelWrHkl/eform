@@ -77,7 +77,7 @@ async function runCycle() {
     let failed = 0;
     for (const r of results) {
       if (r.ok) {
-        log(`OK    ${r.file}  ->  order id=${r.orderId}`);
+        log(`OK    ${r.file}  ->  order id=${r.orderId} nr=${r.orderIdx ?? '?'}`);
       } else {
         failed++;
         log(`FAIL  ${r.file}  ->  ${r.error}`);

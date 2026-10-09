@@ -29,7 +29,7 @@ import {
   hideLocked, hideSub, hideParams, shouldHideRegularPriceRow, canUserSeeSubPrices,
   applySubPriceLayoutDuringCalc, showSubPriceRowsImmediately,
   restoreLockedParamsFromDisplayValues, syncLockedParamsFromEnableFormulas,
-  isParamLocked, hideLockedParamRows, maskPriceValuesDuringCalc, unmaskPriceValues
+  isParamLocked, hideLockedParamRows, maskPriceValuesDuringCalc, revealPriceValuesWhenSettled
 } from './formTools/createForm.js'
 import { AttrLoader } from "./formTools/storage.js";
 import { Translator } from "./formTools/fileTranslator.js"
@@ -38,6 +38,7 @@ import { fillLocalPositionObject } from "./formTools/localStorageManager.js";
 import { getUid } from './formTools/getUid.js';
 import { generateShortJson } from './formTools/shortJsonGen.js';
 import { formatVatRateLabel } from './formTools/vatLabel.js';
+import { applyCurrencyToParams, refreshSavedCurrencyLabels, withCurrencyLabel } from './formTools/currencyLabel.js';
 
 
 export async function generateForm(
@@ -130,6 +131,12 @@ export async function generateForm(
   const filters = loader.getAllFilters();
   fillLocalPositionObject();
   data.params = await loader.selectPrices(data.params)
+  // Waluta klienta na końcu opisu każdego parametru kwotowego („CENA HKL netto
+  // [PLN]”) — formTools/currencyLabel.js. PRZED budową pól: z opisu powstaje
+  // etykieta, `param_description` i `<PARAM>___TITLE`. Przy edycji poprawiamy
+  // też znacznik waluty w opisach zapisanych z pozycją.
+  applyCurrencyToParams(data.params);
+  if (editFlag) refreshSavedCurrencyLabels(data.params, displayValues, values);
   window.params = data.params;
   const params = data.params;
   window.actualParam = '';
@@ -537,16 +544,10 @@ export async function updateProcedure({
   // `maskPriceValuesDuringCalc` (createForm.js): bez tego, na wolniejszym
   // łączu, widać przez moment kolejne pośrednie wartości wpisywane do DOM
   // przez asynchroniczne skrypty cenowe (`calculateFromScript`).
+  // Siatka bezpieczeństwa (awaryjne zdjęcie maski, gdyby liczenie rzuciło
+  // wyjątkiem) siedzi teraz w samym strażniku maski (createForm.js): 5 s bez
+  // żadnej zmiany ceny odsłania pola nawet bez sygnału końca liczenia.
   maskPriceValuesDuringCalc(params, inputs);
-  // Siatka bezpieczeństwa: `updateProcedure` nie ma try/finally wokół całego
-  // ciała, więc wyjątek gdziekolwiek między tym miejscem a normalnym
-  // zdjęciem maski (`unmaskPriceValues` niżej) zostawiłby ceny NA STAŁE
-  // niewidoczne — dużo gorsza usterka niż migotanie, które łatamy. Ten sam
-  // wzorzec „i tak kiedyś się odblokuje" co `window.finishFlag` kawałek
-  // niżej. `unmaskPriceValues` na już odmaskowanych polach jest bezpieczne
-  // (samo `classList.remove` nieistniejącej klasy), więc podwójne
-  // wywołanie na normalnej ścieżce nic nie psuje.
-  setTimeout(() => unmaskPriceValues(params, inputs), 4000);
 
   console.log('🔒 updateProcedure rozpoczęte, UI zablokowane');
 
@@ -596,7 +597,10 @@ export async function updateProcedure({
     applyPriceFactor(params, inputs, values);
     // Dopiero teraz, po ostatnim kroku (łącznie z applyPriceFactor) — inaczej
     // odsłonięta liczba mogłaby na moment pokazać wartość sprzed przemnożenia.
-    unmaskPriceValues(params, inputs);
+    // I nie od razu: dopiero gdy od sekundy żadna cena się nie zmieniła, bo
+    // jedna zmiana pola potrafi odpalić kilka przeliczeń pod rząd
+    // (createForm.js `revealPriceValuesWhenSettled`).
+    revealPriceValuesWhenSettled(params, inputs);
     console.log('🔓 Wszystkie obliczenia zakończone, UI odblokowane');
   }
   console.log('display values 123', displayValues);
@@ -646,7 +650,11 @@ export async function applySubPriceFieldVisibility(groupNumber) {
   hideLocked(inputs, displayValues);
   hideSub(inputs, displayValues);
   hideLockedParamRows(params, inputs);
+  // Otwarcie edycji przelicza ceny od zera — bez maski widać było przez
+  // moment zapisane/pośrednie liczby, zanim skrypty cenowe wpisały właściwe.
+  maskPriceValuesDuringCalc(params, inputs);
   await updateFieldStates(params, inputs, values, displayValues, groupNumber, allOptionsByParameter, '', '');
+  revealPriceValuesWhenSettled(params, inputs);
   showSubPriceRowsImmediately(params, inputs);
   hideLockedParamRows(params, inputs);
   hideParams(params, inputs);
@@ -775,7 +783,8 @@ export function buildVatFields(destinationNode) {
   const vatValueDiv = createElement('div', { class: ['WARTOSC_VAT-select-area'] }, destinationNode);
   createElement('label', {
     for: 'WARTOSC_VAT',
-    text: t('form.wartosc_vat_label'),
+    // Tłumaczenie niesie „[€]” — podmieniamy je na walutę klienta.
+    text: withCurrencyLabel(t('form.wartosc_vat_label')),
     class: ['form-label', 'mb-1']
   }, vatValueDiv);
   const vatValueInput = createElement('input', {
@@ -789,7 +798,7 @@ export function buildVatFields(destinationNode) {
   const bruttoDiv = createElement('div', { class: ['WARTOSC_BRUTTO-select-area'] }, destinationNode);
   createElement('label', {
     for: 'WARTOSC_BRUTTO',
-    text: t('form.wartosc_brutto_label'),
+    text: withCurrencyLabel(t('form.wartosc_brutto_label')),
     class: ['form-label', 'mb-1']
   }, bruttoDiv);
   const bruttoInput = createElement('input', {
@@ -861,7 +870,7 @@ export function buildClientDiscountFields(destinationNode) {
   const afterDiv = createElement('div', { class: ['WARTOSC_PO_RABACIE-select-area', 'd-none'], style: 'display: none' }, destinationNode);
   createElement('label', {
     for: 'WARTOSC_PO_RABACIE',
-    text: t('form.value_after_discount_label'),
+    text: withCurrencyLabel(t('form.value_after_discount_label')),
     class: ['form-label', 'mb-1']
   }, afterDiv);
   const afterInput = createElement('input', {
