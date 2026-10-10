@@ -499,7 +499,7 @@
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total price-label sub-total col-3 text-center p-price'>
                                     {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                    HKL {{ __('order.total') }}: {{ totalPrice.subVisible }}&#8364;</span>
+                                    {{ __('order.total') }}: {{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
                                     {% else %}
                                       {{ __('order.according_to_price') }}</span>
                                     {% endif %}
@@ -507,7 +507,7 @@
                                 {% if totalPrice.subLocked and totalPrice.subLocked != 0 %}
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total gold price-label col-3 text-center'>
-                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked }}&#8364; netto</span>
+                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked }}{{ currencySuffix | default('€') }} netto</span>
                                 </div>
                                 {% endif %}
                               {% elif hasSubPriceToggle and hasSubPrices %}
@@ -515,29 +515,32 @@
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total price-label col-3 text-center'>
                                     {% if totalPrice.visible != '0.00' %}
-                                      HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}&#8364;</span>
+                                      HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}</span>
                                     {% else %}
                                       {{ __('order.according_to_price') }}</span>
                                     {% endif %}
                                 </div>
                                 {% endif %}
-                                {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                                {# Owner/admin: wiersz SUB___ jest w tabeli zawsze, więc suma SUB___ też (0 → „Według cennika”, jak suma zwykła). #}
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total price-label sub-total col-3 text-center'>
-                                    {% if showCatalogPrices %}{% endif %}{{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}&#8364;</span>
+                                    {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                                    {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}</span>
+                                    {% else %}
+                                    {{ __('order.according_to_price') }}</span>
+                                    {% endif %}
                                 </div>
-                                {% endif %}
                                 {% if totalPrice.subLocked and totalPrice.subLocked != 0 %}
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total gold price-label col-3 text-center'>
-                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}&#8364; netto</span>
+                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} netto</span>
                                 </div>
                                 {% endif %}
                               {% else %}
                               <div class="total-price d-flex justify-content-end align-items-center col-12">
                                 <span class='total price-label col-3 text-center'>
                                   {% if totalPrice.visible != '0.00' %}
-                                    {% if not (isClient or hasSubPriceToggle or canViewSubPrices or viewAsOrganization) %}HKL{% endif %}{{ __('order.total') }}: {{ totalPrice.visible }}&#8364;</span>
+                                    {% if not (isClient or hasSubPriceToggle or canViewSubPrices or viewAsOrganization) %}HKL{% endif %}{{ __('order.total') }}: {{ totalPrice.visible }}{{ currencySuffix | default('€') }}</span>
                                 {% else %}
                                   {{ __('order.according_to_price') }}</span>
                               {% endif %}
@@ -545,7 +548,7 @@
                             <div class="total-price d-flex justify-content-end align-items-center col-12">
                               <span class='total gold price-label col-3  text-center'>
                                 {% if totalPrice.hidden != '0.00' %}
-                                  {{ __('order.total_hidden') }}: {{ totalPrice.hidden }}&#8364; netto</span>
+                                  {{ __('order.total_hidden') }}: {{ totalPrice.hidden }}{{ currencySuffix | default('€') }} netto</span>
                               {% else %}
                                 {{ __('order.according_to_price') }}</span>
                             {% endif %}

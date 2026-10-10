@@ -583,7 +583,7 @@
                                                                                                                     <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                         <span class='total price-label col-3 text-center'>
                                                                                                                             {% if totalPrice.visible and totalPrice.visible != '0.00' %}
-                                                                                                                                HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}&#8364;
+                                                                                                                                HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
                                                                                                                             {% else %}
                                                                                                                                 {{ __('order.according_to_price') }}
                                                                                                                             {% endif %}
@@ -593,7 +593,7 @@
                                                                                                                     <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                         <span class='total price-label sub-total col-3 text-center'>
                                                                                                                             {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                                                                                                                {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}&#8364;
+                                                                                                                                {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
                                                                                                                             {% else %}
                                                                                                                                 {{ __('order.according_to_price') }}
                                                                                                                             {% endif %}
@@ -610,40 +610,52 @@
 {% if totalPrice.afterClientDiscount and totalPrice.afterClientDiscount != totalPrice.subLocked %}
                                                                                                                     <div class="total-price d-flex justify-content-end align-items-center client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}">
                                                                                                                         <span class='total price-label sub-total col-3 text-center'>
-                                                                                                                            {{ __('form.value_after_discount_label') }}: {{ totalPrice.afterClientDiscount | applyFactor(priceFactor) }}&#8364;
+                                                                                                                            {{ __('form.value_after_discount_label') }}: {{ totalPrice.afterClientDiscount | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
+                                                                                                                        </span>
+                                                                                                                    </div>
+                                                                                                                {% endif %}
+                                                                                                                {# Admin/owner w kontekście grupy: suma SUB___ obok katalogowej, gdy kłódka odsłania ceny katalogowe. #}
+                                                                                                                {% if hasSubPriceToggle and showCatalogPrices and hasSubPrices and totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center">
+                                                                                                                        <span class='total price-label sub-total col-3 text-center'>
+                                                                                                                            {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
                                                                                                                         </span>
                                                                                                                     </div>
                                                                                                                 {% endif %}
                                                                                                             {% else %}
+                                                                                                            {# Stopka = to, co widać w tabeli (zgłoszenie 2026-10-09): ceny zwykłe
+                                                                                                               i SUB___ → OBIE sumy („HKL Razem” = ceny zwykłe, „Razem” = ceny klienta
+                                                                                                               SUB___), same SUB___ → tylko suma SUB___, same zwykłe → tylko zwykła.
+                                                                                                               Warunki 1:1 z wierszami tabeli wyżej (wiersz cen zwykłych i `sub-params-row`). #}
+                                                                                                            {% set showRegularTotal = not isGroupShop and not (isClient and hasSubPrices) and not (hasSubPriceToggle and hasSubPrices and not showCatalogPrices) %}
+                                                                                                            {% set showSubTotal = isGroupShop or (hasSubPrices and (isClient or hasSubPriceToggle)) %}
+                                                                                                            {% if showRegularTotal %}
                                                                                                             <div class="total-price d-flex justify-content-end align-items-center">
-                                                                                                                <span class='total price-label col-3 text-center{% if isGroupShop or (isClient and hasSubPrices) or (hasSubPriceToggle and hasSubPrices and not showCatalogPrices) %} sub-total{% endif %}'>
-                                                                                                                    {% if isGroupShop or (isClient and hasSubPrices) or (hasSubPriceToggle and hasSubPrices and not showCatalogPrices) %}
-                                                                                                                        {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                                                                                                        {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}&#8364; 
-                                                                                                                        {% else %}
-                                                                                                                            {{ __('order.according_to_price') }}
-                                                                                                                        {% endif %}
+                                                                                                                <span class='total price-label col-3 text-center'>
+                                                                                                                    {% if totalPrice.visible != '0.00' %}
+                                                                                                                    {% if showSubTotal or not (isClient or hasSubPriceToggle or canViewSubPrices or viewAsOrganization) %}HKL {% endif %}{{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
                                                                                                                     {% else %}
-                                                                                                                        {% if totalPrice.visible != '0.00' %}
-                                                                                                                        {% if not (isClient or hasSubPriceToggle or canViewSubPrices or viewAsOrganization) %}HKL {% endif %}{{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}&#8364;
-                                                                                                                        {% else %}
-                                                                                                                            {{ __('order.according_to_price') }}
-                                                                                                                        {% endif %}
+                                                                                                                        {{ __('order.according_to_price') }}
                                                                                                                     {% endif %}
                                                                                                                 </span>
                                                                                                             </div>
                                                                                                             {% endif %}
-                                                                                                            {% if hasSubPriceToggle and showCatalogPrices and hasSubPrices and totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                                                                                                <div class="total-price d-flex justify-content-end align-items-center">
-                                                                                                                    <span class='total price-label sub-total col-3 text-center'>
-                                                                                                                        {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}&#8364;
-                                                                                                                    </span>
-                                                                                                                </div>
+                                                                                                            {% if showSubTotal %}
+                                                                                                            <div class="total-price d-flex justify-content-end align-items-center">
+                                                                                                                <span class='total price-label sub-total col-3 text-center'>
+                                                                                                                    {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                                                                                                                    {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
+                                                                                                                    {% else %}
+                                                                                                                        {{ __('order.according_to_price') }}
+                                                                                                                    {% endif %}
+                                                                                                                </span>
+                                                                                                            </div>
+                                                                                                            {% endif %}
                                                                                                             {% endif %}
                                                                                                             {% if hasSubPriceToggle and hasSubPrices and totalPrice.subLocked and totalPrice.subLocked != 0 and prices %}
                                                                                                                 <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                     <span class='total gold price-label col-3 text-center'>
-                                                                                                                        {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}&#8364; netto
+                                                                                                                        {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} netto
                                                                                                                     </span>
                                                                                                                 </div>
                                                                                                             {% endif %}

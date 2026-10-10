@@ -142,6 +142,9 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
   // Czy zamówienie ma w ogóle ceny klienta (`SUB___*`) — decyduje o tym, czy
   // wolno wydrukować ceny „złote" (wewnętrzne HKL). Patrz order-pdf.njk.
   const hasSubPrices = options.hasSubPrices === true;
+  // Symbol waluty klienta zamówienia („€”, „zł” — services/currency.js) dla
+  // wierszy rabatu w `order-pdf.njk`. Sumy przychodzą już gotowe w `sendData`.
+  const currencySymbol = options.currencySymbol || '€';
   log('zaczynam', logoPath)
   const logoBase64 = fs.readFileSync(logoPath, { encoding: 'base64' });
   const logoDataUri = `data:image/png;base64,${logoBase64}`;
@@ -206,13 +209,14 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     hasSubPrices: hasSubPrices,
     hideClientVat: hideClientVat,
     discountInfo: withoutPrices ? null : discountInfo,
-    withoutPrices: withoutPrices
+    withoutPrices: withoutPrices,
+    currencySymbol: currencySymbol
   };
 
   if (withoutPrices && renderContext.sendData) {
     // Sumy idą do szablonu przez `sendData` — czyścimy je tutaj, żeby żaden
     // wariant wołającego (mail, korekta, import) nie przemycił kwoty w stopce.
-    renderContext.sendData = { ...renderContext.sendData, total: null, total_hidden: null, total_client_discount: null };
+    renderContext.sendData = { ...renderContext.sendData, total: null, total_hidden: null, total_sub: null, total_client_discount: null };
   }
 
   const html = env.render('order-pdf.njk', renderContext);
@@ -313,7 +317,7 @@ function renderOrderPdfHtml({
     orderDetails,
     cleanOrderItems,
     logoPath: 'data:image/png;base64,test',
-    sendData: withoutPrices && sendData ? { ...sendData, total: null, total_hidden: null, total_client_discount: null } : sendData,
+    sendData: withoutPrices && sendData ? { ...sendData, total: null, total_hidden: null, total_sub: null, total_client_discount: null } : sendData,
     orderNr,
     prices,
     maxProdDays,

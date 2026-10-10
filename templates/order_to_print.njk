@@ -344,6 +344,9 @@
             {# ⚠️ Konto podrzędne grupy (`group_user`) NIE MOŻE widzieć sumy katalogowej
    (to cena zakupu grupy) — ani na ekranie, ani w druku/PDF generowanym z tego
    szablonu. Dostaje wyłącznie swoją sumę (`totalPrice.sub`) niżej. #}
+{# Ceny zwykłe i SUB___ w druku (`showBoth`) → obie sumy, jak stopka zlecenia
+   (2026-10-09): „HKL Razem” = zwykłe, „Razem” = SUB___. Grupy bez zmian. #}
+{% set printSubTotal = showBoth and not clientView and not isGroupShop and not isGroup and totalPrice and totalPrice.subVisible and totalPrice.subVisible != 0 %}
 {% if prices and sendData and sendData.total and not isGroupShop %}
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
@@ -357,7 +360,7 @@
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
                             {% if totalPrice.visible != '0.00' %}
-                                {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.visible }}&#8364;</span>
+                                {% if printSubTotal %}HKL {% endif %}{{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.visible }}{{ currencySuffix | default('€') }}</span>
                             {% else %}
                                 Według cennika
                             {% endif %}
@@ -371,7 +374,7 @@
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
-                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}&#8364;</span>
+                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
                         </span>
                     </div>
                 </div>
@@ -379,11 +382,20 @@
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
-                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}&#8364;</span>
+                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
                         </span>
                     </div>
                 </div>
             {% endif %}
+                {% if printSubTotal %}
+                <div id='total-container' style='padding-right: 10%;'>
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total price-label col-3 text-center'>
+                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
+                        </span>
+                    </div>
+                </div>
+                {% endif %}
             {% if prices and sendData and sendData.total_hidden and not isGroupShop %}
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
@@ -397,7 +409,7 @@
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>
                             {% if totalPrice.hidden != '0.00' %}
-                                {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.hidden }}&#8364; netto</span>
+                                {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.hidden }}{{ currencySuffix | default('€') }} netto</span>
                             {% else %}
                                 Według cennika
                             {% endif %}
@@ -408,7 +420,7 @@
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>
-                            {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.subLocked }}&#8364; netto</span>
+                            {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.subLocked }}{{ currencySuffix | default('€') }} netto</span>
                         </span>
                     </div>
                 </div>
@@ -418,7 +430,7 @@
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label print-discount-price col-3 text-center'>
-                            {{ __('form.value_after_discount_label') }}: <span class="pdf-val">{{ totalPrice.afterClientDiscount }}&#8364;</span>
+                            {{ __('form.value_after_discount_label') }}: <span class="pdf-val">{{ totalPrice.afterClientDiscount }}{{ currencySuffix | default('€') }}</span>
                         </span>
                     </div>
                 </div>
@@ -427,12 +439,12 @@
                 <div style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center' style="background: rgba(235,232,75,0.8); color: #333; font-weight: bold;">
-                            {{ __('order.discount') }}: <span class="pdf-val">{{ discountInfo.discountValue }}{% if discountInfo.type == 'percentage' %}%{% else %} €{% endif %}</span>
+                            {{ __('order.discount') }}: <span class="pdf-val">{{ discountInfo.discountValue }}{% if discountInfo.type == 'percentage' %}%{% else %} {{ currencySymbol | default('€') }}{% endif %}</span>
                         </span>
                     </div>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center' style="background: rgba(235,232,75,0.8); color: #333; font-weight: bold;">
-                            {{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result }} €</span>
+                            {{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result }} {{ currencySymbol | default('€') }}</span>
                         </span>
                     </div>
                 </div>

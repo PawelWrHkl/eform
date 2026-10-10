@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var formHasla   = document.getElementById('ua-password-form');
     var formWyceny  = document.getElementById('ua-price-mode-form');
     var formFakturowania = document.getElementById('ua-invoice-schedule-form');
+    var formWaluty  = document.getElementById('ua-currency-form');
 
     /** Ostatnio wczytany użytkownik — źródło prawdy dla „przywróć wartości". */
     var wybrany = null;
@@ -143,6 +144,19 @@ document.addEventListener('DOMContentLoaded', function () {
             el.checked = el.value === harmonogram;
         });
 
+        // Waluta cen — `currency_setting` z services/currency.js. Pusta opcja
+        // = jak organizacja; jej podpis mówi, co to dziś znaczy.
+        var waluta = u.currency_setting || { available: false };
+        var dostepna = waluta.available === true;
+        document.getElementById('ua-currency-missing').hidden = dostepna;
+        document.getElementById('ua-currency').disabled = !dostepna;
+        document.getElementById('ua-save-currency').disabled = !dostepna;
+        document.getElementById('ua-currency-inherit').textContent =
+            'Jak organizacja (' + (waluta.organization || 'EUR') + ')';
+        document.getElementById('ua-currency').value = waluta.user || '';
+        document.getElementById('ua-currency-effective').textContent =
+            dostepna ? 'Obowiązuje teraz: ' + (waluta.effective || 'EUR') : '';
+
         document.getElementById('ua-password').value = '';
         document.getElementById('ua-password2').value = '';
 
@@ -245,6 +259,33 @@ document.addEventListener('DOMContentLoaded', function () {
             powiadom('error', e2.message || 'Zapis nie powiódł się');
         } finally {
             btn.disabled = false;
+        }
+    });
+
+    /* --- Waluta cen -------------------------------------------------- */
+
+    formWaluty.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (!wybrany) return;
+
+        var btn = document.getElementById('ua-save-currency');
+        btn.disabled = true;
+        try {
+            var resp = await fetch('/admin/api/users/' + wybrany.id + '/currency', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currency: document.getElementById('ua-currency').value })
+            });
+            var dane = await resp.json();
+            if (!dane.success) throw new Error(dane.message || 'Zapis nie powiódł się');
+            wybrany = dane.user;
+            wypelnij(wybrany);
+            powiadom('success', 'Waluta zapisana');
+        } catch (e2) {
+            powiadom('error', e2.message || 'Zapis nie powiódł się');
+        } finally {
+            // Przed migracją przycisk zostaje wyłączony (patrz wypelnij).
+            btn.disabled = !(wybrany && wybrany.currency_setting && wybrany.currency_setting.available);
         }
     });
 

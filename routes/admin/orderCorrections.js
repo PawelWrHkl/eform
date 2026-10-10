@@ -124,6 +124,10 @@ router.get('/:orderId', requireCorrectionOrder, loadEmployeePermissions, filterP
         await ownerService.setContextUserByIdent(req, req.correctionMeta.user_ident);
 
         const { orderDetails, orderItems } = await db.getOrderWithItems(orderId);
+        // Waluta klienta zamówienia — sumy w `workspace.njk` (dziedziczy z
+        // order.njk) i `window.priceCurrency` w base.njk (services/currency.js).
+        const currencyLocals = await currencyLocalsForOrder(orderId);
+        Object.assign(res.locals, currencyLocals);
         const clientDiscount = await getPriceAfterDiscount(orderId);
         const currentUser = ownerService.getCurrentUser(req);
         const groupOrderShop = orderDetails?.group_user_id ? await db.getGroupUserById(orderDetails.group_user_id) : null;
@@ -140,9 +144,9 @@ router.get('/:orderId', requireCorrectionOrder, loadEmployeePermissions, filterP
         }
 
         const heads = Object.keys(orderItems[0].json_parameters);
-        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
+        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems, { currency: currencyLocals.priceCurrency });
         const totalPrice = await db.getTotal(orderDetails.id);
-        await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
+        await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'), currencyLocals.currencySuffix);
         const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, await getOrderDeliveryDelay(req.params.orderId));
         const hasSubPrices = orderHasSubPrices(cleanOrderItems);
         const subTotals = calcSubTotals(orderItems);

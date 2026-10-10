@@ -21,6 +21,7 @@ const { setGroupShopContext, clearGroupShopContext, getGroupShopContext } = requ
 const { isClientGroupType } = require('../services/groupType');
 const groupPriceMode = require('../services/groupPriceMode');
 const { orderHasSubPrices } = require('../services/subPrices');
+const { currencyLocalsForOrder } = require('../services/currency');
 
 // ── Middleware: wszystkie trasy wymagają zalogowania i roli 'group' ──────────
 
@@ -488,7 +489,9 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
         const clientName = `${clientBase} / ${shopLabel}`;
         const photoFile = await db.getUserLogo(currentUser.pin);
         const logoPath = path.join(__dirname, '../img/', photoFile);
-        const { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
+        // Waluta klienta zamówienia — opisy kwot w tabeli potwierdzenia (services/currency.js).
+        const { priceCurrency } = await currencyLocalsForOrder(orderId);
+        const { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems, { currency: priceCurrency });
         const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
         // Zasady potwierdzenia wspólne z panelem i importem — w tym
         // `delivery_delay`, którego ten tor wcześniej NIE uwzględniał.

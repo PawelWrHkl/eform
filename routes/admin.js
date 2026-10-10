@@ -20,6 +20,7 @@ const INVOICE_SCHEDULE_OPTIONS = [
     { value: 'monthly', label: 'Miesięczne', hint: 'Jedna faktura zbiorcza ze wszystkich zleceń wysłanych w miesiącu, wystawiana 2. dnia następnego miesiąca.' }
 ];
 const groupPriceMode = require('../services/groupPriceMode');
+const currency = require('../services/currency');
 const { availabeLanguages } = require('../config');
 
 router.use(async (req, res, next) => {
@@ -191,7 +192,8 @@ router.get('/users', requireLogin, requireAdmin, (req, res) => {
         minPasswordLength: userAdminService.MIN_PASSWORD_LENGTH,
         maxDeliveryDelay: userAdminService.MAX_DELIVERY_DELAY,
         priceModeOptions: groupPriceMode.PRICE_MODE_OPTIONS,
-        invoiceScheduleOptions: INVOICE_SCHEDULE_OPTIONS
+        invoiceScheduleOptions: INVOICE_SCHEDULE_OPTIONS,
+        currencyOptions: currency.CURRENCY_OPTIONS
     });
 });
 
@@ -316,6 +318,28 @@ router.post('/api/users/:id/invoice-schedule', requireLogin, requireAdmin, async
     } catch (err) {
         log('[admin/users] błąd zapisu sposobu fakturowania:', err.message);
         return res.status(500).json({ success: false, message: 'Błąd zapisu sposobu fakturowania' });
+    }
+});
+
+/*
+ * Waluta cen klienta (`user.currency`): pusta = jak organizacja
+ * (`organization.currency`, a bez niej EUR) — services/currency.js. Osobna
+ * trasa z tego samego powodu co tryb wyceny: kolumna dochodzi migracją.
+ */
+router.post('/api/users/:id/currency', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const user = await userAdminDb.getUserForAdmin(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'Nie znaleziono użytkownika' });
+
+        const result = await currency.setUserCurrency(user.id, req.body?.currency);
+        if (!result.ok) return res.status(400).json({ success: false, message: result.error });
+
+        const before = user.currency_setting?.user || 'jak organizacja';
+        log(`[admin/users] ${req.session.user?.ident || req.session.user?.pin} zmienił walutę konta ${user.ident} (id ${user.id}): ${before} → ${result.value || 'jak organizacja'}`);
+        return res.json({ success: true, user: await userAdminDb.getUserForAdmin(user.id) });
+    } catch (err) {
+        log('[admin/users] błąd zapisu waluty:', err.message);
+        return res.status(500).json({ success: false, message: 'Błąd zapisu waluty' });
     }
 });
 

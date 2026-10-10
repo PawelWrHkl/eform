@@ -32,7 +32,11 @@
 
 'use strict';
 
-const { selectQuery } = require('../db/core');
+// `db/core` ładowany leniwie: formatowanie kwot (`formatAmount`) używają też
+// moduły testowane bez MySQL-a (services/subPrices.js) — samo wczytanie
+// `db/core` zakłada pulę połączeń.
+const selectQuery = (...args) => require('../db/core').selectQuery(...args);
+const updateQuery = (...args) => require('../db/core').updateQuery(...args);
 const { log } = require('../utils/logging');
 
 const DEFAULT_CURRENCY = 'EUR';
@@ -46,8 +50,11 @@ const DEFAULT_CURRENCY = 'EUR';
  * dla widoku B. Test services/__tests__/currency.test.js pilnuje zgodności.
  */
 const CURRENCIES = Object.freeze({
-    EUR: Object.freeze({ code: 'EUR', symbol: '€', name: 'Euro' }),
-    PLN: Object.freeze({ code: 'PLN', symbol: 'zł', name: 'Polski złoty' })
+    // `suffix` — to, co stoi ZA kwotą w sumach zlecenia, PDF-ie i mailu.
+    // EUR bez spacji („103.93€”), bo tak te sumy wyglądały zawsze; złoty po
+    // polsku ze spacją („103.93 zł”).
+    EUR: Object.freeze({ code: 'EUR', symbol: '€', suffix: '€', name: 'Euro' }),
+    PLN: Object.freeze({ code: 'PLN', symbol: 'zł', suffix: ' zł', name: 'Polski złoty' })
 });
 
 /** Kod ISO z listy `CURRENCIES` (wielkość liter i spacje bez znaczenia), inaczej `null`. */
@@ -66,9 +73,27 @@ function pickCurrency(...candidates) {
     return DEFAULT_CURRENCY;
 }
 
+function currencyMeta(code) {
+    return CURRENCIES[normalizeCurrency(code) || DEFAULT_CURRENCY];
+}
+
+/** „€”, „zł” — do tekstów ze spacją przed symbolem („10 €”, rabat kwotowy). */
 function currencySymbol(code) {
-    const currency = CURRENCIES[normalizeCurrency(code) || DEFAULT_CURRENCY];
-    return currency.symbol;
+    return currencyMeta(code).symbol;
+}
+
+/** „€”, „ zł” — doklejany wprost za kwotą w sumach („103.93€”, „103.93 zł”). */
+function currencySuffix(code) {
+    return currencyMeta(code).suffix;
+}
+
+/**
+ * Kwota z walutą tak, jak stoi w sumach zlecenia, PDF-ie i mailu:
+ * `formatAmount('103.93', 'EUR')` → „103.93€”, `…'PLN'` → „103.93 zł”.
+ * Liczba przechodzi bez zmian (bez zaokrąglania) — formatuje ją wołający.
+ */
+function formatAmount(amount, code) {
+    return `${amount}${currencySuffix(code)}`;
 }
 
 // ─── Etykiety ───────────────────────────────────────────────────────────────
@@ -101,6 +126,22 @@ function withCurrencyLabel(description, currency) {
     const base = String(description ?? '').replace(MARKER_RE, ' ').replace(/\s+/g, ' ').trim();
     if (!base) return base;
     return `${base} [${pickCurrency(currency)}]`;
+}
+
+/** Rdzeń nazwy parametru kwotowego (po zdjęciu `SUB___` i końcówki `_S`). */
+const MONETARY_NAME_RE = /^(CENA|DOPLATA|SUMA|WARTOSC)/;
+
+/**
+ * Parametr kwotowy po samej NAZWIE — bliźniak `isMonetaryParam` z
+ * `public/scripts/formTools/currencyLabel.js` dla miejsc, które znają tylko
+ * klucz zapisanej pozycji (`json_parameters_desc`), bez definicji z param.txt.
+ * Stawki rabatu (`*_RABAT`, także ich specyfikacja `*_RABAT_S`) — nie.
+ */
+function isMonetaryParamName(name) {
+    if (typeof name !== 'string') return false;
+    const base = name.replace(/^SUB___/, '').replace(/_S$/, '');
+    if (/RABAT$/.test(base)) return false;
+    return MONETARY_NAME_RE.test(base);
 }
 
 /**
@@ -195,9 +236,87 @@ async function resolveCurrencyForUserIdent(userIdent, deps = {}) {
     return resolveCurrency('WHERE u.ident = ? LIMIT 1', userIdent, `klient ${userIdent}`, deps);
 }
 
-/** Zmienne szablonu dla stron z konfiguratorem (`window.priceCurrency`). */
+/** Zmienne szablonu dla kodu i symboli waluty — patrz `currencyLocalsForOrder`. */
+function currencyLocals(code) {
+    const priceCurrency = currencyMeta(code).code;
+    return {
+        priceCurrency,
+        currencySymbol: currencySymbol(priceCurrency),
+        currencySuffix: currencySuffix(priceCurrency)
+    };
+}
+
+/**
+ * Zmienne szablonu stron jednego zamówienia: `priceCurrency` (→
+ * `window.priceCurrency` w base.njk — konfigurator, rabat, Excel),
+ * `currencySuffix`/`currencySymbol` (sumy w `order.njk`, `order_prices.njk`,
+ * `order_to_print.njk`). Brak w kontekście = szablony biorą „€”.
+ */
 async function currencyLocalsForOrder(orderId, deps = {}) {
-    return { priceCurrency: await resolveCurrencyForOrder(orderId, deps) };
+    return currencyLocals(await resolveCurrencyForOrder(orderId, deps));
+}
+
+// ─── Ustawienie w panelu admina (/admin/users) ──────────────────────────────
+
+/** Opcje listy „Waluta cen” w panelu — z `CURRENCIES`, więc nowa waluta pojawia się sama. */
+const CURRENCY_OPTIONS = Object.freeze(Object.values(CURRENCIES).map((c) => Object.freeze({
+    value: c.code,
+    label: `${c.code} — ${c.name} (${c.symbol})`
+})));
+
+/**
+ * Waluta konta do panelu: własna (`user.currency`, `null` = jak organizacja),
+ * organizacji i wynikowa. `available: false` — przed migracją (brak kolumny
+ * `user.currency`); panel pokazuje wtedy komunikat zamiast listy.
+ *
+ * @returns {Promise<{available:boolean, user:string|null, organization:string|null, effective:string}>}
+ */
+async function getUserCurrencySetting(userId, deps = {}) {
+    const empty = { available: false, user: null, organization: null, effective: DEFAULT_CURRENCY };
+    if (!userId) return empty;
+    const select = deps.select || selectQuery;
+    try {
+        const columns = await currencyColumns(deps);
+        if (!columns.user) return empty;
+        const rows = await select(
+            `SELECT u.currency AS user_currency,
+                    ${columns.organization ? 'org.currency' : 'NULL'} AS org_currency
+             FROM \`user\` u
+             LEFT JOIN organization org ON org.id = u.organization_id
+             WHERE u.id = ?`,
+            [userId]
+        );
+        const row = rows && rows[0];
+        if (!row) return { ...empty, available: true };
+        const user = normalizeCurrency(row.user_currency);
+        const organization = normalizeCurrency(row.org_currency);
+        return { available: true, user, organization, effective: pickCurrency(user, organization) };
+    } catch (err) {
+        (deps.log || log)('[currency] nie udało się odczytać waluty konta:', err.message);
+        return empty;
+    }
+}
+
+/**
+ * Zapis waluty konta z panelu. `''`/`null` = „jak organizacja” (NULL w bazie).
+ * Kod spoza `CURRENCIES` to błąd — literówka nie może po cichu dać EUR.
+ *
+ * @returns {Promise<{ok:boolean, error?:string, value?:string|null}>}
+ */
+async function setUserCurrency(userId, raw, deps = {}) {
+    const text = raw === null || raw === undefined ? '' : String(raw).trim();
+    const value = text === '' ? null : normalizeCurrency(text);
+    if (text !== '' && !value) {
+        return { ok: false, error: `Nieobsługiwana waluta: ${raw}. Dozwolone: ${Object.keys(CURRENCIES).join(', ')}.` };
+    }
+    const columns = await currencyColumns(deps);
+    if (!columns.user) {
+        return { ok: false, error: 'Brak kolumny user.currency — wykonaj migrację migrations/add_currency.sql' };
+    }
+    const update = deps.update || updateQuery;
+    const result = await update('UPDATE `user` SET currency = ? WHERE id = ?', [value, userId]);
+    if (!result) return { ok: false, error: 'Zapis waluty nie powiódł się' };
+    return { ok: true, value };
 }
 
 module.exports = {
@@ -206,11 +325,18 @@ module.exports = {
     normalizeCurrency,
     pickCurrency,
     currencySymbol,
+    currencySuffix,
+    formatAmount,
+    currencyLocals,
     withCurrencyLabel,
     currencyOfLabel,
+    isMonetaryParamName,
     currencyColumns,
     resetCurrencyColumnsCache,
     resolveCurrencyForOrder,
     resolveCurrencyForUserIdent,
+    CURRENCY_OPTIONS,
+    getUserCurrencySetting,
+    setUserCurrency,
     currencyLocalsForOrder
 };

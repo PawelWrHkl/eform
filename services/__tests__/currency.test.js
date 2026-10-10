@@ -31,8 +31,12 @@ const {
   currencySymbol,
   withCurrencyLabel,
   currencyOfLabel,
+  isMonetaryParamName,
   resolveCurrencyForOrder,
-  resolveCurrencyForUserIdent
+  resolveCurrencyForUserIdent,
+  CURRENCY_OPTIONS,
+  getUserCurrencySetting,
+  setUserCurrency
 } = require('../currency');
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -185,6 +189,21 @@ test('isMonetaryParam: ceny, dopłaty, sumy i wartości — bez rabatów, POW, w
   assert.equal(isMonetaryParam({}), false);
 });
 
+test('isMonetaryParamName (serwer, po nazwie) = isMonetaryParam (przeglądarka)', () => {
+  const { isMonetaryParam } = loadBrowserModule();
+  const extra = ['CENA_S', 'SUB___CENA_S', 'CENA_RABAT_S', 'SUB___CENA_RABAT_S', 'DOPLATA_S',
+    'WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO', 'SUB___WARTOSC_PO_RABACIE', 'RABAT_KLIENTA', 'SUB___RABAT_KLIENTA', 'VAT', 'POW', 'MODEL']
+    .map((NAME) => ({ NAME, DESCRIPTION: NAME, FORMAT: '<NULL>', TYPE: '<NULL>' }));
+  for (const p of PARAMS.concat(extra)) {
+    if (p.TYPE === 'file') continue; // przeglądarka zna typ pola, nazwa go nie niesie
+    assert.equal(isMonetaryParamName(p.NAME), isMonetaryParam(p), p.NAME);
+  }
+  assert.equal(isMonetaryParamName('CENA_S'), true, 'specyfikacja ceny — jak jej cena');
+  assert.equal(isMonetaryParamName('CENA_RABAT_S'), false, 'specyfikacja stawki rabatu — bez waluty');
+  assert.equal(isMonetaryParamName('SUB___WARTOSC_PO_RABACIE'), true);
+  assert.equal(isMonetaryParamName(undefined), false);
+});
+
 test('applyCurrencyToParams: opis dostaje walutę strony, reszta parametrów bez zmian', () => {
   const mod = loadBrowserModule('PLN');
   const params = PARAMS.map((p) => ({ ...p }));
@@ -321,4 +340,41 @@ test('resolveCurrencyForUserIdent: po identyfikatorze klienta', async () => {
   assert.match(main.sql, /WHERE u\.ident = \?/);
   assert.deepEqual(main.params, ['KLIENT-1']);
   assert.equal(await resolveCurrencyForUserIdent('', { select: db.select, log: cicho }), 'EUR');
+});
+
+// ─── Panel admina (/admin/users) ────────────────────────────────────────────
+
+test('CURRENCY_OPTIONS: lista w panelu = obsługiwane waluty', () => {
+  assert.deepEqual(CURRENCY_OPTIONS.map((o) => o.value), Object.keys(CURRENCIES));
+  assert.equal(CURRENCY_OPTIONS.find((o) => o.value === 'PLN').label, 'PLN — Polski złoty (zł)');
+});
+
+test('getUserCurrencySetting: własna, organizacji i wynikowa', async () => {
+  const own = fakeDb({ row: { user_currency: 'EUR', org_currency: 'PLN' } });
+  assert.deepEqual(await getUserCurrencySetting(5, { select: own.select, log: cicho }),
+    { available: true, user: 'EUR', organization: 'PLN', effective: 'EUR' });
+  const inherit = fakeDb({ row: { user_currency: null, org_currency: 'PLN' } });
+  assert.deepEqual(await getUserCurrencySetting(5, { select: inherit.select, log: cicho }),
+    { available: true, user: null, organization: 'PLN', effective: 'PLN' });
+  const beforeMigration = fakeDb({ columns: [] });
+  assert.equal((await getUserCurrencySetting(5, { select: beforeMigration.select, log: cicho })).available, false);
+});
+
+test('setUserCurrency: kod z listy, pusty = jak organizacja, literówka = błąd, przed migracją = błąd', async () => {
+  const calls = [];
+  const deps = { select: fakeDb().select, update: async (sql, params) => { calls.push({ sql, params }); return { affectedRows: 1 }; } };
+
+  assert.deepEqual(await setUserCurrency(7, ' pln ', deps), { ok: true, value: 'PLN' });
+  assert.deepEqual(calls.pop().params, ['PLN', 7]);
+  assert.deepEqual(await setUserCurrency(7, '', deps), { ok: true, value: null });
+  assert.deepEqual(calls.pop().params, [null, 7]);
+
+  const typo = await setUserCurrency(7, 'PNL', deps);
+  assert.equal(typo.ok, false);
+  assert.match(typo.error, /Nieobsługiwana waluta: PNL/);
+  assert.equal(calls.length, 0, 'literówka nie trafia do bazy');
+
+  const noColumn = await setUserCurrency(7, 'EUR', { select: fakeDb({ columns: [] }).select, update: deps.update });
+  assert.equal(noColumn.ok, false);
+  assert.match(noColumn.error, /add_currency\.sql/);
 });

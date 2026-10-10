@@ -184,6 +184,43 @@
                         </div>
                     </form>
 
+                    {# --- Waluta cen (`user.currency`) ---
+                       Pusta = jak organizacja (`organization.currency`, bez niej EUR).
+                       Osobny formularz i osobna trasa — patrz routes/admin.js. #}
+                    <form id="ua-currency-form" class="ua-card mb-4" novalidate>
+                        <h5 class="ua-card__title"><i class="bi bi-currency-exchange me-2"></i>Waluta cen</h5>
+                        <p class="ua-hint">
+                            Waluta, w której klient widzi ceny: kod na końcu opisu każdej ceny w konfiguratorze
+                            („CENA HKL netto [PLN]”), sumy zlecenia, PDF i mail („382 zł”). To tylko etykieta —
+                            kwoty liczą cenniki klienta, nic nie jest przeliczane po kursie.
+                        </p>
+                        <p class="ua-hint" id="ua-currency-missing" hidden>
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Brak kolumny <code>user.currency</code> — wykonaj migrację <code>migrations/add_currency.sql</code>.
+                        </p>
+                        <div class="ua-grid">
+                            <label class="ua-field">
+                                <span class="ua-label">Waluta klienta</span>
+                                <select name="currency" id="ua-currency" class="ua-input">
+                                    <option value="" id="ua-currency-inherit">Jak organizacja</option>
+                                    {% for opt in currencyOptions %}
+                                        <option value="{{ opt.value }}">{{ opt.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="ua-help" id="ua-currency-effective"></span>
+                            </label>
+                        </div>
+                        <span class="ua-help d-block mt-2">
+                            Konfigurator, podgląd zlecenia, PDF i mail biorą nową walutę od razu. W opisach
+                            zapisanych pozycji kod waluty poprawia się przy edycji albo „Przelicz”.
+                        </span>
+                        <div class="ua-actions">
+                            <button type="submit" class="btn btn-primary" id="ua-save-currency">
+                                <i class="bi bi-check2 me-1"></i> Zapisz walutę
+                            </button>
+                        </div>
+                    </form>
+
                     {# --- Fakturowanie niestandardowe (`user.invoice_schedule`) ---
                        Faktura zbiorcza za tydzień/miesiąc zamiast faktury za każde
                        zlecenie. Wystawia ją automat po zamknięciu okresu
@@ -251,5 +288,5 @@
 {% endblock content %}
 
 {% block scripts %}
-    <script src="/scripts/admin/user_admin.js?v=2"></script>
+    <script src="/scripts/admin/user_admin.js?v=3"></script>
 {% endblock scripts %}

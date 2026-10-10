@@ -1,4 +1,5 @@
 const { getEffectiveOrgId } = require('./subPriceContext');
+const { formatAmount } = require('./currency');
 
 const HKL_ORG_ID = 3;
 
@@ -75,6 +76,18 @@ function calcClientDiscountTotal(orderItems) {
   return { total: parseFloat(total.toFixed(2)), found };
 }
 
+/** `json_parameters` bywa zapisany podwójnie zakodowanym JSON-em. */
+function parseJsonValues(raw) {
+  let values = raw;
+  try {
+    if (typeof values === 'string') values = JSON.parse(values);
+    if (typeof values === 'string') values = JSON.parse(values);
+  } catch {
+    return {};
+  }
+  return values && typeof values === 'object' ? values : {};
+}
+
 /**
  * Wylicza dwa osobne sumy SUB cen z `orderItems`:
  *  - subVisible: suma SUB params z listsum=true i NIE-locked
@@ -107,8 +120,11 @@ function calcSubTotals(orderItems) {
     let itemVisible = 0;
     let itemLocked = 0;
     let itemAfterDiscount = null;
+    let itemHasSubRows = false;
+    let itemHasSubSum = false;
     for (const [key, param] of entries) {
       if (!key || !key.startsWith('SUB___') || !param || typeof param !== 'object') continue;
+      itemHasSubRows = true;
 
       // Pozycje sprzed 2026-09-11: rabat miał własny wiersz bez `listsum`, więc
       // pętla poniżej by go pominęła — a to on był ostateczną wartością pozycji.
@@ -121,12 +137,33 @@ function calcSubTotals(orderItems) {
       }
 
       if (!param.listsum) continue;
+      itemHasSubSum = true;
       const val = parseFloat(param.option_value);
       if (!isFinite(val)) continue;
       if (param.locked === true) {
         itemLocked = val;
       } else {
         itemVisible = val;
+      }
+    }
+
+    // Stare pozycje z cenami `SUB___` w opisie, ale BEZ wierszy sum `SUB___`
+    // (28 na produkcji, 2026-10-09, m.in. 1283 A&A Lohne): sumy klienta SĄ
+    // policzone w `json_parameters`, tylko nie trafiły do `json_parameters_desc`
+    // — stopka pokazywała przez to „Według cennika”. Bierzemy je z wartości
+    // w układzie sum zwykłych tej samej pozycji: wiersz `SUMA_BRUTTO` (listsum)
+    // → `SUB___SUMA_BRUTTO`, zablokowany `WARTOSC_KONCOWA` → `SUB___WARTOSC_KONCOWA`.
+    if (itemHasSubRows && !itemHasSubSum) {
+      const values = parseJsonValues(item?.json_parameters);
+      for (const [key, param] of entries) {
+        if (!key || key.startsWith('SUB___') || !param || typeof param !== 'object' || !param.listsum) continue;
+        const val = parseFloat(values[`SUB___${key}`]);
+        if (!isFinite(val)) continue;
+        if (param.locked === true) {
+          itemLocked = val;
+        } else {
+          itemVisible = val;
+        }
       }
     }
 
@@ -313,6 +350,10 @@ function resolveGroupClientPdfPriceView({ isGroupShop, discountUnlocked, isGroup
 
 /**
  * Buduje etykietowane totale do PDF / maila — ta sama logika co na stronie zamówienia.
+ * `currency` — waluta klienta zamówienia (services/currency.js); brak = EUR („…€”).
+ * `withSubTotal` — przy `showBoth` (w dokumencie ceny zwykłe I SUB___) dokłada
+ * `total_sub` = suma SUB___, tak jak stopka zlecenia (zgłoszenie 2026-10-09).
+ * Wołający nie-grupowi podają `true`; grupy mają własną stopkę (Changelog 2026-08-24).
  */
 function buildPdfSendDataTotals({
   isClientView,
@@ -320,39 +361,46 @@ function buildPdfSendDataTotals({
   orderItems,
   totalPrice,
   translate,
-  showGoldPrices = true
+  showGoldPrices = true,
+  currency,
+  withSubTotal = false
 }) {
   const __ = translate || ((key) => key);
+  const kwota = (value) => formatAmount(value, currency);
 
   if (isClientView) {
     const subTotals = calcSubTotals(orderItems);
     return {
       total: subTotals.subVisible && subTotals.subVisible !== 0
-        ? `${__('order.total')}: ${subTotals.subVisible}€` : null,
+        ? `${__('order.total')}: ${kwota(subTotals.subVisible)}` : null,
       total_hidden: subTotals.subLocked && subTotals.subLocked !== 0
-        ? `${__('order.total_hidden')}: ${subTotals.subLocked}€ netto` : null
+        ? `${__('order.total_hidden')}: ${kwota(subTotals.subLocked)} netto` : null
     };
   }
 
   if (showBoth) {
     const subTotals = calcSubTotals(orderItems);
-    return {
+    const result = {
       total: totalPrice?.visible && Number(totalPrice.visible) !== 0
-        ? `${__('order.total')}: ${totalPrice.visible}€` : null,
+        ? `${__('order.total')}: ${kwota(totalPrice.visible)}` : null,
       total_hidden: subTotals.subLocked && subTotals.subLocked !== 0
-        ? `${__('order.total_hidden')}: ${subTotals.subLocked}€ netto` : null
+        ? `${__('order.total_hidden')}: ${kwota(subTotals.subLocked)} netto` : null
     };
+    if (withSubTotal && subTotals.subVisible && subTotals.subVisible !== 0) {
+      result.total_sub = `${__('order.total')}: ${kwota(subTotals.subVisible)}`;
+    }
+    return result;
   }
 
   const result = { total: null, total_hidden: null };
   if (totalPrice?.visible && Number(totalPrice.visible) !== 0) {
-    result.total = `${__('order.total')}: ${totalPrice.visible}€`;
+    result.total = `${__('order.total')}: ${kwota(totalPrice.visible)}`;
   }
   if (showGoldPrices) {
     if (totalPrice?.hidden && Number(totalPrice.hidden) !== 0) {
-      result.total_hidden = `${__('order.total_hidden')}: ${totalPrice.hidden}€ netto`;
+      result.total_hidden = `${__('order.total_hidden')}: ${kwota(totalPrice.hidden)} netto`;
     } else if (totalPrice?.visible && Number(totalPrice.visible) !== 0) {
-      result.total_hidden = `${__('order.total_hidden')}: ${totalPrice.visible}€ netto`;
+      result.total_hidden = `${__('order.total_hidden')}: ${kwota(totalPrice.visible)} netto`;
     }
   }
   return result;

@@ -1,5 +1,12 @@
 import { showToast } from "../components/toast.js";
 import { createInfoDialog, createElement } from "../components/htmlManipulator.js";
+import { currencySymbol, getPriceCurrency } from "../formTools/currencyLabel.js";
+
+/**
+ * Symbol waluty klienta zamówienia („€”, „zł”) — `window.priceCurrency` z
+ * base.njk (services/currency.js). Rabat kwotowy jest w walucie zamówienia.
+ */
+const waluta = () => currencySymbol(getPriceCurrency());
 
 
 const HKL_ORG_ID = 3;
@@ -43,7 +50,7 @@ export async function showDiscountModal() {
     if (discountInfo.type == 'percentage') {
         discountText = `${discountInfo.discountValue}%`;
     } else if (discountInfo.type == 'value') {
-        discountText = `${discountInfo.discountValue} €`;
+        discountText = `${discountInfo.discountValue} ${waluta()}`;
     }
 
     console.log(discountInfo, 'discountInfo w showDiscountModal #######################')
@@ -59,7 +66,7 @@ export async function showDiscountModal() {
     
     const currentValueContainer = createElement('div', { class: ['current-discount-container'] }, dialog);
     createElement('span', { text: t('order.order_value'), class: ['current-discount-label'] }, currentValueContainer);
-    createElement('span', { text: ` ${getTotal()} €`, id: 'current-discount-value', class: ['current-discount-value'] },
+    createElement('span', { text: ` ${getTotal()} ${waluta()}`, id: 'current-discount-value', class: ['current-discount-value'] },
         currentValueContainer);
 
     const currentDiscountContainer = createElement('div', { class: ['current-discount-container'] }, dialog);
@@ -96,14 +103,14 @@ export async function showDiscountModal() {
     
     const percentCalculatedAmount = createElement('div', {
         class: ['discount-calculated-amount'],
-        text: `${t('order.discount_amount')}: 0 €`,
+        text: `${t('order.discount_amount')}: 0 ${waluta()}`,
         id: 'percent-calculated-amount',
         style: 'display: none;'
     }, percentSection);
 
     const percentFinalAmount = createElement('div', {
         class: ['discount-final-amount'],
-        text: `${t('order.total_after_discount')}: ${getTotal().toFixed(2)} €`,
+        text: `${t('order.total_after_discount')}: ${getTotal().toFixed(2)} ${waluta()}`,
         id: 'percent-final-amount',
         style: 'display: none;'
     }, percentSection);
@@ -127,8 +134,8 @@ export async function showDiscountModal() {
         if (value > 0) {
             percentCalculatedAmount.style.display = 'block';
             percentFinalAmount.style.display = 'block';
-            percentCalculatedAmount.textContent = `${t('order.discount_amount')}: ${discountAmount.toFixed(2)} €`;
-            percentFinalAmount.textContent = `${t('order.total_after_discount')}: ${finalAmount.toFixed(2)} €`;
+            percentCalculatedAmount.textContent = `${t('order.discount_amount')}: ${discountAmount.toFixed(2)} ${waluta()}`;
+            percentFinalAmount.textContent = `${t('order.total_after_discount')}: ${finalAmount.toFixed(2)} ${waluta()}`;
         } else {
             percentCalculatedAmount.style.display = 'none';
             percentFinalAmount.style.display = 'none';
@@ -145,7 +152,7 @@ export async function showDiscountModal() {
     }, amountCheckboxContainer);
     createElement('label', {
         for: 'discount-amount-checkbox',
-        text: t('order.amount_discount') + ' (€)',
+        text: `${t('order.amount_discount')} (${waluta()})`,
         class: ['discount-checkbox-label']
     }, amountCheckboxContainer);
 
@@ -159,7 +166,7 @@ export async function showDiscountModal() {
         class: ['discount-input'],
         placeholder: 'np. 100'
     }, amountInputContainer);
-    createElement('span', { text: '€', class: ['discount-unit'] }, amountInputContainer);
+    createElement('span', { text: waluta(), class: ['discount-unit'] }, amountInputContainer);
 
     
 
@@ -167,7 +174,7 @@ export async function showDiscountModal() {
     
     const amountFinalAmount = createElement('div', {
         class: ['discount-final-amount'],
-        text: `${t('order.total_after_discount')}: ${getTotal().toFixed(2)} €`,
+        text: `${t('order.total_after_discount')}: ${getTotal().toFixed(2)} ${waluta()}`,
         id: 'amount-final-amount',
         style: 'display: none;'
     }, amountSection);
@@ -191,7 +198,7 @@ export async function showDiscountModal() {
 
         if (value > 0) {
             amountFinalAmount.style.display = 'block';
-            amountFinalAmount.textContent = `${t('order.total_after_discount')}: ${finalAmount.toFixed(2)} €`;
+            amountFinalAmount.textContent = `${t('order.total_after_discount')}: ${finalAmount.toFixed(2)} ${waluta()}`;
         } else {
             amountFinalAmount.style.display = 'none';
         }
@@ -251,7 +258,7 @@ export async function showDiscountModal() {
                 return;
             }
             setDiscount(0, discountAmount);
-            showToast(`Rabat ${discountAmount} PLN został zastosowany do zamówienia.`, 'success');
+            showToast(`Rabat ${discountAmount} ${waluta()} został zastosowany do zamówienia.`, 'success');
         } else {
             showToast('Proszę wybrać typ rabatu (procentowy lub kwotowy).', 'warning');
             return;
@@ -352,7 +359,7 @@ export async function updateDiscountDisplay() {
         type = '%';
     }
     else if (discountInfo.type == 'value') {
-        type = '€'
+        type = waluta()
     }
     else if (discountInfo.type == 'none') {
         const discontSpace = document.getElementById('discount-space');
@@ -382,6 +389,6 @@ export async function updateDiscountDisplay() {
     
     const discountSpan = createElement('span', { text: t('order.total_after_discount'), class: ['discount-label'] }, discountContainer);
 
-    const discountValueSpan = createElement('span', { id: 'discount-value', text: ` ${discountInfo.result} €`, class: ['discount-value'] }, discountContainer);
+    const discountValueSpan = createElement('span', { id: 'discount-value', text: ` ${discountInfo.result} ${waluta()}`, class: ['discount-value'] }, discountContainer);
 
 }

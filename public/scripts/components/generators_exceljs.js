@@ -1,4 +1,5 @@
 import { showToast } from "../components/toast.js";
+import { currencySymbol, getPriceCurrency } from "../formTools/currencyLabel.js";
 
 const EXCEL_CONFIG = {
     HEADER_BG_COLOR: 'E0E0E0',
@@ -781,11 +782,14 @@ class ExcelJSGenerator {
 
 
             let labels = [t('order.total'), t('order.total_hidden')]
+            // Waluta klienta zamówienia — z `/orders/order-details` (services/currency.js),
+            // awaryjnie `window.priceCurrency` strony.
+            const waluta = currencySymbol(this.orderData.priceCurrency || getPriceCurrency());
 
             const row = worksheet.getRow(currentRow);
             row.getCell(2).value = labels[0] || 'Total';
             row.getCell(2).font = { bold: true };
-            row.getCell(3).value = `${this.orderData.totalPrice.visible} €` || '';
+            row.getCell(3).value = `${this.orderData.totalPrice.visible} ${waluta}` || '';
             row.commit();
             currentRow++;
             console.log(this.isLocked, 'sprawdzamy czy zablokowane');
@@ -794,7 +798,7 @@ class ExcelJSGenerator {
                 const hiddenRow = worksheet.getRow(currentRow);
                 hiddenRow.getCell(2).value = labels[1] || 'Total Hidden';
                 hiddenRow.getCell(2).font = { bold: true };
-                hiddenRow.getCell(3).value = `${this.orderData.totalPrice.hidden} €` || '';
+                hiddenRow.getCell(3).value = `${this.orderData.totalPrice.hidden} ${waluta}` || '';
                 hiddenRow.commit();
                 currentRow++;
             }

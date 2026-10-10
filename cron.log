@@ -4019,3 +4019,32 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-09 10:35:01 - Start ===
 === 2026-10-09 10:35:01 - Dodawanie zmian do commita ===
+[main f94707f] Automatic commit 2026-10-09 10:35
+ 44 files changed, 14336 insertions(+), 104 deletions(-)
+ create mode 100644 migrations/add_currency.sql
+ create mode 100644 migrations/add_order_idx_external.sql
+ create mode 100644 public/scripts/formTools/currencyLabel.js
+ create mode 100644 services/__tests__/currency.test.js
+ create mode 100644 services/__tests__/priceMaskReveal.test.js
+ create mode 100644 services/__tests__/priceSpecSwitch.test.js
+ create mode 100644 services/__tests__/subPriceMirror.test.js
+ create mode 100644 services/currency.js
+ create mode 100644 services/orderImport/__tests__/transactionalDb.test.js
+ create mode 100644 services/translationDict/__tests__/currencyLabels.test.js
+=== 2026-10-09 10:35:03 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 55.24 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 100 vulnerabilities on PawelWrHkl/eform's default branch (3 critical, 63 high, 29 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   e509a24..f94707f  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-09 10:35:09 - Koniec ===
+=== 2026-10-09 12:00:01 - Start ===
+=== 2026-10-09 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-10 10:35:01 - Start ===
+=== 2026-10-10 10:35:01 - Dodawanie zmian do commita ===

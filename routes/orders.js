@@ -11,7 +11,7 @@ const { getActiveGroupShopId } = require('../services/groupContext');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
 const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
-const { currencyLocalsForOrder } = require('../services/currency');
+const { currencyLocalsForOrder, formatAmount } = require('../services/currency');
 const { notifyFirstOrderIfApplicable } = require('../services/firstOrderMailer');
 const mailBot = require('../services/mailBot/mailBot');
 const path = require('path');
@@ -584,6 +584,10 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
     }
 
     const { orderDetails, orderItems } = await db.getOrderWithItems(req.params.orderId);
+    // Waluta klienta zamówienia — sumy w `order_sent*.njk`/`order_to_print.njk`
+    // (`currencySuffix`) i `window.priceCurrency` w base.njk (services/currency.js).
+    const currencyLocals = await currencyLocalsForOrder(req.params.orderId);
+    Object.assign(res.locals, currencyLocals);
 
     if (orderDetails?.status === 'correction' && !req.session.user?.isAdmin) {
         return res.status(503).render('error.njk', {
@@ -609,9 +613,9 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
 
     if (orderItems) {
         const heads = Object.keys(orderItems[0].json_parameters);
-        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
+        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems, { currency: currencyLocals.priceCurrency });
         const totalPrice = await db.getTotal(orderDetails.id)
-        await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
+        await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'), currencyLocals.currencySuffix);
         // Indywidualne opóźnienie dostawy klienta (`user.delivery_delay`)
         const deliveryDelay = await getOrderDeliveryDelay(orderDetails.id);
         const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, deliveryDelay);
@@ -723,6 +727,12 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         return res.status(403).json({ error: "Brak uprawnień do tego zamówienia" });
     }
 
+    // Waluta klienta zamówienia — sumy w `order.njk`/`order_prices.njk`/
+    // `order_to_print.njk` (`currencySuffix`) i `window.priceCurrency` w base.njk
+    // (rabat kwotowy, Excel) — services/currency.js.
+    const currencyLocals = await currencyLocalsForOrder(req.params.orderId);
+    Object.assign(res.locals, currencyLocals);
+
     const clientDiscount = await getPriceAfterDiscount(req.params.orderId);
     const currentUser = ownerService.getCurrentUser(req);
     const groupOrderShop = orderDetails?.group_user_id ? await db.getGroupUserById(orderDetails.group_user_id) : null;
@@ -734,9 +744,9 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
     const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
     if (orderItems) {
         const heads = Object.keys(orderItems[0].json_parameters);
-        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
+        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems, { currency: currencyLocals.priceCurrency });
         const totalPrice = await db.getTotal(orderDetails.id)
-        await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
+        await db.syncTotalPriceIfMissing(orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'), currencyLocals.currencySuffix);
         const deliveryDelay = await getOrderDeliveryDelay(orderDetails.id);
         const { itemProductionDays, maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, deliveryDelay);
         const hasSubPrices = orderHasSubPrices(cleanOrderItems);
@@ -834,21 +844,23 @@ router.get('/order-details/:orderId', requireLogin, checkOrderOwnership, loadEmp
     try {
         const order = await db.getOrderDataToSend(req.params.orderId);
         const { orderDetails, orderItems } = await db.getOrderWithItems(req.params.orderId);
-        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
+        // Waluta klienta zamówienia — opisy kwot w tabeli, napis sumy i eksport do Excela.
+        const { priceCurrency, currencySuffix } = await currencyLocalsForOrder(req.params.orderId);
+        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems, { currency: priceCurrency });
         const sender = new OrderSender.OrderSender(req, order.orderDetails, order.orderItems);
         await sender.init();
         const sendData = sender.getData();
         const totalPrice = await db.getTotal(order.orderDetails.id);
-        await db.syncTotalPriceIfMissing(order.orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
+        await db.syncTotalPriceIfMissing(order.orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'), currencySuffix);
         const currentUser = ownerService.getCurrentUser(req);
         const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
         const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, await getOrderDeliveryDelay(order.orderDetails.id));
 
         // Ukryj dane cenowe gdy pracownik nie ma uprawnienia can_see_prices
         if (req.hidePrices) {
-            res.json({ success: true, data: { sendData, totalPrice: null, cleanOrderItems, total: null, maxProdDays } });
+            res.json({ success: true, data: { sendData, totalPrice: null, cleanOrderItems, total: null, maxProdDays, priceCurrency } });
         } else {
-            res.json({ success: true, data: { sendData, totalPrice, cleanOrderItems, total, maxProdDays } });
+            res.json({ success: true, data: { sendData, totalPrice, cleanOrderItems, total, maxProdDays, priceCurrency } });
         }
     } catch (error) {
         log('Error fetching order details:', error);
@@ -904,12 +916,16 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         }
 
         const heads = Object.keys(orderItems[0].json_parameters);
-        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
+        // Waluta klienta zamówienia — opisy kwot w tabeli, sumy w `sendData`
+        // (PDF długi), rabat w `order-pdf.njk` i stopka `order_to_print_short.njk`
+        // (services/currency.js).
+        const { priceCurrency, currencySymbol, currencySuffix } = await currencyLocalsForOrder(req.params.orderId);
+        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems, { currency: priceCurrency });
         const sender = new OrderSender.OrderSender(req, order.orderDetails, order.orderItems);
         await sender.init();
         const sendData = sender.getData();
         const totalPrice = await db.getTotal(order.orderDetails.id);
-        await db.syncTotalPriceIfMissing(order.orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'));
+        await db.syncTotalPriceIfMissing(order.orderDetails.id, totalPrice, req.__('order.total'), req.__('order.total_hidden'), currencySuffix);
         // Employee permission override: if req.hidePrices is set by filterPriceData middleware,
         // prices are hidden regardless of the URL parameter
         const shouldShowPrices = req.hidePrices ? false : req.params.showPrices === 'true';
@@ -997,19 +1013,25 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
                 showBoth: effectiveShowBoth,
                 orderItems,
                 totalPrice,
-                translate: __
+                translate: __,
+                currency: priceCurrency,
+                withSubTotal: !isGroupPdf
             }));
         } else {
             // Visible total mirrors page behaviour — always shown; hidden/gold prices excluded
             sendData.total_hidden = null;
             if (effectiveClientView) {
                 sendData.total = totalPrice.subVisible && totalPrice.subVisible !== 0
-                    ? `${__('order.total')}: ${totalPrice.subVisible}€` : null;
+                    ? `${__('order.total')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}` : null;
             } else if (totalPrice?.visible && Number(totalPrice.visible) !== 0) {
-                sendData.total = `${__('order.total')}: ${totalPrice.visible}€`;
+                sendData.total = `${__('order.total')}: ${formatAmount(totalPrice.visible, priceCurrency)}`;
             } else {
                 sendData.total = null;
             }
+            // Ceny zwykłe i SUB___ w dokumencie → obie sumy (jak stopka zlecenia).
+            sendData.total_sub = !isGroupPdf && effectiveShowBoth && !effectiveClientView
+                && totalPrice.subVisible && totalPrice.subVisible !== 0
+                ? `${__('order.total')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}` : null;
         }
 
         // Suma „Wartość po rabacie" dla `order-pdf.njk` (PDF długi) — ten szablon
@@ -1019,7 +1041,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         // ktory od teraz jest wartoscia PO rabacie klienta (services/subPrices.js).
         if (showClientDiscount && totalPrice.afterClientDiscount
             && totalPrice.afterClientDiscount !== totalPrice.subLocked) {
-            sendData.total_client_discount = `${__('form.value_after_discount_label')}: ${totalPrice.afterClientDiscount}€`;
+            sendData.total_client_discount = `${__('form.value_after_discount_label')}: ${formatAmount(totalPrice.afterClientDiscount, priceCurrency)}`;
         } else {
             sendData.total_client_discount = null;
         }
@@ -1037,7 +1059,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         if (!isShort) {
             // Ujednolicona logika PDF — ten sam template (order-pdf.njk) co w sendMail
             const orderIdx = await db.getUserOrderId(req.params.orderId);
-            pdfBuffer = await generatePdf(order.orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, shouldShowPrices, maxProdDays, true, effectiveClientView, effectiveShowBoth, discountInfo, { showClientDiscount, hideClientVat, clientDiscountSummary, hasSubPrices });
+            pdfBuffer = await generatePdf(order.orderDetails, cleanOrderItems, lang, logoPath, sendData, orderIdx, shouldShowPrices, maxProdDays, true, effectiveClientView, effectiveShowBoth, discountInfo, { showClientDiscount, hideClientVat, clientDiscountSummary, hasSubPrices, currencySymbol });
         } else {
             // Short PDF — osobny template order_to_print_short.njk
             let logoDataUri = null;
@@ -1079,8 +1101,11 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
                 clientDiscountSummary,
                 hideClientVat,
                 isGroupShop: res.locals.isGroupShop,
+                isGroup: res.locals.isGroup,
                 hasSubPrices,
                 discountInfo,
+                currencySymbol,
+                currencySuffix,
             });
 
             const { chromium } = require('playwright');
@@ -1374,7 +1399,10 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         const photoFile = await db.getUserLogo(currentUser?.pin)
         const logoPath = path.join(__dirname, '../img/', photoFile)
         const heads = Object.keys(orderItems[0].json_parameters);
-        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems);
+        // Waluta klienta zamówienia — opisy kwot w tabeli i sumy w PDF-ie/mailu
+        // potwierdzenia (services/currency.js).
+        const { priceCurrency, currencySymbol } = await currencyLocalsForOrder(id);
+        let { cleanOrderItems, total } = await orderService.jsonTextBackToMap(orderItems, { currency: priceCurrency });
         const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
         // Wszystkie zasady potwierdzenia (`ab_type`, `ab_lang`, `client_ab`,
         // `delivery_delay`) z jednego zapytania — ta sama funkcja obsługuje
@@ -1431,7 +1459,9 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             orderItems,
             totalPrice,
             translate: __,
-            showGoldPrices
+            showGoldPrices,
+            currency: priceCurrency,
+            withSubTotal: !(res.locals.isGroup || res.locals.isGroupShop)
         }));
 
         // Klient z `ab_type = without_price` dostaje potwierdzenie BEZ ŻADNYCH cen
@@ -1439,7 +1469,7 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         if (withoutPrices) log(`[ab_type] zamówienie ${id}: potwierdzenie bez cen (ab_type właściciela)`);
 
         // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
-        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices, hasSubPrices: hasSubPricesMail })
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices, hasSubPrices: hasSubPricesMail, currencySymbol })
         const orgData = await db.getOrgInfo(req.session.user.organization)
 
         // Odbiorca i BCC — wspólna reguła dla panelu, importu i wysyłki na

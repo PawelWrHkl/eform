@@ -11,6 +11,7 @@ const { selectQuery, updateQuery, insertQuery } = require('../core');
 const { POLA } = require('../../services/admin/userAdminService');
 const { getGroupPriceMode } = require('../../services/groupPriceMode');
 const { getUserInvoiceSchedule } = require('../../services/invoices/db/repository');
+const { getUserCurrencySetting } = require('../../services/currency');
 
 /** Kolumny pokazywane w panelu (bez `password`, bez `plain`). */
 const KOLUMNY_PODGLADU = `
@@ -64,6 +65,9 @@ async function getUserForAdmin(userId) {
   // Fakturowanie niestandardowe (`user.invoice_schedule`) — z tego samego powodu
   // osobno: kolumna z migracji `migrations/add_user_invoice_schedule.sql`.
   user.invoice_schedule = await getUserInvoiceSchedule(user.id);
+  // Waluta cen klienta (`user.currency`, migracja `migrations/add_currency.sql`)
+  // — też osobno: `{ available, user, organization, effective }`.
+  user.currency_setting = await getUserCurrencySetting(user.id);
   return user;
 }
 

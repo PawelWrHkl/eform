@@ -103,6 +103,13 @@
    (`type="module"`) startują później, więc pricesCalculator.js ma wartość od
    pierwszego przeliczenia. #}
 <script>window.priceSpecEnabled = {{ priceSpecEnabled | default(false) | dump | safe }};</script>
+{# Waluta cen klienta ZAMÓWIENIA (services/currency.js `currencyLocalsForOrder`)
+   — podają ją trasy zlecenia i konfiguratora. Czytają: formTools/currencyLabel.js
+   (opisy parametrów kwotowych), orderTools/setDiscount.js (rabat kwotowy),
+   components/generators_exceljs.js (Excel). `null` = strona nie zna waluty:
+   etykiety EUR, ale zapisanych opisów pozycji nie ruszamy. Osobny skrypt, bo
+   blok flag niżej potrafi paść na `window.hidePrices = ;`. #}
+<script>window.priceCurrency = {{ priceCurrency | default(null) | dump | safe }};</script>
 {% block head %}{% endblock head %}
 {# Wariant B PO arkuszach podstrony (blok `head`), żeby przy równej
    specyficzności wygrywał. W wariancie A nic nie robi — każda reguła wisi pod

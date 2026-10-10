@@ -114,9 +114,6 @@
                       // cen SUB___ z rabatem — pricesCalculator.applyClientMarkup().
                       window.clientPriceMode = {{ clientPriceMode | default('discount') | dump | safe }};
                       window.clientMarkupPercent = {{ clientMarkupPercent | default(0) | dump | safe }};
-                      // Waluta cen klienta zamówienia (services/currency.js) — dopisywana
-                      // na końcu opisu parametrów kwotowych: formTools/currencyLabel.js.
-                      window.priceCurrency = {{ priceCurrency | default(null) | dump | safe }};
                     </script>
                     {% if vatEnabled %}
                     <script>

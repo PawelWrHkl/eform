@@ -173,10 +173,19 @@
           <span class="pdf-val">{{ clientDiscountSummary.percent }}</span>
         </div>
       {% endif %}
+      {# Ceny zwykłe i SUB___ w dokumencie → obie sumy: „HKL Razem” (zwykłe) i
+         „Razem” (`total_sub`, SUB___) — jak stopka zlecenia (2026-10-09). #}
       {% if sendData.total %}
         <div id='total-container'>
           <div class="total-price">
-            {{ __('order.total') }}: <span class="pdf-val">{{ sendData.total | replace(__('order.total') + ': ', '') }}</span>
+            {% if sendData.total_sub %}HKL {% endif %}{{ __('order.total') }}: <span class="pdf-val">{{ sendData.total | replace(__('order.total') + ': ', '') }}</span>
+          </div>
+        </div>
+      {% endif %}
+      {% if sendData.total_sub %}
+        <div id='total-container'>
+          <div class="total-price">
+            {{ __('order.total') }}: <span class="pdf-val">{{ sendData.total_sub | replace(__('order.total') + ': ', '') }}</span>
           </div>
         </div>
       {% endif %}
@@ -196,10 +205,10 @@
       {% endif %}
       {% if not prices and discountInfo and discountInfo.type != 'none' %}
         <div class="print-total-items">
-          <span style="background: rgba(235, 232, 75, 0.8); color: #333; padding: 1px 6px;">{{ __('order.discount') }}: <span class="pdf-val">{{ discountInfo.discountValue }}{% if discountInfo.type == 'percentage' %}%{% else %} €{% endif %}</span></span>
+          <span style="background: rgba(235, 232, 75, 0.8); color: #333; padding: 1px 6px;">{{ __('order.discount') }}: <span class="pdf-val">{{ discountInfo.discountValue }}{% if discountInfo.type == 'percentage' %}%{% else %} {{ currencySymbol | default('€') }}{% endif %}</span></span>
         </div>
         <div class="print-total-items">
-          <span style="background: rgba(235, 232, 75, 0.8); color: #333; padding: 1px 6px;">{{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result }} €</span></span>
+          <span style="background: rgba(235, 232, 75, 0.8); color: #333; padding: 1px 6px;">{{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result }} {{ currencySymbol | default('€') }}</span></span>
         </div>
       {% endif %}
     </div>

@@ -17,6 +17,7 @@ const {
     buildPdfSendDataTotals
 } = require('../subPrices');
 const { log } = require('../../utils/logging');
+const { currencyLocalsForOrder } = require('../currency');
 
 const CORRECTION_FILE_SUFFIX = '-update';
 
@@ -101,7 +102,10 @@ async function submitCorrection(req, orderId, prices) {
     const clientName = formatClientLabel(user.client_name, user.ident);
     const photoFile = await db.getUserLogo(currentUser?.pin);
     const logoPath = path.join(__dirname, '../../img/', photoFile);
-    let { cleanOrderItems } = await orderService.jsonTextBackToMap(orderItems);
+    // Waluta klienta zamówienia — opisy kwot w tabeli i sumy w PDF-ie/mailu
+    // korekty (services/currency.js).
+    const { priceCurrency, currencySymbol } = await currencyLocalsForOrder(orderId);
+    let { cleanOrderItems } = await orderService.jsonTextBackToMap(orderItems, { currency: priceCurrency });
     const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
     // Zasady potwierdzenia wspólne z panelem, importem i zatwierdzaniem sklepu
     const abPolicy = await resolveOrderAbPolicy(orderDetails.id);
@@ -133,7 +137,9 @@ async function submitCorrection(req, orderId, prices) {
         orderItems,
         totalPrice,
         translate: __,
-        showGoldPrices
+        showGoldPrices,
+        currency: priceCurrency,
+        withSubTotal: true
     }));
 
     // Potwierdzenie korekty w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
@@ -156,7 +162,7 @@ async function submitCorrection(req, orderId, prices) {
         isClientForPdf,
         showBothForMail,
         null,
-        { withoutPrices, hasSubPrices: hasSubPricesMail }
+        { withoutPrices, hasSubPrices: hasSubPricesMail, currencySymbol }
     );
     const orgData = await db.getOrgInfo(req.session.user.organization);
 

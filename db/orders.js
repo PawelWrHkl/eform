@@ -658,7 +658,12 @@ async function getTotal(orderId) {
     };
 }
 
-async function syncTotalPriceIfMissing(orderId, computedTotal, totalLabel, totalHiddenLabel) {
+/**
+ * `currencySuffix` — to, co stoi za kwotą („€”, „ zł”; services/currency.js
+ * `currencySuffix`). Napis trafia do `order.total_price` i dalej na listy oraz
+ * do eksportu, więc musi nieść walutę klienta zamówienia.
+ */
+async function syncTotalPriceIfMissing(orderId, computedTotal, totalLabel, totalHiddenLabel, currencySuffix = '€') {
     const visibleNum = parseFloat(computedTotal?.visible) || 0;
     const hiddenNum = parseFloat(computedTotal?.hidden) || 0;
     if (visibleNum === 0 && hiddenNum === 0) return;
@@ -675,8 +680,8 @@ async function syncTotalPriceIfMissing(orderId, computedTotal, totalLabel, total
     const needUpdateHidden = isEmpty(dbHidden) && hiddenNum !== 0;
 
     if (needUpdateVisible || needUpdateHidden) {
-        const newVisible = needUpdateVisible ? `${totalLabel}: ${computedTotal.visible}€` : dbVisible;
-        const newHidden = needUpdateHidden ? `${totalHiddenLabel}: ${computedTotal.hidden}€` : dbHidden;
+        const newVisible = needUpdateVisible ? `${totalLabel}: ${computedTotal.visible}${currencySuffix}` : dbVisible;
+        const newHidden = needUpdateHidden ? `${totalHiddenLabel}: ${computedTotal.hidden}${currencySuffix}` : dbHidden;
         const updateQ = `UPDATE \`order\` SET total_price = ?, total_price_hidden = ? WHERE id = ?`;
         try {
             await updateQuery(updateQ, [newVisible, newHidden, orderId]);

@@ -96,7 +96,8 @@ export function isMonetaryParam(param) {
   if (!param || typeof param.NAME !== 'string') return false;
   if (param.TYPE === 'file') return false;
   if (String(param.FORMAT ?? '').includes('%')) return false;
-  const base = param.NAME.replace(/^SUB___/, '');
+  // `_S` = specyfikacja ceny (`CENA_S`, `CENA_RABAT_S`) — liczy się jej rodzic.
+  const base = param.NAME.replace(/^SUB___/, '').replace(/_S$/, '');
   if (/RABAT$/.test(base)) return false;
   return MONETARY_NAME_RE.test(base);
 }

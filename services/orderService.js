@@ -1,5 +1,6 @@
 const _ = require("n_");
 const { features } = require('../config');
+const { withCurrencyLabel, isMonetaryParamName } = require('./currency');
 
 // Rabat klienta grupy zapisany przed zmianą nazw kluczy — patrz niżej.
 const LEGACY_CLIENT_DISCOUNT_KEYS = new Set(['RABAT_KLIENTA', 'WARTOSC_PO_RABACIE']);
@@ -51,7 +52,21 @@ function dropPriceSpecRows(rows) {
   return rows;
 }
 
-async function jsonTextBackToMap(orderItems) {
+/**
+ * @param {object} [options]
+ * @param {string} [options.currency] Waluta klienta ZAMÓWIENIA (services/currency.js).
+ *   Podana → opisy parametrów kwotowych dostają ją na końcu („LISTENPREIS [€]”
+ *   z pozycji zapisanej przed 2026-10-08 → „LISTENPREIS [PLN]”), tak jak sumy
+ *   pod tabelą. Tylko wyświetlanie — w bazie nic się nie zmienia. Ta sama
+ *   etykieta idzie do nagłówków, kluczy wierszy i list zablokowanych kolumn,
+ *   inaczej kłódki przestałyby pasować do nagłówków.
+ */
+async function jsonTextBackToMap(orderItems, options = {}) {
+  const currency = options.currency || null;
+  const labelOf = (key, param) => {
+    const description = param && param.param_description ? param.param_description : key;
+    return currency && isMonetaryParamName(key) ? withCurrencyLabel(description, currency) : description;
+  };
   let total = {}
   let cleanOrderItems = [];
   let prevHeaderKeys = [];
@@ -86,7 +101,7 @@ async function jsonTextBackToMap(orderItems) {
       if (key.startsWith('SUB___')) continue; // handled separately in subParamValues
       if (isRabatParamName(key) && isZeroRabatDisplayValue(paramOptionValue(param))) continue;
 
-      const display = param && param.param_description ? param.param_description : key;
+      const display = labelOf(key, param);
       const headerKey = display + "||" + key;
       const rowStr = (param && param.row !== undefined) ? String(param.row) : '1';
       if (rowStr === '0') {
@@ -138,7 +153,7 @@ async function jsonTextBackToMap(orderItems) {
     item.posId = item.id || 0
     let rowObj = {};
     for (const [key, param] of jsonParameters.entries()) {
-      const display = param && param.param_description ? param.param_description : key;
+      const display = labelOf(key, param);
       const headerKey = display + "||" + key;
       const rowStr = (param && param.row !== undefined) ? String(param.row) : '1';
 
@@ -182,7 +197,7 @@ async function jsonTextBackToMap(orderItems) {
           continue;
         }
         if (value !== '-' && value !== null && value !== undefined) {
-          const legacyDisplay = param && param.param_description ? param.param_description : key;
+          const legacyDisplay = labelOf(key, param);
           const legacyEntry = { key: `SUB___${key}`, display: legacyDisplay, value, locked: true };
           item.subParamValues.push(legacyEntry);
           item.clientDiscountValues.push(legacyEntry);
@@ -197,7 +212,7 @@ async function jsonTextBackToMap(orderItems) {
         }
         const isLocked = param && param.locked === true;
         if (value !== '-' && value !== null && value !== undefined) {
-          const display = param && param.param_description ? param.param_description : key;
+          const display = labelOf(key, param);
           // `key` idzie do widoku, bo szablon musi rozpoznać wiersze rabatu
           // klienta (`SUB___RABAT_KLIENTA`/`SUB___WARTOSC_PO_RABACIE`) — one
           // jedne, choć `locked`, mają być dostępne klientowi końcowemu po
@@ -222,10 +237,13 @@ async function jsonTextBackToMap(orderItems) {
       if (param && typeof param === 'object') {
         if ('locked' in param && 'param_description' in param) {
           if (param.locked) {
-            if (!table.locked.includes(param.param_description)) {
-              table.locked.push(param.param_description)
+            // Ta sama etykieta co nagłówek (`display`, z walutą klienta); pusty
+            // opis zostaje pusty — jak przed walutami.
+            const lockedLabel = param.param_description ? display : param.param_description;
+            if (!table.locked.includes(lockedLabel)) {
+              table.locked.push(lockedLabel)
             }
-            item.lockedParams.push(param.param_description)
+            item.lockedParams.push(lockedLabel)
           }
         }
       }
