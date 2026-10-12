@@ -116,6 +116,12 @@ function isShippedOrder(order) {
   return !!order && order.status === 'sent' && order.prod_status === SHIPPED_PROD_STATUS;
 }
 
+/**
+ * Kod błędu „zamówienie o zerowej wartości netto” (`createFromOrder`). Automat
+ * faktur traktuje go jako „nic do zafakturowania” zamiast awarii przebiegu.
+ */
+const ZERO_TOTAL_ERROR_CODE = 'INVOICE_ZERO_TOTAL';
+
 class InvoiceService {
   /**
    * @param {Object} [deps]
@@ -538,10 +544,14 @@ class InvoiceService {
     // to jawnie zamiast wystawiać puste faktury. `allowZeroTotal: true` pozwala
     // wymusić (np. dokument korygujący do zera).
     if (!params.allowZeroTotal && computed.totalNet === 0) {
-      throw new Error(
+      const err = new Error(
         `${collective ? `Faktura zbiorcza ${collective.period.key}` : `Zamówienie ${source.order.order_idx || orderId}`} ma zerową wartość netto — dokument nie został wystawiony. `
         + 'Uzupełnij ceny pozycji zamówienia albo wymuś utworzenie parametrem allowZeroTotal.'
       );
+      // Automat (autoInvoicing.js) rozpoznaje po kodzie „nic do zafakturowania”
+      // — to nie awaria, tylko zamówienie bez kwot na tym poziomie.
+      err.code = ZERO_TOTAL_ERROR_CODE;
+      throw err;
     }
 
     // Kontekst prawno-podatkowy kraju WYSTAWCY (numery rejestrowe, klauzule,
@@ -888,6 +898,7 @@ class InvoiceService {
 
 module.exports = {
   InvoiceService,
+  ZERO_TOTAL_ERROR_CODE,
   SHIPPED_PROD_STATUS,
   isShippedOrder,
   // Ponowny eksport rdzenia — pozwala używać kalkulatora/reguł bez serwisu

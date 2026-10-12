@@ -369,8 +369,13 @@ przypisanego odbiorcy nie dostaje faktury 3/4.
 
 Dokument wystawia `InvoiceService.createFromOrder` — ta sama ścieżka co przycisk
 w panelu (cennik, VAT, VIES, numeracja), z `created_by_pin = 'AUTO'` (na liście
-dokumentów znaczek „auto"). Błąd jednego zamówienia (np. zerowa wartość) trafia do
-logu i nie zatrzymuje pozostałych; zamówienie wraca w kolejnym przebiegu.
+dokumentów znaczek „auto"). Błąd jednego zamówienia trafia do logu i nie zatrzymuje
+pozostałych; zamówienie wraca w kolejnym przebiegu. Zamówienie o **zerowej wartości
+netto** na danym poziomie (błąd z kodem `INVOICE_ZERO_TOTAL` — np. testowe zlecenie
+bez cen, klient bez cen `SUB___` przy fakturze organizacja → klient) to „nic do
+zafakturowania", nie awaria: jeden zbiorczy wpis `pominięto N — zerowa wartość netto …`,
+w podsumowaniu `pominięte (zerowa wartość) N`, i **nie** psuje kodu wyjścia cyklu
+(`scripts/prodStatusSync.js`). Po uzupełnieniu cen faktura powstanie sama w kolejnym przebiegu.
 
 | Zmienna `.env` | Domyślnie | Znaczenie |
 |---|---|---|

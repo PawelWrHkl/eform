@@ -17,8 +17,9 @@
  *   node scripts/prodStatusSync.js --full        przelicz nagłówki wszystkich zamówień z pliku
  *   node scripts/prodStatusSync.js --no-invoices sama synchronizacja statusów
  *
- * Kody wyjścia: 0 — OK (także „inny proces trzyma blokadę"), 1 — część zapisów
- * albo faktur się nie udała, 2 — cykl padł.
+ * Kody wyjścia: 0 — OK (także „inny proces trzyma blokadę" i faktury pominięte
+ * z powodu zerowej wartości — nic do zafakturowania), 1 — część zapisów albo
+ * faktur się nie udała, 2 — cykl padł.
  */
 
 const path = require('path');

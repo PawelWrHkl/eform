@@ -10,6 +10,7 @@ const assert = require('node:assert/strict');
 
 const { readAutoInvoiceConfig, runAutoInvoicing, AUTO_ACTOR } = require('../autoInvoicing');
 const { HKL_ORG_ID } = require('../core/pricing');
+const { ZERO_TOTAL_ERROR_CODE } = require('../main');
 
 const quiet = () => {};
 const ON = { invoicesEnabled: true };
@@ -89,13 +90,18 @@ function fakeRepository(candidatesByLevel, { existing = [] } = {}) {
   };
 }
 
-function fakeService({ failFor = [] } = {}) {
+function fakeService({ failFor = [], zeroFor = [] } = {}) {
   const calls = [];
   return {
     calls,
     createFromOrder: async (params) => {
       calls.push(params);
-      if (failFor.includes(params.orderId)) throw new Error('Zamówienie ma zerową wartość netto');
+      if (failFor.includes(params.orderId)) throw new Error('Brak danych nabywcy');
+      if (zeroFor.includes(params.orderId)) {
+        const err = new Error(`Zamówienie ${params.orderId} ma zerową wartość netto — dokument nie został wystawiony.`);
+        err.code = ZERO_TOTAL_ERROR_CODE;
+        throw err;
+      }
       return { id: 900 + params.orderId, number: params.issue ? `2026/${params.orderId}` : null };
     }
   };
@@ -190,4 +196,31 @@ test('przebieg: limit na przebieg obejmuje wszystkie poziomy łącznie', async (
   });
   assert.deepEqual(service.calls.map((c) => [c.level, c.orderId]), [[1, 1], [1, 2], [2, 3]]);
   assert.equal(repository.queries[1].limit, 1);
+});
+
+test('przebieg: zerowa wartość netto to „nic do zafakturowania” — pominięte, NIE błąd przebiegu', async () => {
+  // Log 2026-10-12 (baza testowa): co godzinę 10 × „BŁĄD … zerową wartość netto”
+  // (testowe zlecenia bez cen, klienci Luxan GmbH bez cen SUB___) i cały cykl
+  // statusów z kodem 1 „część zapisów się nie udała”, choć statusy zapisały się bez błędu.
+  const lines = [];
+  const result = await runAutoInvoicing({
+    config: config(),
+    deps: { repository: fakeRepository({ 2: [order(1), order(2), order(3)] }), service: fakeService({ zeroFor: [1, 3] }), log: (m) => lines.push(m) }
+  });
+  assert.deepEqual(result.skippedZero.map((s) => s.orderId), [1, 3]);
+  assert.deepEqual(result.failed, [], 'zerowa wartość nie liczy się do błędów (kod wyjścia cyklu)');
+  assert.deepEqual(result.created.map((c) => c.orderId), [2]);
+  assert.equal(lines.filter((l) => l.includes('BŁĄD')).length, 0);
+  const skippedLine = lines.filter((l) => l.includes('pominięto 2 — zerowa wartość netto'));
+  assert.equal(skippedLine.length, 1, 'jeden zbiorczy wpis zamiast osobnej linii na zamówienie');
+  assert.match(lines[lines.length - 1], /wystawiono 1, błędy 0, pominięte \(zerowa wartość\) 2/);
+});
+
+test('przebieg: prawdziwy błąd obok zerowej wartości — błąd zostaje błędem', async () => {
+  const result = await runAutoInvoicing({
+    config: config(),
+    deps: { repository: fakeRepository({ 2: [order(1), order(2)] }), service: fakeService({ failFor: [1], zeroFor: [2] }), log: quiet }
+  });
+  assert.deepEqual(result.failed.map((f) => f.orderId), [1]);
+  assert.deepEqual(result.skippedZero.map((s) => s.orderId), [2]);
 });

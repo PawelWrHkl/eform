@@ -35,7 +35,7 @@
  * dostaje faktury 3/4 — reguły w `db/repository.js:AUTO_LEVEL_SQL`.
  */
 
-const { InvoiceService, DocumentType } = require('./main');
+const { InvoiceService, DocumentType, ZERO_TOTAL_ERROR_CODE } = require('./main');
 const defaultRepository = require('./db/repository');
 const { InvoiceLevel } = require('./core/hierarchy');
 const { HKL_ORG_ID } = require('./core/pricing');
@@ -118,21 +118,28 @@ function readAutoInvoiceConfig(env = process.env, { invoicesEnabled = !!features
  * Jeden przebieg automatu.
  *
  * Każde zamówienie to osobny dokument i osobna transakcja (`createFromOrder`) —
- * błąd jednego (np. zerowa wartość, brak danych nabywcy) nie zatrzymuje reszty.
- * Nieudane zamówienie wraca w kolejnym przebiegu, więc błąd jest widoczny
- * w logu, dopóki ktoś go nie usunie albo nie wystawi dokumentu ręcznie.
+ * błąd jednego (np. brak danych nabywcy) nie zatrzymuje reszty. Nieudane
+ * zamówienie wraca w kolejnym przebiegu, więc błąd jest widoczny w logu, dopóki
+ * ktoś go nie usunie albo nie wystawi dokumentu ręcznie.
+ *
+ * Zamówienie o ZEROWEJ wartości netto na danym poziomie (`ZERO_TOTAL_ERROR_CODE`
+ * — np. testowe zlecenie bez cen, klient bez cen SUB___ przy fakturze
+ * organizacja → klient) to nie awaria, tylko „nic do zafakturowania": trafia do
+ * `skippedZero`, jednym zbiorczym wpisem w logu, i NIE psuje kodu wyjścia cyklu
+ * (scripts/prodStatusSync.js). Wraca w kolejnym przebiegu — po uzupełnieniu cen
+ * faktura powstanie sama.
  *
  * @param {Object} [opts]
  * @param {boolean} [opts.dryRun=false] tylko wypisz kandydatów, nic nie wystawiaj
  * @param {ReturnType<typeof readAutoInvoiceConfig>} [opts.config]
  * @param {Object} [opts.deps] `{ repository, service, log, now }` — podmiana w testach
- * @returns {Promise<{ skipped?: string, created: object[], failed: object[], planned: object[], skippedExisting: number }>}
+ * @returns {Promise<{ skipped?: string, created: object[], failed: object[], skippedZero: object[], planned: object[], skippedExisting: number }>}
  */
 async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig(), deps = {} } = {}) {
   const repository = deps.repository || defaultRepository;
   const log = deps.log || defaultLog;
   const now = deps.now || (() => new Date());
-  const result = { created: [], failed: [], planned: [], skippedExisting: 0 };
+  const result = { created: [], failed: [], skippedZero: [], planned: [], skippedExisting: 0 };
 
   if (config.problems.length) {
     config.problems.forEach((p) => log(`[invoices:auto] konfiguracja: ${p}`));
@@ -182,6 +189,10 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
         result.created.push({ orderId: order.id, level, invoiceId: created.id, number: created.number });
         log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
       } catch (err) {
+        if (err && err.code === ZERO_TOTAL_ERROR_CODE) {
+          result.skippedZero.push({ orderId: order.id, level, label: `${order.order_idx} (id ${order.id}, ${order.user_ident}, poziom ${level})` });
+          continue;
+        }
         result.failed.push({ orderId: order.id, level, error: err.message });
         log(`[invoices:auto] BŁĄD — ${label}: ${err.message}`);
       }
@@ -222,6 +233,10 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
         result.created.push({ collective: true, userId: group.userId, period: group.period.key, orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, invoiceId: created.id, number: created.number });
         log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
       } catch (err) {
+        if (err && err.code === ZERO_TOTAL_ERROR_CODE) {
+          result.skippedZero.push({ collective: true, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, label: `zbiorcza ${group.period.key} (${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')})` });
+          continue;
+        }
         result.failed.push({ collective: true, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, error: err.message });
         log(`[invoices:auto] BŁĄD — ${label}: ${err.message}`);
       }
@@ -231,7 +246,11 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
   if (budget <= 0) {
     log(`[invoices:auto] wyczerpany limit ${config.maxPerRun} zamówień na przebieg (INVOICE_AUTOGEN_MAX_PER_RUN) — ewentualna reszta w następnym`);
   }
-  log(`[invoices:auto] ${dryRun ? `DRY-RUN: do wystawienia ${result.planned.length}` : `wystawiono ${result.created.length}, błędy ${result.failed.length}`}`
+  if (result.skippedZero.length) {
+    log(`[invoices:auto] pominięto ${result.skippedZero.length} — zerowa wartość netto, nic do zafakturowania `
+      + `(uzupełnij ceny pozycji albo wystaw dokument ręcznie): ${result.skippedZero.map((s) => s.label).join('; ')}`);
+  }
+  log(`[invoices:auto] ${dryRun ? `DRY-RUN: do wystawienia ${result.planned.length}` : `wystawiono ${result.created.length}, błędy ${result.failed.length}${result.skippedZero.length ? `, pominięte (zerowa wartość) ${result.skippedZero.length}` : ''}`}`
     + ` (poziomy ${config.levels.join(', ')}, od ${config.since}${config.organizationIds.length ? `, organizacje ${config.organizationIds.join(', ')}` : ''})`);
   return result;
 }

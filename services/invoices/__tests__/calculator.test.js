@@ -133,7 +133,7 @@ test('calculator: ilość ułamkowa (m²) nie gubi groszy', () => {
 });
 
 test('serwis: zamówienie o zerowej wartości nie tworzy dokumentu', async () => {
-  const { InvoiceService } = require('../main');
+  const { InvoiceService, ZERO_TOTAL_ERROR_CODE } = require('../main');
 
   // Atrapy zamiast bazy — sprawdzamy wyłącznie regułę „nie wystawiamy 0,00".
   const repository = {
@@ -169,8 +169,8 @@ test('serwis: zamówienie o zerowej wartości nie tworzy dokumentu', async () =>
 
   await assert.rejects(
     () => service.createFromOrder({ orderId: 1 }),
-    /zerową wartość netto/,
-    'dokument na 0,00 musi zostać zablokowany'
+    (err) => /zerową wartość netto/.test(err.message) && err.code === ZERO_TOTAL_ERROR_CODE,
+    'dokument na 0,00 musi zostać zablokowany — z kodem, po którym automat rozpozna „nic do zafakturowania”'
   );
 });
 
