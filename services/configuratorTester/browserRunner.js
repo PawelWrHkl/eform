@@ -473,10 +473,23 @@ async function runBrowserChecks({ positions, screenshotDir }) {
 
         const blocked = await inspectFields(page);
         if (blocked.length) {
+          // Ścieżka do raportu: co jest wybrane na ekranie (aktywne pola z
+          // wartością, w kolejności formularza), zanim formularz stanął.
+          const onScreen = await page.evaluate(() => {
+            const values = window.formValues || {};
+            return Object.keys(window.enabledParams || {})
+              .filter((n) => values[n] !== undefined && values[n] !== null && String(values[n]).trim() !== '' && String(values[n]) !== '<NULL>')
+              .map((n) => ({ field: n, value: String(values[n]) }));
+          }).catch(() => []);
+          const stopNames = new Set(blocked.map((b) => b.field));
           findings.push(finding({
             code: 'KONFIGURATOR_NIE_PUSZCZA_DALEJ',
             groupNumber,
             positionId,
+            path: {
+              steps: onScreen.filter((st) => !stopNames.has(st.field)),
+              blockedAt: blocked.map((b) => ({ field: b.field, reason: b.reason }))
+            },
             expected: blocked.map((b) => `${b.field}: co najmniej jedna opcja`),
             actual: blocked.map((b) => `${b.field}: ${b.reason}`),
             message: `Grupa ${groupNumber}, pozycja #${positionId} (przeglądarka): ${blocked.map((b) => `${b.field} — ${b.reason}`).join('; ')}.`,

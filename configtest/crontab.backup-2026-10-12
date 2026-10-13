@@ -1,0 +1,20 @@
+# Odtworzony 2026-07-16 z logow systemowych (journalctl CRON).
+# eForm order-import: zarzadzany przez systemd (eform-import.service), NIE przez cron.
+#@reboot /usr/bin/nohup /home/pawel/projects/eform-project/eform/import/import_efor.sh > /home/pawel/projects/eform-project/eform/import/import_efor.log 2>&1 &
+
+# ilosciowe_hkl — co godzine
+0 * * * * /usr/bin/python3 /home/pawel/projects/ilosciowe_hkl/ilosciowe_hkl/manage.py refresh_bootstrap_cache >> /home/pawel/projects/ilosciowe_hkl/cron.log 2>&1
+0 * * * * /usr/bin/python3 /home/pawel/projects/ilosciowe_hkl/ilosciowe_hkl/manage.py refresh_orders_cache >> /home/pawel/projects/ilosciowe_hkl/cron.log 2>&1
+0 * * * * /usr/bin/python3 /home/pawel/projects/ilosciowe_hkl/ilosciowe_hkl/manage.py refresh_org_contractors_cache >> /home/pawel/projects/ilosciowe_hkl/cron.log 2>&1
+
+# eform-db — codziennie 02:00
+0 2 * * * /home/pawel/projects/eform-db/db-manager.sh auto >> /home/pawel/projects/eform-db/logs/cron.log 2>&1
+
+# motors — codziennie 06:00
+0 6 * * * python3 /home/pawel/projects/motors/motors.py >> /home/pawel/projects/motors/cron.log 2>&1
+
+# eform-delivery-times — codziennie 07:00
+0 7 * * * cd /home/pawel/projects/eform-delivery-times && /home/pawel/.nvm/versions/node/v23.10.0/bin/node index.js >> /home/pawel/projects/eform-delivery-times/cron.log 2>&1
+
+# git auto commit — codziennie 10:35
+35 10 * * * /home/pawel/projects/eform-project/eform/git_auto_commit.sh >> /home/pawel/projects/eform-project/eform/cron_output.log 2>&1

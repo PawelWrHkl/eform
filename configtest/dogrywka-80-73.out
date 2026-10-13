@@ -1,0 +1,8 @@
+[2026-10-12T13:40:05.687Z] ConfiguratorTester: grupa 80 zatrzymana przez strażnika pamięci — na hoście zostało tylko 688 MB wolnej pamięci (próg 700 MB, podniesiony — swap prawie pełny: 0 MB wolnego) przy 2153 MB zajętych przez grupę
+[2026-10-12T13:40:05.864Z] ConfiguratorTester: grupa 80 — 1 błędów
+[2026-10-12T13:40:05.890Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+Sprawdzono grup: 1, pominięto: 0
+Znaleziono błędów: 1 (P1: 0)
+Pełny raport: /mnt/eform/configtest-output/2026-10-12/run-2026-10-12T13-36-57-523Z.json
+Raport HTML:  /mnt/eform/configtest-output/2026-10-12/run-2026-10-12T13-36-57-523Z.html
+Zakończony

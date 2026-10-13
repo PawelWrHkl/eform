@@ -1,0 +1,177 @@
+[2026-09-07T10:49:29.090Z] ConfiguratorTester: grupa 71 — 2 błędów
+[2026-09-07T10:51:48.813Z] ConfiguratorTester: grupa 43 — 13 błędów
+[2026-09-07T10:52:45.302Z] ConfiguratorTester: grupa 20 — 0 błędów
+[2026-09-07T10:55:00.423Z] ConfiguratorTester: grupa 39 — 0 błędów
+[2026-09-07T10:56:41.230Z] ConfiguratorTester: grupa 02 — 0 błędów
+[2026-09-07T10:58:28.527Z] ConfiguratorTester: grupa 59 — 0 błędów
+[2026-09-07T10:59:32.350Z] ConfiguratorTester: grupa 04 — 0 błędów
+[2026-09-07T11:01:59.350Z] ConfiguratorTester: grupa 75 — 2 błędów
+[2026-09-07T11:02:44.685Z] ConfiguratorTester: grupa 76 — 0 błędów
+[2026-09-07T11:04:32.099Z] ConfiguratorTester: grupa 14 — 28 błędów
+[2026-09-07T11:05:37.952Z] ConfiguratorTester: grupa 01 — 25 błędów
+[2026-09-07T11:07:17.970Z] ConfiguratorTester: grupa 80 — 0 błędów
+[2026-09-07T11:08:41.522Z] ConfiguratorTester: grupa 24 — 2 błędów
+[2026-09-07T11:10:14.997Z] ConfiguratorTester: grupa 73 — 40 błędów
+[2026-09-07T11:10:55.413Z] ConfiguratorTester: grupa 11 — 1 błędów
+[2026-09-07T11:10:56.641Z] ConfiguratorTester mailer: report sent to grzegorz.fijalkowski@hkl.eu,rafal.kozlowski@hkl.eu,pawel.woroniecki@hkl.eu,krzysztof.krawczyk@hkl.eu (113 findings)
+[2026-09-07T11:19:37.363Z] ConfiguratorTester: grupa 73 — 14 błędów
+[2026-09-07T11:19:37.392Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T11:35:23.219Z] ConfiguratorTester: grupa 73 — 14 błędów
+[2026-09-07T11:35:23.251Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T11:38:51.564Z] ConfiguratorTester: grupa 71 — 4 błędów
+[2026-09-07T11:43:02.858Z] ConfiguratorTester: grupa 43 — 19 błędów
+[2026-09-07T11:44:02.302Z] ConfiguratorTester: grupa 20 — 0 błędów
+[2026-09-07T11:47:52.498Z] ConfiguratorTester: grupa 39 — 0 błędów
+[2026-09-07T11:50:20.620Z] ConfiguratorTester: grupa 02 — 8 błędów
+[2026-09-07T11:53:00.447Z] ConfiguratorTester: grupa 59 — 12 błędów
+[2026-09-07T11:54:04.402Z] ConfiguratorTester: grupa 04 — 0 błędów
+[2026-09-07T11:57:28.184Z] ConfiguratorTester (przeglądarka): sprawdzono 1/1 pozycji, zgłoszeń: 0
+[2026-09-07T11:58:05.232Z] ConfiguratorTester: grupa 75 — 1 błędów
+[2026-09-07T11:58:48.559Z] ConfiguratorTester: grupa 76 — 0 błędów
+[2026-09-07T12:01:21.546Z] ConfiguratorTester: grupa 14 — 26 błędów
+[2026-09-07T12:02:45.676Z] ConfiguratorTester: grupa 01 — 48 błędów
+[2026-09-07T12:04:27.872Z] ConfiguratorTester: grupa 80 — 0 błędów
+[2026-09-07T12:06:12.501Z] ConfiguratorTester: grupa 24 — 2 błędów
+[2026-09-07T12:08:26.376Z] ConfiguratorTester: grupa 73 — 25 błędów
+[2026-09-07T12:09:07.183Z] ConfiguratorTester: grupa 11 — 1 błędów
+[2026-09-07T12:09:07.211Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T12:17:26.777Z] ConfiguratorTester: grupa 73 — 16 błędów
+[2026-09-07T12:17:26.851Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T12:20:28.450Z] ConfiguratorTester: grupa 73 — 6 błędów
+[2026-09-07T12:20:28.475Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T12:21:03.503Z] ConfiguratorTester: grupa 73 — 5 błędów
+[2026-09-07T12:21:03.532Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T12:21:49.967Z] ConfiguratorTester: grupa 73 — 4 błędów
+[2026-09-07T12:21:49.989Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T12:26:10.749Z] ConfiguratorTester: grupa 71 — 14 błędów
+[2026-09-07T12:41:10.889Z] ConfiguratorTester: grupa 43 przekroczyła limit czasu — proces zatrzymany
+[2026-09-07T12:41:11.350Z] ConfiguratorTester: grupa 43 — 1 błędów
+[2026-09-07T12:42:55.241Z] ConfiguratorTester: grupa 20 — 12 błędów
+[2026-09-07T12:48:41.231Z] ConfiguratorTester: grupa 71 — 14 błędów
+[2026-09-07T12:49:06.636Z] ConfiguratorTester (przeglądarka): sprawdzono 1/1 pozycji, zgłoszeń: 0
+[2026-09-07T12:51:12.358Z] ConfiguratorTester (przeglądarka): sprawdzono 1/1 pozycji, zgłoszeń: 0
+[2026-09-07T12:51:52.194Z] ConfiguratorTester (przeglądarka): sprawdzono 1/1 pozycji, zgłoszeń: 0
+[2026-09-07T12:53:13.899Z] ConfiguratorTester: grupa 43 — 13 błędów
+[2026-09-07T12:54:57.842Z] ConfiguratorTester: grupa 20 — 12 błędów
+[2026-09-07T12:59:08.358Z] ConfiguratorTester: grupa 39 — 12 błędów
+[2026-09-07T13:01:19.540Z] ConfiguratorTester: grupa 02 — 4 błędów
+[2026-09-07T13:09:36.200Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 14
+[2026-09-07T13:13:20.861Z] ConfiguratorTester: grupa 71 — 15 błędów
+[2026-09-07T13:14:59.952Z] ConfiguratorTester (przeglądarka): sprawdzono 2/2 pozycji, zgłoszeń: 2
+[2026-09-07T13:17:47.771Z] ConfiguratorTester: grupa 43 — 13 błędów
+[2026-09-07T13:19:19.664Z] ConfiguratorTester (przeglądarka): sprawdzono 3/3 pozycji, zgłoszeń: 0
+[2026-09-07T13:26:48.406Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 6
+[2026-09-07T13:30:34.964Z] ConfiguratorTester: grupa 71 — 15 błędów
+[2026-09-07T13:34:46.129Z] ConfiguratorTester: grupa 43 — 13 błędów
+[2026-09-07T13:37:10.366Z] ConfiguratorTester: grupa 20 — 12 błędów
+[2026-09-07T13:41:18.059Z] ConfiguratorTester: grupa 39 — 15 błędów
+[2026-09-07T13:43:35.862Z] ConfiguratorTester: grupa 02 — 2 błędów
+[2026-09-07T13:46:23.859Z] ConfiguratorTester: grupa 59 — 4 błędów
+[2026-09-07T13:47:21.670Z] ConfiguratorTester: grupa 04 — 2 błędów
+[2026-09-07T13:54:06.881Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 6
+[2026-09-07T13:57:55.634Z] ConfiguratorTester: grupa 71 — 6 błędów
+[2026-09-07T14:02:17.343Z] ConfiguratorTester: grupa 43 — 4 błędów
+[2026-09-07T14:04:38.883Z] ConfiguratorTester: grupa 20 — 3 błędów
+[2026-09-07T14:08:44.122Z] ConfiguratorTester: grupa 39 — 6 błędów
+[2026-09-07T14:11:01.287Z] ConfiguratorTester: grupa 02 — 2 błędów
+[2026-09-07T14:13:47.362Z] ConfiguratorTester: grupa 59 — 4 błędów
+[2026-09-07T14:14:41.554Z] ConfiguratorTester: grupa 04 — 2 błędów
+[2026-09-07T14:19:38.593Z] ConfiguratorTester: grupa 75 — 6 błędów
+[2026-09-07T14:20:30.874Z] ConfiguratorTester: grupa 76 — 0 błędów
+[2026-09-07T14:22:07.113Z] ConfiguratorTester: grupa 14 — 27 błędów
+[2026-09-07T14:22:56.422Z] ConfiguratorTester: grupa 01 — 14 błędów
+[2026-09-07T14:25:41.945Z] ConfiguratorTester: grupa 80 — 6 błędów
+[2026-09-07T14:26:57.403Z] ConfiguratorTester: grupa 24 — 1 błędów
+[2026-09-07T14:29:22.759Z] ConfiguratorTester: grupa 73 — 22 błędów
+[2026-09-07T14:30:06.565Z] ConfiguratorTester: grupa 11 — 2 błędów
+[2026-09-07T14:30:06.645Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-07T14:53:05.949Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 6
+[2026-09-07T14:56:46.585Z] ConfiguratorTester: grupa 71 — 5 błędów
+[2026-09-07T15:00:58.367Z] ConfiguratorTester: grupa 43 — 4 błędów
+[2026-09-07T15:03:23.719Z] ConfiguratorTester: grupa 20 — 3 błędów
+[2026-09-07T15:07:41.630Z] ConfiguratorTester: grupa 39 — 6 błędów
+[2026-09-07T15:09:57.615Z] ConfiguratorTester: grupa 02 — 2 błędów
+[2026-09-07T15:13:03.914Z] ConfiguratorTester: grupa 59 — 3 błędów
+[2026-09-07T15:13:57.067Z] ConfiguratorTester: grupa 04 — 1 błędów
+[2026-09-07T15:19:09.521Z] ConfiguratorTester: grupa 75 — 5 błędów
+[2026-09-07T15:19:56.456Z] ConfiguratorTester: grupa 76 — 0 błędów
+[2026-09-07T15:21:26.202Z] ConfiguratorTester: grupa 14 — 1 błędów
+[2026-09-07T15:22:10.725Z] ConfiguratorTester: grupa 01 — 1 błędów
+[2026-09-07T15:25:01.209Z] ConfiguratorTester: grupa 80 — 5 błędów
+[2026-09-07T15:26:15.102Z] ConfiguratorTester: grupa 24 — 1 błędów
+[2026-09-07T15:28:45.970Z] ConfiguratorTester: grupa 73 — 6 błędów
+[2026-09-07T15:29:26.297Z] ConfiguratorTester: grupa 11 — 0 błędów
+[2026-09-07T15:29:26.416Z] ConfiguratorTester mailer: no recipient configured (CONFIGTEST_NOTIFY_EMAIL), skipping.
+[2026-09-08T06:41:27.309Z] ConfiguratorTester daemon started pid=613529 node=v23.10.0 nightlyHour=2 checkInterval=300s
+[2026-09-08T06:41:44.274Z] ConfiguratorTester daemon stopping (SIGTERM)
+[2026-09-08T06:42:18.914Z] ConfiguratorTester daemon started pid=627850 node=v23.10.0 nightlyHour=2 checkInterval=300s
+[2026-09-08T12:04:45.484Z] ConfiguratorTester (symulacja): grupa 71 — NIEZDANE: walidacja aplikacji odrzuca: SZEROKOSC, WYSOKOSC, DLUGOSC_STER, MODEL, KOLOR, KOLOR_SYSTE, MONTAZ, DODATKI; żadne pole cenowe nie pokazuje wartości > 0
+[2026-09-08T12:06:26.226Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 18 parametrów aktywnych, cena 447.26.
+[2026-09-08T12:07:04.316Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, cena 179.
+[2026-09-08T12:08:52.073Z] ConfiguratorTester (symulacja): 9 działów, 21 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:09:12.532Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 18 parametrów aktywnych, cena 447.26.
+[2026-09-08T12:09:32.593Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, cena 179.
+[2026-09-08T12:09:47.741Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 13 parametrów aktywnych, cena 19.28.
+[2026-09-08T12:10:13.501Z] ConfiguratorTester (symulacja): zdanych 3/21, zgłoszeń: 18
+[2026-09-08T12:11:29.730Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:11:50.793Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 18 parametrów aktywnych, cena 447.26.
+[2026-09-08T12:12:10.956Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, cena 179.
+[2026-09-08T12:12:25.537Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 13 parametrów aktywnych, cena 19.28.
+[2026-09-08T12:12:51.294Z] ConfiguratorTester (symulacja): grupa 39 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 10 pól wypełnionych, 17 parametrów aktywnych, cena 69.66.
+[2026-09-08T12:15:16.844Z] ConfiguratorTester (symulacja): grupa 04 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 16 parametrów aktywnych, cena 68.7.
+[2026-09-08T12:15:51.868Z] ConfiguratorTester (symulacja): grupa 75 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 19 parametrów aktywnych, cena 71.02.
+[2026-09-08T12:16:21.779Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: pola bez możliwej wartości: CIEZARMAT; cena zastąpiona informacją z cennika (silnik policzył 0): CENA, CENA_SUMA, SUMA_BRUTTO, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-08T12:16:53.861Z] ConfiguratorTester (symulacja): grupa 14 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 12 pól wypełnionych, 19 parametrów aktywnych, cena 755.55.
+[2026-09-08T12:17:00.156Z] ConfiguratorTester (symulacja): grupa 01 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 2 pól wypełnionych, 7 parametrów aktywnych, cena 0.42.
+[2026-09-08T12:17:17.671Z] ConfiguratorTester (symulacja): grupa 80 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 12 parametrów aktywnych, cena 361.
+[2026-09-08T12:17:53.951Z] ConfiguratorTester (symulacja): grupa 24 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 15 pól wypełnionych, 26 parametrów aktywnych, cena 272.21.
+[2026-09-08T12:18:37.967Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: pola bez możliwej wartości: FALA, KOLOR_KUNDE; walidacja aplikacji odrzuca: KOLOR_KUNDE
+[2026-09-08T12:18:56.934Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: walidacja aplikacji odrzuca: WYSOKOSC; cena zastąpiona informacją z cennika (silnik policzył 0): CENA, CENA_SUMA, SUMA_BRUTTO, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-08T12:18:56.996Z] ConfiguratorTester (symulacja): zdanych 10/13, zgłoszeń: 7
+[2026-09-08T12:37:08.152Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:37:28.319Z] ConfiguratorTester (symulacja): grupa 43 — NIEZDANE: zerowe parametry cenowe: DOPLATA_EL, CENA_RABAT, DOPLATA_EL_RABAT
+[2026-09-08T12:37:50.108Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-09-08T12:38:25.458Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:38:46.248Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 179, suma do zapisu 191.2.
+[2026-09-08T12:39:06.675Z] ConfiguratorTester (symulacja): zdanych 1/1, zgłoszeń: 0
+[2026-09-08T12:39:19.623Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:39:51.249Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-08T12:40:01.717Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-09-08T12:40:18.475Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-08T12:40:49.631Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-08T12:41:00.471Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-09-08T12:41:57.762Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-21T10:23:58.478Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-09-04, 2026-09-07)
+[2026-09-21T10:24:16.377Z] ConfiguratorTester: skrypty cenowe — sprawdzono 138, niesparsowalnych 0
+[2026-09-21T10:25:05.685Z] ConfiguratorTester: grupa 43 — 1 błędów
+[2026-09-21T10:25:08.109Z] ConfiguratorTester mailer: report sent to grzegorz.fijalkowski@hkl.eu,rafal.kozlowski@hkl.eu,pawel.woroniecki@hkl.eu,krzysztof.krawczyk@hkl.eu (1 findings)
+[2026-09-21T10:29:04.452Z] ConfiguratorTester: skrypty cenowe — sprawdzono 138, niesparsowalnych 0
+[2026-09-21T10:34:20.603Z] ConfiguratorTester: grupa 43 — 3 błędów
+[2026-09-21T10:34:20.632Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+[2026-09-21T10:35:35.935Z] ConfiguratorTester daemon: już chodzi (pid=195109) — ten start pomijam, żeby nie było dwóch przelotów naraz.
+[2026-09-21T10:35:42.867Z] ConfiguratorTester daemon started pid=198142 node=v23.10.0 nightlyHour=2 checkInterval=300s
+[2026-09-21T10:35:53.894Z] ConfiguratorTester daemon stopping (SIGTERM)
+[2026-09-21T10:36:05.551Z] ConfiguratorTester: skrypty cenowe — sprawdzono 44, niesparsowalnych 0
+[2026-09-21T10:36:50.271Z] ConfiguratorTester: grupa 11 — 0 błędów
+[2026-09-21T10:37:02.643Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-09-21T10:37:24.255Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-09-21T10:37:26.790Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-09-21T10:37:26.824Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+[2026-09-21T11:51:05.493Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 9
+[2026-09-21T11:53:46.577Z] ConfiguratorTester: skrypty cenowe — sprawdzono 1556, niesparsowalnych 5
+[2026-09-21T11:59:37.097Z] ConfiguratorTester: grupa 71 — 5 błędów
+[2026-09-21T12:03:44.185Z] ConfiguratorTester: grupa 43 — 2 błędów
+[2026-09-21T12:04:46.062Z] ConfiguratorTester: grupa 20 — 1 błędów
+[2026-09-21T13:05:04.980Z] ConfiguratorTester watchdog: brak przebiegu w toku o 05:30 — OK.
+[2026-09-21T13:05:09.025Z] ConfiguratorTester watchdog: znaleziono STARY znacznik przebiegu (2026-09-19T13:05:08.992Z, pid=999999) — to nie dzisiejsza noc, zostawiam bez ruszania hosta. Sprawdź ręcznie configtest/run-in-progress.json.
+[2026-09-21T13:05:21.007Z] ConfiguratorTester: zablokowany po poprzednim wymuszonym restarcie (configtest/DISABLED) — pomijam przebieg.
+[2026-10-12T12:22:23.202Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-09-21)
+[2026-10-12T12:22:41.227Z] ConfiguratorTester: grupa 11 zatrzymana przez strażnika pamięci — proces grupy zajął 280 MB RAM (limit 200 MB)
+[2026-10-12T12:22:41.259Z] ConfiguratorTester: grupa 11 — 1 błędów
+[2026-10-12T12:22:41.294Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+[2026-10-12T12:25:20.322Z] ConfiguratorTester (przeglądarka): sprawdzono 3/15 pozycji, zgłoszeń: 13
+[2026-10-12T12:26:37.892Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-08-01, 2026-08-02)
+[2026-10-12T12:26:46.181Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-08-01, 2026-08-02)
+[2026-10-12T12:26:46.186Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2020-01-01)
+[2026-10-12T12:27:02.100Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-08-01, 2026-08-02)
+[2026-10-12T12:27:02.110Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2020-01-01)

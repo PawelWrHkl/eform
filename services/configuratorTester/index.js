@@ -32,6 +32,32 @@ function runBrowserChecksTarget() {
   try { return require('./browserRunner').APP_URL; } catch (_e) { return 'nieznany adres'; }
 }
 
+/**
+ * Oddaje pamięć procesu GŁÓWNEGO przed grupami.
+ *
+ * ⚠️ Zmierzone 2026-10-12: w trakcie warstwy przeglądarkowej proces główny
+ * trzymał 1.2 GB RSS (+0.37 GB Chromium), bo porównanie z cennikiem ładuje
+ * arkusze i silnik formuł TUTAJ, a V8 nie oddaje pamięci sam z siebie. Grupy
+ * startują potem w osobnych procesach i każda chce ~1.3 GB — na hoście
+ * z ~1.7 GB wolnego strażnik (memoryGuard.js) musiałby je pomijać jedna po
+ * drugiej i raport składałby się z samych „pominięto". Silnik formuł odtwarza
+ * się sam przy następnym użyciu (symulacja na końcu), więc zwolnienie jest
+ * bezpieczne. `global.gc` istnieje tylko z flagą `--expose-gc` (cron i npm
+ * script ją przekazują); bez niej sprzątanie i tak pomaga, tylko później.
+ */
+function releaseParentMemory(stage) {
+  try {
+    const ett = require('./excelTruthTable');
+    ett.clearSheetCache();
+    ett.disposeEvaluator();
+    require('./deployedScript').clearScriptCache();
+  } catch (_e) { /* sprzątanie nie może przewrócić przebiegu */ }
+  if (typeof global.gc === 'function') global.gc();
+  const rss = Math.round(process.memoryUsage().rss / 1048576);
+  const host = require('./memoryGuard').hostAvailableMb();
+  log(`ConfiguratorTester: pamięć po etapie „${stage}" — proces główny ${rss} MB, wolne na hoście ${host} MB`);
+}
+
 async function runFullSuite(opts = {}) {
   // Kill-switch po wymuszonym restarcie hosta (deploy/eform-configtest-
   // watchdog.service, 2026-09-21: przelot bez sufitu pamięci zjadł cały RAM
@@ -106,6 +132,7 @@ async function runFullSuiteInner(opts = {}) {
     if (browserResult.skipped) {
       log(`ConfiguratorTester: test w przeglądarce pominięty — ${browserResult.skipped}`);
     }
+    releaseParentMemory('przeglądarka');
     groupResults.push({
       groupNumber: 'przeglądarka',
       skipped: !!browserResult.skipped,

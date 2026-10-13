@@ -20,27 +20,44 @@ const DEFAULT_KEEP_DAYS = Number(process.env.CONFIGTEST_KEEP_DAYS) || 14;
 const MAX_LOG_BYTES = Number(process.env.CONFIGTEST_MAX_LOG_BYTES) || 5 * 1024 * 1024;
 
 /** Remove per-day output directories older than `keepDays`. */
-function pruneOutput(outputDir, keepDays = DEFAULT_KEEP_DAYS) {
+/**
+ * Ile NAJNOWSZYCH dni z raportami zostaje zawsze, niezależnie od wieku.
+ *
+ * ⚠️ Sam próg wieku kasował całą historię po każdej przerwie w działaniu:
+ * 2026-10-12 pierwszy przebieg po trzech tygodniach przestoju usunął jedyne
+ * raporty z 21.09 — akurat wtedy, gdy szef zapytał o wyniki robota „od
+ * uruchomienia". Teraz przerwa nie zjada dowodów.
+ */
+const ALWAYS_KEEP_NEWEST = Number(process.env.CONFIGTEST_KEEP_NEWEST_DAYS) || 10;
+
+// `logFn` wstrzykiwany, bo testy wołają to na katalogach tymczasowych i bez
+// tego zapisywały fałszywe „usunięto…" do PRAWDZIWEGO configtest.log.
+function pruneOutput(outputDir, keepDays = DEFAULT_KEEP_DAYS, keepNewest = ALWAYS_KEEP_NEWEST, { logFn = log } = {}) {
   if (!fs.existsSync(outputDir)) return { removed: [] };
 
   const cutoff = Date.now() - keepDays * 24 * 60 * 60 * 1000;
   const removed = [];
 
-  for (const entry of fs.readdirSync(outputDir)) {
-    // Only touch our own `YYYY-MM-DD` directories — never anything else that
-    // happens to live under the output path.
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(entry)) continue;
+  // Only touch our own `YYYY-MM-DD` directories — never anything else that
+  // happens to live under the output path.
+  const days = fs.readdirSync(outputDir).filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e)).sort();
+  // ⚠️ Nie `slice(-keepNewest)` wprost: `slice(-0)` zwraca CAŁĄ tablicę,
+  // więc keepNewest = 0 chroniłoby wszystko zamiast niczego.
+  const protectedDays = new Set(keepNewest > 0 ? days.slice(-keepNewest) : []);
+
+  for (const entry of days) {
+    if (protectedDays.has(entry)) continue;
     const parsed = Date.parse(`${entry}T00:00:00Z`);
     if (!Number.isFinite(parsed) || parsed >= cutoff) continue;
     try {
       fs.rmSync(path.join(outputDir, entry), { recursive: true, force: true });
       removed.push(entry);
     } catch (err) {
-      log(`ConfiguratorTester: nie udało się usunąć starych wyników ${entry} — ${err.message}`);
+      logFn(`ConfiguratorTester: nie udało się usunąć starych wyników ${entry} — ${err.message}`);
     }
   }
 
-  if (removed.length) log(`ConfiguratorTester: usunięto wyniki starsze niż ${keepDays} dni (${removed.join(', ')})`);
+  if (removed.length) logFn(`ConfiguratorTester: usunięto wyniki starsze niż ${keepDays} dni (${removed.join(', ')})`);
   return { removed };
 }
 
@@ -56,4 +73,5 @@ function rotateLog(logPath = LOG_PATH, maxBytes = MAX_LOG_BYTES) {
   }
 }
 
-module.exports = { pruneOutput, rotateLog, DEFAULT_KEEP_DAYS };
+module.exports = {
+  ALWAYS_KEEP_NEWEST, pruneOutput, rotateLog, DEFAULT_KEEP_DAYS };

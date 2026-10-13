@@ -43,11 +43,18 @@ function decodePositionRow(row) {
   const displayValues = safeJsonParse(row.json_parameters_desc, {});
   const shortJson = safeJsonParse(row.parameters_short, {});
   const version = row.ver || shortJson.VERSION || shortJson.version;
+  // ⚠️ `uid` POZYCJI, nie nowy. Skrypty cenowe mnożą cenę przez czynnik
+  // przypisany do uid (tabela na końcu `param-CENA-*.js`, np. TCN ×1.045 —
+  // widać to w `CENA_S`: „(113(TCNDPG0))*1.045"). Bez niego przeliczenie
+  // liczyło bez dopłaty klienta i robot zgłaszał FAŁSZYWE „cena zaniżona":
+  // 13.10 cztery P1 na pozycjach TCN 7555/7560 (zapisane 180.03, robot 171.70 —
+  // stały stosunek ~1.048), choć system liczył poprawnie.
+  const uid = (values && values.uid) || shortJson.uid || undefined;
   const lang = row.lang || 'pl';
   // Price scripts are per client (prod.txt PARAM_SCRIPTS → param-CENA-<LETTER>.js),
   // so without the owner's identity the engine cannot resolve this position's
   // own price list and silently prices it from a different variant.
-  return { groupNumber, version, lang, values, displayValues, orgIdent: row.org_ident, userIdent: row.user_ident };
+  return { groupNumber, version, lang, values, displayValues, orgIdent: row.org_ident, userIdent: row.user_ident, uid };
 }
 
 /**
@@ -57,7 +64,7 @@ function decodePositionRow(row) {
  * as its own reference point instead of an external truth table (Faza 2).
  */
 async function recomputeFromPositionRow(row, { isGroup = false, withDisplayValues = true } = {}) {
-  const { groupNumber, version, lang, values, displayValues, orgIdent, userIdent } = decodePositionRow(row);
+  const { groupNumber, version, lang, values, displayValues, orgIdent, userIdent, uid } = decodePositionRow(row);
   if (!groupNumber || !version) {
     return { ok: false, error: `pozycja #${row.id}: brak groupNumber/version do przeliczenia`, positionId: row.id, groupNumber };
   }
@@ -86,7 +93,7 @@ async function recomputeFromPositionRow(row, { isGroup = false, withDisplayValue
     // the caller decides. (The price comparison no longer depends on this: it
     // reads the deployed script instead — see deployedScript.js.)
     displayValues: withDisplayValues ? displayValues : null,
-    singlePass: true, orgIdent, userIdent, isGroup
+    singlePass: true, orgIdent, userIdent, isGroup, uid
   });
 
   return {

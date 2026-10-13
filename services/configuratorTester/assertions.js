@@ -12,6 +12,16 @@ function isBlankPrice(value) {
   return !Number.isFinite(num) || num === 0;
 }
 
+/**
+ * Kwota do treści zgłoszenia. Skrypty liczą na liczbach zmiennoprzecinkowych
+ * i bez tego w raporcie lądowało „263.90000000000003" — raport czyta szef,
+ * a kolumny i tak pokazują kwoty po 2 miejscach.
+ */
+function money(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : String(v);
+}
+
 function baseFinding(overrides) {
   return Object.assign({
     priority: 'P1',
@@ -316,7 +326,7 @@ function checkAgainstReferencePrice(
     expected: reference.price,
     actual: engine,
     priceDiff: parseFloat(diff.toFixed(2)),
-    message: `${paramName} dla grupy ${groupNumber}${positionId ? ` (pozycja #${positionId})` : ''}: cennik (${reference.letter}${reference.multiplier !== 1 ? `×${reference.multiplier}` : ''}) mówi ${reference.price}${reference.uidFactor ? ` (z dopłatą klienta ×${reference.uidFactor}, której nie ma w arkuszu)` : ''}, ${source} policzył ${engine} — różnica ${diff.toFixed(2)} EUR. Sekcje cennika: ${(reference.contributions || []).map((c) => `${c.section}×${c.multiplicity}=${c.value}`).join(', ')}.`
+    message: `${paramName} dla grupy ${groupNumber}${positionId ? ` (pozycja #${positionId})` : ''}: cennik (${reference.letter}${reference.multiplier !== 1 ? `×${reference.multiplier}` : ''}) mówi ${money(reference.price)}${reference.uidFactor ? ` (z dopłatą klienta ×${reference.uidFactor}, której nie ma w arkuszu)` : ''}, ${source} policzył ${money(engine)} — różnica ${diff.toFixed(2)} EUR. Sekcje cennika: ${(reference.contributions || []).map((c) => `${c.section}×${c.multiplicity}=${c.value}`).join(', ')}.`
   })];
 }
 
@@ -396,7 +406,7 @@ function checkInRangePrice({ groupNumber, paramName, size, scriptPrice, referenc
     expected: reference.price,
     actual: script,
     priceDiff: parseFloat(diff.toFixed(2)),
-    message: `${paramName} dla grupy ${groupNumber}, wymiar ${size}: cennik (${reference.letter}${reference.multiplier !== 1 ? `×${reference.multiplier}` : ''}) mówi ${reference.price}${reference.uidFactor ? ` (z dopłatą klienta ×${reference.uidFactor})` : ''}, wdrożony skrypt policzył ${script} — różnica ${diff.toFixed(2)} EUR.`
+    message: `${paramName} dla grupy ${groupNumber}, wymiar ${size}: cennik (${reference.letter}${reference.multiplier !== 1 ? `×${reference.multiplier}` : ''}) mówi ${money(reference.price)}${reference.uidFactor ? ` (z dopłatą klienta ×${reference.uidFactor})` : ''}, wdrożony skrypt policzył ${money(script)} — różnica ${diff.toFixed(2)} EUR.`
   })];
 }
 
@@ -668,6 +678,34 @@ function summariseGroupDiagnostics(findings, { groupNumber } = {}) {
  *  - kompletna konfiguracja bez ceny → pozycja za 0,
  *  - walidacja odrzuca mimo wypełnienia wszystkiego → reguły nie do spełnienia.
  */
+/**
+ * Ścieżka do ślepego zaułka: kto (dział, produkt) i co już wybrano, zanim
+ * formularz stanął. Wartości w KOLEJNOŚCI wybierania, każde pole raz, z jego
+ * OSTATNIĄ wartością (pole bywa poprawiane w kolejnej rundzie), bez pól, na
+ * których stanęło — te idą osobno jako `blockedAt`.
+ *
+ * Decyzja właściciela 2026-10-12: raport ma pokazywać „dokładnie jaki
+ * produkt, jaki model, konkretną konfigurację, gdzie formularz dalej nie
+ * puszcza" — sam komunikat tekstowy tego nie dawał.
+ */
+function buildSimulationPath(simulation, stops) {
+  const stopNames = new Set(stops.map((s) => s.field));
+  const order = [];
+  const last = new Map();
+  for (const f of simulation.filled || []) {
+    if (stopNames.has(f.name)) continue;
+    if (!last.has(f.name)) order.push(f.name);
+    last.set(f.name, f.value);
+  }
+  return {
+    departmentNumber: simulation.departmentNumber ?? null,
+    departmentName: simulation.departmentName || null,
+    groupName: simulation.groupName || null,
+    steps: order.map((name) => ({ field: name, value: last.get(name) })),
+    blockedAt: stops
+  };
+}
+
 function checkSimulation(simulation) {
   if (!simulation) return [];
   const { groupNumber, departmentNumber } = simulation;
@@ -695,6 +733,7 @@ function checkSimulation(simulation) {
       code: 'KONFIGURATOR_NIE_PUSZCZA_DALEJ',
       priority: 'P1',
       groupNumber,
+      path: buildSimulationPath(simulation, simulation.blocked.map((b) => ({ field: b.name, reason: b.reason }))),
       expected: 'każde wymagane pole ma co najmniej jedną wartość do wyboru',
       actual: simulation.blocked.map((b) => `${b.name}: ${b.reason}`).join('; '),
       message: `${where}: nie da się dokończyć konfiguracji — ${simulation.blocked.map((b) => `${b.name} (${b.reason})`).join('; ')}. Klient utknie w tym samym miejscu.`
@@ -747,6 +786,7 @@ function checkSimulation(simulation) {
       code: 'WALIDACJA_ODRZUCA_KONFIGURACJE',
       priority: 'P1',
       groupNumber,
+      path: buildSimulationPath(simulation, unexplained.map((name) => ({ field: name, reason: 'walidator aplikacji odrzuca wartość — zapis zablokowany' }))),
       expected: 'checkFlags() === true po wypełnieniu wszystkich aktywnych pól',
       actual: unexplained.join(', '),
       message: `${where}: po wypełnieniu wszystkich pól, które formularz udostępnia, walidacja aplikacji nadal odrzuca: ${unexplained.join(', ')}. Reguł tych pól nie da się spełnić przez konfigurator.`
@@ -801,6 +841,7 @@ function checkPriceScriptSyntax({ groupNumber, brokenFiles, checked }) {
 }
 
 module.exports = {
+  buildSimulationPath,
   isBlankPrice,
   checkPriceScriptSyntax,
   checkSimulation,

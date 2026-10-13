@@ -31,8 +31,14 @@
 
 const { log } = require('./logger');
 
-/** Ile razy obejść pętlę wypełniania — wybór jednego pola odsłania kolejne. */
-const MAX_FILL_ROUNDS = 12;
+/**
+ * Bezpiecznik pętli wypełniania: jeden krok = jedno pole. Formularze mają do
+ * ~40 pól, a kaskada potrafi pole wyczyścić i odsłonić ponownie — zapas jest
+ * celowy, ale skończony.
+ */
+const MAX_FILL_STEPS = 150;
+/** Ile razy to samo pole może zostać wypełnione, zanim uznamy, że formularz je czyści w kółko. */
+const MAX_REFILLS_PER_FIELD = 3;
 const CALC_TIMEOUT_MS = Number(process.env.CONFIGTEST_BROWSER_TIMEOUT_MS) || 45000;
 
 /**
@@ -113,7 +119,22 @@ async function waitForFormReady(page, timeout = CALC_TIMEOUT_MS) {
  * wypełnia) oraz ukryte.
  */
 async function readPendingFields(page) {
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
+    // Walidator POJEDYNCZEGO pola — ten sam, którego używa aplikacja.
+    const vu = await import('/scripts/formTools/validateUtils.js').catch(() => null);
+    // ⚠️ KOLEJNOŚĆ Z EKRANU, nie z `enabledParams`. Formularz mówi wprost:
+    // „Wartości proszę uzupełniać zgodnie z kolejnością". `enabledParams`
+    // ma pola w kolejności ODBLOKOWANIA — w grupie 73 FALA była tam przed
+    // MODEL (widoczna od startu), więc robot sięgał po nią, zanim klient
+    // w ogóle zobaczyłby model, i zgłaszał fałszywy ślepy zaułek.
+    const screenOrder = new Map();
+    document.querySelectorAll('#dynamic-form [class*="-select-area"]').forEach((el, i) => {
+      const cls = Array.from(el.classList).find((c) => c.endsWith('-select-area'));
+      if (cls) {
+        const n = cls.slice(0, -'-select-area'.length);
+        if (!screenOrder.has(n)) screenOrder.set(n, i);
+      }
+    });
     const pending = [];
     for (const name of Object.keys(window.enabledParams || {})) {
       const el = (window.formInputs || {})[name];
@@ -123,8 +144,24 @@ async function readPendingFields(page) {
 
       const wrapper = document.querySelector(`.${name}-select-area`);
       const hidden = !wrapper || wrapper.offsetParent === null;
+      // ⚠️ „Wypełnione" DOKŁADNIE tak, jak liczy to walidacja przy zapisie
+      // (`validateUtils.validateAllFieldsOnSubmit`): po `input.value` samego
+      // pola — także dla pól-przycisków. NIE po `window.formValues`: formularz
+      // potrafi wpisać tam domyślną wartość, której nie pokazuje (grupa 73,
+      // 12.10: po MODEL=FLEX formuła wpisała RAPORT="N", przycisk dalej
+      // „Wybierz", zapis zablokowany na RAPORT). Klient widzi „Wybierz" i klika,
+      // więc robot też. Wcześniejsza wersja czytała `formValues` i to pole omijała.
       const value = el.value === undefined || el.value === null ? '' : String(el.value).trim();
-      if (value !== '' && value !== '<NULL>') continue;
+      let invalidValue = null;
+      if (value !== '' && value !== '<NULL>') {
+        // Wartość WIDAĆ, ale czy aplikacja ją przyjmuje? Np. lista pokazuje
+        // wybór, który po zmianie wcześniejszego pola przestał być dozwolony —
+        // klient zobaczy czerwone pole i wybierze jeszcze raz, robot też.
+        if (!vu || !vu.validateFormInput) continue;
+        try { vu.validateFormInput(window.formValues, el); } catch (_e) { continue; }
+        if ((window.inputFlags || {})[name] !== false) continue;
+        invalidValue = value;
+      }
 
       pending.push({
         name,
@@ -136,10 +173,12 @@ async function readPendingFields(page) {
         // to dokładnie scenariusz „konfigurator nie puszcza dalej".
         optionCount: el.tagName === 'SELECT'
           ? Array.from(el.options).filter((o) => !o.disabled && o.value && o.value !== '<NULL>').length
-          : null
+          : null,
+        screenIndex: screenOrder.has(name) ? screenOrder.get(name) : Number.MAX_SAFE_INTEGER,
+        invalidValue
       });
     }
-    return pending;
+    return pending.sort((a, b) => a.screenIndex - b.screenIndex);
   });
 }
 
@@ -408,7 +447,11 @@ async function simulatePosition({
     unsupported: [],
     invalidFields: [],
     prices: {},
-    reason: ''
+    reason: '',
+    // Każda próba po kolei — z tego raport składa ŚCIEŻKĘ do ślepego zaułka
+    // (właściciel 2026-10-12: „dokładnie jaki produkt, jaki model, konkretna
+    // konfiguracja, gdzie formularz dalej nie puszcza").
+    attempts: []
   };
 
   await page.goto(`${appUrl}/orders/order/${orderId}/new-position/`);
@@ -454,46 +497,86 @@ async function simulatePosition({
   }
 
   result.stage = 'wypełnianie';
-  for (let round = 0; round < MAX_FILL_ROUNDS; round++) {
+  // Jak klient według instrukcji „uzupełniać zgodnie z kolejnością": ZAWSZE
+  // pierwsze puste pole w kolejności z ekranu, jedno na raz, i po każdym
+  // wyborze formularz czytany od nowa — wybór odsłania i chowa kolejne pola.
+  // (Do 2026-10-12 robot brał listę raz na „rundę" i szedł po niej w kolejności
+  // odblokowania pól — właściciel: „parametry należy uzupełniać po kolei, nie
+  // losowo".)
+  const skip = new Set(); // pola, których ROBOT nie umie prowadzić — to nie zaułek
+  const refills = new Map();
+  for (let step = 0; step < MAX_FILL_STEPS; step++) {
     const pending = await readPendingFields(page);
-    const fillable = pending.filter((f) => !f.hidden && !f.disabled && f.type !== 'file');
-    if (!fillable.length) break;
+    const field = pending.find((f) => !f.hidden && !f.disabled && f.type !== 'file' && !skip.has(f.name));
+    if (!field) break;
 
-    let progressed = false;
-    for (const field of fillable) {
-      let outcome;
-      if (field.tag === 'SELECT') outcome = await fillSelectField(page, field.name);
-      else if (field.tag === 'BUTTON') outcome = await fillButtonField(page, field.name);
-      else if (field.type === 'number' || field.type === 'text') {
-        // Pola tekstowe bez słownika (np. CIEZARMAT — ciężar materiału) i tak
-        // przyjmują liczbę; jeśli silnik ma dla nich zakres, użyjemy go.
-        outcome = await fillNumericField(page, field.name, numericFallback);
-      } else {
-        // ⚠️ To ograniczenie SYMULATORA, nie usterka konfiguratora. Nie wolno
-        // tego raportować jako „konfigurator nie puszcza dalej" — pole może być
-        // całkowicie w porządku, tylko automat nie umie go prowadzić.
-        outcome = { ok: false, unsupported: true, reason: `nieobsługiwany typ kontrolki (${field.tag}/${field.type})` };
-      }
-
-      if (outcome.ok) {
-        result.filled.push({ name: field.name, value: outcome.value, corrected: !!outcome.corrected });
-        progressed = true;
-        await waitForCalculations(page, 20000);
-      } else if (outcome.unsupported) {
-        if (!result.unsupported.some((u) => u.name === field.name)) {
-          result.unsupported.push({ name: field.name, reason: outcome.reason });
-        }
-      } else {
-        // Puste pole wymagane bez ani jednej opcji to sedno zgłoszenia
-        // „konfigurator nie puszcza dalej" — zapisujemy z powodem.
-        if (!result.blocked.some((b) => b.name === field.name)) {
-          result.blocked.push({ name: field.name, reason: outcome.reason, optionCount: field.optionCount });
-        }
-      }
+    const count = (refills.get(field.name) || 0) + 1;
+    refills.set(field.name, count);
+    if (count > MAX_REFILLS_PER_FIELD) {
+      // Pole wypełnione, a formularz czyści je znowu i znowu — klient też się
+      // tu zapętli. To jest ślepy zaułek, nie problem robota.
+      result.blocked.push({ name: field.name, reason: `formularz czyści to pole po każdym wyborze (wypełnione ${count - 1}×)` });
+      break;
     }
 
-    // Nic się nie udało wypełnić, a pola nadal czekają — dalsze rundy nic nie dadzą.
-    if (!progressed) break;
+    // Stan PRZED próbą — z niego raport odtwarza, jaka konfiguracja była już
+    // wybrana, kiedy formularz nie puścił dalej.
+    const valuesBefore = await page.evaluate(() => Object.assign({}, window.formValues || {})).catch(() => ({}));
+
+    const tryFill = () => {
+      if (field.tag === 'SELECT') return fillSelectField(page, field.name);
+      if (field.tag === 'BUTTON') return fillButtonField(page, field.name);
+      // Pola tekstowe bez słownika (np. CIEZARMAT — ciężar materiału) i tak
+      // przyjmują liczbę; jeśli silnik ma dla nich zakres, użyjemy go.
+      if (field.type === 'number' || field.type === 'text') return fillNumericField(page, field.name, numericFallback);
+      // ⚠️ Ograniczenie SYMULATORA, nie usterka konfiguratora — nigdy „nie puszcza dalej".
+      return Promise.resolve({ ok: false, unsupported: true, reason: `nieobsługiwany typ kontrolki (${field.tag}/${field.type})` });
+    };
+
+    let outcome = await tryFill();
+    if (!outcome.ok && !outcome.unsupported) {
+      // Zanim pole zostanie uznane za ślepy zaułek: dociągnij przeliczenie po
+      // poprzednim wyborze i spróbuj raz jeszcze. Dialog otwarty w trakcie
+      // kaskady potrafi pokazać pustą listę, choć po chwili opcje są.
+      await waitForCalculations(page, 20000);
+      outcome = await tryFill();
+    }
+
+    result.attempts.push({
+      step,
+      field: field.name,
+      // Co jeszcze czekało w tej chwili (w kolejności z ekranu) — bez tego nie
+      // da się sprawdzić, czy robot nie pominął pola, które klient by widział.
+      pending: pending.map((f) => `${f.name}${f.hidden ? '(ukryte)' : ''}${f.disabled ? '(wyłączone)' : ''}`),
+      ok: !!outcome.ok,
+      value: outcome.ok ? outcome.value : null,
+      reason: outcome.ok ? null : outcome.reason,
+      invalidValueBefore: field.invalidValue || null,
+      valuesBefore
+    });
+    if (field.invalidValue) {
+      // Formularz sam wpisał wartość, której jego walidacja nie przyjmuje —
+      // osobna informacja dla raportu (klient musi to pole poprawić, choć go nie ruszał).
+      result.autoInvalid = result.autoInvalid || [];
+      result.autoInvalid.push({ name: field.name, value: field.invalidValue, fixedTo: outcome.ok ? outcome.value : null });
+    }
+
+    if (outcome.ok) {
+      result.filled.push({ name: field.name, value: outcome.value, corrected: !!outcome.corrected });
+      await waitForCalculations(page, 20000);
+      continue;
+    }
+    if (outcome.unsupported) {
+      skip.add(field.name);
+      if (!result.unsupported.some((u) => u.name === field.name)) {
+        result.unsupported.push({ name: field.name, reason: outcome.reason });
+      }
+      continue;
+    }
+    // Pierwsze w kolejności pole, którego nie da się wypełnić — tu formularz
+    // staje. Klient idący po kolei dalej nie przejdzie, więc robot też nie.
+    result.blocked.push({ name: field.name, reason: outcome.reason, optionCount: field.optionCount });
+    break;
   }
 
   // Zakres pola liczbowego zmienia się po kolejnych wyborach (`USTAW` z `PROC`
@@ -603,5 +686,5 @@ async function simulatePosition({
 module.exports = {
   simulatePosition,
   looksLikePricePlaceholder,
-  MAX_FILL_ROUNDS
+  MAX_FILL_STEPS
 };

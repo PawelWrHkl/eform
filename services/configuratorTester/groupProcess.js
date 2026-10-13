@@ -11,6 +11,7 @@
 const path = require('path');
 const { spawn } = require('child_process');
 const { log } = require('./logger');
+const { LIMITS, waitForMemory, watchChild } = require('./memoryGuard');
 
 // Defined HERE, not imported from the worker script: requiring that script
 // executes it, so pulling the constant across started a worker with no
@@ -21,13 +22,41 @@ const ISOLATE_GROUPS = String(process.env.CONFIGTEST_ISOLATE_GROUPS).toLowerCase
 const WORKER = path.join(__dirname, '..', '..', 'scripts', 'configTestGroupWorker.js');
 const GROUP_TIMEOUT_MS = Number(process.env.CONFIGTEST_GROUP_TIMEOUT_MS) || 15 * 60 * 1000;
 
-function runGroupInChild(groupNumber, opts = {}) {
+/** Wynik grupy, której NIE sprawdziliśmy — zawsze ze zgłoszeniem, nigdy jako „czysta". */
+function unchecked(groupNumber, priority, code, message) {
+  return {
+    groupNumber,
+    skipped: false,
+    positionsChecked: 0,
+    reason: message,
+    findings: [{ priority, code, groupNumber, positionId: null, message, date: new Date().toISOString() }]
+  };
+}
+
+async function runGroupInChild(groupNumber, opts = {}) {
+  // ⚠️ Najpierw host, potem grupa — patrz memoryGuard.js (incydent 2026-09-21:
+  // przebieg położył całą maszynę). Bez wolnej pamięci grupy NIE startujemy.
+  const memory = await waitForMemory();
+  if (!memory.ok) {
+    const message = `Grupa ${groupNumber} pominięta: na hoście było tylko ${memory.availableMb} MB wolnej pamięci `
+      + `(potrzeba ${LIMITS.startMinAvailableMb} MB). Pominięcie chroni serwer — grupa NIE jest sprawdzona.`;
+    log(`ConfiguratorTester: ${message}`);
+    return unchecked(groupNumber, 'MEDIUM', 'GRUPA_POMINIETA_BRAK_PAMIECI', message);
+  }
+
   return new Promise((resolve) => {
     const child = spawn(
       process.execPath,
-      ['--max-old-space-size=2048', WORKER, String(groupNumber), JSON.stringify(opts)],
+      [`--max-old-space-size=${LIMITS.childHeapMb}`, WORKER, String(groupNumber), JSON.stringify(opts)],
       { cwd: path.join(__dirname, '..', '..'), env: process.env }
     );
+
+    let memoryBreach = null;
+    const guard = watchChild(child.pid, (reason) => {
+      memoryBreach = reason;
+      log(`ConfiguratorTester: grupa ${groupNumber} zatrzymana przez strażnika pamięci — ${reason}`);
+      child.kill('SIGKILL');
+    });
 
     let stdout = '';
     let stderr = '';
@@ -42,6 +71,13 @@ function runGroupInChild(groupNumber, opts = {}) {
 
     child.on('close', (code) => {
       clearTimeout(killTimer);
+      guard.stop();
+
+      if (memoryBreach) {
+        return resolve(unchecked(groupNumber, 'MEDIUM', 'GRUPA_PRZERWANA_PAMIEC',
+          `Grupa ${groupNumber} przerwana, żeby nie położyć serwera: ${memoryBreach}. `
+          + `Grupa NIE jest sprawdzona w tym przebiegu (szczyt RSS ${guard.peakRssMb()} MB).`));
+      }
 
       const markerAt = stdout.lastIndexOf(RESULT_MARKER);
       if (markerAt !== -1) {

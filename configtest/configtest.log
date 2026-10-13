@@ -165,3 +165,132 @@
 [2026-09-21T13:05:04.980Z] ConfiguratorTester watchdog: brak przebiegu w toku o 05:30 — OK.
 [2026-09-21T13:05:09.025Z] ConfiguratorTester watchdog: znaleziono STARY znacznik przebiegu (2026-09-19T13:05:08.992Z, pid=999999) — to nie dzisiejsza noc, zostawiam bez ruszania hosta. Sprawdź ręcznie configtest/run-in-progress.json.
 [2026-09-21T13:05:21.007Z] ConfiguratorTester: zablokowany po poprzednim wymuszonym restarcie (configtest/DISABLED) — pomijam przebieg.
+[2026-10-12T12:22:23.202Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-09-21)
+[2026-10-12T12:22:41.227Z] ConfiguratorTester: grupa 11 zatrzymana przez strażnika pamięci — proces grupy zajął 280 MB RAM (limit 200 MB)
+[2026-10-12T12:22:41.259Z] ConfiguratorTester: grupa 11 — 1 błędów
+[2026-10-12T12:22:41.294Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+[2026-10-12T12:25:20.322Z] ConfiguratorTester (przeglądarka): sprawdzono 3/15 pozycji, zgłoszeń: 13
+[2026-10-12T12:33:09.337Z] ConfiguratorTester (przeglądarka): sprawdzono 15/15 pozycji, zgłoszeń: 7
+[2026-10-12T12:33:09.384Z] ConfiguratorTester: pamięć po etapie „przeglądarka" — proces główny 1209 MB, wolne na hoście 1576 MB
+[2026-10-12T12:36:14.342Z] ConfiguratorTester: skrypty cenowe — sprawdzono 1648, niesparsowalnych 5
+[2026-10-12T12:42:55.208Z] ConfiguratorTester: grupa 71 — 13 błędów
+[2026-10-12T12:49:05.185Z] ConfiguratorTester: grupa 43 — 3 błędów
+[2026-10-12T12:51:57.699Z] ConfiguratorTester: grupa 20 — 3 błędów
+[2026-10-12T12:57:46.978Z] ConfiguratorTester: grupa 39 — 11 błędów
+[2026-10-12T13:01:50.239Z] ConfiguratorTester: grupa 02 — 4 błędów
+[2026-10-12T13:06:09.484Z] ConfiguratorTester: grupa 59 — 4 błędów
+[2026-10-12T13:07:14.257Z] ConfiguratorTester: grupa 04 — 1 błędów
+[2026-10-12T13:12:35.960Z] ConfiguratorTester: grupa 75 — 5 błędów
+[2026-10-12T13:13:25.921Z] ConfiguratorTester: grupa 76 — 3 błędów
+[2026-10-12T13:15:59.377Z] ConfiguratorTester: grupa 14 — 2 błędów
+[2026-10-12T13:18:11.762Z] ConfiguratorTester: grupa 01 — 1 błędów
+[2026-10-12T13:21:01.910Z] ConfiguratorTester: grupa 80 zatrzymana przez strażnika pamięci — proces grupy zajął 2189 MB RAM (limit 1700 MB)
+[2026-10-12T13:21:02.094Z] ConfiguratorTester: grupa 80 — 1 błędów
+[2026-10-12T13:22:56.450Z] ConfiguratorTester: grupa 24 — 3 błędów
+[2026-10-12T13:25:21.217Z] ConfiguratorTester: grupa 73 zatrzymana przez strażnika pamięci — proces grupy zajął 2493 MB RAM (limit 1700 MB)
+[2026-10-12T13:25:23.630Z] ConfiguratorTester: grupa 73 — 1 błędów
+[2026-10-12T13:26:05.657Z] ConfiguratorTester: grupa 11 — 0 błędów
+[2026-10-12T13:26:10.594Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T13:26:33.394Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 18 parametrów aktywnych, 11 parametrów cenowych sprawdzonych, cena 512.05, suma do zapisu 641.63.
+[2026-10-12T13:27:08.565Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 14 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 179, suma do zapisu 191.2.
+[2026-10-12T13:27:48.134Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 13 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 19.28, suma do zapisu 19.28.
+[2026-10-12T13:28:17.456Z] ConfiguratorTester (symulacja): grupa 39 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 10 pól wypełnionych, 17 parametrów aktywnych, 12 parametrów cenowych sprawdzonych, cena 69.66, suma do zapisu 69.66.
+[2026-10-12T13:31:06.118Z] ConfiguratorTester (symulacja): grupa 04 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 16 parametrów aktywnych, 8 parametrów cenowych sprawdzonych, cena 68.7, suma do zapisu 68.7.
+[2026-10-12T13:31:48.440Z] ConfiguratorTester (symulacja): grupa 75 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 19 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 71.02, suma do zapisu 71.02.
+[2026-10-12T13:32:47.111Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-10-12T13:33:34.739Z] ConfiguratorTester (symulacja): grupa 14 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 20 parametrów aktywnych, 11 parametrów cenowych sprawdzonych, cena 755.55, suma do zapisu 755.55.
+[2026-10-12T13:34:09.186Z] ConfiguratorTester (symulacja): grupa 01 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 2 pól wypełnionych, 7 parametrów aktywnych, 7 parametrów cenowych sprawdzonych, cena 0.61, suma do zapisu 0.61.
+[2026-10-12T13:34:28.042Z] ConfiguratorTester (symulacja): grupa 80 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 12 parametrów aktywnych, 7 parametrów cenowych sprawdzonych, cena 361, suma do zapisu 526.36.
+[2026-10-12T13:35:19.786Z] ConfiguratorTester (symulacja): grupa 24 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 15 pól wypełnionych, 26 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 356.04, suma do zapisu 397.44.
+[2026-10-12T13:36:13.805Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: pola bez możliwej wartości: FALA
+[2026-10-12T13:36:34.783Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-10-12T13:36:36.539Z] ConfiguratorTester (symulacja): zdanych 10/13, zgłoszeń: 7
+[2026-10-12T13:36:37.547Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (61 findings)
+[2026-10-12T13:40:05.687Z] ConfiguratorTester: grupa 80 zatrzymana przez strażnika pamięci — na hoście zostało tylko 688 MB wolnej pamięci (próg 700 MB, podniesiony — swap prawie pełny: 0 MB wolnego) przy 2153 MB zajętych przez grupę
+[2026-10-12T13:40:05.864Z] ConfiguratorTester: grupa 80 — 1 błędów
+[2026-10-12T13:40:05.890Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+[2026-10-12T13:47:24.328Z] ConfiguratorTester mailer: wysyłka pominięta (CONFIGTEST_NO_MAIL=true) — raport jest na dysku.
+[2026-10-12T13:49:14.256Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (61 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as 941F82B2613 | id <f515d532-299c-d53e-0732-31e3736e54c7@e-orders.eu>
+[2026-10-12T13:55:48.915Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T13:56:36.635Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: pola bez możliwej wartości: FALA
+[2026-10-12T13:56:36.693Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-10-12T13:57:13.515Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T13:58:02.226Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: pola bez możliwej wartości: FALA
+[2026-10-12T13:58:02.292Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-10-12T13:58:35.171Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T13:59:23.019Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: pola bez możliwej wartości: FALA
+[2026-10-12T13:59:23.073Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-10-12T13:59:50.303Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T14:00:39.582Z] ConfiguratorTester (symulacja): grupa 73 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 14 pól wypełnionych, 23 parametrów aktywnych, 9 parametrów cenowych sprawdzonych, cena 20.16, suma do zapisu 20.16.
+[2026-10-12T14:00:48.411Z] ConfiguratorTester (symulacja): zdanych 1/1, zgłoszeń: 0
+[2026-10-12T14:13:58.260Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T14:14:24.737Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: walidacja aplikacji odrzuca: RAPORT
+[2026-10-12T14:14:34.151Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-10-12T14:14:46.992Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T14:15:14.119Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: walidacja aplikacji odrzuca: RAPORT
+[2026-10-12T14:15:22.778Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-10-12T14:16:05.205Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T14:16:31.487Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: walidacja aplikacji odrzuca: RAPORT
+[2026-10-12T14:16:40.566Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-10-12T14:17:43.198Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T14:18:11.216Z] ConfiguratorTester (symulacja): grupa 73 — NIEZDANE: walidacja aplikacji odrzuca: RAPORT
+[2026-10-12T14:18:19.719Z] ConfiguratorTester (symulacja): zdanych 0/1, zgłoszeń: 1
+[2026-10-12T14:18:55.930Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T14:19:26.659Z] ConfiguratorTester (symulacja): grupa 73 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 23 parametrów aktywnych, 9 parametrów cenowych sprawdzonych, cena 100.8, suma do zapisu 100.8.
+[2026-10-12T14:19:35.399Z] ConfiguratorTester (symulacja): zdanych 1/1, zgłoszeń: 0
+[2026-10-12T14:19:51.483Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-12T14:20:08.712Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 18 parametrów aktywnych, 11 parametrów cenowych sprawdzonych, cena 512.05, suma do zapisu 641.63.
+[2026-10-12T14:20:38.621Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 14 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 179, suma do zapisu 191.2.
+[2026-10-12T14:21:13.095Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 13 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 19.28, suma do zapisu 19.28.
+[2026-10-12T14:21:37.584Z] ConfiguratorTester (symulacja): grupa 39 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 17 parametrów aktywnych, 12 parametrów cenowych sprawdzonych, cena 69.66, suma do zapisu 69.66.
+[2026-10-12T14:22:16.369Z] ConfiguratorTester (symulacja): grupa 02 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 18 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 639.54, suma do zapisu 639.54.
+[2026-10-12T14:22:45.236Z] ConfiguratorTester (symulacja): grupa 59 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 18 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 258.33, suma do zapisu 258.33.
+[2026-10-12T14:23:14.545Z] ConfiguratorTester (symulacja): grupa 04 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 16 parametrów aktywnych, 8 parametrów cenowych sprawdzonych, cena 68.7, suma do zapisu 68.7.
+[2026-10-12T14:23:48.993Z] ConfiguratorTester (symulacja): grupa 75 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 10 pól wypełnionych, 19 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 71.02, suma do zapisu 71.02.
+[2026-10-12T14:24:41.503Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-10-12T14:25:25.592Z] ConfiguratorTester (symulacja): grupa 14 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 12 pól wypełnionych, 20 parametrów aktywnych, 11 parametrów cenowych sprawdzonych, cena 755.55, suma do zapisu 755.55.
+[2026-10-12T14:26:00.017Z] ConfiguratorTester (symulacja): grupa 01 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 2 pól wypełnionych, 7 parametrów aktywnych, 7 parametrów cenowych sprawdzonych, cena 0.61, suma do zapisu 0.61.
+[2026-10-12T14:26:18.354Z] ConfiguratorTester (symulacja): grupa 80 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 12 parametrów aktywnych, 7 parametrów cenowych sprawdzonych, cena 361, suma do zapisu 526.36.
+[2026-10-12T14:27:00.905Z] ConfiguratorTester (symulacja): grupa 24 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 26 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 597.19, suma do zapisu 638.59.
+[2026-10-12T14:27:36.486Z] ConfiguratorTester (symulacja): grupa 73 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 23 parametrów aktywnych, 9 parametrów cenowych sprawdzonych, cena 100.8, suma do zapisu 100.8.
+[2026-10-12T14:28:02.525Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-10-12T14:28:04.587Z] ConfiguratorTester (symulacja): zdanych 13/15, zgłoszeń: 4
+[2026-10-13T00:06:44.477Z] ConfiguratorTester (przeglądarka): sprawdzono 15/15 pozycji, zgłoszeń: 7
+[2026-10-13T00:06:44.518Z] ConfiguratorTester: pamięć po etapie „przeglądarka" — proces główny 1273 MB, wolne na hoście 1518 MB
+[2026-10-13T00:09:45.918Z] ConfiguratorTester: skrypty cenowe — sprawdzono 1648, niesparsowalnych 5
+[2026-10-13T00:14:29.117Z] ConfiguratorTester: grupa 71 — 8 błędów
+[2026-10-13T00:19:02.295Z] ConfiguratorTester: grupa 43 — 2 błędów
+[2026-10-13T00:19:45.341Z] ConfiguratorTester: grupa 20 — 1 błędów
+[2026-10-13T00:22:52.670Z] ConfiguratorTester: grupa 39 — 5 błędów
+[2026-10-13T00:24:59.970Z] ConfiguratorTester: grupa 02 — 4 błędów
+[2026-10-13T00:26:46.025Z] ConfiguratorTester: grupa 59 — 2 błędów
+[2026-10-13T00:27:05.979Z] ConfiguratorTester: grupa 04 — 1 błędów
+[2026-10-13T00:30:02.478Z] ConfiguratorTester: grupa 75 — 5 błędów
+[2026-10-13T00:30:36.020Z] ConfiguratorTester: grupa 76 — 0 błędów
+[2026-10-13T00:31:27.172Z] ConfiguratorTester: grupa 14 — 0 błędów
+[2026-10-13T00:31:38.056Z] ConfiguratorTester: grupa 01 — 0 błędów
+[2026-10-13T00:33:46.179Z] ConfiguratorTester: grupa 80 zatrzymana przez strażnika pamięci — proces grupy zajął 2086 MB RAM (limit 1700 MB)
+[2026-10-13T00:33:46.378Z] ConfiguratorTester: grupa 80 — 1 błędów
+[2026-10-13T00:34:42.275Z] ConfiguratorTester: grupa 24 — 2 błędów
+[2026-10-13T00:35:38.327Z] ConfiguratorTester: grupa 73 zatrzymana przez strażnika pamięci — proces grupy zajął 2071 MB RAM (limit 1700 MB)
+[2026-10-13T00:35:38.494Z] ConfiguratorTester: grupa 73 — 1 błędów
+[2026-10-13T00:35:57.460Z] ConfiguratorTester: grupa 11 — 0 błędów
+[2026-10-13T00:36:02.337Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-13T00:36:19.402Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 18 parametrów aktywnych, 11 parametrów cenowych sprawdzonych, cena 512.05, suma do zapisu 641.63.
+[2026-10-13T00:36:49.752Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 14 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 179, suma do zapisu 191.2.
+[2026-10-13T00:37:26.361Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 13 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 19.28, suma do zapisu 19.28.
+[2026-10-13T00:37:52.019Z] ConfiguratorTester (symulacja): grupa 39 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 17 parametrów aktywnych, 12 parametrów cenowych sprawdzonych, cena 69.66, suma do zapisu 69.66.
+[2026-10-13T00:38:32.567Z] ConfiguratorTester (symulacja): grupa 02 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 18 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 639.54, suma do zapisu 639.54.
+[2026-10-13T00:39:00.854Z] ConfiguratorTester (symulacja): grupa 59 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 18 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 258.33, suma do zapisu 258.33.
+[2026-10-13T00:39:30.612Z] ConfiguratorTester (symulacja): grupa 04 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 16 parametrów aktywnych, 8 parametrów cenowych sprawdzonych, cena 68.7, suma do zapisu 68.7.
+[2026-10-13T00:40:04.883Z] ConfiguratorTester (symulacja): grupa 75 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 10 pól wypełnionych, 19 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 71.02, suma do zapisu 71.02.
+[2026-10-13T00:40:57.790Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-10-13T00:41:42.118Z] ConfiguratorTester (symulacja): grupa 14 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 12 pól wypełnionych, 20 parametrów aktywnych, 11 parametrów cenowych sprawdzonych, cena 755.55, suma do zapisu 755.55.
+[2026-10-13T00:42:18.316Z] ConfiguratorTester (symulacja): grupa 01 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 2 pól wypełnionych, 7 parametrów aktywnych, 7 parametrów cenowych sprawdzonych, cena 0.61, suma do zapisu 0.61.
+[2026-10-13T00:42:37.152Z] ConfiguratorTester (symulacja): grupa 80 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 12 parametrów aktywnych, 7 parametrów cenowych sprawdzonych, cena 361, suma do zapisu 526.36.
+[2026-10-13T00:43:20.825Z] ConfiguratorTester (symulacja): grupa 24 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 26 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 597.19, suma do zapisu 638.59.
+[2026-10-13T00:43:55.367Z] ConfiguratorTester (symulacja): grupa 73 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 23 parametrów aktywnych, 9 parametrów cenowych sprawdzonych, cena 100.8, suma do zapisu 100.8.
+[2026-10-13T00:44:22.225Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-10-13T00:44:23.968Z] ConfiguratorTester (symulacja): zdanych 13/15, zgłoszeń: 4
+[2026-10-13T00:44:25.043Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (39 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as 63B432B1630 | id <3d24d1ff-c538-5ab7-f2c8-07b76641365c@e-orders.eu>
+[2026-10-13T07:34:14.667Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (58 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as 048652B108E | id <55c1fc9c-b3d7-76c6-36be-b780e3a7522c@e-orders.eu>

@@ -148,6 +148,11 @@ async function runSimulationChecks({ groupNumbers = null } = {}) {
           continue;
         }
 
+        // Nazwy dokładnie takie, jakie widzi klient w interfejsie — do ścieżki
+        // ślepego zaułka w raporcie (dział › produkt › konfiguracja › stop).
+        simulation.departmentName = department.name;
+        simulation.groupName = group.name;
+
         simulated += 1;
         if (simulation.ok) passed += 1;
 
