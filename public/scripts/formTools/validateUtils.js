@@ -257,6 +257,18 @@ export function validateFormInput(values, actualInput) {
 
 }
 
+/**
+ * Twardy zakres parametru liczbowego (`MIN2`/`MAX2`, a bez nich `MIN`/`MAX`)
+ * ze WSZYSTKICH aktywnych walidatorów — ten sam, którego pilnuje
+ * `validateFormInput`. `hasRange: false`, gdy żadna procedura go nie ustawiła.
+ */
+export function getHardRange(paramName, values) {
+    const validatorList = findAllValidatorsForInput(paramName, values);
+    const legacyRange = getValidatorsRange(validatorList, paramName, 'MIN', 'MAX');
+    const strictRange = getValidatorsRange(validatorList, paramName, 'MIN2', 'MAX2');
+    return strictRange.hasRange ? strictRange : legacyRange;
+}
+
 function normalizeRangeValue(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : undefined;
@@ -393,6 +405,12 @@ export function setInputValid(input, isValid, min, max, mode = 'error') {
     return res;
 }
 
+function hasChosenValue(value) {
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'object') return true;
+    return String(value).trim() !== '';
+}
+
 export function validateAllFieldsOnSubmit(inputs, values) {
 
     for (const key of Object.keys(inputFlags)) {
@@ -422,14 +440,23 @@ export function validateAllFieldsOnSubmit(inputs, values) {
         if (warningIcon) warningIcon.remove();
         input.classList.remove("warning-warranty-input");
 
+        // ⚠️ Przycisk/select sprawdzamy też w `values` — to one idą do zapisu.
+        // Edycja wpisuje pustemu parametrowi do DOM `'ffff'`, a brakującemu
+        // `"undefined"` (form.js, buildHtml), więc sam DOM przepuszczał zapis
+        // pozycji z pustym wymaganym polem.
+        const definition = window.params?.find(p => p.NAME === param);
+        const isSubForm = definition && definition.SOURCE == definition.NAME;
+        const savedValueMissing = !isSubForm && values && !hasChosenValue(values[param]);
+
         if (input.tagName === 'BUTTON') {
-            isValid = !!input.value && input.value.trim() !== '';
+            isValid = !!input.value && input.value.trim() !== '' && !savedValueMissing;
 
             if (!isValid) { invalidLabel = t('form.obligo_value'); }
         }
         else {
 
             isValid = !!input.value && input.value.trim() !== '';
+            if (input.tagName === 'SELECT' && savedValueMissing) isValid = false;
             if (!isValid) { invalidLabel = t('form.obligo_field'); }
             if (input.type === "number") {
                 invalidLabel = t('form.numeric_obligo_field');
@@ -441,8 +468,7 @@ export function validateAllFieldsOnSubmit(inputs, values) {
 
 
         input.classList.toggle("invalid-input", !isValid);
-        let fullParam = window.params.find(p => p.NAME === param);
-        let isRequired = fullParam?.REQUIRED ?? true;
+        let isRequired = definition?.REQUIRED ?? true;
         if (!isRequired){
             isValid = true;
         }

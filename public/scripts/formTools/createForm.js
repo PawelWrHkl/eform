@@ -362,12 +362,43 @@ export function createInputField(param, options, groupNumber, filters, allOption
 
 }
 
+/**
+ * Wpis opisu bez `option_value`, choć parametr ma zapisaną wartość — ślad po
+ * `clearDisabledValues` liczonym na stanie POPRZEDNIEGO formularza (form.js,
+ * „wczytaj ostatnią konfigurację", poprawione 2026-10-13). Takie pozycje są już
+ * w bazie i w `localStorage` klientów: select dostawał niżej `parseFloat("B2")`
+ * = NaN i wyglądał na pusty, przycisk zostawał na „Wybierz", a tabela
+ * zlecenia i PDF pokazywały „-". Odtwarzamy wpis z `values` tak, jak robi to
+ * `buildValuesToDisplay` przy wyborze opcji — pole pokazuje zapisaną wartość,
+ * a zapis pozycji naprawia opis.
+ */
+function restoreMissingOptionValue(input, labelData, values) {
+    if (!labelData || 'option_value' in labelData) return;
+    if (input.tagName !== 'SELECT' && input.tagName !== 'BUTTON') return;
+    const name = input.name;
+    const value = values?.[name];
+    if (value === undefined || value === null || value === '' || typeof value === 'object') return;
+    if (!window.enabledParams?.[name]) return;
+    const param = window.params?.find(p => p.NAME === name);
+    if (!param || param.SOURCE == param.NAME || isCalculatedParam(param) || (param.SCRIPTS && param.SCRIPTS !== '<NULL>')) return;
+
+    if (value === '<NONE>') {
+        // Opis dopisuje gałąź `<NONE>` w fillFields — jak w buildValuesToDisplay.
+        labelData.option_value = '';
+        return;
+    }
+    const alias = values[`${name}_ALIAS`];
+    labelData.option_value = String(alias || value);
+    labelData.option_description = (alias ? values[`${name}_ALIAS___DESCRIPTION`] : values[`${name}___DESCRIPTION`]) ?? '';
+}
+
 export function fillFields(displayValues, inputs, values) {
 
     for (let input of Object.values(inputs)) {
         if (!input?.name || isParamLocked(input.name, displayValues)) continue;
         const tag = input.tagName
         const labelData = displayValues.get(input.name)
+        restoreMissingOptionValue(input, labelData, values);
         console.log('Filling field:', input.name, 'with value from displayValues:', labelData);
         if (values[input.name] == "<NONE>") {
             let description = input?.name + '___DESCRIPTION' || '';
@@ -408,7 +439,8 @@ export function fillFields(displayValues, inputs, values) {
                     }
                 } else {
                     const calculated = fillCalculated(values, input);
-                    if (calculated !== undefined) input.value = calculated;
+                    // NaN (kod opcji typu "B2") zdejmował zaznaczenie z selecta.
+                    if (calculated !== undefined && !Number.isNaN(calculated)) input.value = calculated;
                 }
                 break;
             }

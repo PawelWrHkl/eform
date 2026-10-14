@@ -5,14 +5,21 @@ import { isEnabled } from '../components/htmlManipulator.js';
 import { validateFormInput, setInputValid } from './validateUtils.js';
 import { showToast } from '../components/toast.js';
 import { loadScript } from './scriptLoader.js';
-import { findAllValidatorsForInput, clearDisabledValues } from './validateUtils.js'
+import { clearDisabledValues, getHardRange } from './validateUtils.js'
 import { calculateFromScript, calculateFromFormula, checkIfPriceIsCorrect, applyVatToGrossValue, applyClientDiscount } from './pricesCalculator.js';
 import { applySingleParamVisibility } from './createForm.js';
 
 
 
 
-export function resetDependences([params, display], name, inputs, values, allOptionsByParameter) {
+/** Wartości pól zależnych od `name` w chwili wyboru — dla `resetDependences`. */
+export function snapshotDependences(params, name, values) {
+    const param = params.find((obj) => obj.NAME === name);
+    if (!param || typeof param.DEPENDENCES !== 'string') return null;
+    return Object.fromEntries(param.DEPENDENCES.split(',').map((dep) => [dep, values[dep]]));
+}
+
+export function resetDependences([params, display], name, inputs, values, allOptionsByParameter, valuesAtSelection = null) {
     logFunctionName('resetDependences');
 
     let param = params.find((obj) => obj.NAME === name);
@@ -25,6 +32,15 @@ export function resetDependences([params, display], name, inputs, values, allOpt
         for (let depParam of paramsToCheck) {
             let valueToReset = values[depParam];
 
+            // Reset przychodzi dopiero po przeliczeniu cen. Pole wpisywane,
+            // które użytkownik zdążył od wyboru zmienić, jest już jego nową
+            // decyzją — nie kasujemy mu cyfr w trakcie pisania.
+            if (valuesAtSelection && inputs[depParam]?.tagName == 'INPUT'
+                && depParam in valuesAtSelection && valuesAtSelection[depParam] !== valueToReset) {
+                paramsToReset = paramsToReset.filter(p => p !== depParam);
+                continue;
+            }
+
             let x = searchForParameter(valueToReset, allOptionsByParameter, depParam);
 
 
@@ -32,19 +48,19 @@ export function resetDependences([params, display], name, inputs, values, allOpt
                 paramsToReset = paramsToReset.filter(p => p !== depParam);
             }
 
-            if (inputs[depParam]?.tagName == 'INPUT' && typeof valueToReset == 'number') {
-                let allValidators = (findAllValidatorsForInput(depParam, values))[0];
-                let validators = allValidators && allValidators[depParam];
-                const min = validators?.MIN2 ?? validators?.MIN;
-                const max = validators?.MAX2 ?? validators?.MAX;
-                if (
-                    validators &&
-                    Number(min) < values[depParam] &&
-                    values[depParam] < Number(max)
-                ) {
+            // ⚠️ Zakres ze WSZYSTKICH walidatorów, nie z pierwszego z brzegu:
+            // `findAllValidatorsForInput(...)[0]` bywał zestawem innego pola
+            // (albo `RODZAJ` z samym MAX), więc poprawna szerokość leciała do
+            // kosza przy każdej zmianie MODEL — i to dopiero po przeliczeniu
+            // cen, w trakcie wpisywania nowej (z 910 zostawało „0" albo „10").
+            // Wartość z `USTAW(…,"DOM",…)` przychodzi jako tekst ("865").
+            const numericValue = typeof valueToReset === 'number' ? valueToReset
+                : (typeof valueToReset === 'string' && valueToReset.trim() !== '' ? Number(valueToReset) : NaN);
+            if (inputs[depParam]?.tagName == 'INPUT' && Number.isFinite(numericValue)) {
+                const range = getHardRange(depParam, values);
+                if (range.hasRange && numericValue >= range.min && numericValue <= range.max) {
                     paramsToReset = paramsToReset.filter(param => param !== depParam);
                 }
-
             }
         }
 

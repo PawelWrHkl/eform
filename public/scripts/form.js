@@ -20,7 +20,7 @@ import {
   getProcedures
 } from "./formTools/formTools.js";
 import { validateAllFieldsOnSubmit, clearDisabledValues } from "./formTools/validateUtils.js";
-import { resetSelectValues } from "./formTools/updateFieldsAndValues.js";
+import { resetSelectValues, snapshotDependences } from "./formTools/updateFieldsAndValues.js";
 import { SourceWindow } from './formTools/slope.js';
 import { applyAttachmentFromServer } from './formTools/attachment.js';
 import { showToast } from "./components/toast.js";
@@ -39,6 +39,12 @@ import { getUid } from './formTools/getUid.js';
 import { generateShortJson } from './formTools/shortJsonGen.js';
 import { formatVatRateLabel } from './formTools/vatLabel.js';
 import { applyCurrencyToParams, refreshSavedCurrencyLabels, withCurrencyLabel } from './formTools/currencyLabel.js';
+
+// Czy na tej stronie stoi już formularz zbudowany wcześniej — wtedy
+// `window.formInputs`/`formValues`/`allOptionsByParameter` należą do NIEGO,
+// a nie do formularza, który właśnie powstaje (patrz `applySubPriceFieldVisibility`
+// w `generateForm`).
+let previousFormOnPage = false;
 
 
 export async function generateForm(
@@ -389,7 +395,17 @@ export async function generateForm(
   console.log('Pobrane UID:', window.uid);
   if (editFlag) {
     fillFields(displayValues, inputs, values);
-    await applySubPriceFieldVisibility(groupNumber);
+    // ⚠️ `applySubPriceFieldVisibility` czyta `window.formInputs`/`formValues`/
+    // `allOptionsByParameter`, a te dostają obiekty TEGO formularza dopiero na
+    // końcu `generateForm`. Na stronie edycji i w „Przelicz" są wtedy puste
+    // (funkcja od razu wychodzi), ale na stronie nowej pozycji „wczytaj ostatnią
+    // konfigurację" buduje formularz po innym (dział z jedną grupą — VERTIKAL,
+    // VOUW-GARDIJNEN… — zawsze najpierw buduje pusty). Funkcja liczyła wtedy
+    // widoczność na pustych wartościach tamtego formularza i `clearDisabledValues`
+    // kasował `option_value` w opisach NOWEJ pozycji: wartość zostawała w
+    // `json_parameters`, a tabela zlecenia i PDF pokazywały „-" (Ryver 2026-10-12,
+    // oferta 351: STOFBREEDTE; rzymskie: STOFF, SYSTEM, RODZAJ_SZYCIA).
+    if (!previousFormOnPage) await applySubPriceFieldVisibility(groupNumber);
   }
 
 
@@ -482,6 +498,7 @@ export async function generateForm(
   window.formValues = values;
   window.formDisplayValues = displayValues;
   window.allOptionsByParameter = allOptionsByParameter;
+  previousFormOnPage = true;
   setupFileRemovalListener(params, inputs, values, displayValues);
 
   // Recompute a single calculated param after leaving manual-override mode.
@@ -526,7 +543,9 @@ export async function updateProcedure({
     percent = false
   } = flags;
 
-  
+  // Stan pól zależnych w chwili wyboru, zanim użytkownik zacznie je poprawiać.
+  const dependencesAtSelection = resetDeps ? snapshotDependences(params, name, values) : null;
+
   const taskId = Date.now() + Math.random();
   window.calculationQueue.push(taskId);
 
@@ -579,7 +598,7 @@ export async function updateProcedure({
   console.log('valuesy ', values)
   window.checkedParams = findParamFromValues(values, allOptionsByParameter);
   if (afterSend) validateAllFieldsOnSubmit(inputs, values)
-  if (resetDeps) resetDependences([params, displayValues], name, inputs, values, allOptionsByParameter);
+  if (resetDeps) resetDependences([params, displayValues], name, inputs, values, allOptionsByParameter, dependencesAtSelection);
   window.shortJson = generateShortJson(params, values);
   fillLocalPositionObject(values, displayValues);
   hideParams(params, inputs)

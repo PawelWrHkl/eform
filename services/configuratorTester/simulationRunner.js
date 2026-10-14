@@ -27,8 +27,8 @@ const APP_URL = process.env.CONFIGTEST_APP_URL
 const ORDER_ID = process.env.CONFIGTEST_SIM_ORDER_ID;
 
 /** Działy i ich grupy — dokładnie tak, jak widzi je zalogowany klient. */
-async function discoverDepartmentsAndGroups(page) {
-  await page.goto(`${APP_URL}/orders/order/${ORDER_ID}/new-position/`);
+async function discoverDepartmentsAndGroups(page, { appUrl = APP_URL, orderId = ORDER_ID } = {}) {
+  await page.goto(`${appUrl}/orders/order/${orderId}/new-position/`);
   await page.waitForLoadState('networkidle');
   await page.waitForFunction(
     () => document.querySelectorAll('#department-select option').length > 1,

@@ -8,6 +8,8 @@
  *     produkt, model, wybrana konfiguracja i pole, na którym stanęło.
  *  2. **Błędy cen i ceny zerowe**.
  *  3. **Pozostałe** — na samym dole.
+ * Od 2026-10-14 między cenami a pozostałymi stoi **Kopiowanie pozycji**
+ * (kody `KOPIA_*`, robot copyLineRunner.js) — pozostałe zostają na dole.
  *
  * Nieznany kod (nowy typ zgłoszenia) trafia do „pozostałych" — lepiej, żeby
  * był widoczny na dole, niż żeby zniknął albo udawał ślepy zaułek.
@@ -22,6 +24,9 @@ const { dataDir } = require('../../config');
 const CATEGORY = Object.freeze({
   DEAD_END: 'zaulek',
   PRICE: 'ceny',
+  // Robot kopiowania pozycji (od 2026-10-14) — w mailu między cenami
+  // a „pozostałymi", które zostają na samym dole.
+  COPY: 'kopiowanie',
   OTHER: 'pozostale'
 });
 
@@ -59,6 +64,7 @@ const PRICE_CODES = new Set(['PRZELICZENIE_NIEZGODNE_ZE_SKRYPTEM', 'KOSZYK_NIESP
 
 function categorize(code) {
   const c = String(code || '');
+  if (c.startsWith('KOPIA_')) return CATEGORY.COPY;
   if (DEAD_END_CODES.has(c)) return CATEGORY.DEAD_END;
   if (NOT_A_PRICE_ERROR.has(c)) return CATEGORY.OTHER;
   if (PRICE_CODES.has(c) || PRICE_PREFIXES.some((p) => c.startsWith(p))) return CATEGORY.PRICE;
@@ -75,9 +81,9 @@ function compareFindings(a, b) {
   return String(a.groupNumber ?? '').localeCompare(String(b.groupNumber ?? ''), 'pl', { numeric: true });
 }
 
-/** @returns {{zaulek: Array, ceny: Array, pozostale: Array}} */
+/** @returns {{zaulek: Array, ceny: Array, kopiowanie: Array, pozostale: Array}} */
 function splitByCategory(findings) {
-  const out = { [CATEGORY.DEAD_END]: [], [CATEGORY.PRICE]: [], [CATEGORY.OTHER]: [] };
+  const out = { [CATEGORY.DEAD_END]: [], [CATEGORY.PRICE]: [], [CATEGORY.COPY]: [], [CATEGORY.OTHER]: [] };
   for (const f of findings || []) out[categorize(f.code)].push(f);
   for (const list of Object.values(out)) list.sort(compareFindings);
   return out;

@@ -26,6 +26,7 @@ const { markRunStart, markRunEnd, isDisabled } = require('./runLock');
  * @param {string[]} [opts.onlyGroups] - restrict to these group numbers (quick test)
  * @param {boolean} [opts.browser] - dodatkowo przejazd po UI istniejących pozycji
  * @param {boolean} [opts.simulation] - dodatkowo symulacja TWORZENIA nowej pozycji
+ * @param {boolean} [opts.copy] - dodatkowo robot kopiowania pozycji (zapisuje w zleceniu symulatora)
  */
 /** Where the browser pass points, for the report's own audit trail. */
 function runBrowserChecksTarget() {
@@ -234,6 +235,48 @@ async function runFullSuiteInner(opts = {}) {
           message: `Symulacja tworzenia pozycji przerwała się: ${err.message}. Brak zgłoszeń z tej warstwy NIE oznacza, że konfigurator działa.`,
           date: new Date().toISOString(),
           source: 'simulation'
+        }]
+      });
+    }
+  }
+
+  // Kopiowanie pozycji (Ryver: „przy kopiowaniu giną pola"; polecenie KK
+  // 14.10) — jedyna warstwa, która ZAPISUJE: pozycje powstają w zleceniu
+  // symulatora i są usuwane po każdym przypadku (copyLineRunner.js). Co noc
+  // partia przypadków z innych pozycji wzorcowych; licznik narastający
+  // w configtest-output/kopiowanie-historia.json.
+  if (opts.copy) {
+    try {
+      const { runCopyChecks, defaultHistoryFile, SCENARIOS } = require('./copyLineRunner');
+      const only = opts.onlyGroups && opts.onlyGroups.length ? opts.onlyGroups.map(String) : null;
+      const copy = await runCopyChecks({
+        historyFile: only ? null : defaultHistoryFile(),
+        groups: only,
+        scenarios: only ? Object.keys(SCENARIOS).filter((k) => only.includes(String(SCENARIOS[k].group))) : true
+      });
+      if (copy.skipped) log(`ConfiguratorTester: kopiowanie pominięte — ${copy.skipped}`);
+      const st = copy.stats;
+      groupResults.push({
+        groupNumber: 'kopiowanie',
+        skipped: !!copy.skipped,
+        findings: copy.findings,
+        stats: st,
+        reason: copy.skipped
+          || `Kopiowanie pozycji w przeglądarce: ${st.copyCases} przypadków, ${st.copyChecks} kopii/kontroli, z błędami ${st.copyCasesFailed}.`
+      });
+    } catch (err) {
+      log(`ConfiguratorTester: kopiowanie przerwane — ${err.message}`);
+      groupResults.push({
+        groupNumber: 'kopiowanie',
+        skipped: false,
+        findings: [{
+          priority: 'MEDIUM',
+          code: 'KOPIA_BLAD_TESTU',
+          groupNumber: null,
+          positionId: null,
+          message: `Robot kopiowania przerwał się: ${err.message}. Brak zgłoszeń z tej warstwy NIE oznacza, że kopiowanie działa.`,
+          date: new Date().toISOString(),
+          source: 'copy'
         }]
       });
     }

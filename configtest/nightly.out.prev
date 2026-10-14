@@ -1,0 +1,46 @@
+=== 2026-10-13 02:00:01 — start nocnego przebiegu ===
+[2026-10-13T00:06:44.477Z] ConfiguratorTester (przeglądarka): sprawdzono 15/15 pozycji, zgłoszeń: 7
+[2026-10-13T00:06:44.518Z] ConfiguratorTester: pamięć po etapie „przeglądarka" — proces główny 1273 MB, wolne na hoście 1518 MB
+[2026-10-13T00:09:45.918Z] ConfiguratorTester: skrypty cenowe — sprawdzono 1648, niesparsowalnych 5
+[2026-10-13T00:14:29.117Z] ConfiguratorTester: grupa 71 — 8 błędów
+[2026-10-13T00:19:02.295Z] ConfiguratorTester: grupa 43 — 2 błędów
+[2026-10-13T00:19:45.341Z] ConfiguratorTester: grupa 20 — 1 błędów
+[2026-10-13T00:22:52.670Z] ConfiguratorTester: grupa 39 — 5 błędów
+[2026-10-13T00:24:59.970Z] ConfiguratorTester: grupa 02 — 4 błędów
+[2026-10-13T00:26:46.025Z] ConfiguratorTester: grupa 59 — 2 błędów
+[2026-10-13T00:27:05.979Z] ConfiguratorTester: grupa 04 — 1 błędów
+[2026-10-13T00:30:02.478Z] ConfiguratorTester: grupa 75 — 5 błędów
+[2026-10-13T00:30:36.020Z] ConfiguratorTester: grupa 76 — 0 błędów
+[2026-10-13T00:31:27.172Z] ConfiguratorTester: grupa 14 — 0 błędów
+[2026-10-13T00:31:38.056Z] ConfiguratorTester: grupa 01 — 0 błędów
+[2026-10-13T00:33:46.179Z] ConfiguratorTester: grupa 80 zatrzymana przez strażnika pamięci — proces grupy zajął 2086 MB RAM (limit 1700 MB)
+[2026-10-13T00:33:46.378Z] ConfiguratorTester: grupa 80 — 1 błędów
+[2026-10-13T00:34:42.275Z] ConfiguratorTester: grupa 24 — 2 błędów
+[2026-10-13T00:35:38.327Z] ConfiguratorTester: grupa 73 zatrzymana przez strażnika pamięci — proces grupy zajął 2071 MB RAM (limit 1700 MB)
+[2026-10-13T00:35:38.494Z] ConfiguratorTester: grupa 73 — 1 błędów
+[2026-10-13T00:35:57.460Z] ConfiguratorTester: grupa 11 — 0 błędów
+[2026-10-13T00:36:02.337Z] ConfiguratorTester (symulacja): 9 działów, 15 grup do sprawdzenia (http://localhost:8000)
+[2026-10-13T00:36:19.402Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 18 parametrów aktywnych, 11 parametrów cenowych sprawdzonych, cena 512.05, suma do zapisu 641.63.
+[2026-10-13T00:36:49.752Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 14 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 179, suma do zapisu 191.2.
+[2026-10-13T00:37:26.361Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 13 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 19.28, suma do zapisu 19.28.
+[2026-10-13T00:37:52.019Z] ConfiguratorTester (symulacja): grupa 39 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 8 pól wypełnionych, 17 parametrów aktywnych, 12 parametrów cenowych sprawdzonych, cena 69.66, suma do zapisu 69.66.
+[2026-10-13T00:38:32.567Z] ConfiguratorTester (symulacja): grupa 02 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 18 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 639.54, suma do zapisu 639.54.
+[2026-10-13T00:39:00.854Z] ConfiguratorTester (symulacja): grupa 59 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 18 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 258.33, suma do zapisu 258.33.
+[2026-10-13T00:39:30.612Z] ConfiguratorTester (symulacja): grupa 04 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 16 parametrów aktywnych, 8 parametrów cenowych sprawdzonych, cena 68.7, suma do zapisu 68.7.
+[2026-10-13T00:40:04.883Z] ConfiguratorTester (symulacja): grupa 75 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 10 pól wypełnionych, 19 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 71.02, suma do zapisu 71.02.
+[2026-10-13T00:40:57.790Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-10-13T00:41:42.118Z] ConfiguratorTester (symulacja): grupa 14 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 12 pól wypełnionych, 20 parametrów aktywnych, 11 parametrów cenowych sprawdzonych, cena 755.55, suma do zapisu 755.55.
+[2026-10-13T00:42:18.316Z] ConfiguratorTester (symulacja): grupa 01 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 2 pól wypełnionych, 7 parametrów aktywnych, 7 parametrów cenowych sprawdzonych, cena 0.61, suma do zapisu 0.61.
+[2026-10-13T00:42:37.152Z] ConfiguratorTester (symulacja): grupa 80 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 12 parametrów aktywnych, 7 parametrów cenowych sprawdzonych, cena 361, suma do zapisu 526.36.
+[2026-10-13T00:43:20.825Z] ConfiguratorTester (symulacja): grupa 24 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 26 parametrów aktywnych, 10 parametrów cenowych sprawdzonych, cena 597.19, suma do zapisu 638.59.
+[2026-10-13T00:43:55.367Z] ConfiguratorTester (symulacja): grupa 73 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 13 pól wypełnionych, 23 parametrów aktywnych, 9 parametrów cenowych sprawdzonych, cena 100.8, suma do zapisu 100.8.
+[2026-10-13T00:44:22.225Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-10-13T00:44:23.968Z] ConfiguratorTester (symulacja): zdanych 13/15, zgłoszeń: 4
+[2026-10-13T00:44:25.043Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (39 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as 63B432B1630 | id <3d24d1ff-c538-5ab7-f2c8-07b76641365c@e-orders.eu>
+Sprawdzono grup: 18, pominięto: 0
+Znaleziono błędów: 39 (P1: 11)
+Skrypty cenowe: 1648 sprawdzonych, 5 niesparsowalnych
+Symulacja tworzenia pozycji: 13/15 grup zdanych
+Pełny raport: /mnt/eform/configtest-output/2026-10-13/run-2026-10-13T00-00-02-899Z.json
+Raport HTML:  /mnt/eform/configtest-output/2026-10-13/run-2026-10-13T00-00-02-899Z.html
+=== 2026-10-13 02:44:25 — koniec: są zgłoszenia P1 (raport wysłany) ===

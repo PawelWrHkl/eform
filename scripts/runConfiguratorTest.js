@@ -8,6 +8,7 @@
  *   node scripts/runConfiguratorTest.js --browser        # dodatkowo test UI w przeglądarce
  *   node scripts/runConfiguratorTest.js --symulacja      # dodatkowo symulacja TWORZENIA pozycji
  *   node scripts/runConfiguratorTest.js --nowe           # tylko pozycje nowsze niż ostatni przebieg
+ *   node scripts/runConfiguratorTest.js --kopiowanie     # dodatkowo robot kopiowania pozycji (copyLineRunner.js)
  *
  * Logs: configtest/configtest.log
  * Reports: <ROOT_DIR>/configtest-output/<data>/run-<znacznik>.json
@@ -21,12 +22,13 @@ const groupNumbers = args.filter((a) => !a.startsWith('--'));
 const browser = args.includes('--browser');
 const simulation = args.includes('--symulacja') || args.includes('--simulation');
 const onlyNew = args.includes('--nowe') || args.includes('--only-new');
+const copy = args.includes('--kopiowanie') || args.includes('--copy');
 
 (async () => {
   try {
     const { report, reportFilePath, htmlReportPath, skippedDisabled } = groupNumbers.length
-      ? await runQuickSuite(groupNumbers, { browser, simulation, onlyNew })
-      : await runFullSuite({ browser, simulation, onlyNew });
+      ? await runQuickSuite(groupNumbers, { browser, simulation, onlyNew, copy })
+      : await runFullSuite({ browser, simulation, onlyNew, copy });
 
     if (skippedDisabled) {
       console.log('Tester zablokowany po poprzednim wymuszonym restarcie hosta — usuń configtest/DISABLED, żeby odblokować.');
@@ -38,6 +40,7 @@ const onlyNew = args.includes('--nowe') || args.includes('--only-new');
     const t = report.totals || {};
     if (t.scriptsParsed) console.log(`Skrypty cenowe: ${t.scriptsParsed} sprawdzonych, ${t.scriptsBroken} niesparsowalnych`);
     if (t.simulated) console.log(`Symulacja tworzenia pozycji: ${t.simulationPassed}/${t.simulated} grup zdanych`);
+    if (t.copyCases) console.log(`Kopiowanie pozycji: ${t.copyCases} przypadków, ${t.copyChecks} kopii/kontroli, z błędami ${t.copyCasesFailed}`);
     console.log(`Pełny raport: ${reportFilePath}`);
     if (htmlReportPath) console.log(`Raport HTML:  ${htmlReportPath}`);
     process.exit(report.byPriority.P1 > 0 ? 1 : 0);

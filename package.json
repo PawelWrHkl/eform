@@ -28,7 +28,8 @@
 		"configtest:cron-remove": "crontab -l 2>/dev/null | grep -v configtest-nightly.sh | crontab - && echo usunięto",
 		"configtest:last": "tail -5 configtest/nightly.out 2>/dev/null || echo 'jeszcze nie było nocnego przebiegu'",
 		"configtest:watchdog-status": "systemctl list-timers eform-configtest-watchdog.timer --no-pager",
-		"configtest:enable": "rm -f configtest/DISABLED && echo 'odblokowany'"
+		"configtest:enable": "rm -f configtest/DISABLED && echo 'odblokowany'",
+		"copytest:sim": "node scripts/copyLineSimulation.js"
 	},
 	"keywords": [],
 	"author": "Pawel Woroniecki",

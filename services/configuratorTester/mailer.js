@@ -170,6 +170,59 @@ function otherRow(f) {
     </tr>`;
 }
 
+function copyRow(f) {
+  const c = f.copy || {};
+  return `
+    <tr>
+      <td style="${TD}">${badge(f.priority)}</td>
+      <td style="${TD}white-space:nowrap;font-size:12px;">${f.positionId != null ? `wzorzec #${escHtml(f.positionId)}` : '—'}${c.scenario ? `<br><span style="color:#888;">${escHtml(c.scenario)}</span>` : ''}</td>
+      <td style="${TD}font-size:13px;">${escHtml(f.message)}</td>
+    </tr>`;
+}
+
+const PCT = (n, d) => (d ? `${Math.round((100 * n) / d)}%` : '—');
+
+/**
+ * Sekcja robota kopiowania: zakres (ile przypadków, w jakich przeglądarkach,
+ * którymi ścieżkami, na jakich produktach) i zgłoszenia pogrupowane po produkcie.
+ */
+function copySection(no, report, list, names) {
+  const g = (report.groups || []).find((x) => x.groupNumber === 'kopiowanie');
+  const st = (g && g.stats) || null;
+  const head = sectionHeader(no, '📋', 'Kopiowanie pozycji', list.length,
+    'Robot zapisuje pozycję wzorcową, kopiuje ją („wczytaj ostatnią konfigurację", „Duplikuj"), zapisuje kopię bez zmian i porównuje pole po polu: wartości, opcje, wymiary, kolory, opisy w tabeli/PDF i ceny. Sprawdza też, że pozycji z pustym polem wymaganym nie da się zapisać.');
+  if (!g) return head + '<p style="color:#888;">Ta warstwa nie była uruchomiona w tym przebiegu.</p>';
+  if (g.skipped || !st) return head + `<p style="color:#888;">Pominięta: ${escHtml(g.reason || '')}</p>`;
+
+  const small = 'border-collapse:collapse;font-size:12px;margin:6px 16px 6px 0;display:inline-table;vertical-align:top;';
+  const th = `${TD}background:#f4f4f4;text-align:left;`;
+  const rows = (obj, label) => Object.entries(obj || {}).map(([k, v]) => `<tr><td style="${TD}">${label(k, v)}</td>`
+    + `<td style="${TD}text-align:right;">${v.cases ?? v.checks}</td><td style="${TD}text-align:right;">${v.cases != null ? v.checks : ''}</td>`
+    + `<td style="${TD}text-align:right;color:${v.failed ? '#c0392b' : '#1a7a1a'};">${v.skipped ? escHtml(`pominięta: ${v.skipped}`) : v.failed}</td></tr>`).join('');
+  const groupLabel = (k) => { const nm = names.get(String(k)); return `${escHtml(k)}${nm && nm.product ? ` · ${escHtml(nm.product)}` : ''}`; };
+  const hist = st.history
+    ? `<p style="font-size:12px;color:#555;margin:4px 0;">Narastająco od ${escHtml(new Date(st.history.since).toLocaleDateString('pl-PL'))}: <strong>${escHtml(st.history.cases)}</strong> przypadków, ${escHtml(st.history.checks)} kopii/kontroli w ${escHtml(st.history.runs)} przebiegach (z błędami: ${escHtml(st.history.failed)}).</p>`
+    : '';
+  const scope = `
+    <p style="font-size:13px;margin:6px 0;">${escHtml(st.copyCases)} przypadków (${escHtml(st.copyGenerated)} z prawdziwych pozycji, ${escHtml(st.copyScenarios)} scenariuszy Ryver), `
+    + `${escHtml(st.copyChecks)} kopii/kontroli, ${escHtml(st.copyFieldsCompared)} porównań pól — z błędami <strong style="color:${st.copyCasesFailed ? '#c0392b' : '#1a7a1a'};">${escHtml(st.copyCasesFailed)}</strong> (${PCT(st.copyCasesFailed, st.copyCases)}), czas ${escHtml(st.durationMin)} min.`
+    + `${st.copyCasesSkipped ? ` Pominięte: ${escHtml(st.copyCasesSkipped)} (pozycje wzorcowe niezgodne z dzisiejszymi regułami).` : ''}</p>
+    ${hist}
+    <p style="font-size:12px;color:#777;margin:4px 0;">Pełna seria 50 000 przypadków to ok. 6 dni ciągłej pracy przeglądarki (sama kopia to ok. 10–15 s: formularz pozwala zapisać dopiero 10 s po wczytaniu), dlatego robot robi ją partiami co noc, zawsze na innych pozycjach wzorcowych. Pozycje powstają w zleceniu symulatora na ${escHtml(st.appUrl || 'środowisku testowym')} i są usuwane po każdym przypadku; nic nie jest wysyłane.</p>
+    <table style="${small}"><thead><tr><th style="${th}">Produkt</th><th style="${th}">przypadki</th><th style="${th}">kontrole</th><th style="${th}">z błędami</th></tr></thead><tbody>${rows(st.byGroup, groupLabel)}</tbody></table>
+    <table style="${small}"><thead><tr><th style="${th}">Przeglądarka</th><th style="${th}">przypadki</th><th style="${th}">kontrole</th><th style="${th}">z błędami</th></tr></thead><tbody>${rows(st.byBrowser, (k, v) => escHtml(v.label || k))}</tbody></table>
+    <table style="${small}"><thead><tr><th style="${th}">Ścieżka</th><th style="${th}">kontrole</th><th style="${th}"></th><th style="${th}">z błędami</th></tr></thead><tbody>${rows(st.byPath, (k, v) => escHtml(v.label || k))}</tbody></table>`;
+
+  return head + scope + (list.length
+    ? `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;">
+        <thead><tr style="background:#f4f4f4;text-align:left;">
+          <th style="${TD}">Waga</th><th style="${TD}">Skąd</th><th style="${TD}">Problem</th>
+        </tr></thead>
+        <tbody>${groupedRows(list, names, copyRow, 3)}</tbody>
+      </table>`
+    : '<p style="color:#1a7a1a;">✅ Wszystkie kopie zgodne z oryginałem.</p>');
+}
+
 function sectionHeader(no, icon, title, count, subtitle) {
   return `
   <h2 style="margin:28px 0 4px 0;font-size:18px;border-bottom:2px solid #333;padding-bottom:6px;">
@@ -183,6 +236,7 @@ function buildHtml(report, reportFilePath, names = new Map(), { note = null } = 
   const cat = splitByCategory(findings);
   const deadEnds = cat[CATEGORY.DEAD_END];
   const prices = cat[CATEGORY.PRICE];
+  const copies = cat[CATEGORY.COPY];
   const others = cat[CATEGORY.OTHER];
   const t = report.totals || {};
 
@@ -210,7 +264,11 @@ function buildHtml(report, reportFilePath, names = new Map(), { note = null } = 
         </table>`
       : '<p style="color:#1a7a1a;">✅ Brak.</p>');
 
-  const section3 = sectionHeader(3, '⚙️', 'Pozostałe', others.length,
+  const copyRan = (report.groups || []).some((x) => x.groupNumber === 'kopiowanie');
+  const section3 = copyRan || copies.length ? copySection(3, report, copies, names) : '';
+  const otherNo = section3 ? 4 : 3;
+
+  const section4 = sectionHeader(otherNo, '⚙️', 'Pozostałe', others.length,
     'Sygnały do ręcznego sprawdzenia, ograniczenia samego robota, grupy pominięte z braku pamięci serwera.')
     + (others.length
       ? `<table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -227,6 +285,7 @@ function buildHtml(report, reportFilePath, names = new Map(), { note = null } = 
     t.rangeCases ? `${t.rangeCases} konfiguracji wygenerowanych przez robota (${t.rangeInRange} w zakresie cennika, ${t.rangeOutOfRange} poza nim, ${t.rangeOptionCases || 0} po opcjach)` : null,
     t.scriptsParsed ? `${t.scriptsParsed} skryptów cenowych (${t.scriptsBroken} uszkodzonych)` : null,
     t.simulated ? `symulacja składania pozycji: ${t.simulationPassed}/${t.simulated} grup zdanych` : null,
+    t.copyCases ? `kopiowanie pozycji: ${t.copyCases} przypadków, ${t.copyChecks} kopii/kontroli, z błędami ${t.copyCasesFailed}` : null,
     t.missingRules ? `${t.missingRules} pozycji archiwalnych pominiętych (brak ich wersji reguł na dysku)` : null
   ].filter(Boolean);
 
@@ -249,12 +308,14 @@ function buildHtml(report, reportFilePath, names = new Map(), { note = null } = 
   <table style="border-collapse:separate;border-spacing:8px;margin:14px -8px 0 -8px;"><tr>
     ${tile('🚧', 'ślepe zaułki', deadEnds.length, '#c0392b')}
     ${tile('💶', 'błędy cen i ceny zero', prices.length, '#d35400')}
+    ${section3 ? tile('📋', 'błędy kopiowania', copies.filter((f) => f.priority !== 'MEDIUM').length, '#c0392b') : ''}
     ${tile('⚙️', 'pozostałe', others.length, '#7f8c8d')}
   </tr></table>
 
   ${section1}
   ${section2}
   ${section3}
+  ${section4}
 
   <h3 style="margin-top:32px;font-size:14px;color:#555;">Zakres przebiegu</h3>
   <ul style="color:#555;font-size:12px;margin-top:4px;">${scope.map((x) => `<li>${escHtml(x)}</li>`).join('')}</ul>
@@ -297,12 +358,14 @@ async function sendTestReport(report, reportFilePath, { note = null } = {}) {
   const kat = splitByCategory(report.findings || []);
   const nDead = kat[CATEGORY.DEAD_END].length;
   const nPrice = kat[CATEGORY.PRICE].length;
+  // Tylko P1/HIGH — „do sprawdzenia" (VAT po edycji, przerwany przypadek) to nie błąd kopiowania.
+  const nCopy = kat[CATEGORY.COPY].filter((f) => f.priority !== 'MEDIUM').length;
   const nOther = kat[CATEGORY.OTHER].length;
   const day = new Date().toLocaleDateString('pl-PL');
   // Temat w kolejności kategorii raportu — ślepe zaułki pierwsze.
   const subject = totalFindings === 0
     ? `[Tester konfiguratora] ✅ bez zgłoszeń — ${day}`
-    : `[Tester konfiguratora] 🚧 ${nDead} ślepe zaułki · 💶 ${nPrice} błędy cen · ⚙️ ${nOther} pozostałe — ${day}`;
+    : `[Tester konfiguratora] 🚧 ${nDead} ślepe zaułki · 💶 ${nPrice} błędy cen${nCopy ? ` · 📋 ${nCopy} kopiowanie` : ''} · ⚙️ ${nOther} pozostałe — ${day}`;
   const names = await loadProductNames();
 
   // Attach the report itself: the recipients do not have shell access to the

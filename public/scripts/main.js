@@ -19,7 +19,7 @@ import { createElement } from './components/htmlManipulator.js'
 import { createChecboxField, checkBoxReaction, createLastConfigInfoPopUp } from './components/lastGroupSelected.js'
 import { validateAllFieldsOnSubmit } from './formTools/validateUtils.js'
 import { validate } from './base.js'
-import { getLocalPositionObject, checkIfLocalPositionObjectExists } from './formTools/localStorageManager.js'
+import { getLocalPositionObject, checkIfLocalPositionObjectExists, fillLocalPositionObject } from './formTools/localStorageManager.js'
 import { startSpin, stopSpin } from "./components/hourglass.js";
 
 
@@ -29,7 +29,8 @@ const formContainer = document.getElementById("dynamic-form");
 const attachmentContainer = document.getElementById('attachment-container');
 const attachmentsLabel = document.querySelector('.attachment-label');
 let sentState = false;
-let isPreparingForm = false; 
+let isPreparingForm = false;
+let formBuildId = 0;
 
 function initialize() {
 	console.log('initialize')
@@ -192,6 +193,7 @@ function showOrderReminder() {
 
 
 async function buildDynamicForm(version, groupNumber, config = null) {
+	const buildId = ++formBuildId;
 
 	showVersion(version);
 	let lastConfigDiv = document.getElementById('last-config-info')
@@ -207,6 +209,11 @@ async function buildDynamicForm(version, groupNumber, config = null) {
 			true
 		);
 		window.finishFlag = true;
+		// `generateForm` czyści `formData` na starcie, a zapisuje go dopiero
+		// `updateProcedure` przy zmianie pola — kopia zapisana BEZ zmian
+		// zostawiała pusty stan i następne „wczytaj ostatnią konfigurację"
+		// dawało pusty formularz.
+		fillLocalPositionObject(values, valuesToDisplay);
 	} else {
 		[inputs, values, valuesToDisplay] = await generateForm(version, groupNumber);
 	}
@@ -219,6 +226,10 @@ async function buildDynamicForm(version, groupNumber, config = null) {
 	buildVatFields(formContainer);
 	setTimeout(() => {
 		console.log('siema eniu shortjson')
+		// Formularz zbudowany później (dział z jedną grupą buduje najpierw pusty,
+		// potem „ostatnią konfigurację") ma własny timer — bez tego przez kilka
+		// sekund zapis walidował i wysyłał dane pustego, już podmienionego formularza.
+		if (buildId !== formBuildId) return;
 
 		setupShowButton(inputs, values, valuesToDisplay, orderId, comment, version, groupNumber);
 

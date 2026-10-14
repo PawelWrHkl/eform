@@ -73,8 +73,13 @@ function buildRunReport(groupResults, { startedAt, finishedAt } = {}) {
     acc.simulationPassed += st.simulationPassed || 0;
     acc.scriptsParsed += st.scriptsParsed || 0;
     acc.scriptsBroken += st.scriptsBroken || 0;
+    // Robot kopiowania pozycji (copyLineRunner.js).
+    acc.copyCases += st.copyCases || 0;
+    acc.copyCasesFailed += st.copyCasesFailed || 0;
+    acc.copyChecks += st.copyChecks || 0;
+    acc.copyFieldsCompared += st.copyFieldsCompared || 0;
     return acc;
-  }, { positionsChecked: 0, positionsTotal: 0, comparedToPriceList: 0, comparedToStored: 0, cartChecked: 0, scriptsRun: 0, duplicates: 0, positionsInDb: 0, rangeCases: 0, rangeInRange: 0, rangeOutOfRange: 0, rangeOptionCases: 0, failed: 0, missingRules: 0, simulated: 0, simulationPassed: 0, scriptsParsed: 0, scriptsBroken: 0 });
+  }, { positionsChecked: 0, positionsTotal: 0, comparedToPriceList: 0, comparedToStored: 0, cartChecked: 0, scriptsRun: 0, duplicates: 0, positionsInDb: 0, rangeCases: 0, rangeInRange: 0, rangeOutOfRange: 0, rangeOptionCases: 0, failed: 0, missingRules: 0, simulated: 0, simulationPassed: 0, scriptsParsed: 0, scriptsBroken: 0, copyCases: 0, copyCasesFailed: 0, copyChecks: 0, copyFieldsCompared: 0 });
 
   return {
     startedAt: startedAt || new Date().toISOString(),

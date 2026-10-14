@@ -17,6 +17,11 @@
 
 set -u
 
+# `--kopiowanie` (od 2026-10-14, polecenie KK): robot kopiowania pozycji —
+# jedyna warstwa, która zapisuje (w zleceniu symulatora, sprzątane po każdym
+# przypadku). Partia na noc: CONFIGTEST_COPY_CASES (24) przypadków, limit
+# CONFIGTEST_COPY_BUDGET_MIN (50 min); przeglądarki: CONFIGTEST_COPY_BROWSERS.
+
 # ⚠️ RAPORT MAILEM WYŁĄCZNIE DO WŁAŚCICIELA — decyzja 2026-10-12: codzienny
 # raport ma przychodzić do Pawła, a NIE do pozostałych (szef, Grzegorz, Rafał).
 # `.env` ma w CONFIGTEST_NOTIFY_EMAIL czterech odbiorców, więc nadpisujemy to
@@ -42,7 +47,7 @@ OUT=configtest/nightly.out
   # `-E 75`: zajęta blokada ma WŁASNY kod — bez tego flock oddaje 1, czyli to
   # samo, co tester przy zgłoszeniach P1, i log kłamałby o wyniku.
   flock -n -E 75 configtest/nightly.lock \
-    "$NODE" --max-old-space-size=1536 --expose-gc scripts/runConfiguratorTest.js --nowe --browser --symulacja
+    "$NODE" --max-old-space-size=1536 --expose-gc scripts/runConfiguratorTest.js --nowe --browser --symulacja --kopiowanie
   KOD=$?
   case $KOD in
     0) echo "=== $(date '+%F %T') — koniec: brak zgłoszeń P1 ===" ;;
