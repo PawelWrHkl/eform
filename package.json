@@ -36,6 +36,7 @@
 	"license": "ISC",
 	"description": "Serwis do zarządzania zleceniami od klientów",
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.131.0",
 		"@marsaud/smb2": "^0.18.0",
 		"@vitalets/google-translate-api": "^9.2.1",
 		"bcrypt": "^6.0.0",

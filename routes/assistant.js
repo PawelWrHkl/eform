@@ -154,6 +154,20 @@ router.get('/go/order/:id', loadEmployeePermissions, async (req, res) => {
 	return res.redirect(ref ? ref.href : '/orders/history');
 });
 
+// Krok pokazu „to zlecenie na liście" z rozmowy głosowej (start_tour idzie prosto do
+// przeglądarki): na której liście leży zlecenie i jaki ma numer — tylko zlecenia
+// zalogowanego konta (ten sam zakres co listy portalu), cudze → 404.
+router.get('/order-place/:id', loadEmployeePermissions, async (req, res) => {
+	try {
+		const place = await tools.orderPlace(Number(req.params.id) || 0, tools.scopeFromRequest(req, langOf(req)));
+		if (!place) return res.status(404).json({ success: false });
+		return res.json({ success: true, page: place.page, number: place.number });
+	} catch (err) {
+		log('[assistant] /order-place:', err && err.message);
+		return res.status(500).json({ success: false });
+	}
+});
+
 // „×" na dymku maskotki — dymek znika do końca sesji logowania (server.js → assistantBoot.bubbleHidden).
 router.post('/bubble/hide', (req, res) => {
 	req.session.assistantBubbleHidden = true;

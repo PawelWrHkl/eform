@@ -322,3 +322,43 @@ test('rateMessage: 👍/👎 tylko dla odpowiedzi Eforka z tej rozmowy; do dzien
 	assert.equal(assistant.publicMessages(state)[1].feedback, 'down');
 	assert.ok(assistant.publicMessages(state)[1].id);
 });
+
+// ── kroki pokazu „to zlecenie na liście" ──────────────────────────────────
+test('resolveOrderSteps: zostają tylko zlecenia konta (zapytanie w zakresie), z listą wg statusu i numerem', async () => {
+	const select = fakeSelect([[
+		{ id: 3175, order_idx: 810, status: 'sent' },
+		{ id: 3135, order_idx: null, status: 'active' },
+		{ id: 77, order_idx: 5, status: 'canceled' }
+	]]);
+	const steps = await tools.resolveOrderSteps([
+		{ element: 'nav_history', page: null, text: 'a', click: true },
+		{ element: null, page: null, order: 3175, text: 'b', click: false },
+		{ element: null, page: null, order: 3135, text: 'c', click: false },
+		{ element: null, page: null, order: 77, text: 'd', click: false },
+		{ element: null, page: null, order: 999, text: 'cudze', click: false }
+	], EMPLOYEE, deps(select));
+	assert.match(select.calls[0].sql, /o\.id IN \(\?,\?,\?,\?\) AND o\.user_id = \? AND o\.employee_id = \?/);
+	assert.deepEqual(select.calls[0].params, [3175, 3135, 77, 999, 42, 7]);
+	assert.deepEqual(steps.map((s) => [s.order || s.element, s.page, s.number]), [
+		['nav_history', null, undefined],
+		[3175, 'history', '810'],
+		[3135, 'offers', '3135'],
+		[77, 'canceled', '5']
+	]);
+});
+
+test('resolveOrderSteps: bez kroków order — bez zapytania do bazy; bez konta — kroki order znikają', async () => {
+	const select = fakeSelect();
+	const plain = [{ element: 'nav_offers', page: null, text: 'a', click: false }];
+	assert.equal(await tools.resolveOrderSteps(plain, CLIENT, deps(select)), plain);
+	assert.equal(select.calls.length, 0);
+	const none = await tools.resolveOrderSteps([{ element: null, page: null, order: 5, text: 'x', click: false }], null, deps(select));
+	assert.deepEqual(none, []);
+});
+
+test('orderPlace (GET /assistant/order-place/:id): lista i numer zlecenia konta, cudze → null', async () => {
+	const own = await tools.orderPlace(3175, CLIENT, deps(fakeSelect([[{ id: 3175, order_idx: 810, status: 'sent' }]])));
+	assert.deepEqual(own, { page: 'history', number: '810' });
+	assert.equal(await tools.orderPlace(3175, CLIENT, deps(fakeSelect([[]]))), null);
+	assert.equal(await tools.orderPlace('abc', CLIENT, deps(fakeSelect())), null);
+});

@@ -13,7 +13,14 @@
  *   listening — uszy w górę, fale dźwięku (rozmowa głosowa: słucha),
  *   sorry     — smutne brwi, opuszczone uszy (konsultant, błąd),
  *   shake     — kręci głową (pytanie spoza tematu),
- *   happy     — podskok i szybkie merdanie (przekazanie wysłane).
+ *   happy     — podskok i szybkie merdanie (przekazanie wysłane, powrót z pokazu),
+ *   run / point / point-up / point-down / tap — piesek-przewodnik w pokazie
+ *               (tour.js): bieg, wskazanie łapą (w bok / w górę / w dół), stuknięcie.
+ *
+ * Pokaz (tour.js) bierze osobną kopię postaci (`A.avatar.create`), która biega
+ * po stronie, i szczeknięcie (`A.avatar.bark`: krótki dźwięk z Web Audio, bez
+ * plików; tylko przy ASSISTANT_BARK_SOUND=true i gdy klient nie wyciszył go
+ * przyciskiem głośnika — wybór w localStorage tej przeglądarki).
  *
  * Źródła zdarzeń: `eform-assistant:state` (widget.js — czat) i
  * `eform-assistant:voice` (voice.js — rozmowa głosowa) + poziom dźwięku
@@ -202,5 +209,67 @@
 		}, 25000);
 	}
 
-	A.avatar = { set: flash, hold: hold };
+	// ── szczekanie (pokaz: piesek dobiegł i wskazuje) ──
+	var MUTE_KEY = 'eformAssistant.barkMuted';
+	function isMuted() {
+		try { return window.localStorage.getItem(MUTE_KEY) === '1'; } catch (_) { return false; }
+	}
+	function setMuted(on) {
+		try { window.localStorage.setItem(MUTE_KEY, on ? '1' : '0'); } catch (_) { /* wybór tylko na tej stronie */ }
+	}
+	var audio = null;
+	/** Jedno „hau": piłokształtny ton opadający 820→330 Hz + szum wydechu, przez filtr pasmowy. */
+	function woof(ctx, t) {
+		var osc = ctx.createOscillator();
+		osc.type = 'sawtooth';
+		osc.frequency.setValueAtTime(820, t);
+		osc.frequency.exponentialRampToValueAtTime(540, t + 0.04);
+		osc.frequency.exponentialRampToValueAtTime(330, t + 0.14);
+		var len = Math.floor(ctx.sampleRate * 0.07);
+		var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+		var data = buf.getChannelData(0);
+		for (var i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+		var noise = ctx.createBufferSource();
+		noise.buffer = buf;
+		var noiseGain = ctx.createGain();
+		noiseGain.gain.value = 0.35;
+		var filter = ctx.createBiquadFilter();
+		filter.type = 'bandpass';
+		filter.frequency.value = 1300;
+		filter.Q.value = 1.1;
+		var gain = ctx.createGain();
+		gain.gain.setValueAtTime(0.0001, t);
+		gain.gain.exponentialRampToValueAtTime(0.2, t + 0.012);
+		gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
+		osc.connect(filter);
+		noise.connect(noiseGain);
+		noiseGain.connect(filter);
+		filter.connect(gain);
+		gain.connect(ctx.destination);
+		osc.start(t);
+		osc.stop(t + 0.19);
+		noise.start(t);
+	}
+	function bark() {
+		if (!boot.bark || isMuted()) return;
+		var AC = window.AudioContext || window.webkitAudioContext;
+		if (!AC) return;
+		try {
+			audio = audio || new AC();
+			// Przeglądarka gra dźwięk dopiero po geście klienta na stronie — bez niego zostaje sam dymek „Hau!".
+			if (audio.state === 'suspended') audio.resume().catch(function () { /* bez dźwięku */ });
+			var t = audio.currentTime + 0.02;
+			woof(audio, t);
+			woof(audio, t + 0.22);
+		} catch (_) { /* bez dźwięku */ }
+	}
+
+	A.avatar = {
+		set: flash,
+		hold: hold,
+		// Kopia postaci dla pokazu (piesek-przewodnik biegający po stronie).
+		create: makeAvatar,
+		bark: bark,
+		sound: { enabled: !!boot.bark, muted: isMuted, setMuted: setMuted }
+	};
 })();

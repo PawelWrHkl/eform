@@ -479,8 +479,51 @@ async function resolveRefs(text, scope, lang, deps = {}) {
 	return { text: clean, refs };
 }
 
+// ── kroki pokazu „to zlecenie na liście" ─────────────────────────────────
+// Lista, na której portal pokazuje zlecenie w danym statusie.
+const LIST_FOR_STATUS = { active: 'offers', pending_approval: 'offers', sent: 'history', canceled: 'canceled' };
+
+/** Zlecenia KONTA (scopeWhere) → Map(id → { page, number }); cudze i nieznane pomija. */
+async function orderPlaces(ids, scope, deps = {}) {
+	const out = new Map();
+	const clean = [...new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 10);
+	if (!clean.length || !scope || !scope.userId) return out;
+	const d = defaultDeps(deps);
+	const where = scopeWhere(scope);
+	const rows = await d.select(
+		`SELECT o.id, o.order_idx, o.status FROM \`order\` o WHERE o.id IN (${clean.map(() => '?').join(',')}) AND ${where.sql}`,
+		[...clean, ...where.params]
+	) || [];
+	for (const r of rows) {
+		const page = LIST_FOR_STATUS[r.status];
+		if (!page || !pages.allowed(page, scope)) continue;
+		out.set(Number(r.id), { page, number: r.order_idx != null ? String(r.order_idx) : String(r.id) });
+	}
+	return out;
+}
+
+/** Jedno zlecenie (GET /assistant/order-place/:id — kroki z rozmowy głosowej). */
+async function orderPlace(id, scope, deps = {}) {
+	return (await orderPlaces([id], scope, deps)).get(Number(id)) || null;
+}
+
+/**
+ * Kroki `order` z odpowiedzi modelu: zostają tylko zlecenia tego konta, z listą
+ * (`page`) i numerem do wyszukiwarki (`number`); pozostałe kroki bez zmian.
+ */
+async function resolveOrderSteps(steps, scope, deps = {}) {
+	const ids = (steps || []).filter((s) => s.order).map((s) => s.order);
+	if (!ids.length) return steps;
+	const places = await orderPlaces(ids, scope, deps).catch(() => new Map());
+	return steps
+		.filter((s) => !s.order || places.has(s.order))
+		.map((s) => (s.order ? { ...s, page: places.get(s.order).page, number: places.get(s.order).number } : s));
+}
+
 module.exports = {
 	scopeFromRequest,
+	orderPlace,
+	resolveOrderSteps,
 	responsesTools,
 	realtimeTools,
 	runTool,

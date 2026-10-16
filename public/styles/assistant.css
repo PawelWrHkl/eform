@@ -505,9 +505,25 @@
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
 }
+.ea-tour-callout[hidden] { display: none; }
 .ea-tour-text { margin: 0; }
-.ea-tour-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.ea-tour-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 10px; }
 #eform-assistant .ea-tour-actions .ea-btn { padding: 6px 14px; font-size: 13px; box-shadow: none; }
+/* Głośnik: wycisza szczekanie pieska (wybór w localStorage) */
+#eform-assistant .ea-tour-sound {
+	margin-right: auto;
+	padding: 4px 6px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	font-size: 16px;
+	line-height: 1;
+	cursor: pointer;
+	box-shadow: none;
+	opacity: 0.75;
+}
+#eform-assistant .ea-tour-sound:hover,
+#eform-assistant .ea-tour-sound:focus-visible { opacity: 1; background: rgba(15, 23, 42, 0.06); }
 
 @media (prefers-reduced-motion: reduce) {
 	.ea-tour-ring,

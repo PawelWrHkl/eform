@@ -86,6 +86,16 @@ add('tour', 'tour-comment-en', 'Show me how to add a comment to an item in my of
 add('tour', 'tour-tracking', 'Pokaż, gdzie są numery przesyłek.', { status: 'answered', tour: { min: 1, includes: ['tracking_btn'] } });
 add('tour', 'tour-on-config', 'Pokaż mi, jak wypełnić ten formularz.', { status: 'answered', tour: { min: 2, includes: ['department_select', 'dynamic_form'] } }, { page: '/orders/order/1/new-position/' });
 
+// A2. „Gdzie jest…" — piesek biegnie do zakładki albo do konkretnego zlecenia na liście
+add('where', 'where-offers', 'Gdzie są moje oferty?', { status: 'answered', tour: { min: 1, includes: ['nav_offers'] } });
+add('where', 'where-sent', 'Gdzie znajdę wysłane zamówienia?', { status: 'answered', tour: { min: 1, includes: ['nav_history'] } });
+add('where', 'where-810', 'Gdzie jest moje zamówienie 810?', { status: 'answered', tools: ['find_orders'], tour: { min: 2, includes: ['nav_history'] }, orderId: 3175 });
+add('where', 'where-offer-name', 'Gdzie jest moja oferta sdfg?', { status: 'answered', tools: ['find_orders'], tour: { min: 2, includes: ['nav_offers'] }, orderId: 3135 });
+// Wynik zależy od danych konta (wczoraj wysłane / utworzone / nic) — sprawdzamy, że szukał i biegnie do listy.
+add('where', 'where-yesterday', 'Gdzie znajdę moje wczorajsze zamówienie?', { status: 'answered', tools: ['find_orders'], tour: { min: 1, includes: ['nav_history', 'nav_offers'] } });
+add('where', 'where-last-de', 'Wo finde ich meine zuletzt gesendete Bestellung?', { status: 'answered', tools: ['find_orders', 'get_account_overview'], tour: { min: 2, includes: ['nav_history'] }, orderId: 3175 }, { lang: 'de' });
+add('where', 'where-emp-foreign', 'Gdzie jest zamówienie 810?', { status: ['answered', 'handoff'], noOrderStep: true }, { account: 'employee' });
+
 // B. Proste „jak / gdzie"
 add('howto', 'send-btn', 'Gdzie jest przycisk wysyłki zamówienia?', { status: 'answered', highlightOrTour: 'send_order' }, { page: '/orders/order/1' });
 add('howto', 'logout', 'Jak się wylogować?', { status: 'answered' });
@@ -181,6 +191,8 @@ function check(sc, r, logged) {
 		const bad = e.tourNever.filter((k) => stepKeys.includes(k));
 		if (bad.length) why.push(`niedozwolone kroki: ${bad.join(', ')}`);
 	}
+	if (e.orderId && !steps.some((s) => s.order === e.orderId)) why.push(`brak kroku z zamówieniem ${e.orderId} (kroki: ${stepKeys.join(', ') || '-'})`);
+	if (e.noOrderStep && steps.some((s) => s.order)) why.push(`krok z zamówieniem, którego nie powinno być: ${steps.filter((s) => s.order).map((s) => s.order).join(',')}`);
 	const unsafe = steps.filter((s) => s.click && !(BY_KEY.get(s.element) || {}).click);
 	if (unsafe.length) why.push(`klik w niedozwolony element: ${unsafe.map((s) => s.element).join(', ')}`);
 	const refTypes = Object.values(r.refs || {}).map((x) => x.type);
@@ -218,7 +230,7 @@ async function main() {
 	const ids = opt('--ids') ? opt('--ids').split(',') : null;
 	const areas = args.filter((a, i) => !a.startsWith('--') && !['--json', '--ids'].includes(args[i - 1]));
 	const cfg = { ...config.assistant, maxQuestionsPerHour: 100000 };
-	if (!cfg.apiKey) { console.error('Brak OPENAI_API_KEY (.env.local)'); process.exit(2); }
+	if (!(cfg.provider === 'anthropic' ? cfg.anthropic.apiKey : cfg.apiKey)) { console.error(`Brak ${cfg.provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} (.env.local)`); process.exit(2); }
 	const list = S.filter((sc) => (!areas.length || areas.includes(sc.area)) && (!ids || ids.includes(sc.id)));
 
 	// 2 naraz — limit organizacji OpenAI to tokeny/minutę wspólne dla wszystkich
@@ -240,7 +252,7 @@ async function main() {
 		console.log(`\n✖ ${x.sc.id} (${x.sc.account}, ${x.sc.lang}, ${x.sc.page}): ${x.sc.q}`);
 		x.why.forEach((w) => console.log(`   - ${w}`));
 		console.log(`   > ${x.r.answer.replace(/\n/g, '\n     ')}`);
-		(x.r.tour || []).forEach((s, i) => console.log(`     ${i + 1}. ${s.element || 'strona:' + s.page}${s.click ? ' [klik]' : ''} — ${s.text}`));
+		(x.r.tour || []).forEach((s, i) => console.log(`     ${i + 1}. ${s.order ? `zamówienie:${s.order} (${s.page}, nr ${s.number})` : s.element || 'strona:' + s.page}${s.click ? ' [klik]' : ''} — ${s.text}`));
 	}
 	console.log('\n── podsumowanie ──');
 	const byArea = {};

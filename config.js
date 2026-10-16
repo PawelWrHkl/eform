@@ -133,6 +133,19 @@ module.exports = {
     maxQuestionsPerHour: Number(process.env.ASSISTANT_MAX_QUESTIONS_PER_HOUR) || 40,
     handoffEmail: process.env.ASSISTANT_HANDOFF_EMAIL || '',
 
+    // Dostawca modelu dla CZATU: `openai` (domyślnie; pola wyżej) albo
+    // `anthropic` (Claude, services/assistant/anthropicClient.js). Głos zostaje
+    // na OpenAI Realtime niezależnie od tej flagi i nadal wymaga OPENAI_API_KEY.
+    // ⚠️ Klucz konta użytkownika Anthropic (nieprzypisany do workspace'u) działa
+    // tylko z `ANTHROPIC_WORKSPACE_ID` — bez niego każde pytanie → konsultant.
+    provider: String(process.env.ASSISTANT_PROVIDER || '').trim().toLowerCase() === 'anthropic' ? 'anthropic' : 'openai',
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY || '',
+      workspaceId: process.env.ANTHROPIC_WORKSPACE_ID || '',
+      model: process.env.ANTHROPIC_MODEL || 'claude-opus-5-5',
+      effort: process.env.ANTHROPIC_EFFORT || 'low'
+    },
+
     // Rozmowa głosowa (OpenAI Realtime, services/assistant/voice). Osobna
     // flaga `ASSISTANT_VOICE_ENABLED=true` — działa tylko przy włączonym
     // asystencie. Limity chronią budżet: głos kosztuje ok. 2–10 centów/min.
@@ -149,11 +162,14 @@ module.exports = {
       maxMinutesPerDay: Number(process.env.ASSISTANT_VOICE_MAX_MINUTES_PER_DAY) || 30
     },
 
-    // Animowana maskotka (chomik, public/scripts/assistant/avatar.js) na
+    // Animowana maskotka (piesek Eforek, public/scripts/assistant/avatar.js) na
     // przycisku „Pomoc" i w nagłówku okna. Czysto wizualna: wyłączona = okno
     // jak dotąd, bez ładowania plików maskotki.
     avatar: {
-      enabled: envSwitch(process.env.ASSISTANT_AVATAR_ENABLED)
+      enabled: envSwitch(process.env.ASSISTANT_AVATAR_ENABLED),
+      // `ASSISTANT_BARK_SOUND=true` — piesek szczeka (krótki dźwięk) w pokazie;
+      // klient może go wyciszyć przyciskiem głośnika w dymku pokazu.
+      barkSound: envSwitch(process.env.ASSISTANT_BARK_SOUND)
     }
   }
 };

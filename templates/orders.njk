@@ -87,7 +87,7 @@
                           {% for order in orders %}
                             <!--onclick="window.location.href='/orders/order/{{ order.id }}'"-->
                             {% block order_item_link %}
-                              <tr onclick="window.location.href='/orders/order/{{ order.id }}'" class="order-row" data-commission="{{ order.commision }}">
+                              <tr onclick="window.location.href='/orders/order/{{ order.id }}'" class="order-row" data-order-id="{{ order.id }}" data-commission="{{ order.commision }}">
                               {% endblock %}
                               {# Zamówienie założone przez klienta grupy (`group_type = client`):
                                  grupa-matka ma podgląd, a wysyłkę robi przez zatwierdzenie w panelu
@@ -145,7 +145,7 @@
                           <div class="mobile-orders-list d-block d-md-none">
                             {% for order in orders %}
                               {% block mobile_order_item_link %}
-                                <div class="mobile-order-card" data-commission="{{ order.commision }}" onclick="window.location.href='/orders/order/{{ order.id }}'">
+                                <div class="mobile-order-card" data-order-id="{{ order.id }}" data-commission="{{ order.commision }}" onclick="window.location.href='/orders/order/{{ order.id }}'">
                               {% endblock %}
                                 <div class="mobile-order-header">
                                   {% block mobile_order_no %}<span class="mobile-order-number">#{{ order.order_idx }}</span>{% endblock %}

@@ -493,7 +493,7 @@ function renderTableRow(order) {
 			</button>
 		</td>` : '';
 
-	return `<tr onclick="window.location.href='${orderPath}/${id}'" class="order-row" data-commission="${escapeHtml(order.commision)}">
+	return `<tr onclick="window.location.href='${orderPath}/${id}'" class="order-row" data-order-id="${id}" data-commission="${escapeHtml(order.commision)}">
 		<th scope="row">${escapeHtml(order.order_idx)}</th>
 		${isOrganization ? `<td>${escapeHtml(order.user_ident || '')}${order.user_name ? ` (${escapeHtml(order.user_name)})` : ''}</td>` : ''}
 		${isGroup ? `<td>${order.shop_ident || order.shop_name ? `${escapeHtml(order.shop_ident || order.shop_name)}${order.shop_ident && order.shop_name ? ` (${escapeHtml(order.shop_name)})` : ''}` : '—'}</td>` : ''}
@@ -548,7 +548,7 @@ function renderMobileCard(order) {
 			<a class="action-btn action-btn-edit stop-propagation" href="/orders/edit/${id}">${escapeHtml(t('orders.edit'))}</a>
 			<button class="action-btn action-btn-send stop-propagation send-order-btn" type="button" data-id="${id}">${escapeHtml(t('orders.send'))}</button>` : '');
 
-	return `<div class="mobile-order-card" data-commission="${escapeHtml(order.commision)}" onclick="window.location.href='${orderPath}/${id}'">
+	return `<div class="mobile-order-card" data-order-id="${id}" data-commission="${escapeHtml(order.commision)}" onclick="window.location.href='${orderPath}/${id}'">
 		<div class="mobile-order-header">
 			<span class="mobile-order-number">#${escapeHtml(order.order_idx)}</span>
 			<span class="mobile-order-date">${escapeHtml(order.created_date)}</span>

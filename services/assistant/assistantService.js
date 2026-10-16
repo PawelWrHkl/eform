@@ -21,6 +21,7 @@ const path = require('path');
 const config = require('../../config');
 const { log } = require('../../utils/logging');
 const openaiClient = require('./openaiClient');
+const anthropicClient = require('./anthropicClient');
 const prompt = require('./prompt');
 const knowledge = require('./knowledge');
 const labels = require('./labels');
@@ -180,22 +181,20 @@ async function ask(session, input, deps = {}) {
 		const getContact = deps.getContactText || knowledge.getContactText;
 		const contactText = await getContact(input.orgIdent, lang);
 
+		const contextText = prompt.buildContextMessage({
+			lang,
+			account: input.account,
+			orgIdent: input.orgIdent,
+			page,
+			elements,
+			contactText,
+			pages: pageList,
+			tools: toolDefs.map((t) => t.name),
+			tourCatalog: uiCatalog.describeForTour(scope || {}, lang, deps)
+		});
 		const conversation = [
 			...history.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text })),
-			{
-				role: 'developer',
-				content: prompt.buildContextMessage({
-					lang,
-					account: input.account,
-					orgIdent: input.orgIdent,
-					page,
-					elements,
-					contactText,
-					pages: pageList,
-					tools: toolDefs.map((t) => t.name),
-					tourCatalog: uiCatalog.describeForTour(scope || {}, lang, deps)
-				})
-			},
+			{ role: 'developer', content: contextText },
 			{ role: 'user', content: question }
 		];
 		const instructions = prompt.buildInstructions(getKnowledge(lang, deps, knowledge.flagsFor(input.account, deps)));
@@ -205,7 +204,29 @@ async function ask(session, input, deps = {}) {
 		// Pętla narzędzi: model może kilka razy poprosić o dane (find_orders → get_order…),
 		// w ostatniej rundzie narzędzia są wyłączone, więc musi odpowiedzieć.
 		let out = null;
-		for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+		// Claude (ASSISTANT_PROVIDER=anthropic) — ta sama pętla w anthropicClient.runChat;
+		// pętla OpenAI niżej wtedy się nie wykonuje.
+		if (cfg.provider === 'anthropic') {
+			out = await anthropicClient.runChat({
+				cfg: { ...cfg.anthropic, timeoutMs: cfg.timeoutMs },
+				instructions,
+				context: contextText,
+				history,
+				question,
+				tools: toolDefs,
+				format: prompt.buildResponseFormat(availableKeys, tourModule.stepSchema(scope || {})),
+				userId: safetyId(input.userKey),
+				runTool: async (name, args) => {
+					const res = await runTool(name, args, scope, deps);
+					toolLog.push({ name, args, error: (res && res.error) || null });
+					return res;
+				},
+				maxRounds: MAX_TOOL_ROUNDS,
+				usage: usageInfo,
+				createMessage: deps.createMessage
+			});
+		}
+		for (let round = 0; !out && round <= MAX_TOOL_ROUNDS; round++) {
 			const body = {
 				model: cfg.model,
 				instructions,
@@ -248,7 +269,9 @@ async function ask(session, input, deps = {}) {
 		result = reason ? null : parseModelReply(out.text, availableKeys);
 		if (!result && !reason) reason = 'bad_reply';
 		if (result) {
-			const steps = tourModule.sanitizeTour(result.rawTour, scope || {});
+			// Kroki „to zlecenie na liście" — tylko zlecenia tego konta (sprawdza baza).
+			const resolveOrderSteps = deps.resolveOrderSteps || tools.resolveOrderSteps;
+			const steps = await resolveOrderSteps(tourModule.sanitizeTour(result.rawTour, scope || {}), scope, deps);
 			if (steps.length) result.tour = steps;
 			result.highlight = relevantHighlight(result.highlight, result.answer, elements, result.tour);
 			// [[page:…]] / [[order:ID]] / [[action:copy:ID]] → odnośniki (zlecenia sprawdzane w zakresie konta).

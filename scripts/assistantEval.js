@@ -159,8 +159,8 @@ async function runTour(cfg) {
 async function main() {
 	const only = process.argv[2];
 	const cfg = { ...config.assistant, maxQuestionsPerHour: 1000 };
-	if (!cfg.apiKey) {
-		console.error('Brak OPENAI_API_KEY w .env.local — przerwano.');
+	if (!(cfg.provider === 'anthropic' ? cfg.anthropic.apiKey : cfg.apiKey)) {
+		console.error(`Brak ${cfg.provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} w .env.local — przerwano.`);
 		process.exit(2);
 	}
 	if (only === 'data') return runData(cfg);

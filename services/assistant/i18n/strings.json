@@ -62,7 +62,12 @@
 		"tourEmpty": "Na razie nic tu nie ma.",
 		"feedbackUp": "Pomocna odpowiedź",
 		"feedbackDown": "Niepomocna odpowiedź",
-		"feedbackThanks": "Dziękuję za ocenę!"
+		"feedbackThanks": "Dziękuję za ocenę!",
+		"bark": "Hau! Hau!",
+		"tourSearching": "Szukam zamówienia nr {number}…",
+		"tourOrderMissing": "Nie widzę tego zamówienia na liście.",
+		"soundOn": "Włącz szczekanie",
+		"soundOff": "Wycisz szczekanie"
 	},
 	"en": {
 		"title": "Eforek",
@@ -127,7 +132,12 @@
 		"tourEmpty": "There is nothing here yet.",
 		"feedbackUp": "Helpful answer",
 		"feedbackDown": "Not helpful",
-		"feedbackThanks": "Thank you for your feedback!"
+		"feedbackThanks": "Thank you for your feedback!",
+		"bark": "Woof! Woof!",
+		"tourSearching": "Looking for order no. {number}…",
+		"tourOrderMissing": "I can’t see this order in the list.",
+		"soundOn": "Turn barking on",
+		"soundOff": "Mute barking"
 	},
 	"de": {
 		"title": "Eforek",
@@ -192,7 +202,12 @@
 		"tourEmpty": "Hier gibt es im Moment noch nichts.",
 		"feedbackUp": "Hilfreiche Antwort",
 		"feedbackDown": "Nicht hilfreich",
-		"feedbackThanks": "Danke für Ihre Bewertung!"
+		"feedbackThanks": "Danke für Ihre Bewertung!",
+		"bark": "Wuff! Wuff!",
+		"tourSearching": "Ich suche Bestellung Nr. {number}…",
+		"tourOrderMissing": "Ich sehe diese Bestellung nicht in der Liste.",
+		"soundOn": "Bellen einschalten",
+		"soundOff": "Bellen stummschalten"
 	},
 	"fr": {
 		"title": "Eforek",
@@ -257,7 +272,12 @@
 		"tourEmpty": "Il n’y a encore rien ici.",
 		"feedbackUp": "Réponse utile",
 		"feedbackDown": "Réponse peu utile",
-		"feedbackThanks": "Merci pour votre avis !"
+		"feedbackThanks": "Merci pour votre avis !",
+		"bark": "Ouaf ! Ouaf !",
+		"tourSearching": "Je cherche la commande n° {number}…",
+		"tourOrderMissing": "Je ne vois pas cette commande dans la liste.",
+		"soundOn": "Activer les aboiements",
+		"soundOff": "Couper les aboiements"
 	},
 	"nl": {
 		"title": "Eforek",
@@ -322,6 +342,11 @@
 		"tourEmpty": "Hier staat op dit moment nog niets.",
 		"feedbackUp": "Nuttig antwoord",
 		"feedbackDown": "Niet nuttig",
-		"feedbackThanks": "Bedankt voor uw beoordeling!"
+		"feedbackThanks": "Bedankt voor uw beoordeling!",
+		"bark": "Woef! Woef!",
+		"tourSearching": "Ik zoek bestelling nr. {number}…",
+		"tourOrderMissing": "Ik zie deze bestelling niet in de lijst.",
+		"soundOn": "Blaffen aanzetten",
+		"soundOff": "Blaffen dempen"
 	}
 }

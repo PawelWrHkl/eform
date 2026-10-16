@@ -6,8 +6,8 @@
 # zainstalował, więc robot nie chodził ANI RAZU. Cron użytkownika działa na tym
 # hoście bez roota (chodzi tu już 7 innych zadań) i przeżywa restart maszyny.
 #
-# Godzina 02:00 — decyzja właściciela (2026-10-12). O tej samej porze startuje
-# `eform-db/db-manager.sh auto`, ale kończy się w tej samej minucie, więc nie
+# Godzina 02:00 — decyzja właściciela (2026-10-12). Kopia bazy produkcji
+# (`eform-db/db-manager.sh auto`) chodzi od 2026-10-15 o 05:00, więc nie
 # konkuruje z robotem o pamięć. Pamięci hosta pilnuje
 # services/configuratorTester/memoryGuard.js (incydent 21.09: przebieg położył
 # cały host).

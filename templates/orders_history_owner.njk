@@ -81,10 +81,10 @@
                             {% endif %}
                         {% endblock %}
                         {% block order_item_link %}
-                            <tr onclick="window.location.href='/orders/history/order/{{ order.id }}'" class="order-row">
+                            <tr onclick="window.location.href='/orders/history/order/{{ order.id }}'" class="order-row" data-order-id="{{ order.id }}">
                             {% endblock %}
                             {% block mobile_order_item_link %}
-                                <div class="mobile-order-card" data-commission="{{ order.commision }}" onclick="window.location.href='/orders/history/order/{{ order.id }}'">
+                                <div class="mobile-order-card" data-order-id="{{ order.id }}" data-commission="{{ order.commision }}" onclick="window.location.href='/orders/history/order/{{ order.id }}'">
                             {% endblock %}
                             {% block mobile_order_actions %}
                                 <div class="mobile-order-actions">

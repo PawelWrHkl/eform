@@ -303,6 +303,8 @@ app.use((req, res, next) => {
 			catalog: assistantCatalog.clientMap(),
 			// Przycisk mikrofonu (rozmowa głosowa) — services/assistant/voice.
 			voice: !!assistantConfig.voice.enabled,
+			// Szczekanie pieska w pokazie (ASSISTANT_BARK_SOUND) — tylko z maskotką.
+			bark: !!(assistantConfig.avatar.enabled && assistantConfig.avatar.barkSound),
 			// Pokaz krok po kroku: ekrany i flagi kliknięcia elementów (tylko dostępne dla konta).
 			tour: assistantCatalog.clientTourMeta(assistantTools.scopeFromRequest(req, res.locals.locale)),
 			// Strony dla przejść w rozmowie głosowej (open_page) — tylko dostępne dla konta.
@@ -404,8 +406,9 @@ if (features?.orgCustomers) {
 // (`ASSISTANT_ENABLED` ≠ true|admins) router nie wstaje i `/assistant/*` daje 404.
 if (assistantConfig.mode !== 'off') {
 	app.use('/assistant', assistantRoutes);
-	log(`[assistant] asystent włączony (ASSISTANT_ENABLED=${assistantConfig.mode}, model ${assistantConfig.model})`);
-	if (!assistantConfig.apiKey) log('[assistant] ⚠️ brak OPENAI_API_KEY — każde pytanie skończy się propozycją przekazania do konsultanta');
+	const assistantClaude = assistantConfig.provider === 'anthropic';
+	log(`[assistant] asystent włączony (ASSISTANT_ENABLED=${assistantConfig.mode}, czat: ${assistantClaude ? `Claude ${assistantConfig.anthropic.model}` : `OpenAI ${assistantConfig.model}`})`);
+	if (!(assistantClaude ? assistantConfig.anthropic.apiKey : assistantConfig.apiKey)) log(`[assistant] ⚠️ brak ${assistantClaude ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} — każde pytanie skończy się propozycją przekazania do konsultanta`);
 	if (!assistantConfig.handoffEmail) log('[assistant] ⚠️ brak ASSISTANT_HANDOFF_EMAIL — przekazania pójdą tylko do marek z ASSISTANT_HANDOFF_EMAIL_<ORG>');
 	log(assistantConfig.voice.enabled
 		? `[assistant] rozmowa głosowa włączona (${assistantConfig.voice.model}, głos ${assistantConfig.voice.voice}, limit ${assistantConfig.voice.maxSessionMinutes} min/rozmowę, ${assistantConfig.voice.maxMinutesPerDay} min/dzień)`

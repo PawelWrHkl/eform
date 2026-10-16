@@ -43,10 +43,10 @@
     <th scope="col">{{ __('orders.action') }}</th>
 {% endblock %}
 {% block order_item_link %}
-    <tr onclick="window.location.href='/orders/history/order/{{ order.id }}'" class="order-row order-row--canceled" data-commission="{{ order.commision }}">
+    <tr onclick="window.location.href='/orders/history/order/{{ order.id }}'" class="order-row order-row--canceled" data-order-id="{{ order.id }}" data-commission="{{ order.commision }}">
 {% endblock %}
 {% block mobile_order_item_link %}
-    <div class="mobile-order-card mobile-order-card--canceled" data-commission="{{ order.commision }}" onclick="window.location.href='/orders/history/order/{{ order.id }}'">
+    <div class="mobile-order-card mobile-order-card--canceled" data-order-id="{{ order.id }}" data-commission="{{ order.commision }}" onclick="window.location.href='/orders/history/order/{{ order.id }}'">
 {% endblock %}
 {% block extra_rows %}
     <td>{{ order.sent_at_label or order.sent_date }}</td>

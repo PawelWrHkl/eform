@@ -48,7 +48,8 @@ test('stepSchema i schemat odpowiedzi: enum elementów wg konta, pole tour wymag
 	const s = tour.stepSchema(EMPLOYEE);
 	const keys = s.properties.element.anyOf[0].enum;
 	assert.ok(keys.includes('nav_history') && !keys.includes('add_employee_btn'));
-	assert.deepEqual(s.required, ['element', 'page', 'text', 'click']);
+	assert.deepEqual(s.required, ['element', 'page', 'order', 'text', 'click']);
+	assert.deepEqual(Object.keys(s.properties).sort(), [...s.required].sort(), 'strict: każde pole wymagane');
 	const format = prompt.buildResponseFormat(['nav_history'], s);
 	assert.deepEqual(format.schema.required, ['status', 'answer', 'highlight', 'tour']);
 	assert.equal(format.schema.properties.tour.type, 'array');
@@ -70,4 +71,19 @@ test('reguły czatu opisują pokaz i zakaz klikania zapisu', () => {
 	assert.match(prompt.RULES, /click=true wolno tylko dla elementów oznaczonych w katalogu \[klik\]/);
 	assert.match(prompt.RULES, /niczego nie zapisujesz, nie wysyłasz, nie usuwasz/);
 	assert.match(prompt.VOICE_RULES, /start_tour/);
+});
+
+test('sanitizeTour: krok „to zlecenie" — tylko dodatnia liczba całkowita, bez klikania; listę dopisze serwer', () => {
+	const steps = tour.sanitizeTour([
+		{ element: 'nav_history', page: null, order: null, text: 'Wysłane zlecenia.', click: true },
+		{ element: 'send_order', page: 'history', order: 3175, text: 'To Pana zamówienie.', click: true },
+		{ element: null, page: null, order: -4, text: 'ujemne', click: false },
+		{ element: null, page: null, order: 12.5, text: 'ułamek', click: false },
+		{ element: null, page: null, order: '3175', text: 'tekst zamiast liczby', click: false },
+		{ element: null, page: null, order: 9, text: '   ', click: false }
+	], CLIENT);
+	assert.deepEqual(steps, [
+		{ element: 'nav_history', page: null, text: 'Wysłane zlecenia.', click: true },
+		{ element: null, page: null, order: 3175, text: 'To Pana zamówienie.', click: false }
+	]);
 });

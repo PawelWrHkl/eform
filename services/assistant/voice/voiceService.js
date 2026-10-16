@@ -104,7 +104,7 @@ function buildTools(availableKeys, pageKeys = [], scope = null) {
 	tools.push({
 		type: 'function',
 		name: 'start_tour',
-		description: 'Pokaz krok po kroku: Eforek prowadzi palcem po ekranach portalu (elementy z KATALOGU ELEMENTÓW).',
+		description: 'Pokaz krok po kroku: Eforek biegnie po ekranach portalu i pokazuje łapą (elementy z KATALOGU ELEMENTÓW; krok z order = konkretne zlecenie z wyników find_orders na liście).',
 		parameters: {
 			type: 'object',
 			properties: { steps: { type: 'array', items: tourModule.stepSchema(scope || {}) } },

@@ -247,7 +247,112 @@
 
 @keyframes ea-bubble-in { from { opacity: 0; transform: translateY(6px) scale(0.96); } to { opacity: 1; transform: none; } }
 
+/* ── piesek-przewodnik w pokazie (public/scripts/assistant/tour.js) ──
+   Osobna kopia postaci w warstwie .ea-tour: biegnie (transform z JS), wskazuje
+   łapą, merda i szczeka. Jego miejsce na przycisku jest w tym czasie puste. */
+#eform-assistant.ea-dog-away .ea-avatar-launcher { visibility: hidden; }
+
+.ea-runner {
+	position: fixed;
+	left: 0;
+	top: 0;
+	width: 96px;
+	height: 96px;
+	pointer-events: none;
+	will-change: transform;
+}
+.ea-runner[hidden] { display: none; }
+.ea-runner .ea-avatar {
+	width: 100%;
+	height: 100%;
+	filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.28));
+	transition: transform 0.16s ease;
+}
+/* Bez odbicia łapa wskazuje w prawo; odbicie = w lewo */
+.ea-runner.ea-runner-flip .ea-avatar { transform: scaleX(-1); }
+
+/* run: podskoki, łapa i uszy w rytm biegu, ogon do tyłu */
+.ea-avatar[data-state="run"] .av-svg { animation: av-run-bob 0.26s ease-in-out infinite; transform-origin: 50% 100%; }
+.ea-avatar[data-state="run"] .av-paw-r { animation: av-run-paw 0.26s ease-in-out infinite; }
+.ea-avatar[data-state="run"] .av-ear-l { animation: av-ear-flap 0.26s ease-in-out infinite alternate; }
+.ea-avatar[data-state="run"] .av-ear-r { animation: av-ear-flap 0.26s ease-in-out infinite alternate-reverse; }
+.ea-avatar[data-state="run"] .av-tail { animation: none; transform: rotate(-28deg); }
+.ea-avatar[data-state="run"] .av-head { transform: rotate(-5deg); }
+.ea-avatar[data-state="run"] .av-shadow { animation: av-run-shadow 0.26s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes av-run-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10%) rotate(3deg); } }
+@keyframes av-run-paw { 0%, 100% { transform: rotate(38deg); } 50% { transform: rotate(-38deg); } }
+@keyframes av-ear-flap { from { transform: rotate(-16deg); } to { transform: rotate(18deg); } }
+@keyframes av-run-shadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.75); opacity: 0.6; } }
+
+/* point: łapa w stronę elementu, głowa w tę samą stronę, ogon merda */
+.ea-avatar[data-state="point"] .av-paw-r,
+.ea-avatar[data-state="point-up"] .av-paw-r,
+.ea-avatar[data-state="point-down"] .av-paw-r,
+.ea-avatar[data-state="tap"] .av-paw-r { transition: transform 0.22s ease-out; }
+.ea-avatar[data-state="point"] .av-paw-r { transform: rotate(-96deg); }
+.ea-avatar[data-state="point-up"] .av-paw-r { transform: rotate(-152deg); }
+.ea-avatar[data-state="point-down"] .av-paw-r { transform: rotate(-38deg); }
+.ea-avatar[data-state="point"] .av-head { transform: rotate(7deg); }
+.ea-avatar[data-state="point-up"] .av-head { transform: rotate(-8deg) translateY(-1px); }
+.ea-avatar[data-state="point-down"] .av-head { transform: rotate(4deg) translateY(1.5px); }
+.ea-avatar[data-state="point"] .av-tail,
+.ea-avatar[data-state="point-up"] .av-tail,
+.ea-avatar[data-state="point-down"] .av-tail,
+.ea-avatar[data-state="tap"] .av-tail { animation: av-wag-fast 0.2s ease-in-out infinite; }
+.ea-avatar[data-state="point"] .av-ear-l,
+.ea-avatar[data-state="point-up"] .av-ear-l { transform: rotate(14deg); }
+.ea-avatar[data-state="point"] .av-ear-r,
+.ea-avatar[data-state="point-up"] .av-ear-r { transform: rotate(-14deg); }
+/* tap: łapa stuka w element (klik Eforka) */
+.ea-avatar[data-state="tap"] .av-paw-r { animation: av-tap 0.38s ease-in-out; transform: rotate(-96deg); }
+@keyframes av-tap { 0%, 100% { transform: rotate(-96deg); } 45% { transform: rotate(-68deg) translateY(2px); } }
+
+/* szczeknięcie: pyszczek kłapie, dymek „Hau!" wyskakuje nad głową */
+.ea-runner.ea-runner-barking .av-mouth { animation: av-talk 0.13s ease-in-out 6 alternate; }
+.ea-runner.ea-runner-barking .av-smile { animation: av-hide 0.8s step-end; }
+@keyframes av-hide { 0% { opacity: 0; } 100% { opacity: 1; } }
+.ea-runner-bark {
+	position: absolute;
+	left: 50%;
+	top: -30px;
+	padding: 4px 12px;
+	border: 2.5px solid #26262b;
+	border-radius: 16px;
+	background: #fff8e1;
+	color: #26262b;
+	font: 900 16px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+	box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+	opacity: 0;
+	transform: translate(-50%, 0) scale(0.6);
+}
+/* ogonek dymka w stronę pyszczka */
+.ea-runner-bark::after {
+	content: "";
+	position: absolute;
+	left: 50%;
+	bottom: -7px;
+	width: 10px;
+	height: 10px;
+	margin-left: -5px;
+	background: #fff8e1;
+	border-right: 2.5px solid #26262b;
+	border-bottom: 2.5px solid #26262b;
+	transform: rotate(45deg);
+}
+.ea-runner-bark.ea-on { animation: ea-bark-pop 1.4s ease-out forwards; }
+@keyframes ea-bark-pop {
+	0% { opacity: 0; transform: translate(-50%, 8px) scale(0.5) rotate(-6deg); }
+	14% { opacity: 1; transform: translate(-50%, -4px) scale(1.1) rotate(4deg); }
+	26% { transform: translate(-50%, -2px) scale(1) rotate(-3deg); }
+	38% { transform: translate(-50%, -3px) scale(1.06) rotate(2deg); }
+	80% { opacity: 1; transform: translate(-50%, -4px) scale(1) rotate(0); }
+	100% { opacity: 0; transform: translate(-50%, -12px) scale(0.95); }
+}
+
 @media (max-width: 767.98px) {
+	.ea-runner-bark { top: -26px; font-size: 14px; padding: 3px 10px; }
 	.ea-pet { right: 8px; bottom: calc(var(--ea-bottom) - 8px); }
 	.ea-pet .ea-launcher.ea-has-avatar,
 	.ea-avatar-launcher { width: 68px; height: 68px; }
@@ -259,5 +364,8 @@
 @media (prefers-reduced-motion: reduce) {
 	.ea-avatar *,
 	.ea-avatar[data-state] *,
-	.ea-bubble-wrap { animation: none !important; transition: none !important; }
+	.ea-bubble-wrap,
+	.ea-runner,
+	.ea-runner .ea-avatar { animation: none !important; transition: none !important; }
+	.ea-runner-bark.ea-on { animation: none; opacity: 1; transform: translate(-50%, -4px); }
 }
