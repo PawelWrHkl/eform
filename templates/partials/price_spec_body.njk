@@ -1,0 +1,120 @@
+{# Specyfikacja ceny zlecenia — treść dokumentu (okno w podglądzie zlecenia
+   i PDF, templates/price_spec_document.njk). Dane: services/priceSpec
+   (`buildOrderPriceSpec`) — kwoty już rozłożone na składniki i sformatowane,
+   bez żadnych czynników cenowych. #}
+<article class="price-spec" lang="{{ spec.lang }}">
+    <header class="price-spec__header">
+        <div>
+            <h1 class="price-spec__title">{{ spec.t.title }}</h1>
+            <dl class="price-spec__meta">
+                <div><dt>{{ spec.t.order }}</dt><dd>{{ spec.order.number }}</dd></div>
+                {% if spec.order.commission %}<div><dt>{{ spec.t.commission }}</dt><dd>{{ spec.order.commission }}</dd></div>{% endif %}
+                {% if spec.order.date %}<div><dt>{{ spec.t.date }}</dt><dd>{{ spec.order.date }}</dd></div>{% endif %}
+            </dl>
+        </div>
+        <p class="price-spec__generated">{{ spec.t.generated }}: {{ spec.order.generated }}</p>
+    </header>
+
+    {% if spec.empty %}
+        <p class="price-spec__empty">{{ spec.t.empty }}</p>
+    {% endif %}
+
+    {% for pos in spec.positions %}
+        <section class="price-spec__position" aria-labelledby="price-spec-pos-{{ pos.number }}">
+            <header class="price-spec__position-head">
+                <h2 id="price-spec-pos-{{ pos.number }}">
+                    <span class="price-spec__badge">{{ spec.t.position }} {{ pos.number }}</span>
+                    {% if pos.name %}<span class="price-spec__product">{{ pos.name }}</span>{% endif %}
+                </h2>
+                <span class="price-spec__qty">{{ spec.t.quantity }}: <b>{{ pos.quantityText }}</b></span>
+            </header>
+            {% if pos.config.length %}
+                <p class="price-spec__config">
+                    {% for c in pos.config %}<span><span class="price-spec__config-label">{{ c.label }}:</span> {{ c.value }}</span>{% endfor %}
+                </p>
+            {% endif %}
+
+            <div class="price-spec__sets{% if pos.sets.length > 1 %} price-spec__sets--two{% endif %}">
+                {% for set in pos.sets %}
+                    <table class="price-spec__table">
+                        {% if set.title %}<caption>{{ set.title }}</caption>{% endif %}
+                        <thead class="price-spec__sr">
+                            <tr><th scope="col">{{ spec.t.component }}</th><th scope="col">{{ spec.t.amount }}</th></tr>
+                        </thead>
+                        {% for section in set.sections %}
+                            <tbody class="price-spec__section price-spec__section--{{ section.kind }}">
+                                <tr class="price-spec__section-row">
+                                    <th scope="row">{{ section.title }}{% if not section.breakdown and section.kind != 'other' %} <span class="price-spec__muted">· {{ spec.t.no_breakdown }}</span>{% endif %}</th>
+                                    <td>{{ section.amountText }}</td>
+                                </tr>
+                                {% if section.lines.length > 1 or (section.lines.length == 1 and (section.lines[0].detail or section.lines[0].code or section.lines[0].label != section.title)) %}
+                                    {% for line in section.lines %}
+                                        <tr class="price-spec__line">
+                                            <th scope="row">
+                                                <span class="price-spec__line-label">{{ line.label }}</span>
+                                                {% if line.code %}<span class="price-spec__code" title="{{ spec.t.code }}">{{ line.code }}</span>{% endif %}
+                                                {% if line.detail %}<span class="price-spec__detail">{{ line.detail }}</span>{% endif %}
+                                            </th>
+                                            <td>{{ line.amountText }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                {% endif %}
+                            </tbody>
+                        {% endfor %}
+                        <tbody class="price-spec__totals">
+                            <tr class="price-spec__total-row">
+                                <th scope="row">{{ spec.t.unit_price }}</th>
+                                <td>{{ set.unitPriceText }}</td>
+                            </tr>
+                            <tr class="price-spec__total-row price-spec__total-row--strong">
+                                <th scope="row">{{ spec.t.line_total }} <span class="price-spec__muted">({{ set.quantity }} × {{ set.unitPriceText }})</span></th>
+                                <td>{{ set.lineTotalText }}</td>
+                            </tr>
+                            {% for d in set.discount %}
+                                <tr class="price-spec__discount-row">
+                                    <th scope="row">{{ d.label }}</th>
+                                    <td>{{ d.text }}</td>
+                                </tr>
+                            {% endfor %}
+                            {% if set.unitAfterText %}
+                                <tr class="price-spec__discount-row">
+                                    <th scope="row">{{ spec.t.unit_after_discount }}</th>
+                                    <td>{{ set.unitAfterText }}</td>
+                                </tr>
+                            {% endif %}
+                            {% if set.totalAfterText %}
+                                <tr class="price-spec__total-row price-spec__total-row--accent">
+                                    <th scope="row">{{ spec.t.total_after_discount }}</th>
+                                    <td>{{ set.totalAfterText }}</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                {% endfor %}
+            </div>
+        </section>
+    {% endfor %}
+
+    {% if spec.summary.length %}
+        <section class="price-spec__summary" aria-labelledby="price-spec-summary">
+            <h2 id="price-spec-summary">{{ spec.t.summary }}</h2>
+            <table class="price-spec__table price-spec__table--summary">
+                <thead class="price-spec__sr">
+                    <tr><th scope="col">{{ spec.t.component }}</th><th scope="col">{{ spec.t.amount }}</th></tr>
+                </thead>
+                {% for s in spec.summary %}
+                    <tbody>
+                        {% if s.title %}<tr class="price-spec__section-row"><th scope="row" colspan="2">{{ s.title }}</th></tr>{% endif %}
+                        <tr class="price-spec__line"><th scope="row">{{ spec.t.positions }}</th><td>{{ s.positions }}</td></tr>
+                        <tr class="price-spec__total-row price-spec__total-row--strong"><th scope="row">{{ spec.t.total }}</th><td>{{ s.totalText }}</td></tr>
+                        {% if s.totalAfterText %}
+                            <tr class="price-spec__total-row price-spec__total-row--accent"><th scope="row">{{ spec.t.total_after_discount_sum }}</th><td>{{ s.totalAfterText }}</td></tr>
+                        {% endif %}
+                    </tbody>
+                {% endfor %}
+            </table>
+        </section>
+    {% endif %}
+
+    <p class="price-spec__note">{{ spec.t.note }}</p>
+</article>

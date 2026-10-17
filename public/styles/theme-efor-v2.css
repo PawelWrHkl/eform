@@ -3528,6 +3528,25 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         background: var(--efor-hover) !important;
     }
 
+    /* W karcie wyboru przycisk zostaje z tekstem (makieta) — ikona i dymek
+       klasycznego paska (form.css .last-config-inline) tylko poza kartą. */
+    .theme-efor-v2 .efor-chooser > .last-config-info #last-config-confirm .last-config-icon,
+    .theme-efor-v2 .efor-chooser > .last-config-info #last-config-confirm::after {
+        display: none;
+    }
+
+    .theme-efor-v2 .efor-chooser > .last-config-info #last-config-confirm .last-config-label {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip: auto;
+    }
+
+    .theme-efor-v2 .efor-chooser > .last-config-info #last-config-confirm {
+        border-radius: var(--efor-radius-btn) !important;
+    }
+
     /* ── karta: parametry produktu ── */
     .theme-efor-v2[data-efor-page="new-position"] .order-reminder,
     .theme-efor-v2[data-efor-page="edit-position"] .full-form .content > .container:has(> #dynamic-form) {

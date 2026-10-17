@@ -497,14 +497,31 @@ async function orderPlaces(ids, scope, deps = {}) {
 	for (const r of rows) {
 		const page = LIST_FOR_STATUS[r.status];
 		if (!page || !pages.allowed(page, scope)) continue;
-		out.set(Number(r.id), { page, number: r.order_idx != null ? String(r.order_idx) : String(r.id) });
+		out.set(Number(r.id), { page, status: r.status, number: r.order_idx != null ? String(r.order_idx) : String(r.id) });
 	}
 	return out;
 }
 
+/**
+ * Czy akcję w wierszu zlecenia wolno zaproponować temu kontu przy tym statusie —
+ * te same zasady co przyciski na listach portalu (templates/orders*.njk).
+ */
+function actionAllowed(action, status, scope) {
+	if (action === 'copy') return true;
+	if (action === 'cancel') return status === 'sent';
+	// Wysyłka i usunięcie — tylko niewysłana oferta. Pracownik nie usuwa z listy,
+	// a wysyła tylko z uprawnieniem „Wysyłanie zamówień”.
+	if (action === 'send') return status === 'active' && require('./uiCatalog').canSendOrders(scope);
+	if (action === 'delete') return status === 'active' && !scope.isEmployee;
+	return false;
+}
+
 /** Jedno zlecenie (GET /assistant/order-place/:id — kroki z rozmowy głosowej). */
 async function orderPlace(id, scope, deps = {}) {
-	return (await orderPlaces([id], scope, deps)).get(Number(id)) || null;
+	const place = (await orderPlaces([id], scope, deps)).get(Number(id));
+	if (!place) return null;
+	// Do przeglądarki: lista, numer i akcje dozwolone dla tego zlecenia (kroki z rozmowy głosowej).
+	return { page: place.page, number: place.number, actions: ['send', 'copy', 'cancel', 'delete'].filter((a) => actionAllowed(a, place.status, scope)) };
 }
 
 /**
@@ -517,7 +534,14 @@ async function resolveOrderSteps(steps, scope, deps = {}) {
 	const places = await orderPlaces(ids, scope, deps).catch(() => new Map());
 	return steps
 		.filter((s) => !s.order || places.has(s.order))
-		.map((s) => (s.order ? { ...s, page: places.get(s.order).page, number: places.get(s.order).number } : s));
+		.map((s) => {
+			if (!s.order) return s;
+			const place = places.get(s.order);
+			const out = { ...s, page: place.page, number: place.number };
+			// Akcja niepasująca do statusu lub uprawnień — zostaje samo wskazanie wiersza.
+			if (out.action && !actionAllowed(out.action, place.status, scope)) delete out.action;
+			return out;
+		});
 }
 
 module.exports = {

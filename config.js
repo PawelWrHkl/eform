@@ -92,6 +92,14 @@ module.exports = {
     // (`window.priceSpecEnabled`, base.njk) i silnikiem JSDOM (import,
     // przeliczanie, tester — services/formEngine/jsdomEnv.js).
     priceSpec: envSwitch(process.env.PRICE_SPEC_ENABLED),
+
+    // Okno „Specyfikacja ceny" w podglądzie zlecenia (services/priceSpec) —
+    // rozpisanie ceny pozycji na cenę bazową i dopłaty, z PDF-em. Admin widzi
+    // je zawsze; `PRICE_SPEC_CLIENTS_ENABLED=true` włącza przycisk WSZYSTKIM
+    // (klienci, ownerzy, grupy) — decyzja szefa: „jak będzie porządnie
+    // działało, to włączymy klientowi". Niezależne od `priceSpec` wyżej
+    // (stare wiersze „-spec"). Brak zmiennej = tylko admin.
+    priceSpecClients: envSwitch(process.env.PRICE_SPEC_CLIENTS_ENABLED),
   },
 
   // ── Eksport klientów do systemu zewnętrznego ───────────────────────────

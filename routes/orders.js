@@ -34,9 +34,37 @@ const orderCancellation = require('../services/orderCancellation');
 const { getGroupShopSendBlock } = require('../services/groupShopSendPolicy');
 const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../services/confirmationPolicy');
 const { resolveVatLocals, vatFeatureEnabled } = require('../services/vatCalculator');
+const { features } = require('../config');
+const { buildOrderPriceSpec } = require('../services/priceSpec');
+const { resolveScriptsByGroup } = require('../services/priceSpec/orderContext');
+const { renderPriceSpecPdf } = require('../services/priceSpec/pdf');
+const { translator: priceSpecTranslator } = require('../services/priceSpec/i18n');
 
 function sentOrderPath(orderId) {
     return `/orders/history/order/${orderId}`;
+}
+
+/**
+ * Przycisk „Specyfikacja ceny" (services/priceSpec): admin zawsze, pozostali
+ * dopiero po `PRICE_SPEC_CLIENTS_ENABLED=true` (config.js `features.priceSpecClients`).
+ */
+function canSeePriceSpec(req) {
+    return !!(req.session?.user?.isAdmin || features.priceSpecClients);
+}
+
+/**
+ * Zapamiętuje, co TEN render zlecenia pokazał pod kłódkami. `showPricesOnce`
+ * i `showDiscountPricesOnce` są jednorazowe i zużywa je właśnie ten render —
+ * specyfikacja doczytywana chwilę później (`/order/:orderId/price-spec`) bez
+ * tego pokazałaby mniej (albo więcej) niż tabela, którą użytkownik ma przed sobą.
+ */
+function rememberPriceSpecView(req, res, orderId, prices) {
+    if (!req.session || !canSeePriceSpec(req)) return;
+    req.session.priceSpecView = {
+        orderId: String(orderId),
+        prices: !!prices,
+        discountUnlocked: !!res.locals.discountPricesUnlocked
+    };
 }
 
 async function isSentOrder(orderId) {
@@ -125,6 +153,15 @@ router.use(async (req, res, next) => {
     res.locals.isGroupShop = req.session?.user?.isGroupShop || false;
     res.locals.employeePermissions = req.session?.employeePermissions || null;
     res.locals.priceFactor = req.session?.employeePermissions?.price_factor || 1.0;
+    // Teksty okna „Specyfikacja ceny" (przycisk w templates/order.njk) — brak
+    // obiektu = brak przycisku.
+    if (canSeePriceSpec(req)) {
+        const t = priceSpecTranslator(req.getLocale ? req.getLocale() : 'pl');
+        res.locals.priceSpecUi = {
+            button: t('button'), title: t('title'), print: t('print'), pdf: t('pdf'),
+            close: t('close'), loading: t('loading'), error: t('error')
+        };
+    }
     if (req.session?.user?.isOwner) {
         try {
             res.locals.users = await db.getUsersByOwner(req);
@@ -637,6 +674,7 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
             log(`[history/order] Nie udało się ustalić stanu anulowania zlecenia ${orderDetails.id}:`, err);
         }
 
+        rememberPriceSpecView(req, res, orderDetails.id, req.session.user?.showPrices || req.session.user?.showPricesOnce);
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render("order_sent_prices.njk",
                 {
@@ -762,6 +800,7 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         const clientDiscountSummary = resolveClientDiscountSummary(orderItems);
         const { isClientView, showBoth: showBothInPdf } = resolveSubPricePdfView(req, hasSubPrices);
 
+        rememberPriceSpecView(req, res, orderDetails.id, req.session.user?.showPrices || req.session.user?.showPricesOnce);
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render('order_prices.njk', {
                 orderDetails,
@@ -822,6 +861,107 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
     }
 });
 
+
+/**
+ * Specyfikacja ceny zlecenia (services/priceSpec) — wspólny rdzeń okna i PDF-u.
+ * Widoczność cen liczona z tych samych `res.locals` co templates/order.njk
+ * (+ stan kłódek zapamiętany przy renderze zlecenia — `rememberPriceSpecView`),
+ * więc specyfikacja nie pokaże ceny, której użytkownik nie widzi w tabeli.
+ */
+async function loadPriceSpec(req, res) {
+    const orderId = req.params.orderId;
+    // Admin bez wybranego klienta: ten sam auto-kontekst co `/order/:orderId`,
+    // inaczej ceny SUB___ byłyby dla niego niewidoczne.
+    if (req.session.user?.isAdmin) {
+        const ownerIdent = await db.getOrderOwnerIdent(orderId);
+        if (ownerIdent && req.session.context_user?.ident !== ownerIdent) {
+            await ownerService.setContextUserByIdent(req, ownerIdent);
+            applySubPriceLocals(req, res);
+        }
+    }
+
+    const { orderDetails, orderItems } = await db.getOrderWithItems(orderId);
+    if (!orderDetails) return { status: 404 };
+    if (req.session.user?.isEmployee &&
+        !req.session.employeePermissions?.can_see_all_orders &&
+        orderDetails?.employee_id !== req.session.employee?.id) {
+        return { status: 403 };
+    }
+
+    const { priceCurrency } = await currencyLocalsForOrder(orderId);
+    const items = orderItems || [];
+    // Uzupełnia `item.subParamValues` dokładnie jak dla widoku zlecenia.
+    await orderService.jsonTextBackToMap(items, { currency: priceCurrency });
+
+    const remembered = req.session.priceSpecView && req.session.priceSpecView.orderId === String(orderId)
+        ? req.session.priceSpecView
+        : null;
+    const l = res.locals;
+    const view = {
+        isGroup: !!l.isGroup,
+        isGroupShop: !!l.isGroupShop,
+        isClient: !!l.isClient,
+        canViewSubPrices: !!l.canViewSubPrices,
+        viewAsOrganization: !!l.viewAsOrganization,
+        hasSubPriceToggle: !!l.hasSubPriceToggle,
+        showCatalogPrices: !!l.showCatalogPrices,
+        showSub: !!req.session.user?.showSubParams,
+        isOrgAccount: !!l.isOrgAccount,
+        hidePrices: !!req.hidePrices,
+        prices: remembered ? remembered.prices : !!req.session.user?.showPrices,
+        discountPricesUnlocked: remembered ? remembered.discountUnlocked : !!req.session.user?.showDiscountPrices,
+        priceFactor: l.priceFactor
+    };
+
+    const scriptsByGroup = await resolveScriptsByGroup({ orderId, groups: items.map((i) => i.asortment_group_number) });
+    const spec = buildOrderPriceSpec({
+        orderDetails,
+        orderItems: items,
+        view,
+        lang: req.getLocale ? req.getLocale() : 'pl',
+        currency: priceCurrency,
+        scriptsByGroup,
+        // Kody cennika (`TruFit`, `U25PG4`) tylko dla HKL — klientowi nic nie mówią.
+        showCodes: !!req.session.user?.isAdmin
+    });
+    return { status: 200, spec };
+}
+
+// Treść okna „Specyfikacja ceny" (public/scripts/priceSpec.js) — fragment HTML.
+router.get('/order/:orderId/price-spec', requireLogin, checkOrderOwnership, loadEmployeePermissions, filterPriceData, async (req, res) => {
+    if (!canSeePriceSpec(req) || req.hidePrices) return res.status(403).send('');
+    try {
+        const result = await loadPriceSpec(req, res);
+        if (result.status !== 200) return res.status(result.status).send('');
+        return res.render('partials/price_spec_body.njk', { spec: result.spec });
+    } catch (err) {
+        log(`[priceSpec] Błąd specyfikacji zlecenia ${req.params.orderId}:`, err);
+        return res.status(500).send('');
+    }
+});
+
+// Ta sama specyfikacja jako PDF do pobrania.
+router.get('/order/:orderId/price-spec.pdf', requireLogin, checkOrderOwnership, loadEmployeePermissions, filterPriceData, async (req, res) => {
+    if (!canSeePriceSpec(req) || req.hidePrices) return res.status(403).send('');
+    try {
+        const result = await loadPriceSpec(req, res);
+        if (result.status !== 200) return res.status(result.status).send('');
+        const { spec } = result;
+        const inlineCss = fs.readFileSync(path.join(__dirname, '..', 'public', 'styles', 'priceSpec.css'), 'utf8');
+        const html = await new Promise((resolve, reject) => {
+            res.render('price_spec_document.njk', { spec, inlineCss }, (err, out) => (err ? reject(err) : resolve(out)));
+        });
+        const pdf = await renderPriceSpecPdf(html, { footerLeft: `${spec.t.title} · ${spec.t.order} ${spec.order.number}` });
+        const fileName = `${spec.t.title} ${spec.order.number}.pdf`;
+        const asciiName = fileName.normalize('NFD').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, '-');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+        return res.send(pdf);
+    } catch (err) {
+        log(`[priceSpec] Błąd PDF specyfikacji zlecenia ${req.params.orderId}:`, err);
+        return res.status(500).send('');
+    }
+});
 
 router.get('/order/:orderId/discount-info', requireLogin, checkOrderOwnership, async (req, res) => {
     try {

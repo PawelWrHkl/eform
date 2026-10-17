@@ -1041,6 +1041,48 @@ async function hasLevelInvoice({ orderId, level }) {
 }
 
 /**
+ * Faktury czekające na mail (`invoiceMailer.js`): wystawione (z numerem, nie
+ * anulowane) przez danego autora, utworzone od `since`, bez zdarzenia `doneEvent`
+ * i z mniej niż `maxAttempts` nieudanymi próbami (`mail_failed`).
+ *
+ * „Wysłane" to wpis w `invoice_event`, nie kolumna — nie trzeba migracji, a
+ * historia prób (do kogo, kiedy, jaki błąd) zostaje przy dokumencie.
+ *
+ * @param {{ since: string, doneEvent: string, failedEvent: string, maxAttempts?: number, createdByPin?: string, limit?: number }} params
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts = 3, createdByPin = 'AUTO', limit = 50 }) {
+  return strictQuery(
+    `SELECT i.id, i.number, i.level, i.buyer_name, i.buyer_email, i.created_at,
+            (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) AS failures
+       FROM invoice i
+      WHERE i.created_by_pin = ?
+        AND i.status IN ('issued', 'paid', 'overdue')
+        AND i.number IS NOT NULL
+        AND i.created_at >= ?
+        AND NOT EXISTS (SELECT 1 FROM invoice_event e WHERE e.invoice_id = i.id AND e.event_type = ?)
+        AND (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) < ?
+      ORDER BY i.id
+      LIMIT ?`,
+    [failedEvent, createdByPin, since, doneEvent, failedEvent, maxAttempts, limit]
+  );
+}
+
+/**
+ * Wpis w dzienniku dokumentu (`invoice_event`). Rzuca przy błędzie zapisu —
+ * w przeciwieństwie do `db/core.insertQuery`, które błąd tylko loguje.
+ *
+ * @param {{ invoiceId: number, eventType: string, actorPin?: string|null, payload?: object|null }} event
+ * @returns {Promise<void>}
+ */
+async function addInvoiceEvent({ invoiceId, eventType, actorPin = null, payload = null }) {
+  await strictQuery(
+    'INSERT INTO invoice_event (invoice_id, event_type, actor_pin, payload) VALUES (?, ?, ?, ?)',
+    [invoiceId, eventType, actorPin, payload ? JSON.stringify(payload) : null]
+  );
+}
+
+/**
  * Zamówienia klientów z fakturowaniem niestandardowym (`user.invoice_schedule`),
  * które czekają na FAKTURĘ ZBIORCZĄ poziomu 2. Te same warunki co pojedyncza
  * faktura automatu (`findAutoInvoiceCandidates`, poziom 2) — różni je tylko to,
@@ -1787,6 +1829,8 @@ module.exports = {
   findAutoInvoiceCandidates,
   findCollectiveCandidates,
   hasLevelInvoice,
+  findInvoicesToMail,
+  addInvoiceEvent,
   relationLevels,
   supportsInvoiceSchedule,
   getUserInvoiceSchedule,

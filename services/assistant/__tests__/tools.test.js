@@ -358,7 +358,24 @@ test('resolveOrderSteps: bez kroków order — bez zapytania do bazy; bez konta 
 
 test('orderPlace (GET /assistant/order-place/:id): lista i numer zlecenia konta, cudze → null', async () => {
 	const own = await tools.orderPlace(3175, CLIENT, deps(fakeSelect([[{ id: 3175, order_idx: 810, status: 'sent' }]])));
-	assert.deepEqual(own, { page: 'history', number: '810' });
+	assert.deepEqual(own, { page: 'history', number: '810', actions: ['copy', 'cancel'] });
+	const offer = await tools.orderPlace(3135, EMPLOYEE, deps(fakeSelect([[{ id: 3135, order_idx: 807, status: 'active' }]])));
+	assert.deepEqual(offer.actions, ['copy'], 'pracownik bez prawa wysyłki: bez wysyłki i bez usuwania');
 	assert.equal(await tools.orderPlace(3175, CLIENT, deps(fakeSelect([[]]))), null);
 	assert.equal(await tools.orderPlace('abc', CLIENT, deps(fakeSelect())), null);
+});
+
+test('resolveOrderSteps: akcja zostaje tylko, gdy pasuje do statusu i uprawnień (jak przyciski na listach portalu)', async () => {
+	const rows = () => [[{ id: 1, order_idx: 11, status: 'active' }, { id: 2, order_idx: 22, status: 'sent' }]];
+	const steps = [
+		{ element: null, page: null, order: 1, action: 'send', text: 'a', click: false },
+		{ element: null, page: null, order: 1, action: 'cancel', text: 'b', click: false },
+		{ element: null, page: null, order: 2, action: 'cancel', text: 'c', click: false },
+		{ element: null, page: null, order: 2, action: 'delete', text: 'd', click: false },
+		{ element: null, page: null, order: 1, action: 'delete', text: 'e', click: false }
+	];
+	const client = await tools.resolveOrderSteps(steps, CLIENT, deps(fakeSelect(rows())));
+	assert.deepEqual(client.map((s) => s.action || null), ['send', null, 'cancel', null, 'delete']);
+	const emp = await tools.resolveOrderSteps(steps, EMPLOYEE, deps(fakeSelect(rows())));
+	assert.deepEqual(emp.map((s) => s.action || null), [null, null, 'cancel', null, null], 'pracownik: bez wysyłki (brak prawa) i bez usuwania');
 });

@@ -19,7 +19,7 @@ import {
   checkIfOptionsExist,
   getProcedures
 } from "./formTools/formTools.js";
-import { validateAllFieldsOnSubmit, clearDisabledValues } from "./formTools/validateUtils.js";
+import { validateAllFieldsOnSubmit, clearDisabledValues, getHardRange } from "./formTools/validateUtils.js";
 import { resetSelectValues, snapshotDependences } from "./formTools/updateFieldsAndValues.js";
 import { SourceWindow } from './formTools/slope.js';
 import { applyAttachmentFromServer } from './formTools/attachment.js';
@@ -406,6 +406,18 @@ export async function generateForm(
     // `json_parameters`, a tabela zlecenia i PDF pokazywały „-" (Ryver 2026-10-12,
     // oferta 351: STOFBREEDTE; rzymskie: STOFF, SYSTEM, RODZAJ_SZYCIA).
     if (!previousFormOnPage) await applySubPriceFieldVisibility(groupNumber);
+
+    // Zakresy MIN/MAX ustawiają procedury WYBRANYCH opcji (`USTAW(…)` w
+    // `<PARAM>_PROC`), a te odpalał dopiero wybór w dialogu albo drugie
+    // przeliczenie (`window.checkedParams`). Formularz zbudowany z zapisanych
+    // wartości — edycja, „wczytaj ostatnią konfigurację" — startował bez
+    // żadnego zakresu i przyjmował np. szerokość 50 albo 9000 (zgłoszenie
+    // 2026-10-16). Odtwarzamy je z wartości — pętla `checkedParams` w
+    // `getProcedures` liczy procedury z `ignoreDom`, więc nie wpisuje wartości
+    // domyślnych — i od razu podświetlamy wymiary spoza zakresu.
+    window.checkedParams = findParamFromValues(values, allOptionsByParameter);
+    getProcedures(inputs, allOptionsByParameter, values, options, '', '', 'INPUT', displayValues, params);
+    markOutOfRangeInputs(inputs, values);
   }
 
 
@@ -512,6 +524,15 @@ export async function generateForm(
   return [inputs, values, displayValues, shortJson];
 }
 
+
+/** Wymiar spoza zakresu widać od razu po otwarciu kopii/edycji, nie dopiero przy zapisie. */
+function markOutOfRangeInputs(inputs, values) {
+  for (const [name, input] of Object.entries(inputs)) {
+    if (input?.tagName !== 'INPUT' || input.type === 'file' || !window.enabledParams?.[name]) continue;
+    if (input.value === '' || !getHardRange(name, values).hasRange) continue;
+    validateFormInput(values, input);
+  }
+}
 
 function handleFileRemovalReset(paramName, params, inputs, values, displayValues) {
   console.log(`Resetuję załącznik: ${paramName}`);

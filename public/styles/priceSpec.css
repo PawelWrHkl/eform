@@ -1,0 +1,362 @@
+/* Specyfikacja ceny zlecenia (templates/partials/price_spec_body.njk).
+   Ten sam arkusz obsługuje okno w podglądzie zlecenia (zmienne motywu
+   aplikacji z theme.css — jasny/ciemny) i PDF (services/priceSpec/pdf.js,
+   arkusz wbudowany w dokument — tam zmiennych nie ma i działają wartości
+   zapasowe). */
+
+.price-spec {
+    --ps-text: var(--text-primary, #0f172a);
+    --ps-muted: var(--text-secondary, #475569);
+    --ps-faint: var(--text-tertiary, #94a3b8);
+    --ps-surface: var(--bg-surface-solid, #ffffff);
+    --ps-sunken: var(--bg-surface-sunken, #f1f5f9);
+    --ps-border: var(--border-default, #e2e8f0);
+    --ps-accent: var(--brand-primary, #5e6e82);
+    --ps-accent-soft: var(--brand-primary-light, #edf1f5);
+    --ps-radius: var(--radius-md, 10px);
+
+    color: var(--ps-text);
+    font-family: var(--font-sans, 'Inter', 'Segoe UI', Arial, sans-serif);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.price-spec * { box-sizing: border-box; }
+
+.price-spec__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 2px solid var(--ps-accent);
+}
+
+/* Globalne `h1` portalu (main.css/theme.css) jest wyśrodkowane, z kreską
+   `::after` i `!important` — w dokumencie specyfikacji ich nie chcemy. */
+.price-spec h1.price-spec__title {
+    margin: 0 0 6px !important;
+    padding: 0;
+    color: var(--ps-text) !important;
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em;
+    text-align: left !important;
+}
+
+.price-spec h1.price-spec__title::after { content: none; }
+
+.price-spec h2 { color: var(--ps-text) !important; }
+
+.price-spec__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+    margin: 0;
+}
+
+.price-spec__meta div { display: flex; gap: 6px; }
+.price-spec__meta dt { color: var(--ps-muted); font-weight: 400; }
+.price-spec__meta dt::after { content: ':'; }
+.price-spec__meta dd { margin: 0; font-weight: 600; }
+
+.price-spec__generated {
+    margin: 0;
+    color: var(--ps-faint);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.price-spec__position {
+    margin-bottom: 18px;
+    padding: 14px 16px 6px;
+    border: 1px solid var(--ps-border);
+    border-radius: var(--ps-radius);
+    background: var(--ps-surface);
+    break-inside: avoid;
+}
+
+.price-spec__position-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.price-spec__position-head h2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600 !important;
+}
+
+.price-spec__badge {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--ps-accent-soft);
+    color: var(--ps-accent);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.price-spec__qty { color: var(--ps-muted); white-space: nowrap; }
+.price-spec__qty b { color: var(--ps-text); }
+
+.price-spec__config {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    margin: 8px 0 4px;
+    color: var(--ps-muted);
+    font-size: 12.5px;
+}
+
+.price-spec__config-label { color: var(--ps-faint); }
+
+.price-spec__sets--two {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 24px;
+}
+
+.price-spec__table {
+    width: 100%;
+    margin: 10px 0 8px;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.price-spec__table caption {
+    padding-bottom: 6px;
+    color: var(--ps-accent);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.price-spec__table th,
+.price-spec__table td {
+    padding: 6px 0;
+    vertical-align: top;
+    font-weight: 400;
+    text-align: left;
+}
+
+.price-spec__table td {
+    padding-left: 16px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.price-spec__section-row th,
+.price-spec__section-row td {
+    padding-top: 9px;
+    border-top: 1px solid var(--ps-border);
+    font-weight: 600;
+}
+
+.price-spec__section:first-of-type .price-spec__section-row th,
+.price-spec__section:first-of-type .price-spec__section-row td { border-top: 0; }
+
+.price-spec__line th { padding-left: 16px; }
+.price-spec__line th,
+.price-spec__line td { padding-top: 3px; padding-bottom: 3px; color: var(--ps-muted); }
+
+.price-spec__line-label { color: var(--ps-text); }
+
+.price-spec__detail {
+    display: block;
+    color: var(--ps-faint);
+    font-size: 12px;
+}
+
+.price-spec__code {
+    margin-left: 6px;
+    padding: 0 6px;
+    border: 1px solid var(--ps-border);
+    border-radius: 4px;
+    color: var(--ps-faint);
+    font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+    font-size: 11px;
+}
+
+.price-spec__muted { color: var(--ps-faint); font-weight: 400; }
+
+.price-spec__totals th,
+.price-spec__totals td { border-top: 1px solid var(--ps-border); }
+
+.price-spec__total-row--strong th,
+.price-spec__total-row--strong td { font-weight: 700; font-size: 15px; }
+
+.price-spec__discount-row th,
+.price-spec__discount-row td { color: var(--ps-muted); }
+
+.price-spec__total-row--accent th,
+.price-spec__total-row--accent td {
+    border-top: 2px solid var(--ps-accent);
+    color: var(--ps-accent);
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.price-spec__summary {
+    margin-top: 6px;
+    padding: 14px 16px 4px;
+    border-radius: var(--ps-radius);
+    background: var(--ps-sunken);
+    break-inside: avoid;
+}
+
+.price-spec__summary h2 { margin: 0; font-size: 16px; font-weight: 600 !important; }
+
+.price-spec__empty,
+.price-spec__note {
+    color: var(--ps-faint);
+    font-size: 12px;
+}
+
+.price-spec__note { margin: 16px 0 0; }
+
+/* Nagłówki kolumn tylko dla czytników ekranu. */
+.price-spec__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .price-spec__header { flex-direction: column; align-items: flex-start; }
+    .price-spec__sets--two { display: block; }
+    .price-spec__position { padding: 12px 12px 4px; }
+}
+
+/* ── Okno w podglądzie zlecenia (public/scripts/priceSpec.js) ──────────── */
+
+/* Globalne `dialog` (dialog.css) ma `align-items: center !important` i padding
+   w procentach — ramka okna specyfikacji układa się sama. */
+dialog.price-spec-modal {
+    width: min(960px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100vh - 48px) !important;
+    padding: 0;
+    align-items: stretch !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid var(--border-default, #e2e8f0);
+    border-radius: var(--radius-lg, 14px);
+    background: var(--bg-surface-solid, #fff);
+    color: var(--text-primary, #0f172a);
+    box-shadow: var(--shadow-xl, 0 24px 48px rgba(15, 23, 42, 0.25));
+    overflow: hidden;
+}
+
+dialog.price-spec-modal::backdrop { background: var(--bg-overlay, rgba(15, 23, 42, 0.6)); }
+
+dialog.price-spec-modal[open] { display: flex; flex-direction: column; }
+
+.price-spec-modal__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-default, #e2e8f0);
+}
+
+.price-spec-modal__bar h2 { margin: 0; font-size: 16px; font-weight: 600; }
+
+.price-spec-modal__actions { display: flex; gap: 8px; }
+
+.price-spec-modal__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid var(--border-default, #e2e8f0);
+    border-radius: var(--radius-md, 10px);
+    background: var(--bg-surface-solid, #fff);
+    color: var(--text-primary, #0f172a);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.price-spec-modal__btn:hover { background: var(--bg-hover, rgba(94, 110, 130, 0.06)); }
+
+.price-spec-modal__btn--primary {
+    border-color: var(--brand-primary, #5e6e82);
+    background: var(--brand-primary, #5e6e82);
+    color: var(--text-on-brand, #fff);
+}
+
+.price-spec-modal__btn--primary:hover { background: var(--brand-primary-hover, #4d5d70); }
+
+.price-spec-modal__btn--icon { padding: 7px 10px; font-size: 18px; line-height: 1; }
+
+.price-spec-modal__btn:focus-visible { outline: 2px solid var(--border-focus, #6b9dad); outline-offset: 2px; }
+
+.price-spec-modal__body { padding: 20px 24px 24px; overflow-y: auto; }
+
+.price-spec-modal__state { margin: 40px 0; color: var(--text-secondary, #475569); text-align: center; }
+
+.price-spec-modal__skeleton {
+    height: 14px;
+    margin: 10px 0;
+    border-radius: 7px;
+    background: linear-gradient(90deg, var(--bg-surface-sunken, #f1f5f9) 0%, var(--bg-hover, #e2e8f0) 50%, var(--bg-surface-sunken, #f1f5f9) 100%);
+    background-size: 200% 100%;
+    animation: price-spec-shimmer 1.2s linear infinite;
+}
+
+@keyframes price-spec-shimmer {
+    0% { background-position: 150% 0; }
+    100% { background-position: -50% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .price-spec-modal__skeleton { animation: none; }
+}
+
+@media (max-width: 720px) {
+    dialog.price-spec-modal { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+    .price-spec-modal__bar { flex-wrap: wrap; }
+    .price-spec-modal__btn-text { display: none; }
+    .price-spec-modal__body { padding: 16px; }
+}
+
+/* Drukowanie z okna — tylko dokument, bez strony pod spodem. */
+@media print {
+    body.price-spec-printing > *:not(dialog.price-spec-modal) { display: none !important; }
+    body.price-spec-printing dialog.price-spec-modal {
+        position: static;
+        width: auto;
+        max-height: none;
+        border: 0;
+        box-shadow: none;
+        overflow: visible;
+    }
+    body.price-spec-printing dialog.price-spec-modal::backdrop { display: none; }
+    body.price-spec-printing .price-spec-modal__bar { display: none; }
+    body.price-spec-printing .price-spec-modal__body { padding: 0; overflow: visible; }
+    .price-spec { --ps-surface: #fff; --ps-text: #0f172a; --ps-muted: #475569; --ps-faint: #64748b; --ps-border: #cbd5e1; --ps-sunken: #f1f5f9; }
+}
+
+/* W oknie tytuł dokumentu dubluje pasek okna — zostaje w wydruku i w PDF. */
+.price-spec-modal__body .price-spec h1.price-spec__title { display: none; }
+
+@media print {
+    body.price-spec-printing .price-spec-modal__body .price-spec h1.price-spec__title { display: block; }
+}

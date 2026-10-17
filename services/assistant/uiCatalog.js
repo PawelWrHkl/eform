@@ -12,9 +12,18 @@
  *               (np. boczne menu na komputerze, dolny pasek na telefonie),
  *   labelKey  — klucz tłumaczenia etykiety (model dostaje ją w języku klienta),
  *   screens   — ekrany, na których element jest (SCREENS; 'any' = każdy ekran),
- *   click     — Eforek może go kliknąć w pokazie. WYŁĄCZNIE przejścia, zakładki,
- *               rozwinięcia i otwarcie okna — nic, co zapisuje, wysyła, usuwa
- *               albo pobiera plik,
+ *   click     — Eforek może go kliknąć w pokazie: przejścia, zakładki, rozwinięcia,
+ *               otwarcie okna, pobranie pliku, ustawienia widoku (język, motyw)
+ *               i przyciski z `confirm`. Nigdy nic, co bez pytania zapisuje,
+ *               wysyła albo usuwa dane,
+ *   confirm   — przycisk akcji (wysłanie, anulowanie, zatwierdzenie…), który w
+ *               portalu TYLKO otwiera okno potwierdzenia; Eforek go klika, a
+ *               ostateczne potwierdzenie (`dialog_confirm`) klika użytkownik,
+ *   dialog    — element okna potwierdzenia (natywny <dialog> w warstwie top-layer):
+ *               pokaz wchodzi z pieskiem do środka okna, a po jego zamknięciu kończy się,
+ *   href      — stały adres, gdy elementu nie widać (np. flaga języka w zwiniętym menu),
+ *   hiddenOk  — przełącznik widoku działający także bez widocznego przycisku (telefon,
+ *               zwinięte menu): Eforek klika go wprost, bez wskazywania,
  *   navTo     — strona (pages.js), na którą prowadzi element menu; gdy go nie
  *               widać (np. menu schowane na telefonie), pokaz przechodzi wprost,
  *   js        — element tworzy skrypt (test szuka selektora w public/scripts),
@@ -39,6 +48,8 @@ const pages = require('./pages');
  * rozpoznanie w przeglądarce. Ekrany bez `page` (widok oferty, konfigurator…)
  * są osiągalne tylko krokami pokazu (np. klik w wiersz oferty).
  */
+const LANGUAGE_NAMES_PL = { pl: 'polski', en: 'angielski', de: 'niemiecki', nl: 'niderlandzki', fr: 'francuski' };
+
 /** Pracownik bez uprawnienia „Wysyłanie zamówień" nie ma przycisku wysyłki (templates/order.njk). */
 function canSendOrders(s) {
 	if (!s.isEmployee) return true;
@@ -75,10 +86,19 @@ const CATALOG = [
 	{ key: 'user_panel_btn', selectors: ['#user-panel-header-btn'], labelKey: 'panel.nav_link', description: 'nagłówek: panel użytkownika (dane konta, hasło, katalogi)', screens: ['any'], click: true, navTo: 'account' },
 	{ key: 'mobile_menu', selectors: ['.navbar-toggler'], labelKey: null, description: 'telefon: przycisk menu (trzy kreski)', screens: ['any'], click: true },
 	{ key: 'tour_button', selectors: ['#intro-tour-header-btn'], labelKey: null, description: 'nagłówek: ikona kompasu — przewodnik po stronie', screens: ['any'], js: true },
-	{ key: 'language_switcher', selectors: ['.language-switcher'], labelKey: null, description: 'nagłówek: wybór języka (flagi)', screens: ['any'] },
-	{ key: 'theme_toggle', selectors: ['#theme-toggle'], labelKey: null, description: 'nagłówek: tryb jasny/ciemny (księżyc/słońce)', screens: ['any'], js: true },
-	{ key: 'ui_variant_toggle', selectors: ['#ui-variant-toggle'], labelKey: null, description: 'nagłówek: „Zmień wygląd" (klasyczny/nowy)', screens: ['any'] },
-	{ key: 'logout_btn', selectors: ['#logout-nav-btn'], labelKey: 'base.logout', description: 'menu: wylogowanie', screens: ['any'] },
+	{ key: 'language_switcher', selectors: ['.language-switcher', '.efor-lang'], labelKey: null, description: 'nagłówek: wybór języka (flagi)', screens: ['any'] },
+	...['pl', 'en', 'de', 'nl', 'fr'].map((l) => ({
+		key: `lang_${l}`,
+		selectors: [`.language-switcher a[href="/change-language?lang=${l}"]`, `.efor-lang__menu a[hreflang="${l}"]`],
+		labelKey: null,
+		description: `flaga języka: przełącza cały portal na ${LANGUAGE_NAMES_PL[l]} (Eforek klika na prośbę użytkownika)`,
+		screens: ['any'],
+		click: true,
+		href: `/change-language?lang=${l}`
+	})),
+	{ key: 'theme_toggle', selectors: ['#theme-toggle'], labelKey: null, description: 'nagłówek: tryb jasny/ciemny (księżyc/słońce) — klik przełącza', screens: ['any'], js: true, click: true, hiddenOk: true },
+	{ key: 'ui_variant_toggle', selectors: ['#ui-variant-toggle', '.ui-variant-toggle--menu'], labelKey: null, description: 'nagłówek: „Zmień wygląd" (klasyczny/nowy) — klik przełącza', screens: ['any'], click: true, hiddenOk: true },
+	{ key: 'logout_btn', selectors: ['#logout-nav-btn'], labelKey: 'base.logout', description: 'menu: wylogowanie (klik od razu wylogowuje — tylko na wyraźną prośbę)', screens: ['any'], click: true },
 	{ key: 'footer_contact', selectors: ['.site-footer a[href="/contact"]'], labelKey: 'site.contact', description: 'stopka: dane kontaktowe', screens: ['any'], click: true, navTo: 'contact' },
 
 	// ── strona główna ──
@@ -102,7 +122,7 @@ const CATALOG = [
 	{ key: 'orders_search', selectors: ['#orders-search-mount'], labelKey: 'orders.search', description: 'wyszukiwarka zleceń (nazwa, numer)', screens: ['offers', 'history'] },
 	{ key: 'delivery_btn', selectors: ['#delivery-btn'], labelKey: 'termin.delivery_time', description: 'ikona ciężarówki — czasy dostawy', screens: ['offers', 'history'], click: true, navTo: 'delivery_time' },
 	{ key: 'import_log_btn', selectors: ['a[href="/orders/import-log"]'], labelKey: null, description: 'ikona „Moje Importy" — log automatycznych importów', screens: ['offers'], click: true, navTo: 'import_log' },
-	{ key: 'cancel_order_btn', selectors: ['.cancel-order-btn'], labelKey: 'cancel_order.button_short', description: 'anulowanie wysłanego zlecenia (do 24 h)', screens: ['history', 'sent_view'] },
+	{ key: 'cancel_order_btn', selectors: ['.cancel-order-btn'], labelKey: 'cancel_order.button_short', description: 'anulowanie wysłanego zlecenia (do 24 h) w wierszu listy — anulowanie konkretnego zlecenia: krok order z action=cancel', screens: ['history'] },
 	{ key: 'tracking_btn', selectors: ['[id^="trackingDropdown"]'], labelKey: 'orders.tracking_numbers', description: 'liczba przesyłek w kolumnie „Śledzenie paczek" w wierszu listy wysłanych (rozwija numery; „-" = brak przesyłek)', screens: ['history'], click: true, empty: ['th[data-col="tracking"]'] },
 	{ key: 'filter_status', selectors: ['#filter-prod-status'], labelKey: 'orders.status', description: 'filtr statusu produkcji', screens: ['history'] },
 	{ key: 'filter_sent_from', selectors: ['#filter-sent-from'], labelKey: 'orders.sent_date_from', description: 'filtr daty wysłania (od)', screens: ['history'] },
@@ -113,14 +133,20 @@ const CATALOG = [
 	{ key: 'discount', selectors: ['#discount-btn'], labelKey: 'base.give_discount_tooltip', description: 'centrum rabatów (otwiera okno rabatu)', screens: ['order_view'], click: true },
 	{ key: 'link_manager', selectors: ['.open-link-manager-btn'], labelKey: 'order.link_manager_title', description: 'łączenie pozycji (otwiera okno)', screens: ['order_view'], click: true },
 	{ key: 'unlock_prices', selectors: ['#unlockBtn'], labelKey: 'order.unlock', description: 'kłódka cen ukrytych (otwiera okno hasła)', screens: ['order_view'], click: true },
-	{ key: 'print_pdf', selectors: ['#print-button'], labelKey: 'base.generate_pdf_tooltip', description: 'pobranie PDF', screens: ['order_view', 'sent_view'] },
-	{ key: 'print_short_pdf', selectors: ['#short-print-button'], labelKey: 'base.generate_short_pdf_tooltip', description: 'pobranie krótkiego PDF', screens: ['order_view', 'sent_view'] },
-	{ key: 'export_excel', selectors: ['#generate-excel-btn'], labelKey: 'order.generate_excel_tooltip', description: 'pobranie Excela', screens: ['order_view', 'sent_view'] },
-	{ key: 'send_order', selectors: ['#send-order'], labelKey: 'order.send_order_btn', description: 'wysłanie oferty do realizacji (klika użytkownik)', screens: ['order_view'], when: canSendOrders },
-	{ key: 'submit_for_approval', selectors: ['#submit-for-approval-btn'], labelKey: 'group.submit_for_approval_title', description: 'wysłanie do zatwierdzenia przez centralę (konto sklepu)', screens: ['order_view'], when: (s) => s.isGroupShop },
-	{ key: 'group_approve_btn', selectors: ['.gp-pane[data-pane="pending"] .js-approve-btn', '#group-approve-btn'], labelKey: 'group.approve_btn', description: 'zatwierdzenie i wysyłka zamówienia sklepu do realizacji (klika użytkownik)', screens: ['group_panel', 'order_view'], when: (s) => s.isGroup, empty: ['.gp-pane[data-pane="pending"] .gp-empty'] },
-	{ key: 'group_reject_btn', selectors: ['.gp-pane[data-pane="pending"] .js-reject-btn', '#group-reject-btn'], labelKey: 'group.reject_btn', description: 'odrzucenie zamówienia sklepu (wraca do sklepu; klika użytkownik)', screens: ['group_panel', 'order_view'], when: (s) => s.isGroup },
+	{ key: 'print_pdf', selectors: ['#print-button'], labelKey: 'base.generate_pdf_tooltip', description: 'pobranie PDF (klik pobiera plik)', screens: ['order_view', 'sent_view'], click: true },
+	{ key: 'print_short_pdf', selectors: ['#short-print-button'], labelKey: 'base.generate_short_pdf_tooltip', description: 'pobranie krótkiego PDF (klik pobiera plik)', screens: ['order_view', 'sent_view'], click: true },
+	{ key: 'export_excel', selectors: ['#generate-excel-btn'], labelKey: 'order.generate_excel_tooltip', description: 'pobranie Excela (klik pobiera plik)', screens: ['order_view', 'sent_view'], click: true },
+	{ key: 'send_order', selectors: ['#send-order'], labelKey: 'order.send_order_btn', description: 'wysłanie oferty do realizacji — otwiera okno potwierdzenia', screens: ['order_view'], when: canSendOrders, click: true, confirm: true },
+	{ key: 'submit_for_approval', selectors: ['#submit-for-approval-btn'], labelKey: 'group.submit_for_approval_title', description: 'wysłanie do zatwierdzenia przez centralę (konto sklepu) — otwiera okno potwierdzenia', screens: ['order_view'], when: (s) => s.isGroupShop, click: true, confirm: true },
+	{ key: 'group_approve_btn', selectors: ['.gp-pane[data-pane="pending"] .js-approve-btn'], labelKey: 'group.approve_btn', description: 'zatwierdzenie i wysyłka zamówienia sklepu (lista oczekujących; klika użytkownik)', screens: ['group_panel'], when: (s) => s.isGroup, empty: ['.gp-pane[data-pane="pending"] .gp-empty'] },
+	{ key: 'group_reject_btn', selectors: ['.gp-pane[data-pane="pending"] .js-reject-btn'], labelKey: 'group.reject_btn', description: 'odrzucenie zamówienia sklepu (lista oczekujących; wraca do sklepu; klika użytkownik)', screens: ['group_panel'], when: (s) => s.isGroup },
+	{ key: 'group_approve_view', selectors: ['#group-approve-btn'], labelKey: 'group.approve_send_btn', description: 'w otwartym zamówieniu sklepu: zatwierdź i wyślij — otwiera okno potwierdzenia', screens: ['order_view'], when: (s) => s.isGroup, click: true, confirm: true },
+	{ key: 'group_reject_view', selectors: ['#group-reject-btn'], labelKey: 'group.reject_btn', description: 'w otwartym zamówieniu sklepu: odrzuć — otwiera okno potwierdzenia', screens: ['order_view'], when: (s) => s.isGroup, click: true, confirm: true },
 	{ key: 'group_preview_btn', selectors: ['.gp-pane[data-pane="pending"] .gp-btn--ghost'], labelKey: 'group.preview_btn', description: 'podgląd zamówienia sklepu przed zatwierdzeniem (nowa karta)', screens: ['group_panel'], when: (s) => s.isGroup },
+	{ key: 'cancel_order_view', selectors: ['.cancel-order-btn:not(.order-cancel-btn--compact)'], labelKey: 'cancel_order.button', description: 'w podglądzie wysłanego zlecenia: anuluj zlecenie (do 24 h) — otwiera okno potwierdzenia', screens: ['sent_view'], click: true, confirm: true },
+	// Okno potwierdzenia portalu (wysyłka, kopia, usunięcie, anulowanie, zatwierdzenie) — klika WYŁĄCZNIE użytkownik.
+	{ key: 'dialog_confirm', selectors: ['dialog#delete-dialog[open] #confirm-btn', '#approveModal.show #approveConfirmBtn', '#rejectModal.show #rejectConfirmBtn'], labelKey: null, description: 'przycisk POTWIERDZENIA w otwartym oknie portalu (Wyślij / Potwierdź / Dalej / Tak, anuluj / Zatwierdź) — klika WYŁĄCZNIE użytkownik', screens: ['any'], dialog: true },
+	{ key: 'cancel_ack_checkbox', selectors: ['dialog.order-cancel-dialog[open] #cancel-order-ack'], labelKey: null, description: 'okno anulowania: pole „Rozumiem, że tej operacji nie można cofnąć" (zaznacza użytkownik)', screens: ['any'], dialog: true, js: true },
 	{ key: 'duplicate_position', selectors: ['.duplicate-btn'], labelKey: 'order.duplicate', description: 'duplikowanie pozycji', screens: ['order_view'] },
 	{ key: 'edit_position', selectors: ['.edit-position-btn'], labelKey: 'order.edit_pos', description: 'edycja pozycji — otwiera formularz', screens: ['order_view'], click: true },
 	{ key: 'delete_position', selectors: ['.delete-position-btn'], labelKey: 'order.delete_pos', description: 'usunięcie pozycji', screens: ['order_view'] },
@@ -209,7 +235,8 @@ function describeForTour(scope, lang, deps = {}) {
 		label: e.labelKey ? labels.lookup(local, e.labelKey) : null,
 		description: e.description,
 		screens: e.screens.filter((sc) => screenAllowed(sc, scope)).map((sc) => SCREENS[sc].label),
-		click: !!e.click
+		click: !!e.click,
+		confirm: !!e.confirm
 	}));
 }
 
@@ -224,7 +251,10 @@ function clientTourMeta(scope) {
 	for (const e of CATALOG) {
 		if (!elementAllowed(e, scope)) continue;
 		const nav = e.navTo ? pages.PAGES.find((pg) => pg.key === e.navTo) : null;
-		elements[e.key] = { s: e.screens.filter((sc) => screenAllowed(sc, scope)), c: !!e.click, n: nav ? nav.href : null };
+		elements[e.key] = { s: e.screens.filter((sc) => screenAllowed(sc, scope)), c: !!e.click, n: nav ? nav.href : (e.href || null) };
+		if (e.confirm) elements[e.key].k = 1;
+		if (e.dialog) elements[e.key].d = 1;
+		if (e.hiddenOk) elements[e.key].h = 1;
 		if (e.appears) elements[e.key].w = e.appears;
 		if (e.empty) elements[e.key].e = e.empty;
 	}
@@ -237,4 +267,4 @@ function clientTourMeta(scope) {
 	return { elements, screens };
 }
 
-module.exports = { CATALOG, SCREENS, BY_KEY, clientMap, describeAvailable, describeForTour, clientTourMeta, elementAllowed };
+module.exports = { CATALOG, SCREENS, BY_KEY, clientMap, describeAvailable, describeForTour, clientTourMeta, elementAllowed, canSendOrders };

@@ -6,7 +6,9 @@
    modalami Bootstrapa (1055) i przewodnikiem intro.js (3000).
    ============================================================================= */
 
-#eform-assistant {
+/* `.ea-tour` też: na czas okna potwierdzenia portalu warstwa pokazu leży w jego <dialog>, poza #eform-assistant. */
+#eform-assistant,
+.ea-tour {
 	--ea-accent: var(--brand-primary, #5e6e82);
 	--ea-accent-hover: var(--brand-primary-hover, #4d5d70);
 	--ea-surface: var(--bg-surface-solid, #ffffff);
@@ -100,6 +102,7 @@
 /* Globalna reguła `button` z theme.css dokłada cień i odstępy — tu ich nie chcemy. */
 #eform-assistant .ea-icon-btn,
 #eform-assistant .ea-btn,
+.ea-tour .ea-btn,
 #eform-assistant .ea-show-btn { box-shadow: none; }
 
 .ea-icon-btn:hover { background: rgba(255, 255, 255, 0.16); }
@@ -438,6 +441,9 @@
 	inset: 0;
 	z-index: 1100;
 	pointer-events: none;
+	/* Dzieci (obramowanie, piesek, dymek — position: fixed) liczą się od warstwy, a nie od
+	   przodka z transformacją — w oknie potwierdzenia portalu warstwę ustawia fitLayer(). */
+	transform: translateZ(0);
 }
 .ea-tour[hidden] { display: none; }
 /* W trakcie pokazu dymek pieska („Potrzebujesz pomocy?") tylko by przeszkadzał. */
@@ -506,11 +512,12 @@
 	text-transform: uppercase;
 }
 .ea-tour-callout[hidden] { display: none; }
-.ea-tour-text { margin: 0; }
+.ea-tour-text { margin: 0; text-align: left; }
+.ea-tour-callout { text-align: left; }
 .ea-tour-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 10px; }
-#eform-assistant .ea-tour-actions .ea-btn { padding: 6px 14px; font-size: 13px; box-shadow: none; }
+.ea-tour .ea-tour-actions .ea-btn { margin: 0; padding: 6px 14px; font-size: 13px; box-shadow: none; }
 /* Głośnik: wycisza szczekanie pieska (wybór w localStorage) */
-#eform-assistant .ea-tour-sound {
+.ea-tour .ea-tour-sound {
 	margin-right: auto;
 	padding: 4px 6px;
 	border: 0;
@@ -522,8 +529,8 @@
 	box-shadow: none;
 	opacity: 0.75;
 }
-#eform-assistant .ea-tour-sound:hover,
-#eform-assistant .ea-tour-sound:focus-visible { opacity: 1; background: rgba(15, 23, 42, 0.06); }
+.ea-tour .ea-tour-sound:hover,
+.ea-tour .ea-tour-sound:focus-visible { opacity: 1; background: rgba(15, 23, 42, 0.06); }
 
 @media (prefers-reduced-motion: reduce) {
 	.ea-tour-ring,

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Specyfikacja ceny: paragon z rozpisanymi pozycjami i sumą (styl jak pdf.png / sub-prices.png) -->
+  <path fill="#000" d="M112 24h288a32 32 0 0 1 32 32v432l-46.4-28-46.4 28-46.4-28-46.4 28-46.4-28-46.4 28-46.4-28L80 488V56a32 32 0 0 1 32-32z"/>
+  <g fill="#fff">
+    <rect x="136" y="96" width="40" height="40" rx="10"/>
+    <rect x="200" y="100" width="176" height="32" rx="16"/>
+    <rect x="136" y="172" width="40" height="40" rx="10"/>
+    <rect x="200" y="176" width="140" height="32" rx="16"/>
+    <rect x="136" y="248" width="40" height="40" rx="10"/>
+    <rect x="200" y="252" width="160" height="32" rx="16"/>
+    <rect x="136" y="326" width="240" height="12" rx="6"/>
+    <rect x="232" y="366" width="144" height="40" rx="20"/>
+  </g>
+</svg>

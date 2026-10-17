@@ -71,6 +71,135 @@
 	box-shadow: var(--shadow-lg), 0 6px 24px var(--brand-primary-glow);
 }
 
+/* „Załaduj ostatnią konfigurację” — mała ikona w pasku wyboru (.asortment-inputs),
+   przed checkboxem „ostatni wybór”; tekst w dymku w kształcie przycisku.
+   Dawne pływające okno (.last-config-info bez -inline) zostaje wyżej. */
+.last-config-info.last-config-inline {
+	position: static;
+	transform: none;
+	z-index: auto;
+	min-width: 0;
+	max-width: none;
+	padding: 0;
+	border: none;
+	border-radius: 0;
+	background: none;
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+	box-shadow: none;
+	animation: none;
+	align-items: center;
+	/* bez !important — karta wyboru wariantu B ustawia własne marginesy */
+	margin-top: auto;
+	margin-bottom: auto;
+	margin-right: 0;
+	flex: 0 0 auto;
+}
+
+/* Układ mobilny rozciąga każdy blok paska (.asortment-inputs > div) na 100% — ikona zostaje mała. */
+#commission-form .asortment-inputs > .last-config-inline {
+	width: auto !important;
+}
+
+.last-config-inline #last-config-confirm {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	/* 46 px (było 36) — klienci kopiują linie tym przyciskiem, a mała kropka ginęła w pasku */
+	width: 46px;
+	height: 46px;
+	padding: 0;
+	font-size: 0;
+	/* globalne `button { overflow: hidden }` obcinało dymek */
+	overflow: visible;
+	color: white;
+	background: var(--brand-gradient);
+	background-size: 200% 200%;
+	border: none;
+	border-radius: 50%;
+	box-shadow: var(--shadow-md), 0 3px 12px var(--brand-primary-glow);
+	letter-spacing: normal;
+	cursor: pointer;
+	transition: transform 0.2s var(--ease-out-expo), box-shadow 0.2s var(--ease-out-expo);
+	/* Trzy pulsy pierścienia po pojawieniu się przycisku — potem spokój. */
+	animation: last-config-attention 1.6s ease-out 0.8s 3;
+}
+
+@keyframes last-config-attention {
+	0% {
+		box-shadow: var(--shadow-md), 0 3px 12px var(--brand-primary-glow), 0 0 0 0 var(--brand-primary-glow);
+	}
+
+	70% {
+		box-shadow: var(--shadow-md), 0 3px 12px var(--brand-primary-glow), 0 0 0 12px transparent;
+	}
+
+	100% {
+		box-shadow: var(--shadow-md), 0 3px 12px var(--brand-primary-glow), 0 0 0 0 transparent;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.last-config-inline #last-config-confirm {
+		animation: none;
+	}
+}
+
+.last-config-inline #last-config-confirm:hover,
+.last-config-inline #last-config-confirm:focus-visible {
+	animation: none;
+	transform: translateY(-1px);
+	box-shadow: var(--shadow-md), 0 4px 14px var(--brand-primary-glow);
+}
+
+.last-config-inline .last-config-icon {
+	display: block;
+	width: 24px;
+	height: 24px;
+	pointer-events: none;
+}
+
+.last-config-inline .last-config-label {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+/* Dymek w formie przycisku — kształt na `.has-tooltip::after` z layout.css (strzałka: ::before) */
+.last-config-inline #last-config-confirm::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	left: 50%;
+	bottom: calc(100% + 10px);
+	transform: translate(-50%, 4px);
+	padding: 6px 14px;
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.3;
+	white-space: nowrap;
+	color: white;
+	background: var(--brand-gradient);
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-md);
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+	z-index: 130;
+}
+
+.last-config-inline #last-config-confirm:hover::after,
+.last-config-inline #last-config-confirm:focus-visible::after {
+	opacity: 1;
+	visibility: visible;
+	transform: translate(-50%, 0);
+}
+
 input[type="text"],
 input[type="number"] {
 	width: 90%;

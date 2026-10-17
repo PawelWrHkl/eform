@@ -67,6 +67,14 @@
                                                         <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
                                                             <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
                                                     {% endif %}
+                                                    {# Specyfikacja ceny (services/priceSpec, public/scripts/priceSpec.js):
+                                                       admin zawsze, reszta po PRICE_SPEC_CLIENTS_ENABLED=true — `priceSpecUi`
+                                                       ustawia routes/orders.js. #}
+                                                    {% if priceSpecUi and not hidePrices and orderDetails and orderDetails.id %}
+                                                        <button type="button" class="btn has-tooltip" data-price-spec-open data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.button }}" aria-label="{{ priceSpecUi.button }}" aria-haspopup="dialog">
+                                                            <img src="/img/price-spec.svg" alt="" class='icon'></button>
+                                                        <script type="module" src="/scripts/priceSpec.js?v={{ assetVersion }}"></script>
+                                                    {% endif %}
                                                     <button class="btn has-tooltip" data-tooltip="{{ __('base.generate_pdf_tooltip') }}" id='print-button'>
                                                         <img src="/img/pdf.png" alt="pdf icon" class='icon'></button>
                                                         <button id="generate-excel-btn" class="btn has-tooltip" data-tooltip="{{ __('order.generate_excel_tooltip') }}">
@@ -142,6 +150,11 @@
                                                                         {% if (isGroup or canViewSubPrices or viewAsOrganization) and not isGroupShop %}
                                                                             <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
                                                                                 <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
+                                                                        {% endif %}
+                                                                        {% if priceSpecUi and not hidePrices and orderDetails and orderDetails.id %}
+                                                                            <button type="button" class="btn has-tooltip" data-price-spec-open data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.button }}" aria-label="{{ priceSpecUi.button }}" aria-haspopup="dialog">
+                                                                                <img src="/img/price-spec.svg" alt="" class='icon'></button>
+                                                                            <script type="module" src="/scripts/priceSpec.js?v={{ assetVersion }}"></script>
                                                                         {% endif %}
                                                                         <button class="btn has-tooltip" data-tooltip="{{ __('base.generate_short_pdf_tooltip') }}" id='short-print-button'>
                                                                             <img src="/img/pdf-short.png" alt="pdf icon" class='icon'></button>

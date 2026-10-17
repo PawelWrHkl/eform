@@ -116,6 +116,69 @@ const SCENARIOS = {
     watch: ['BLENDA'],
     steps: [],
     expectBlocked: ['BLENDA']
+  },
+
+  // Walidacja zakresów (MIN/MAX z procedur) po „ostatniej konfiguracji" —
+  // zgłoszenie 2026-10-16: formularz z localStorage nie pilnował wymiarów.
+  'vertical-ostatnia-za-waska': {
+    opis: 'Vertical (14), „ostatnia konfiguracja", szerokość 50 (MIN 500) — zapis MUSI zostać zablokowany',
+    group: '14', department: '4', mode: 'ostatnia', repeat: 1,
+    base: { KONFIGURACJA: 'S' },
+    override: { MODEL: ['2L', 'Controle links, slatpakket rechts'], PASEK: ['B2', '89MM'], PROTEKCJA: ['NO_PROT', 'ZONDER LAMELOVERSTEK'], SZEROKOSC: 1780 },
+    watch: ['SZEROKOSC'],
+    steps: [{ type: 'fill', name: 'SZEROKOSC', value: 50 }],
+    expectBlocked: ['SZEROKOSC']
+  },
+  'vertical-ostatnia-za-szeroka': {
+    opis: 'Vertical (14), „ostatnia konfiguracja", szerokość 9000 (MAX 6900) — zapis MUSI zostać zablokowany',
+    group: '14', department: '4', mode: 'ostatnia', repeat: 1,
+    base: { KONFIGURACJA: 'S' },
+    override: { MODEL: ['2L', 'Controle links, slatpakket rechts'], PASEK: ['B2', '89MM'], PROTEKCJA: ['NO_PROT', 'ZONDER LAMELOVERSTEK'], SZEROKOSC: 1780 },
+    watch: ['SZEROKOSC'],
+    steps: [{ type: 'fill', name: 'SZEROKOSC', value: 9000 }],
+    expectBlocked: ['SZEROKOSC']
+  },
+  'vertical-ostatnia-zly-wymiar-w-kopii': {
+    opis: 'Vertical (14), kopiowana linia ma już szerokość 9000 — zapis kopii BEZ zmian MUSI zostać zablokowany',
+    group: '14', department: '4', mode: 'ostatnia', repeat: 1,
+    base: { KONFIGURACJA: 'S' },
+    override: { MODEL: ['2L', 'Controle links, slatpakket rechts'], PASEK: ['B2', '89MM'], PROTEKCJA: ['NO_PROT', 'ZONDER LAMELOVERSTEK'], SZEROKOSC: 9000 },
+    watch: ['SZEROKOSC'],
+    steps: [],
+    expectBlocked: ['SZEROKOSC']
+  },
+  'vertical-duplikat-za-waska': {
+    opis: 'Vertical (14), „duplikuj" → edycja, szerokość 50 (MIN 500) — zapis MUSI zostać zablokowany',
+    group: '14', department: '4', mode: 'duplikat', repeat: 1,
+    base: { KONFIGURACJA: 'S' },
+    override: { MODEL: ['2L', 'Controle links, slatpakket rechts'], PASEK: ['B2', '89MM'], PROTEKCJA: ['NO_PROT', 'ZONDER LAMELOVERSTEK'], SZEROKOSC: 1780 },
+    watch: ['SZEROKOSC'],
+    steps: [{ type: 'fill', name: 'SZEROKOSC', value: 50 }],
+    expectBlocked: ['SZEROKOSC']
+  },
+  'h50-ostatnia-za-waska': {
+    opis: 'H50 (59), „ostatnia konfiguracja", szerokość 100 (MIN 300) — zapis MUSI zostać zablokowany',
+    group: '59', department: '2', mode: 'ostatnia', repeat: 1,
+    base: { MODEL: 'H50', STEROWANIE: 'S', KOLOR: '5549-50' },
+    override: {
+      STRONA_STEROWANIA: ['RR', 'TREKKOORD - TUIMELKOORD RECHTS'], OCHRONA_CHILD_SAFETY: ['CS_NO', 'nein'],
+      BLENDA: ['IDD', 'IDD'], DLUGOSC_STER: 1300, SZEROKOSC: 970, WYSOKOSC: 1635
+    },
+    watch: ['SZEROKOSC'],
+    steps: [{ type: 'fill', name: 'SZEROKOSC', value: 100 }],
+    expectBlocked: ['SZEROKOSC']
+  },
+  'h50-ostatnia-dlugosc-sterowania': {
+    opis: 'H50 (59), „ostatnia konfiguracja", długość sterowania 20 (MIN2 50) — zapis MUSI zostać zablokowany',
+    group: '59', department: '2', mode: 'ostatnia', repeat: 1,
+    base: { MODEL: 'H50', STEROWANIE: 'S', KOLOR: '5549-50' },
+    override: {
+      STRONA_STEROWANIA: ['RR', 'TREKKOORD - TUIMELKOORD RECHTS'], OCHRONA_CHILD_SAFETY: ['CS_NO', 'nein'],
+      BLENDA: ['IDD', 'IDD'], DLUGOSC_STER: 1300, SZEROKOSC: 970, WYSOKOSC: 1635
+    },
+    watch: ['DLUGOSC_STER'],
+    steps: [{ type: 'fill', name: 'DLUGOSC_STER', value: 20 }],
+    expectBlocked: ['DLUGOSC_STER']
   }
 };
 

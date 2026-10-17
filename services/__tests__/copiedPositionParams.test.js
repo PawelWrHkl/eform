@@ -211,6 +211,35 @@ test('walidacja: select pokazuje opcję, ale wartość do zapisu jest pusta — 
   assert.equal(window.inputFlags.PASEK, false);
 });
 
+test('walidacja: szerokość spoza zakresu blokuje zapis, choć pierwszy walidator jest innego pola', () => {
+  // Zgłoszenie 2026-10-16: po „ostatniej konfiguracji" przechodziła szerokość 50.
+  const window = makeWindow();
+  window.enabledParams = { SZEROKOSC: true };
+  window.inputsValidators = {
+    KONFIGURACJA: { S: { DLUGOSC_STER: { MIN: 100, MAX: 6000 } } },
+    MODEL: { '1R': { SZEROKOSC: { MIN: 500, MAX: 6900 } } }
+  };
+  const inputs = { SZEROKOSC: mkInput(window, 'SZEROKOSC', 50) };
+
+  window.__copiedPositionTest.validateAllFieldsOnSubmit(inputs, { KONFIGURACJA: 'S', MODEL: '1R', SZEROKOSC: 50 });
+
+  assert.equal(window.inputFlags.SZEROKOSC, false);
+});
+
+test('walidacja: szerokość w zakresie przechodzi', () => {
+  const window = makeWindow();
+  window.enabledParams = { SZEROKOSC: true };
+  window.inputsValidators = {
+    KONFIGURACJA: { S: { DLUGOSC_STER: { MIN: 100, MAX: 6000 } } },
+    MODEL: { '1R': { SZEROKOSC: { MIN: 500, MAX: 6900 } } }
+  };
+  const inputs = { SZEROKOSC: mkInput(window, 'SZEROKOSC', 910) };
+
+  window.__copiedPositionTest.validateAllFieldsOnSubmit(inputs, { KONFIGURACJA: 'S', MODEL: '1R', SZEROKOSC: 910 });
+
+  assert.equal(window.inputFlags.SZEROKOSC, true);
+});
+
 // ── reset zależności po wyborze w dialogu ─────────────────────────────────
 
 function modelChangeState(window, szerokosc) {

@@ -83,5 +83,11 @@
   "header.order_name": "Auftragsname",
   "totals.net_before_discount": "Netto vor Rabatt",
   "totals.client_discount": "Kundenrabatt",
-  "collective.note": "Sammelrechnung für den Zeitraum {start} – {end}. Aufträge: {orders}."
+  "collective.note": "Sammelrechnung für den Zeitraum {start} – {end}. Aufträge: {orders}.",
+  "mail.greeting": "Guten Tag,",
+  "mail.intro": "anbei erhalten Sie die Rechnung zu der Bestellung, die an Sie versandt wurde.",
+  "mail.attachment": "Die Rechnung ist als PDF-Datei angehängt.",
+  "mail.questions": "Bei Fragen antworten Sie bitte einfach auf diese Nachricht.",
+  "mail.regards": "Mit freundlichen Grüßen",
+  "mail.auto_note": "Diese Nachricht wurde automatisch von eForm erstellt."
 }

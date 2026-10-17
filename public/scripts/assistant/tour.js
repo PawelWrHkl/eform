@@ -12,7 +12,10 @@
  *               czatu (tools.resolveOrderSteps) albo GET /assistant/order-place/:id
  *               (kroki z rozmowy głosowej); cudze zlecenie → 404, krok pominięty.
  *               Gdy wiersza nie ma na pierwszej stronie listy, piesek wpisuje
- *               numer w jej wyszukiwarkę,
+ *               numer w jej wyszukiwarkę. Z `click` piesek otwiera zlecenie,
+ *               z `action` (send / copy / cancel / delete) klika ten przycisk
+ *               w wierszu TEGO zlecenia — portal otwiera okno potwierdzenia,
+ *               a piesek wskazuje w nim przycisk, który klika już klient,
  *   • click   — Eforek sam klika element (tylko elementy z flagą `c` — przejścia,
  *               zakładki, otwarcie okna; serwer i ten plik odrzucają resztę).
  * Gdy element jest na innym ekranie, pokaz przechodzi tam i kontynuuje po
@@ -22,6 +25,10 @@
  * ze swojego miejsca w rogu, biegnie do elementu, wskazuje go łapą, merda
  * ogonem i szczeka („Hau!" + krótki dźwięk, ASSISTANT_BARK_SOUND, wyciszany
  * głośnikiem w dymku), a po pokazie wraca na miejsce. Bez maskotki — palec.
+ *
+ * Okna potwierdzenia portalu są modalne (<dialog> w warstwie top-layer) —
+ * na ten krok warstwa pokazu wchodzi do środka okna; gdy klient okno zamknie
+ * (potwierdzi albo zrezygnuje), pokaz się kończy i piesek wraca na miejsce.
  *
  * Wskaźnik, przyciemnienie i dymek leżą w warstwie `.ea-tour` z
  * `pointer-events: none` — klient może w każdej chwili sam kliknąć wskazany
@@ -42,8 +49,31 @@
 	var MAX_AGE_MS = 10 * 60 * 1000;
 	// Listy, na których leżą zlecenia (krok `order`).
 	var LIST_PAGES = { offers: true, history: true, canceled: true };
+	// Przyciski akcji w wierszu zlecenia (tabela i karta na telefonie) — każdy tylko otwiera okno potwierdzenia.
+	var ROW_ACTIONS = {
+		send: '.send-order-btn, .submit-approval-btn',
+		copy: '.copy-order-btn',
+		cancel: '.cancel-order-btn',
+		delete: '.delete-position-btn'
+	};
 	var reduced = false;
 	try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { reduced = false; }
+
+	// Tempo pokazu (ms) — klient ma spokojnie przeczytać dymek, zanim piesek pobiegnie dalej.
+	// „Dalej" w dymku pozwala przyspieszyć.
+	var PACE = {
+		runMin: 900, runMax: 2600, runPerPx: 2.2, // bieg: czas wg odległości
+		readMin: 3000, readMax: 8000, readBase: 1400, readPerChar: 50, // czytanie przed kliknięciem Eforka
+		tap: 600,          // od stuknięcia łapą do kliknięcia
+		rowAction: 1800,   // wiersz zlecenia wskazany → bieg do przycisku akcji
+		search: 2600,      // piesek przy „Szukaj" → wpisanie numeru
+		hiddenDone: 3000,  // „Zrobione!" przy przełączniku bez przycisku
+		finishMin: 7000, finishMax: 16000, finishBase: 3000, finishPerChar: 60 // ostatni krok → powrót na miejsce
+	};
+	function readMs(step) {
+		return Math.max(PACE.readMin, Math.min(PACE.readMax, PACE.readBase + String(step.text || '').length * PACE.readPerChar));
+	}
+	var pendingTap = null; // klik Eforka czekający, aż klient przeczyta (albo kliknie „Dalej")
 
 	var run = null;      // { steps, i, seen }
 	var target = null;   // bieżący wskazany element
@@ -131,13 +161,36 @@
 			if (typeof s.order === 'number' && s.order > 0 && Math.floor(s.order) === s.order) {
 				// Lista i numer tylko razem (z serwera); bez nich — zapytamy serwer przy tym kroku.
 				var list = typeof s.page === 'string' && LIST_PAGES[s.page] && PAGES[s.page] && s.number ? s.page : null;
-				out.push({ element: null, page: list, order: s.order, number: list ? String(s.number).slice(0, 20) : null, text: t, click: false });
+				var action = typeof s.action === 'string' && ROW_ACTIONS[s.action] ? s.action : null;
+				// click — piesek klika wiersz i otwiera zlecenie (zwykłe przejście na jego stronę).
+				out.push({ element: null, page: list, order: s.order, number: list ? String(s.number).slice(0, 20) : null, action: action, text: t, click: !action && s.click === true });
 				return;
 			}
 			var key = typeof s.element === 'string' && META.elements[s.element] && CATALOG[s.element] ? s.element : null;
 			var page = typeof s.page === 'string' && PAGES[s.page] ? s.page : null;
 			if (!key && !page) return;
 			out.push({ element: key, page: page, text: t, click: !!(key && META.elements[key].c && s.click === true) });
+		});
+		return withConfirmSteps(out);
+	}
+
+	function isDialogStep(step) {
+		return !!(step && step.element && META.elements[step.element] && META.elements[step.element].d);
+	}
+
+	/**
+	 * Po każdej akcji, która otwiera okno potwierdzenia portalu, krok „potwierdź tutaj"
+	 * (piesek wskazuje przycisk, klika klient) — chyba że model już go dodał.
+	 */
+	function withConfirmSteps(steps) {
+		if (!META.elements.dialog_confirm) return steps;
+		var out = [];
+		steps.forEach(function (st, i) {
+			out.push(st);
+			var opens = st.order ? !!st.action : !!(st.element && st.click && META.elements[st.element].k);
+			if (!opens || isDialogStep(steps[i + 1])) return;
+			var cancel = st.action === 'cancel' || st.element === 'cancel_order_view';
+			out.push({ element: 'dialog_confirm', page: null, text: (cancel ? S.tourConfirmCancel : S.tourConfirm) || '✓', click: false });
 		});
 		return out;
 	}
@@ -206,6 +259,17 @@
 		return null;
 	}
 
+	/** Pierwszy pasujący element, także niewidoczny (przełączniki widoku w zwiniętym menu). */
+	function findAny(key) {
+		var selectors = CATALOG[key] || [];
+		for (var i = 0; i < selectors.length; i++) {
+			var n = null;
+			try { n = document.querySelector(selectors[i]); } catch (_) { n = null; }
+			if (n && !A.root.contains(n)) return n;
+		}
+		return null;
+	}
+
 	/** Wiersz zlecenia na liście (tabela na komputerze, karta na telefonie). */
 	function findOrderRow(id) {
 		var nodes = document.querySelectorAll('[data-order-id="' + Number(id) + '"]');
@@ -224,6 +288,52 @@
 	}
 	function waitFor(key, ms, cb) {
 		waitForNode(function () { return findVisible(key); }, ms, cb);
+	}
+
+	// ── warstwa w oknie modalnym ────────────────────────────────────────────
+	var hostDlg = null;
+	var hostCss = '';
+	/**
+	 * Okno potwierdzenia (<dialog> modalny) przykrywa wszystko — warstwa pokazu wchodzi
+	 * do jego środka. Rozmyte szkło (backdrop-filter) okna zamknęłoby jednak warstwę
+	 * w jego ramce (containing block dla position: fixed, a na komputerze okno ucina
+	 * zawartość), więc na ten czas okno dostaje pełne tło bez rozmycia; potem wraca
+	 * jego styl. Przesunięcia okna (telefon: translate(-50%, -50%)) nie ruszamy —
+	 * kompensuje je fitLayer().
+	 */
+	function ensureHost(node) {
+		var dlg = node && node.closest ? node.closest('dialog[open]') : null;
+		if (dlg !== hostDlg) {
+			if (hostDlg) hostDlg.style.cssText = hostCss;
+			hostDlg = dlg;
+			hostCss = dlg ? dlg.style.cssText : '';
+			if (dlg) {
+				['backdrop-filter', '-webkit-backdrop-filter', 'filter', 'animation'].forEach(function (prop) { dlg.style.setProperty(prop, 'none', 'important'); });
+				dlg.style.setProperty('background', 'var(--bg-surface-solid, #fff)', 'important');
+			}
+		}
+		var host = dlg || A.root;
+		if (layer.parentNode !== host) host.appendChild(layer);
+		fitLayer();
+	}
+
+	/**
+	 * Warstwa ma zawsze pokrywać ekran od jego lewego górnego rogu. W oknie z
+	 * transformacją (telefon) `position: fixed` liczy się od okna — przesuwamy
+	 * warstwę o tyle, o ile okno jest przesunięte (jej dzieci liczą się od niej,
+	 * bo `.ea-tour` ma transform w CSS).
+	 */
+	function fitLayer() {
+		['left', 'top', 'right', 'bottom', 'width', 'height'].forEach(function (p) { layer.style[p] = ''; });
+		if (!hostDlg || layer.hidden) return;
+		var lr = layer.getBoundingClientRect();
+		if (Math.abs(lr.left) < 0.5 && Math.abs(lr.top) < 0.5) return;
+		layer.style.left = (-lr.left) + 'px';
+		layer.style.top = (-lr.top) + 'px';
+		layer.style.right = 'auto';
+		layer.style.bottom = 'auto';
+		layer.style.width = window.innerWidth + 'px';
+		layer.style.height = window.innerHeight + 'px';
 	}
 
 	// ── rysowanie: obramowanie, dymek, palec ────────────────────────────────
@@ -360,7 +470,7 @@
 			return later(cb, reduced ? 120 : 0);
 		}
 		dog.box.classList.toggle('ea-runner-flip', x < from.x - 4);
-		var ms = Math.round(Math.max(380, Math.min(1300, dist * 1.2)));
+		var ms = Math.round(Math.max(PACE.runMin, Math.min(PACE.runMax, dist * PACE.runPerPx)));
 		dogState('run');
 		void dog.box.offsetWidth; // start przejścia od bieżącego miejsca
 		setDog(x, y, ms);
@@ -448,13 +558,20 @@
 	function reposition() {
 		if (!run || !target) return;
 		if (!document.body.contains(target) || !isVisible(target)) {
-			// Strona przerysowała listę (np. wiersze dociągane skryptem) — szukamy elementu na nowo.
+			// Strona przerysowała listę (np. wiersze dociągane skryptem) albo okno potwierdzenia
+			// przeszło do następnego etapu (anulowanie: „Dalej" → „Czy na pewno?") — szukamy na nowo.
 			var again = refind();
-			if (!again) return;
+			if (!again) {
+				// Klient zamknął okno potwierdzenia (potwierdził albo zrezygnował) — koniec pokazu.
+				if (isDialogStep(run.steps[run.i])) stop(true);
+				return;
+			}
 			if (dog && dog.at === target) dog.at = again;
 			target = again;
+			ensureHost(again);
 			try { again.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (_) { again.scrollIntoView(); }
 		}
+		if (hostDlg) fitLayer();
 		var rect = target.getBoundingClientRect();
 		placeRing(rect);
 		if (dog && dog.out) {
@@ -496,6 +613,7 @@
 	}
 
 	function showNote(step, note) {
+		ensureHost(null);
 		placeRing(null);
 		finger.hidden = true;
 		showCallout(step, note);
@@ -505,6 +623,7 @@
 	// ── przebieg ────────────────────────────────────────────────────────────
 	function showStep() {
 		clearTimers();
+		pendingTap = null;
 		target = null;
 		if (!run) return;
 		noteScreen();
@@ -553,6 +672,19 @@
 					window.location.href = meta.n;
 					return;
 				}
+				// Przełącznik widoku bez widocznego przycisku (np. tryb ciemny na telefonie,
+				// „Zmień wygląd" w zwiniętym menu) — działa i bez wskazania: klikamy go wprost.
+				if (step.click && meta.h) {
+					var hiddenNode = findAny(step.element);
+					if (hiddenNode) {
+						showNote(step, S.tourDoneHidden);
+						hiddenNode.click();
+						run.i += 1;
+						save();
+						later(function () { if (run) { if (run.i >= run.steps.length) stop(true); else showStep(); } }, PACE.hiddenDone);
+						return;
+					}
+				}
 				// Pusta lista (np. brak katalogów, nic do zatwierdzenia) — wskazujemy ją z wyjaśnieniem.
 				var empty = meta.e ? findVisible(step.element, meta.e) : null;
 				if (empty) return point(empty, step, S.tourEmpty);
@@ -587,6 +719,8 @@
 				if (!r.ok || !r.data || !LIST_PAGES[r.data.page] || !PAGES[r.data.page]) return showNote(step, S.tourOrderMissing);
 				step.page = r.data.page;
 				step.number = String(r.data.number || '').slice(0, 20);
+				// Akcja tylko, gdy serwer ją dopuszcza dla tego zlecenia (status, uprawnienia konta).
+				if (step.action && (!Array.isArray(r.data.actions) || r.data.actions.indexOf(step.action) < 0)) step.action = null;
 				save();
 				showOrderStep(step);
 			}).catch(function () {
@@ -623,7 +757,7 @@
 				if (row) return point(row, step);
 				showNote(step, S.tourOrderMissing);
 			});
-		}, reduced ? 300 : 1700);
+		}, reduced ? 300 : PACE.search);
 	}
 
 	/**
@@ -633,8 +767,10 @@
 	 */
 	function point(node, step, note, quiet) {
 		target = node;
+		ensureHost(node);
 		try { node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); } catch (_) { node.scrollIntoView(); }
 		layer.hidden = false;
+		fitLayer();
 		showCallout(step, note);
 		var withDog = !!ensureDog();
 		finger.hidden = withDog;
@@ -669,15 +805,60 @@
 		}, reduced ? 50 : 420);
 	}
 
-	/** Po wskazaniu: klik Eforka (przejścia, zakładki) albo — na ostatnim kroku — powrót pieska. */
+	/** Akcja w wierszu zlecenia: piesek przebiega do przycisku (wysłanie, anulowanie…) i go klika. */
+	function rowAction(row, step) {
+		var btn = null;
+		var nodes = row.querySelectorAll(ROW_ACTIONS[step.action]);
+		for (var i = 0; i < nodes.length; i++) if (isVisible(nodes[i]) && !nodes[i].disabled) { btn = nodes[i]; break; }
+		if (!btn) return showNote(step, S.tourActionMissing);
+		target = btn;
+		var rect = btn.getBoundingClientRect();
+		placeRing(rect);
+		var go = function () {
+			if (!run || target !== btn) return;
+			var r2 = btn.getBoundingClientRect();
+			placeRing(r2);
+			if (dog && dog.out) {
+				var s2 = dogSpot(r2);
+				setDog(s2.x, s2.y, 0);
+				dog.at = btn;
+				dogState(s2.side === 'below' ? 'point-up' : (s2.side === 'above' ? 'point-down' : 'point'));
+				placeCallout(r2, s2);
+			} else placeCallout(r2);
+			afterPointing(btn, { click: true, text: step.text, quick: true }, false, tipPoint(r2));
+		};
+		if (dog && dog.out) {
+			var spot = dogSpot(rect);
+			dogRun(spot.x, spot.y, go, spot.side === 'right');
+		} else {
+			var p = tipPoint(rect);
+			moveFinger(p.x, p.y, false);
+			later(go, reduced ? 50 : PACE.rowAction);
+		}
+	}
+
+	/** Po wskazaniu: klik Eforka (przejścia, zakładki, akcje) albo — na ostatnim kroku — powrót pieska. */
 	function afterPointing(node, step, noted, p) {
+		if (step.order && step.action && !noted) {
+			// Wiersz wskazany; po chwili (albo od razu po „Dalej") piesek biegnie do przycisku akcji.
+			var goAction = function () {
+				if (pendingTap !== goAction) return;
+				pendingTap = null;
+				if (run && target === node) rowAction(node, step);
+			};
+			pendingTap = goAction;
+			return later(goAction, reduced ? 100 : PACE.rowAction);
+		}
 		if (!step.click || noted) {
 			if (!noted) autoFinish(step);
 			return;
 		}
-		nextBtn.disabled = true;
-		later(function () {
+		// Klient czyta dymek; po czasie czytania (albo od razu po „Dalej") piesek klika.
+		var doTap = function () {
+			if (pendingTap !== doTap) return;
+			pendingTap = null;
 			if (!run || target !== node) return;
+			nextBtn.disabled = true;
 			if (dog && dog.out) dogState('tap');
 			else {
 				finger.classList.remove('ea-tour-tap');
@@ -696,8 +877,11 @@
 				node.click();
 				// Jeśli klik nie zmienił strony (zakładka, okno), następny krok po chwili.
 				later(afterClick, 900);
-			}, 380);
-		}, reduced ? 200 : (dog && dog.out ? 900 : 950));
+			}, PACE.tap);
+		};
+		pendingTap = doTap;
+		// Przy przycisku akcji klient już przeczytał dymek (przy wierszu) — krócej.
+		later(doTap, reduced ? 200 : (step.quick ? PACE.tap * 3 : readMs(step)));
 	}
 
 	/**
@@ -705,8 +889,9 @@
 	 * piesek sam wraca na miejsce — chyba że klient trzyma kursor na dymku.
 	 */
 	function autoFinish(step) {
-		if (!dog || !dog.out || run.i !== run.steps.length - 1) return;
-		var wait = Math.max(5000, Math.min(14000, 2500 + step.text.length * 45));
+		// Przy oknie potwierdzenia piesek czeka, aż klient je zamknie (reposition → stop).
+		if (!dog || !dog.out || run.i !== run.steps.length - 1 || isDialogStep(step)) return;
+		var wait = Math.max(PACE.finishMin, Math.min(PACE.finishMax, PACE.finishBase + step.text.length * PACE.finishPerChar));
 		(function tick(ms) {
 			later(function () {
 				if (!run || run.steps[run.i] !== step) return;
@@ -751,15 +936,18 @@
 	 */
 	function stop(finished) {
 		clearTimers();
+		pendingTap = null;
 		run = null;
 		target = null;
 		clearSaved();
+		ensureHost(null); // z zamkniętego (albo jeszcze otwartego) okna potwierdzenia — z powrotem na stronę
 		placeRing(null);
 		callout.hidden = true;
 		finger.classList.remove('ea-tour-tap');
 		function done() {
 			layer.hidden = true;
 			callout.hidden = false;
+			ensureHost(null);
 			A.root.classList.remove('ea-touring');
 		}
 		if (dog && dog.out) return dogHome(done);
@@ -769,6 +957,8 @@
 
 	nextBtn.addEventListener('click', function () {
 		if (!run) return;
+		// Piesek czeka z kliknięciem, aż klient przeczyta — „Dalej" = klikaj już.
+		if (pendingTap) return pendingTap();
 		run.i += 1;
 		if (run.i >= run.steps.length) return stop(true);
 		save();
@@ -795,6 +985,8 @@
 	if (saved && Date.now() - saved.at < MAX_AGE_MS && Array.isArray(saved.steps)) {
 		var steps = normalize(saved.steps);
 		var i0 = saved.i;
+		// Strona przeładowała się w trakcie okna potwierdzenia (klient potwierdził) — pokaz skończony.
+		if (isDialogStep(steps[i0])) i0 = steps.length;
 		// Klient sam wykonał krok (np. kliknął wskazane „Zapisz") i jest już na ekranie
 		// kolejnego kroku — przeskakujemy dalej, zamiast cofać go na poprzedni ekran.
 		while (i0 < steps.length - 1 && !stepHere(steps[i0]) && stepHere(steps[i0 + 1])) i0 += 1;
@@ -806,7 +998,12 @@
 			}, 350); // skrypty strony zdążą dołożyć elementy
 		} else {
 			clearSaved();
-			if (A.open && !(A.avatar && A.avatar.create)) A.open(); // pokaz skończył się kliknięciem na poprzedniej stronie
+			// Pokaz skończył się kliknięciem na poprzedniej stronie: z palcem wraca okno czatu,
+			// z pieskiem nie (siedzi na swoim miejscu). Maskotka ładuje się po tym pliku —
+			// sprawdzamy ją dopiero po wczytaniu wszystkich skryptów.
+			var reopen = function () { if (A.open && !(A.avatar && A.avatar.create)) A.open(); };
+			if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', reopen);
+			else window.setTimeout(reopen, 0);
 		}
 	} else if (saved) {
 		clearSaved();

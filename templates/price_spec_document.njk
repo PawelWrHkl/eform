@@ -1,0 +1,18 @@
+<!doctype html>
+{# Specyfikacja ceny jako samodzielny dokument — źródło PDF-u
+   (services/priceSpec/pdf.js). Arkusz wbudowany (`inlineCss` z
+   public/styles/priceSpec.css), bo Chromium renderuje z `setContent`
+   bez dostępu do serwera. #}
+<html lang="{{ spec.lang }}">
+<head>
+    <meta charset="utf-8">
+    <title>{{ spec.t.title }} · {{ spec.t.order }} {{ spec.order.number }}</title>
+    <style>
+        html, body { margin: 0; background: #fff; }
+        {{ inlineCss | safe }}
+    </style>
+</head>
+<body>
+    {% include "partials/price_spec_body.njk" %}
+</body>
+</html>

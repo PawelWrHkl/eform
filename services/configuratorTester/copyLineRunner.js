@@ -472,8 +472,47 @@ async function cleanup(ctx) {
   for (const id of ids) {
     await ctx.page.evaluate(async (pid) => fetch(`/position/${pid}/delete`, { method: 'DELETE' }), id).catch(() => {});
   }
-  const [[left]] = await ctx.conn.query(`SELECT COUNT(*) n FROM order_item WHERE id IN (${ids.map(Number).join(',')})`);
-  if (left.n) ctx.print(`  ⚠ nie udało się usunąć ${left.n} z ${ids.length} pozycji: ${ids.join(', ')}`);
+  const [left] = await ctx.conn.query(`SELECT id FROM order_item WHERE id IN (${ids.map(Number).join(',')})`);
+  if (left.length) {
+    // Zostają na liście — po ponownym zalogowaniu `ensureSession` sprząta je jeszcze raz.
+    ctx.created.push(...left.map((r) => r.id));
+    ctx.print(`  ⚠ nie udało się usunąć ${left.length} z ${ids.length} pozycji: ${left.map((r) => r.id).join(', ')}`);
+  }
+}
+
+/** Loguje konto symulatora; w trakcie restartu serwera czeka, aż wstanie (do ~90 s). */
+async function login(ctx) {
+  const url = `${ctx.appUrl}/user/auth/login?pin=${encodeURIComponent(process.env.CONFIGTEST_SIM_PIN)}&password=${encodeURIComponent(process.env.CONFIGTEST_SIM_PASSWORD)}`;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await ctx.page.goto(url);
+      return;
+    } catch (err) {
+      if (attempt >= 30) throw err;
+      await ctx.page.waitForTimeout(3000);
+    }
+  }
+}
+
+/**
+ * :8000 chodzi pod `node --watch` — zapis dowolnego pliku `.js` restartuje
+ * proces, a sesje są w pamięci, więc robot zostaje wylogowany w połowie
+ * przebiegu (16.10: kilka restartów na godzinę przy pracy równoległych
+ * sesji). `/user/uid` zwraca JSON tylko zalogowanym. Zwraca `false`, gdy
+ * sesja wygasła — wtedy loguje ponownie i sprząta pozostawione pozycje.
+ */
+async function ensureSession(ctx) {
+  const alive = await ctx.page.evaluate(async () => {
+    try {
+      const r = await fetch('/user/uid');
+      return (r.headers.get('content-type') || '').includes('application/json');
+    } catch { return false; }
+  }).catch(() => false);
+  if (alive) return true;
+  ctx.print('  sesja wygasła (restart serwera?) — loguję ponownie');
+  await login(ctx);
+  await cleanup(ctx);
+  return false;
 }
 
 // ── przypadki ──────────────────────────────────────────────────────────────
@@ -905,7 +944,7 @@ async function runCopyChecks(opts = {}) {
         page, conn, appUrl, orderId, browserName: name, created: [], keep: !!opts.keep, print, rng: makeRng(seed)
       };
       try {
-        await page.goto(`${appUrl}/user/auth/login?pin=${encodeURIComponent(process.env.CONFIGTEST_SIM_PIN)}&password=${encodeURIComponent(process.env.CONFIGTEST_SIM_PASSWORD)}`);
+        await login(ctx);
         const { discoverDepartmentsAndGroups } = require('./simulationRunner');
         const tree = await discoverDepartmentsAndGroups(page, { appUrl, orderId });
         const departmentByGroup = new Map();
@@ -923,7 +962,13 @@ async function runCopyChecks(opts = {}) {
           const scenario = SCENARIOS[key];
           if (!scenario) { print(`nieznany scenariusz ${key}`); continue; }
           print(`\n▶ [${name}] ${key}: ${scenario.opis}`);
-          const r = await runScenario(ctx, key, scenario, { repeat: opts.repeat, baseId: opts.base, departmentOf });
+          await ensureSession(ctx);
+          const scenarioOpts = { repeat: opts.repeat, baseId: opts.base, departmentOf };
+          let r = await runScenario(ctx, key, scenario, scenarioOpts);
+          if (!(await ensureSession(ctx))) {
+            print('  wynik niewiarygodny (wylogowanie w trakcie) — powtarzam scenariusz');
+            r = await runScenario(ctx, key, scenario, scenarioOpts);
+          }
           r.groupName = groupNames.get(String(r.group)) || '';
           cases.push(r);
           await page.waitForTimeout(pauseMs);
@@ -948,10 +993,13 @@ async function runCopyChecks(opts = {}) {
           const list = candidates.get(group).slice(offset);
           if (!list.length) continue;
           print(`\n▶ [${name}] przypadek ${i + 1}/${plan.length}: grupa ${group}${groupNames.get(group) ? ` (${groupNames.get(group)})` : ''}`);
-          const r = await runGeneratedCase(ctx, {
-            group, department: departmentOf(group), candidates: list,
-            repeat: opts.repeat ?? 2, checkRequired: true
-          });
+          await ensureSession(ctx);
+          const caseOpts = { group, department: departmentOf(group), candidates: list, repeat: opts.repeat ?? 2, checkRequired: true };
+          let r = await runGeneratedCase(ctx, caseOpts);
+          if (!(await ensureSession(ctx))) {
+            print('  wynik niewiarygodny (wylogowanie w trakcie) — powtarzam przypadek');
+            r = await runGeneratedCase(ctx, caseOpts);
+          }
           used.set(group, offset + 1 + r.skippedBases.length);
           r.groupName = groupNames.get(group) || '';
           cases.push(r);

@@ -83,5 +83,11 @@
   "header.order_name": "Nazwa zamówienia",
   "totals.net_before_discount": "Wartość przed rabatem",
   "totals.client_discount": "Rabat dla odbiorcy",
-  "collective.note": "Faktura zbiorcza za okres {start} – {end}. Zamówienia: {orders}."
+  "collective.note": "Faktura zbiorcza za okres {start} – {end}. Zamówienia: {orders}.",
+  "mail.greeting": "Dzień dobry,",
+  "mail.intro": "w załączniku przesyłamy fakturę za zamówienie, które zostało do Państwa wysłane.",
+  "mail.attachment": "Faktura jest w załączniku w formacie PDF.",
+  "mail.questions": "W razie pytań prosimy odpowiedzieć na tę wiadomość.",
+  "mail.regards": "Z poważaniem",
+  "mail.auto_note": "Wiadomość wygenerowana automatycznie przez system eForm."
 }

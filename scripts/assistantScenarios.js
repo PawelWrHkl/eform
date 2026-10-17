@@ -94,7 +94,21 @@ add('where', 'where-offer-name', 'Gdzie jest moja oferta sdfg?', { status: 'answ
 // Wynik zależy od danych konta (wczoraj wysłane / utworzone / nic) — sprawdzamy, że szukał i biegnie do listy.
 add('where', 'where-yesterday', 'Gdzie znajdę moje wczorajsze zamówienie?', { status: 'answered', tools: ['find_orders'], tour: { min: 1, includes: ['nav_history', 'nav_offers'] } });
 add('where', 'where-last-de', 'Wo finde ich meine zuletzt gesendete Bestellung?', { status: 'answered', tools: ['find_orders', 'get_account_overview'], tour: { min: 2, includes: ['nav_history'] }, orderId: 3175 }, { lang: 'de' });
+add('where', 'last-order-show', 'Co z moim ostatnim zamówieniem?', { status: 'answered', tools: ['find_orders', 'get_account_overview'], anyOrderStep: true });
+add('where', 'status-810-show', 'Jaki jest status zamówienia 810?', { status: 'answered', tools: ['find_orders', 'get_order'], orderId: 3175 });
+add('where', 'open-810', 'Otwórz mi zamówienie 810.', { status: 'answered', tools: ['find_orders'], orderClick: 3175 });
 add('where', 'where-emp-foreign', 'Gdzie jest zamówienie 810?', { status: ['answered', 'handoff'], noOrderStep: true }, { account: 'employee' });
+
+// A3. „Zrób to za mnie" — Eforek klika sam; nieodwracalne kończy okno potwierdzenia portalu
+add('do', 'do-send-807', 'Wyślij moją ofertę 807 do realizacji.', { status: 'answered', tools: ['find_orders'], orderAction: [3135, 'send'], never: [/wysłan[ao]\b(?! jeszcze)|zostało wysłane|już wysłał/i] });
+add('do', 'do-delete-807', 'Usuń moją ofertę 807.', { status: 'answered', tools: ['find_orders'], orderAction: [3135, 'delete'], never: [/zostało usunięte|została usunięta|usunąłem/i] });
+add('do', 'do-cancel-810', 'Anuluj zamówienie 810.', { status: ['answered', 'handoff'], tools: ['find_orders', 'get_order'], noOrderAction: 'cancel', says: [/24|nie można|nie da się|już nie/i] });
+add('do', 'do-lang-de', 'Przełącz portal na niemiecki.', { status: 'answered', tour: { min: 1, includes: ['lang_de'] }, clicks: ['lang_de'] });
+add('do', 'do-dark', 'Włącz tryb ciemny.', { status: 'answered', tour: { min: 1, includes: ['theme_toggle'] }, clicks: ['theme_toggle'] });
+add('do', 'do-pdf-810', 'Pobierz mi PDF zamówienia 810.', { status: 'answered', tools: ['find_orders'], orderClick: 3175, clicks: ['print_pdf', 'print_short_pdf'] });
+add('do', 'do-logout', 'Wyloguj mnie.', { status: 'answered', tour: { min: 1, includes: ['logout_btn'] }, clicks: ['logout_btn'] });
+add('do', 'do-send-here', 'Wyślij to zamówienie.', { status: 'answered', tour: { min: 1, includes: ['send_order'] }, clicks: ['send_order'] }, { page: '/orders/order/1' });
+add('do', 'do-emp-send', 'Wyślij moją ofertę 807.', { status: ['answered', 'handoff'], noOrderAction: 'send', tourNever: ['send_order'] }, { account: 'employee' });
 
 // B. Proste „jak / gdzie"
 add('howto', 'send-btn', 'Gdzie jest przycisk wysyłki zamówienia?', { status: 'answered', highlightOrTour: 'send_order' }, { page: '/orders/order/1' });
@@ -192,8 +206,14 @@ function check(sc, r, logged) {
 		if (bad.length) why.push(`niedozwolone kroki: ${bad.join(', ')}`);
 	}
 	if (e.orderId && !steps.some((s) => s.order === e.orderId)) why.push(`brak kroku z zamówieniem ${e.orderId} (kroki: ${stepKeys.join(', ') || '-'})`);
+	if (e.anyOrderStep && !steps.some((s) => s.order)) why.push(`brak kroku z zamówieniem (kroki: ${stepKeys.join(', ') || '-'})`);
+	if (e.orderClick && !steps.some((s) => s.order === e.orderClick && s.click)) why.push(`brak kroku otwierającego zamówienie ${e.orderClick} (kroki: ${steps.map((s) => (s.order || s.element || s.page) + (s.click ? '*' : '')).join(', ') || '-'})`);
+	if (e.orderAction && !steps.some((s) => s.order === e.orderAction[0] && s.action === e.orderAction[1])) why.push(`brak akcji ${e.orderAction[1]} na zamówieniu ${e.orderAction[0]} (kroki: ${steps.map((s) => (s.order ? `${s.order}:${s.action || (s.click ? 'otwórz' : '-')}` : s.element || s.page)).join(', ') || '-'})`);
+	if (e.noOrderAction && steps.some((s) => s.action === e.noOrderAction)) why.push(`akcja ${e.noOrderAction}, której nie powinno być`);
+	if (e.clicks && !e.clicks.some((k) => steps.some((s) => s.element === k && s.click))) why.push(`brak kliknięcia w: ${e.clicks.join('|')} (kroki: ${steps.map((s) => (s.element || s.order || s.page) + (s.click ? '*' : '')).join(', ') || '-'})`);
 	if (e.noOrderStep && steps.some((s) => s.order)) why.push(`krok z zamówieniem, którego nie powinno być: ${steps.filter((s) => s.order).map((s) => s.order).join(',')}`);
-	const unsafe = steps.filter((s) => s.click && !(BY_KEY.get(s.element) || {}).click);
+	// Klik dozwolony: element z `click` w katalogu albo wiersz zlecenia konta (otwarcie zlecenia).
+	const unsafe = steps.filter((s) => s.click && !s.order && !(BY_KEY.get(s.element) || {}).click);
 	if (unsafe.length) why.push(`klik w niedozwolony element: ${unsafe.map((s) => s.element).join(', ')}`);
 	const refTypes = Object.values(r.refs || {}).map((x) => x.type);
 	if (e.refs && !e.refs.every((t) => refTypes.includes(t))) why.push(`brak odnośników typu ${e.refs.join(',')} (są: ${refTypes.join(',') || '-'})`);
@@ -252,7 +272,7 @@ async function main() {
 		console.log(`\n✖ ${x.sc.id} (${x.sc.account}, ${x.sc.lang}, ${x.sc.page}): ${x.sc.q}`);
 		x.why.forEach((w) => console.log(`   - ${w}`));
 		console.log(`   > ${x.r.answer.replace(/\n/g, '\n     ')}`);
-		(x.r.tour || []).forEach((s, i) => console.log(`     ${i + 1}. ${s.order ? `zamówienie:${s.order} (${s.page}, nr ${s.number})` : s.element || 'strona:' + s.page}${s.click ? ' [klik]' : ''} — ${s.text}`));
+		(x.r.tour || []).forEach((s, i) => console.log(`     ${i + 1}. ${s.order ? `zamówienie:${s.order} (${s.page}, nr ${s.number}${s.action ? `, akcja ${s.action}` : ''})` : s.element || 'strona:' + s.page}${s.click ? ' [klik]' : ''} — ${s.text}`));
 	}
 	console.log('\n── podsumowanie ──');
 	const byArea = {};

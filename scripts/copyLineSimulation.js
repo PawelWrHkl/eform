@@ -130,8 +130,12 @@ function parseArgs(argv) {
     const n = c.checks.reduce((s, k) => s + k.problems.length, 0);
     console.log(`  ✖ [${c.browser}] ${c.key}${c.sourceId ? ` (wzorzec #${c.sourceId})` : ''}: ${c.status === 'blad' ? c.reason : `${n} problem(ów)`}`);
   }
+  // Przerwany przebieg przeglądarki (np. :8000 nie wstał po restarcie) to NIE
+  // jest „bez problemów" — część scenariuszy w ogóle się nie wykonała.
+  const interrupted = result.stats.browserErrors || [];
+  for (const b of interrupted) console.log(`  ✖ [${b.name}] przebieg PRZERWANY: ${b.error} — pozostałe scenariusze nie zostały sprawdzone`);
   if (opts.json) fs.writeFileSync(opts.json, JSON.stringify({ at: new Date().toISOString(), ...result }, null, 2));
-  process.exit(failed.length ? 1 : 0);
+  process.exit(failed.length || interrupted.length ? 1 : 0);
 })().catch((err) => {
   console.error('BŁĄD', err);
   process.exit(2);

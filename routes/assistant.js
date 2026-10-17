@@ -161,7 +161,7 @@ router.get('/order-place/:id', loadEmployeePermissions, async (req, res) => {
 	try {
 		const place = await tools.orderPlace(Number(req.params.id) || 0, tools.scopeFromRequest(req, langOf(req)));
 		if (!place) return res.status(404).json({ success: false });
-		return res.json({ success: true, page: place.page, number: place.number });
+		return res.json({ success: true, page: place.page, number: place.number, actions: place.actions });
 	} catch (err) {
 		log('[assistant] /order-place:', err && err.message);
 		return res.status(500).json({ success: false });

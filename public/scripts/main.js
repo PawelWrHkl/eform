@@ -58,7 +58,8 @@ export async function buildMainSelect(files) {
 	createChecboxField(inputContainer);
 
 	
-	const { container, lastConfigButton } = createLastConfigInfoPopUp();
+	// Ikona w pasku wyboru, przed checkboxem „ostatni wybór” (createChecboxField wyżej).
+	const { container, lastConfigButton } = createLastConfigInfoPopUp(inputContainer);
 	window.lastConfigButton = lastConfigButton
 	lastConfigButton.addEventListener('click', async () => {
 		console.log('🎯 Kliknięto przycisk ładowania ostatniej konfiguracji');

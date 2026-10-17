@@ -272,13 +272,13 @@
 .ea-runner.ea-runner-flip .ea-avatar { transform: scaleX(-1); }
 
 /* run: podskoki, łapa i uszy w rytm biegu, ogon do tyłu */
-.ea-avatar[data-state="run"] .av-svg { animation: av-run-bob 0.26s ease-in-out infinite; transform-origin: 50% 100%; }
-.ea-avatar[data-state="run"] .av-paw-r { animation: av-run-paw 0.26s ease-in-out infinite; }
-.ea-avatar[data-state="run"] .av-ear-l { animation: av-ear-flap 0.26s ease-in-out infinite alternate; }
-.ea-avatar[data-state="run"] .av-ear-r { animation: av-ear-flap 0.26s ease-in-out infinite alternate-reverse; }
+.ea-avatar[data-state="run"] .av-svg { animation: av-run-bob 0.32s ease-in-out infinite; transform-origin: 50% 100%; }
+.ea-avatar[data-state="run"] .av-paw-r { animation: av-run-paw 0.32s ease-in-out infinite; }
+.ea-avatar[data-state="run"] .av-ear-l { animation: av-ear-flap 0.32s ease-in-out infinite alternate; }
+.ea-avatar[data-state="run"] .av-ear-r { animation: av-ear-flap 0.32s ease-in-out infinite alternate-reverse; }
 .ea-avatar[data-state="run"] .av-tail { animation: none; transform: rotate(-28deg); }
 .ea-avatar[data-state="run"] .av-head { transform: rotate(-5deg); }
-.ea-avatar[data-state="run"] .av-shadow { animation: av-run-shadow 0.26s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+.ea-avatar[data-state="run"] .av-shadow { animation: av-run-shadow 0.32s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
 @keyframes av-run-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10%) rotate(3deg); } }
 @keyframes av-run-paw { 0%, 100% { transform: rotate(38deg); } 50% { transform: rotate(-38deg); } }
 @keyframes av-ear-flap { from { transform: rotate(-16deg); } to { transform: rotate(18deg); } }

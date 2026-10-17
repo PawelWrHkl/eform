@@ -488,13 +488,10 @@ export function validateAllFieldsOnSubmit(inputs, values) {
 
         else if (isValid) {
 
-            let extraValidation = findAllValidatorsForInput(inputs[param], values)
-            const paramsToValidate = extraValidation[0]
-
-            if (paramsToValidate?.[param]) {
+            // Zakres ze WSZYSTKICH walidatorów — `findAllValidatorsForInput(...)[0]`
+            // bywał zestawem innego pola i wymiar spoza zakresu przechodził zapis.
+            if (getHardRange(param, values).hasRange) {
                 isValid = validateFormInput(values, inputs[param])
-
-
             }
         }
         

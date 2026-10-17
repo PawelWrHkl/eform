@@ -83,5 +83,11 @@
   "header.order_name": "Order name",
   "totals.net_before_discount": "Net before discount",
   "totals.client_discount": "Customer discount",
-  "collective.note": "Collective invoice for the period {start} – {end}. Orders: {orders}."
+  "collective.note": "Collective invoice for the period {start} – {end}. Orders: {orders}.",
+  "mail.greeting": "Hello,",
+  "mail.intro": "please find attached the invoice for the order that has been shipped to you.",
+  "mail.attachment": "The invoice is attached as a PDF file.",
+  "mail.questions": "If you have any questions, simply reply to this message.",
+  "mail.regards": "Kind regards",
+  "mail.auto_note": "This message was generated automatically by eForm."
 }
