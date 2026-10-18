@@ -4213,3 +4213,38 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-17 10:35:01 - Start ===
 === 2026-10-17 10:35:01 - Dodawanie zmian do commita ===
+[main 2affa9a] Automatic commit 2026-10-17 10:35
+ 52 files changed, 21646 insertions(+), 318 deletions(-)
+ rewrite configtest/nightly.out (99%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 public/img/price-spec.svg
+ create mode 100644 public/scripts/priceSpec.js
+ create mode 100644 public/styles/priceSpec.css
+ create mode 100644 services/__tests__/priceSpec.test.js
+ create mode 100644 services/invoices/invoiceMailer.js
+ create mode 100644 services/invoices/templates/mail/invoice-mail.njk
+ create mode 100644 services/priceSpec/expression.js
+ create mode 100644 services/priceSpec/i18n.js
+ create mode 100644 services/priceSpec/index.js
+ create mode 100644 services/priceSpec/orderContext.js
+ create mode 100644 services/priceSpec/pdf.js
+ create mode 100644 services/priceSpec/scriptLabels.js
+ create mode 100644 templates/partials/price_spec_body.njk
+ create mode 100644 templates/price_spec_document.njk
+=== 2026-10-17 10:35:03 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 59.79 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 104 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 65 high, 30 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   709e06f..2affa9a  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-17 10:35:09 - Koniec ===
+=== 2026-10-17 12:00:01 - Start ===
+=== 2026-10-17 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-18 10:35:01 - Start ===
+=== 2026-10-18 10:35:01 - Dodawanie zmian do commita ===
