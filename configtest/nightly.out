@@ -1,9 +1,9 @@
-=== 2026-10-18 02:00:01 — start nocnego przebiegu ===
-[2026-10-18T00:00:03.149Z] ConfiguratorTester: przebieg przerwany globalnie — page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/user/auth/login?pin=admin&password=eforszef123
+=== 2026-10-19 02:00:01 — start nocnego przebiegu ===
+[2026-10-19T00:00:03.078Z] ConfiguratorTester: przebieg przerwany globalnie — page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/user/auth/login?pin=admin&password=eforszef123
 Call log:
   - navigating to "http://localhost:8000/user/auth/login?pin=admin&password=eforszef123", waiting until "load"
 
-[2026-10-18T00:00:04.160Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (1 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as 98B4E2B1F8B | id <60d9f193-5e50-365c-3180-335440712529@e-orders.eu>
+[2026-10-19T00:00:04.077Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (1 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as 85F382B285C | id <03563dce-8e5c-f3d3-1038-216993c673d6@e-orders.eu>
 ConfiguratorTester crashed: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/user/auth/login?pin=admin&password=eforszef123
 Call log:
   - navigating to "http://localhost:8000/user/auth/login?pin=admin&password=eforszef123", waiting until "load"
@@ -15,4 +15,4 @@ Call log:
     at async /home/pawel/projects/eform-project/eform/scripts/runConfiguratorTest.js:31:9 {
   name: 'Error'
 }
-=== 2026-10-18 02:00:04 — AWARIA testera, kod 2 — sprawdź configtest/configtest.log ===
+=== 2026-10-19 02:00:04 — AWARIA testera, kod 2 — sprawdź configtest/configtest.log ===
