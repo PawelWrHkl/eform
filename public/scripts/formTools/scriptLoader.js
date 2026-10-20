@@ -10,7 +10,7 @@ export function loadScript(scriptFile, values, displayValues, groupNumber, allOp
 
     script.crossOrigin = 'anonymous';
     script.src = scriptPath;
-
+    console.log('Ładowanie skryptu:', scriptPath, 'z wartościami:', values, 'i displayValues:', displayValues, 'dla grupy numer:', groupNumber);
     const scriptInput = prepareValuesForScript(values, displayValues, allOptionsByParameter);
 
 
@@ -34,7 +34,9 @@ export function loadScript(scriptFile, values, displayValues, groupNumber, allOp
         try {
             if (typeof f === 'function') {
 
-                const result = f(scriptInput);
+               const result = f(scriptInput);
+                console.log(result, 'result z scriptLoader', script);
+                                
                 console.log('Wynik funkcji f ze skryptu', result);
                 const roundedResult = roundPrices(result);
                 finished = true;

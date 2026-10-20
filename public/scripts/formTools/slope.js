@@ -640,7 +640,20 @@ export class SourceWindow {
 
         this.close();
     }
+    /**
+     * Inny typ = inny kształt i inne wymiary, więc wartości wpisane dla
+     * poprzedniego typu czyścimy (zgłoszenie 2026-10-19, grupa 39: S1L_25 → S1R_25
+     * zostawiało B/H1/H2 lewego slopa). Ten sam typ niczego nie rusza — `setWar`
+     * woła tu przy każdym wyborze przycisku, a edycja przy wczytaniu zapisanej
+     * pozycji (po `Object.assign` zapisanych wartości).
+     */
     setTyp(typ) {
+        const previous = this.sourceValues['TYP'];
+        if (previous && previous !== typ && this.data?.params) {
+            this.createObject();
+            this.sourceDisplayValues = new Map();
+            this.sourceValidators = {};
+        }
         this.TYP = typ;
         this.sourceValues['TYP'] = typ
     }

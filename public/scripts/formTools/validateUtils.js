@@ -76,6 +76,20 @@ export function getProcedures(inputs, allOptionsByParameter, values, options, ac
 
         Object.entries(window.checkedParams).forEach(([paramName, paramValue]) => {
 
+            // ⚠️ `checkedParams` liczy się na KOŃCU poprzedniego przeliczenia,
+            // więc przy zmianie wyboru trzyma jeszcze starą opcję. Jej procedura
+            // nadpisywała `USTAW(…,"WAR",…)` w `window.constValues`, a najbliższy
+            // `setWar` wpisywał to do formularza — grupa 39: SLOPE25 S1L_25 → S1R_25
+            // w edycji, okno slope wracało z TYP19 na TYP1 po wyborze STRSTERSLOP
+            // (zgłoszenie 2026-10-19; od 2026-10-16 edycja startuje z pełnym
+            // `checkedParams`). Liczymy tylko opcje, które są nadal wybrane.
+            const currentValue = values?.[paramName];
+            const currentOption = currentValue === undefined || currentValue === null ? null
+                : searchForParameter(String(currentValue), allOptionsByParameter || {}, paramName);
+            if (allOptionsByParameter && currentOption?.VALUE !== paramValue?.VALUE) {
+                return;
+            }
+
             try {
 
                 if (paramValue?.PROC) {
