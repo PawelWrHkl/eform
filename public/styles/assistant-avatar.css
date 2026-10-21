@@ -361,11 +361,10 @@
 	.ea-avatar-header { width: 40px; height: 40px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.ea-avatar *,
-	.ea-avatar[data-state] *,
-	.ea-bubble-wrap,
-	.ea-runner,
-	.ea-runner .ea-avatar { animation: none !important; transition: none !important; }
-	.ea-runner-bark.ea-on { animation: none; opacity: 1; transform: translate(-50%, -4px); }
-}
+/* Ograniczenie ruchu: klasa z widget.js (ustawienie systemu, chyba że ASSISTANT_ANIMATE_ALWAYS). */
+.ea-reduced-motion .ea-avatar *,
+.ea-reduced-motion .ea-avatar[data-state] *,
+.ea-reduced-motion .ea-bubble-wrap,
+.ea-reduced-motion .ea-runner,
+.ea-reduced-motion .ea-runner .ea-avatar { animation: none !important; transition: none !important; }
+.ea-reduced-motion .ea-runner-bark.ea-on { animation: none; opacity: 1; transform: translate(-50%, -4px); }

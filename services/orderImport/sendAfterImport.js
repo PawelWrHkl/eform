@@ -18,7 +18,7 @@ const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { log } = require('../../utils/logging');
 const confLang = require('../mailBot/conf');
 const { translateOrderItems } = require('../translationDict/itemTranslator');
-const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../productionDays');
+const { buildItemProductionDays, recalcAndSaveProdDays } = require('../productionDays');
 const { getProductionSendSkipClient } = require('../../utils/productionSendGuard');
 
 function parseJsonField(value, fallback = null) {
@@ -103,7 +103,7 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
   const prodPdfGenerate = deps.generateProductionPdf || generateProductionPdf;
   const prodPdfUpload = deps.uploadProductionPdf || uploadProductionPdf;
   const productionSkipClient = deps.getProductionSendSkipClient || getProductionSendSkipClient;
-  const saveProdDays = deps.recalcAndSaveMaxProdDays || recalcAndSaveMaxProdDays;
+  const saveProdDays = deps.recalcAndSaveProdDays || recalcAndSaveProdDays;
 
   if (!orderId || !user) {
     return { sent: false, error: 'orderId and user are required' };
@@ -122,15 +122,16 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
       return { sent: false, error: 'changeOrderStatus failed' };
     }
 
-    // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
-    // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
-    // kolumnę także dla zamówień sprzed migracji, gdzie jest jeszcze NULL.
-    await saveProdDays(orderId);
+    // Termin produkcji per pozycja liczony w chwili wysyłki i podawany do
+    // JSON-a wprost (`prodDays`) — NIE przez kolumnę `order_item.prod_days`,
+    // której baza bez migracji (produkcja) nie ma. Ponowny odczyt zamówienia
+    // zostaje: daje świeże `sent_date` po zmianie statusu.
+    const { itemProdDays } = await saveProdDays(orderId);
     ({ orderDetails, orderItems } = await ordersDb.getOrderDataToSend(orderId));
     orderItems = normalizeOrderItems(orderItems);
 
     const req = buildImportRequestContext({ ...user, _importLang: lang });
-    const sender = new SenderClass(req, orderDetails, orderItems);
+    const sender = new SenderClass(req, orderDetails, orderItems, { prodDays: itemProdDays });
     const sendData = await sender.init();
     const ignoredProductionClient = productionSkipClient(orderDetails, []);
     const importSendOptions = { forceProductionSend: true };

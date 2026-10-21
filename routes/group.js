@@ -11,7 +11,7 @@ const { generatePdf, generateOrderDocuments } = require('../services/mailBot/pdf
 const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../services/confirmationPolicy');
 const { translateOrderItems } = require('../services/translationDict/itemTranslator');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
-const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../services/productionDays');
+const { buildItemProductionDays, recalcAndSaveProdDays } = require('../services/productionDays');
 const path = require('path');
 const { log } = require('../utils/logging');
 const { formatClientLabel } = require('../utils/formatClient');
@@ -466,13 +466,14 @@ router.post('/approve-order/:orderId', requireLogin, requireGroup, async (req, r
         // Serwis sam pilnuje jednorazowosci (liczy wyslane zamowienia klienta)
         // i nigdy nie rzuca, wiec nie moze przewrocic wysylki zamowienia.
         await notifyFirstOrderIfApplicable(orderId);
-        // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
-        // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
-        // kolumnę także dla zamówień sprzed migracji, gdzie jest jeszcze NULL.
-        await recalcAndSaveMaxProdDays(orderId);
+        // Termin produkcji per pozycja liczony w chwili wysyłki i podawany do
+        // JSON-a wprost (`prodDays`) — NIE przez kolumnę `order_item.prod_days`,
+        // której baza bez migracji (produkcja) nie ma. Ponowny odczyt zamówienia
+        // zostaje: daje świeże `sent_date` po zmianie statusu.
+        const { itemProdDays } = await recalcAndSaveProdDays(orderId);
         ({ orderDetails, orderItems } = await db.getOrderDataToSend(orderId));
 
-        const sender = new OrderSender.OrderSender(req, orderDetails, orderItems);
+        const sender = new OrderSender.OrderSender(req, orderDetails, orderItems, { prodDays: itemProdDays });
         const sendData = await sender.init();
         const forceProductionSend = shouldForceProductionSend(req.body?.productionOrder);
         const ignoredProductionClient = getProductionSendSkipClient(orderDetails, shop?.ident, { forceProductionSend });

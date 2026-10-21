@@ -32,8 +32,8 @@
 	var A = window.eformAssistant;
 	if (!A || A.avatar) return;
 
-	var reduced = false;
-	try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { reduced = false; }
+	// Ograniczenie ruchu decyduje widget.js (ustawienie systemu, chyba że ASSISTANT_ANIMATE_ALWAYS).
+	var reduced = !!A.reducedMotion;
 
 	// Postać: sylwetka mieści się w 100×100, łapka do machania osobno.
 	// Postać: mały biały piesek (własny projekt), sylwetka w 100×100. Prawa

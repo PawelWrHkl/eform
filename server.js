@@ -303,6 +303,8 @@ app.use((req, res, next) => {
 			catalog: assistantCatalog.clientMap(),
 			// Przycisk mikrofonu (rozmowa głosowa) — services/assistant/voice.
 			voice: !!assistantConfig.voice.enabled,
+			// Animacje także przy „ogranicz ruch” w systemie / RDP (ASSISTANT_ANIMATE_ALWAYS).
+			animateAlways: !!assistantConfig.animateAlways,
 			// Szczekanie pieska w pokazie (ASSISTANT_BARK_SOUND) — tylko z maskotką.
 			bark: !!(assistantConfig.avatar.enabled && assistantConfig.avatar.barkSound),
 			// Pokaz krok po kroku: ekrany i flagi kliknięcia elementów (tylko dostępne dla konta).

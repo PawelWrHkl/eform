@@ -56,10 +56,11 @@ test('sendImportedOrder returns error for empty order', async () => {
 });
 
 test('sendImportedOrder changes status, uploads and sends mail with import flag', async () => {
-  const calls = { status: null, saveToFile: 0, sendMail: 0, prodPdf: 0 };
+  const calls = { status: null, saveToFile: 0, sendMail: 0, prodPdf: 0, prodDays: null };
 
   class FakeSender {
-    constructor(_req, orderDetails) {
+    constructor(_req, orderDetails, _items, options = {}) {
+      calls.prodDays = options.prodDays;
       this.slopePaths = [];
       this.data = { orderid: orderDetails.id, commission: orderDetails.commision };
     }
@@ -128,7 +129,7 @@ test('sendImportedOrder changes status, uploads and sends mail with import flag'
       },
       getExtraAttachments: async () => [],
       // jw. — atrapa zapisu `order_item.prod_days`, test nie ma bazy
-      recalcAndSaveMaxProdDays: async () => 0,
+      recalcAndSaveProdDays: async () => ({ maxProdDays: 17, itemProdDays: { 5: 17, 6: null } }),
       generatePdf: async () => Buffer.from('pdf'),
       translateOrderItems: async (_items, clean) => {
         calls.prodPdf += 1;
@@ -155,6 +156,9 @@ test('sendImportedOrder changes status, uploads and sends mail with import flag'
   assert.equal(calls.saveToFile, 1);
   assert.equal(calls.sendMail, 1);
   assert.equal(calls.prodPdf, 1);
+  // Termin per pozycja idzie do JSON-a z przeliczenia, nie z kolumny, której
+  // baza bez migracji (produkcja) nie ma.
+  assert.deepEqual(calls.prodDays, { 5: 17, 6: null });
 });
 
 /* ------------------------------------------------------------------ */
@@ -204,7 +208,7 @@ function harnessAb() {
     buildItemProductionDays: (_items, _times, delay) => { zapisane.delay = delay; return { maxProdDays: 0 }; },
     // Zapis `order_item.prod_days` chodzi po bazie — w teście zastępujemy go
     // atrapą, żeby wysyłka po imporcie dawała się sprawdzić bez MySQL-a.
-    recalcAndSaveMaxProdDays: async () => 0,
+    recalcAndSaveProdDays: async () => ({ maxProdDays: 0, itemProdDays: {} }),
     getProductionSendSkipClient: () => null,
     formatSendTotals: async (d) => d,
     sendMailAsync: async (to, _lang, _pdf, _att, _vars, bcc, _tpl, _subj, options) => {

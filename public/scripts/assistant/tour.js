@@ -56,8 +56,8 @@
 		cancel: '.cancel-order-btn',
 		delete: '.delete-position-btn'
 	};
-	var reduced = false;
-	try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { reduced = false; }
+	// Ograniczenie ruchu decyduje widget.js (ustawienie systemu, chyba że ASSISTANT_ANIMATE_ALWAYS).
+	var reduced = !!A.reducedMotion;
 
 	// Tempo pokazu (ms) — klient ma spokojnie przeczytać dymek, zanim piesek pobiegnie dalej.
 	// „Dalej" w dymku pozwala przyspieszyć.

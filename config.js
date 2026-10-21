@@ -178,6 +178,11 @@ module.exports = {
       // `ASSISTANT_BARK_SOUND=true` — piesek szczeka (krótki dźwięk) w pokazie;
       // klient może go wyciszyć przyciskiem głośnika w dymku pokazu.
       barkSound: envSwitch(process.env.ASSISTANT_BARK_SOUND)
-    }
+    },
+    // `ASSISTANT_ANIMATE_ALWAYS=true` — piesek biega i się rusza także wtedy, gdy
+    // system prosi o ograniczenie ruchu (prefers-reduced-motion). Pulpit zdalny
+    // (RDP) i tryb „najlepsza wydajność” Windows włączają to po cichu i bez tego
+    // pokaz traci animacje. `false` = szanujemy ustawienie systemu.
+    animateAlways: envSwitch(process.env.ASSISTANT_ANIMATE_ALWAYS)
   }
 };

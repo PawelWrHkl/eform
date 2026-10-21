@@ -16,6 +16,16 @@ function normalizeProdDays(value) {
     return Number.isFinite(dni) ? dni : null;
 }
 
+// Termin wyliczony w chwili wysyłki ma pierwszeństwo przed kolumną — mapa
+// z `recalcAndSaveProdDays()` zna każdą pozycję (także z `null`).
+function resolveItemProdDays(item, prodDaysByItemId) {
+    const itemId = item?.id;
+    if (prodDaysByItemId && itemId != null && Object.prototype.hasOwnProperty.call(prodDaysByItemId, itemId)) {
+        return prodDaysByItemId[itemId];
+    }
+    return item?.prod_days;
+}
+
 class OrderSender {
 
     constructor(req, order, orderItems, options = {}) {
@@ -86,12 +96,12 @@ class OrderSender {
                 ...(eforRabat ? { efor_rabat: eforRabat.percent } : {}),
                 // Szacowany termin produkcji POZYCJI (dni) — dokładnie ta sama
                 // liczba, którą klient widzi w wierszu „Termin produkcji" pod
-                // pozycją. Źródłem jest kolumna `order_item.prod_days`, liczona
-                // i zapisywana przez `services/productionDays.js`
-                // (`recalcAndSaveMaxProdDays`) — wysyłka jej NIE przelicza, żeby
-                // FTP dostał to samo, co było na ekranie. `null` = brak czasu
-                // dla grupy asortymentowej.
-                prod_days: normalizeProdDays(item?.prod_days),
+                // pozycją. Źródłem jest wynik `recalcAndSaveProdDays()`
+                // (`services/productionDays.js`) przekazany przez tor wysyłki
+                // w `options.prodDays`; kolumna `order_item.prod_days` to tylko
+                // zapas, bo na bazie bez migracji (produkcja) jej nie ma.
+                // `null` = brak czasu dla grupy asortymentowej.
+                prod_days: normalizeProdDays(resolveItemProdDays(item, options.prodDays)),
                 parameters: sortedFilteredObj,
                 comment: item.comment,
                 asortment: item.asrotment_group_number,

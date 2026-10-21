@@ -383,9 +383,8 @@
 /* Miejsce na avatara — zajmie je przyszły moduł (patrz voice.js) */
 .ea-avatar-slot[hidden] { display: none; }
 
-@media (prefers-reduced-motion: reduce) {
-	.ea-voice-dot { animation: none !important; }
-}
+/* Ograniczenie ruchu: klasa z widget.js (ustawienie systemu, chyba że ASSISTANT_ANIMATE_ALWAYS). */
+.ea-reduced-motion .ea-voice-dot { animation: none !important; }
 
 /* Okno ustępuje miejsca wskazanemu elementowi, który leży pod nim (widget.js: dodge) */
 #eform-assistant.ea-dock-left .ea-panel { right: auto; left: 24px; }
@@ -406,10 +405,8 @@
 	50% { box-shadow: 0 0 0 12px rgba(245, 158, 11, 0.12); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.ea-highlight { animation: none; }
-	.ea-launcher { transition: none; }
-}
+.ea-reduced-motion .ea-highlight { animation: none; }
+.ea-reduced-motion .ea-launcher { transition: none; }
 
 /* Telefon: nad dolnym paskiem nawigacji, okno na całą szerokość */
 @media (max-width: 767.98px) {
@@ -532,13 +529,11 @@
 .ea-tour .ea-tour-sound:hover,
 .ea-tour .ea-tour-sound:focus-visible { opacity: 1; background: rgba(15, 23, 42, 0.06); }
 
-@media (prefers-reduced-motion: reduce) {
-	.ea-tour-ring,
-	.ea-tour-finger,
-	.ea-tour-callout { transition: none; animation: none; }
-	.ea-tour-finger.ea-tour-tap svg,
-	.ea-tour-ripple.ea-tour-ripple-on { animation: none; }
-}
+.ea-reduced-motion .ea-tour-ring,
+.ea-reduced-motion .ea-tour-finger,
+.ea-reduced-motion .ea-tour-callout { transition: none; animation: none; }
+.ea-reduced-motion .ea-tour-finger.ea-tour-tap svg,
+.ea-reduced-motion .ea-tour-ripple.ea-tour-ripple-on { animation: none; }
 
 @media print {
 	.ea-tour { display: none !important; }

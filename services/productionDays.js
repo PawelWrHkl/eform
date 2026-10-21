@@ -183,16 +183,35 @@ function buildItemProductionDays(cleanOrderItems, productionTimes, deliveryDelay
 
 module.exports = {
     computeItemProductionDays, buildItemProductionDays, ELECTRIC_EXTRA_DAYS, COUPON_PRODUCTION_DAYS,
-    isCoupon, recalcAndSaveMaxProdDays,
+    isCoupon, recalcAndSaveMaxProdDays, recalcAndSaveProdDays,
     applyDeliveryDelay, resolveDeliveryDelay, getOrderDeliveryDelay
 };
 
 async function recalcAndSaveMaxProdDays(orderId) {
+    const { maxProdDays } = await recalcAndSaveProdDays(orderId);
+    return maxProdDays;
+}
+
+/**
+ * Przelicza i zapisuje termin produkcji zamówienia oraz każdej pozycji.
+ *
+ * Zwraca też wyliczony termin per pozycja — tory wysyłki przekazują go do
+ * `OrderSender` (`options.prodDays`), żeby JSON na FTP nie zależał od kolumny
+ * `order_item.prod_days`. ⚠️ Na bazie bez `migration_item_prod_days.sql`
+ * (stan produkcji 2026-10-20) zapis per pozycja pada, a odczyt kolumny daje
+ * `undefined` — wtedy JSON wychodził z `prod_days: null`, choć widok zlecenia
+ * pokazywał termin (liczony na żywo przy renderze).
+ *
+ * @param {number|string} orderId
+ * @returns {Promise<{ maxProdDays: number, itemProdDays: Record<string, number|null> }>}
+ */
+async function recalcAndSaveProdDays(orderId) {
+    let wynik;
     try {
         const { orderDetails, orderItems } = await db.getOrderWithItems(orderId);
         if (!orderItems || orderItems.length === 0) {
             await db.updateMaxProdDays(orderId, 0);
-            return 0;
+            return { maxProdDays: 0, itemProdDays: {} };
         }
         const details = Array.isArray(orderDetails) ? orderDetails[0] : orderDetails;
         const orgId = details?.organization_id;
@@ -202,15 +221,21 @@ async function recalcAndSaveMaxProdDays(orderId) {
         // `order.max_prod_days` wprost z bazy i nie doliczają go ponownie.
         const deliveryDelay = await getOrderDeliveryDelay(orderId);
         const { maxProdDays, allItemProductionDays } = buildItemProductionDays(cleanOrderItems, productionTimes, deliveryDelay);
-        await db.updateMaxProdDays(orderId, maxProdDays);
-        // Termin per POZYCJA ląduje w `order_item.prod_days` — stąd bierze go JSON
-        // zamówienia wysyłany na FTP (`services/sendOrderService.js`, klucz
-        // `prod_days`). Liczymy dokładnie tę samą wartość, którą widzi klient
-        // w wierszu „Termin produkcji", razem z jego `delivery_delay`.
-        await db.updateItemsProdDays(allItemProductionDays);
-        return maxProdDays;
+        wynik = { maxProdDays, itemProdDays: allItemProductionDays };
     } catch (err) {
-        console.error('recalcAndSaveMaxProdDays error:', err);
-        return 0;
+        console.error('recalcAndSaveProdDays error:', err);
+        return { maxProdDays: 0, itemProdDays: {} };
     }
+    // Zapis osobno od wyliczenia: nieudany zapis nie może zabrać wysyłce
+    // terminu, który już znamy.
+    try {
+        await db.updateMaxProdDays(orderId, wynik.maxProdDays);
+        // Termin per POZYCJA ląduje w `order_item.prod_days` — dokładnie ta sama
+        // wartość, którą widzi klient w wierszu „Termin produkcji", razem z jego
+        // `delivery_delay`.
+        await db.updateItemsProdDays(wynik.itemProdDays);
+    } catch (err) {
+        console.error('recalcAndSaveProdDays save error:', err);
+    }
+    return wynik;
 }

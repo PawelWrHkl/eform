@@ -9,7 +9,7 @@ const { generateOrderDocuments } = require('../mailBot/pdfGenerator');
 const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../confirmationPolicy');
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
-const { buildItemProductionDays, recalcAndSaveMaxProdDays } = require('../productionDays');
+const { buildItemProductionDays, recalcAndSaveProdDays } = require('../productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../../utils/productionSendGuard');
 const {
     orderHasSubPrices,
@@ -72,13 +72,15 @@ async function submitCorrection(req, orderId, prices) {
         log(`Korekta ${orderId}: status ustawiony na 'sent', ale nie udało się zapisać cen:`, err);
     }
 
-    // Termin produkcji per pozycja musi być świeży w chwili wysyłki: JSON na
-    // FTP bierze go wprost z `order_item.prod_days`. Przeliczenie odtwarza tę
-    // kolumnę także dla zamówień sprzed migracji, gdzie jest jeszcze NULL.
-    await recalcAndSaveMaxProdDays(orderId);
+    // Termin produkcji per pozycja liczony w chwili wysyłki i podawany do
+    // JSON-a wprost (`prodDays`) — NIE przez kolumnę `order_item.prod_days`,
+    // której baza bez migracji (produkcja) nie ma. Ponowny odczyt zamówienia
+    // zostaje: daje świeże `sent_date` po zmianie statusu.
+    const { itemProdDays } = await recalcAndSaveProdDays(orderId);
     ({ orderDetails, orderItems } = await db.getOrderDataToSend(orderId));
 
     const sender = new OrderSender(req, orderDetails, orderItems, {
+        prodDays: itemProdDays,
         orgIdent: orderDetails.org_ident,
         userIdent: orderDetails.user_ident,
         fileNameSuffix: CORRECTION_FILE_SUFFIX

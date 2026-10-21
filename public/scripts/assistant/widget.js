@@ -24,6 +24,12 @@
 
 	var S = boot.strings || {};
 	var CATALOG = boot.catalog || {};
+	// Ograniczenie ruchu: system prosi o mniej animacji (prefers-reduced-motion) — chyba że
+	// ASSISTANT_ANIMATE_ALWAYS (Pulpit zdalny włącza tę prośbę po cichu). Klasa na <html>
+	// steruje stylami asystenta (assistant*.css), `reducedMotion` — skryptami (tour, avatar).
+	var reducedMotion = false;
+	try { reducedMotion = !boot.animateAlways && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { reducedMotion = false; }
+	if (reducedMotion) document.documentElement.classList.add('ea-reduced-motion');
 	var SUGGESTIONS = Array.isArray(boot.suggestions) ? boot.suggestions : [];
 	var OPEN_KEY = 'eformAssistant.open';
 	var HIGHLIGHT_MS = 8000;
@@ -538,6 +544,7 @@
 
 	window.eformAssistant = {
 		strings: S,
+		reducedMotion: reducedMotion,
 		voiceEnabled: !!boot.voice,
 		root: root,
 		panel: panel,

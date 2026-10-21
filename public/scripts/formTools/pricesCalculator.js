@@ -147,6 +147,16 @@ function setRowAfter(displayValues, afterKey, key, entry) {
 /** Klucze wierszy rabatu w `displayValues` — z prefiksem SUB___, patrz niżej. */
 const CLIENT_DISCOUNT_KEYS = ['SUB___RABAT_KLIENTA'];
 
+/**
+ * Kwoty `SUB___`, których `applyClientDiscount` NIE pomniejsza przy widocznych
+ * cenach klienta: końcówka łańcucha (rabat już w niej siedzi) i VAT (liczony od
+ * kwoty sprzed rabatu).
+ */
+const CLIENT_LIST_DISCOUNT_SKIP = new Set([
+    'CENA_KONCOWA', 'WARTOSC_KONCOWA', 'WARTOSC_PO_RABACIE',
+    'VAT', 'WARTOSC_VAT', 'WARTOSC_BRUTTO'
+]);
+
 
 /**
  * ⚠️ Rejestracja w `window.subParams` i `window.lockedParams` jest KONIECZNA:
@@ -508,6 +518,30 @@ export function applyClientDiscount(values, displayValues) {
     if (Number.isFinite(positionAfterDiscount) && koncowaRow) {
         koncowaRow.option_value = String(positionAfterDiscount);
         displayValues.set('SUB___WARTOSC_KONCOWA', koncowaRow);
+    }
+
+    // Widoczne (niezablokowane) kwoty klienta — CENA DET., DOPŁATA DET., CENA
+    // ŁĄCZNA, WARTOŚĆ BR. — pokazujemy JUŻ PO rabacie klienta grupy (zgłoszenie
+    // 2026-10-21: klient z 60% rabatu widział ceny jak przy rabacie zero).
+    // Zmienia to decyzję z 2026-08-21, wg której widoczne wiersze zostawały bez
+    // rabatu.
+    // ⚠️ Wyłącznie `displayValues` i zawsze liczone od `values` (kwoty silnika
+    // sprzed rabatu): formuły czytają `values`, więc przy kolejnym przeliczeniu
+    // rabat nie nałoży się drugi raz, a VAT (`applyVatToGrossValue`) dalej liczy
+    // się od kwoty sprzed rabatu.
+    if (clientPct > 0) {
+        const factor = 1 - Math.min(100, clientPct) / 100;
+        for (const [key, row] of displayValues) {
+            if (!key.startsWith('SUB___') || key.endsWith('_S') || !row || row.locked === true) continue;
+            if (CLIENT_LIST_DISCOUNT_SKIP.has(key.slice('SUB___'.length)) || key.includes('RABAT')) continue;
+            // Wiersz bez kwoty (parametr wyłączony w tej konfiguracji) zostaje
+            // pusty — inaczej w widoku pojawiłoby się nowe „0".
+            if (row.option_value === undefined || row.option_value === null || row.option_value === '') continue;
+            const num = parseFloat(values[key]);
+            if (!Number.isFinite(num)) continue;
+            row.option_value = formatNumberForDisplay(parseFloat((num * factor).toFixed(2)));
+            displayValues.set(key, row);
+        }
     }
 
     // Sprzątanie po poprzednim modelu rabatu (do 2026-09-11 rabat miał WŁASNY
