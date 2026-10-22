@@ -612,7 +612,7 @@
         {# Aktywny kontekst konta podrzędnego grupy — skrypty muszą wiedzieć, że
            zamówienie zakładane „na klienta" nie jest zwykłym zamówieniem grupy. #}
         window.groupShopContextId = {% if groupShopContext %}{{ groupShopContext.id }}{% else %}null{% endif %};
-        window.hidePrices = {{ hidePrices | dump }};
+        window.hidePrices = {{ hidePrices | default(false) | dump }};
         window.priceFactor = {{ priceFactor | dump | default("1") }};
         window.canViewSubPrices = {{ canViewSubPrices | dump | default("false") }};
         window.viewAsOrganization = {{ viewAsOrganization | dump | default("false") }};

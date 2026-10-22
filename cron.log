@@ -4308,3 +4308,25 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-21 10:35:01 - Start ===
 === 2026-10-21 10:35:01 - Dodawanie zmian do commita ===
+[main f09ee55] Automatic commit 2026-10-21 10:35
+ 24 files changed, 14570 insertions(+), 313 deletions(-)
+ rewrite configtest/nightly.out (66%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 services/__tests__/sendOrderProdDays.test.js
+=== 2026-10-21 10:35:03 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 61.92 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 104 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 65 high, 30 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   0a509be..f09ee55  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-21 10:35:10 - Koniec ===
+=== 2026-10-21 12:00:01 - Start ===
+=== 2026-10-21 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-22 10:35:01 - Start ===
+=== 2026-10-22 10:35:01 - Dodawanie zmian do commita ===

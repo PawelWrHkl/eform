@@ -1179,11 +1179,23 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         // `totalPrice` jak `order_to_print.njk`/`order_to_print_short.njk`.
         // Nie dubluj kwoty w mailu: `sendData.total_hidden` powstaje z `subLocked`,
         // ktory od teraz jest wartoscia PO rabacie klienta (services/subPrices.js).
-        if (showClientDiscount && totalPrice.afterClientDiscount
-            && totalPrice.afterClientDiscount !== totalPrice.subLocked) {
-            sendData.total_client_discount = `${__('form.value_after_discount_label')}: ${formatAmount(totalPrice.afterClientDiscount, priceCurrency)}`;
+        // ⚠️ Grupa typu `client` po kłódce: suma po rabacie = stary wiersz
+        // „Wartość po rabacie" ALBO `subLocked` (`SUB___WARTOSC_KONCOWA` z rabatem
+        // w środku, pozycje od 2026-09-11) — tak jak stopka `order.njk`. Warunek
+        // `!== subLocked` chował ją przy każdej nowej pozycji (zgłoszenie 2026-10-21).
+        const afterDiscountTotal = isGroupClientPdf
+            ? (totalPrice.afterClientDiscount || totalPrice.subLocked)
+            : (totalPrice.afterClientDiscount !== totalPrice.subLocked ? totalPrice.afterClientDiscount : null);
+        if (showClientDiscount && afterDiscountTotal && Number(afterDiscountTotal) !== 0) {
+            sendData.total_client_discount = `${__('form.value_after_discount_label')}: ${formatAmount(afterDiscountTotal, priceCurrency)}`;
         } else {
             sendData.total_client_discount = null;
+        }
+        // Grupa-matka typu `client` po kłódce widzi też sumę SWOJEGO klienta
+        // („Razem” obok „HKL Razem”) — jak stopka `order.njk` (templates/order.njk).
+        if (isGroupClientPdf && !res.locals.isGroupShop && discountUnlocked
+            && totalPrice.subVisible && Number(totalPrice.subVisible) !== 0 && sendData.total) {
+            sendData.total_sub = `${__('order.total')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}`;
         }
 
         const currentUser = ownerService.getCurrentUser(req);

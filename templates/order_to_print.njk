@@ -426,11 +426,11 @@
                 </div>
             {% endif %}
             {# Ta sama zasada co w order.njk — bez dublowania kwoty z podsumowania. #}
-{% if showClientDiscount and totalPrice and totalPrice.afterClientDiscount and totalPrice.afterClientDiscount != totalPrice.subLocked %}
+{% set afterDiscountTotal = ((totalPrice.afterClientDiscount or totalPrice.subLocked) if isGroupClientType else (totalPrice.afterClientDiscount if totalPrice.afterClientDiscount != totalPrice.subLocked else null)) if totalPrice else null %}{% if showClientDiscount and afterDiscountTotal and afterDiscountTotal != 0 %}
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label print-discount-price col-3 text-center'>
-                            {{ __('form.value_after_discount_label') }}: <span class="pdf-val">{{ totalPrice.afterClientDiscount }}{{ currencySuffix | default('€') }}</span>
+                            {{ __('form.value_after_discount_label') }}: <span class="pdf-val">{{ afterDiscountTotal }}{{ currencySuffix | default('€') }}</span>
                         </span>
                     </div>
                 </div>
