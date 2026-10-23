@@ -17,6 +17,7 @@ const adminRoutes = require('./routes/admin');
 const addressRoutes = require('./routes/address');
 const invoiceRoutes = require('./services/invoices/http/routes');
 const invoicePanelRoutes = require('./services/invoices/http/panel');
+const { canAccessInvoices } = require('./services/invoices/access');
 const orgCustomersRoutes = require('./routes/orgCustomers');
 const clientTermsRoutes = require('./routes/clientTerms');
 const userPanelRoutes = require('./routes/userPanel');
@@ -214,9 +215,10 @@ app.use((req, res, next) => {
 	// do kartoteki odbiorców końcowych — składa wyłącznie zamówienia. Flaga
 	// gasi zarówno wejście w menu, jak i sekcję odbiorcy w formularzu
 	// zamówienia (`invoicesEnabled` bramkuje oba miejsca), a same trasy
-	// `/invoices` i `/api/v1/invoices` odcina `blockGroupShop` niżej.
+	// `/invoices` i `/api/v1/invoices` odcina `requireInvoicesAccess` niżej.
+	// Przy `INVOICES_ADMIN_ONLY=true` — tylko administrator (services/invoices/access.js).
 	const isGroupShopSession = !!req.session?.user?.isGroupShop;
-	res.locals.invoicesEnabled = !!features?.invoices && !isGroupShopSession;
+	res.locals.invoicesEnabled = canAccessInvoices(req.session?.user, features);
 	res.locals.orgCustomersEnabled = !!features?.orgCustomers && !isGroupShopSession;
 	// ⚠️ Warunek widoczności wejścia w menu MUSI być liczony tutaj, a nie
 	// z `owner`/`admin` w szablonie: `owner` jest lokalną zmienną pojedynczego
@@ -381,11 +383,26 @@ function blockGroupShop(req, res, next) {
 	return next();
 }
 
+// Moduł faktur: konto podrzędne grupy jak wyżej, a przy `INVOICES_ADMIN_ONLY=true`
+// także wszyscy poza administratorem — reguła wspólna z menu i asystentem
+// (services/invoices/access.js).
+function requireInvoicesAccess(req, res, next) {
+	const sessionUser = req.session?.user;
+	// Niezalogowanego przekieruje do logowania `requireLogin` w routerze —
+	// każda trasa modułu go ma, a admin po wygaśnięciu sesji ma trafić na
+	// logowanie, nie na „Brak dostępu".
+	if (!sessionUser || canAccessInvoices(sessionUser, features)) return next();
+	if (req.accepts('html') && !req.xhr) {
+		return res.status(403).render('error.njk', { message: 'Brak dostępu' });
+	}
+	return res.status(403).json({ success: false, message: 'Brak dostępu' });
+}
+
 if (features?.invoices) {
-	app.use('/api/v1/invoices', blockGroupShop, invoiceRoutes);
+	app.use('/api/v1/invoices', requireInvoicesAccess, invoiceRoutes);
 	// Panel ownera dla faktur (widoki HTML; dane bierze z API powyżej)
-	app.use('/invoices', blockGroupShop, invoicePanelRoutes);
-	log('[invoices] moduł włączony (INVOICES_ENABLED=true)');
+	app.use('/invoices', requireInvoicesAccess, invoicePanelRoutes);
+	log(`[invoices] moduł włączony (INVOICES_ENABLED=true)${features.invoicesAdminOnly ? ' — TYLKO dla administratora (INVOICES_ADMIN_ONLY=true)' : ''}`);
 } else {
 	log('[invoices] moduł WYŁĄCZONY — /invoices i /api/v1/invoices nie są montowane');
 }

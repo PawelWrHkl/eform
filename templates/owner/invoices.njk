@@ -109,6 +109,11 @@
         </p>
       </section>
 
+      {# Przegląd „wystawione / niewystawione" dla każdego nabywcy (poziomy 1 i 2) #}
+      {% if overview %}
+        {% include "owner/partials/invoice_overview.njk" %}
+      {% endif %}
+
     </div>
   </div>
 

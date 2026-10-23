@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { renderInvoiceHtml, createTranslator, buildThemeCss, SUPPORTED_LANGS } = require('../render/renderer');
+const { renderInvoiceHtml, createTranslator, buildThemeCss, summarizeItemDiscounts, SUPPORTED_LANGS } = require('../render/renderer');
 
 const payload = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'examples', 'invoice-payload.json'), 'utf8'));
 
@@ -24,6 +24,12 @@ function ctx(overrides = {}) {
     template: overrides.template || {},
     logoDataUri: overrides.logoDataUri || ''
   };
+}
+
+/** Sama tabela pozycji — arkusz CSS wklejony w dokument też zawiera nazwy klas kolumn. */
+function itemsTable(html) {
+  const start = html.indexOf('<table class="items');
+  return html.slice(start, html.indexOf('</table>', start) + '</table>'.length);
 }
 
 test('i18n: wszystkie języki mają ten sam zestaw kluczy', () => {
@@ -55,6 +61,55 @@ test('render: dokument zawiera numer, strony i kwoty w walucie dokumentu', () =>
   // 2 099,00 EUR netto — separator zależny od locale dokumentu (de)
   assert.match(html, /2\.099,00/, 'kwoty formatowane w locale dokumentu (de)');
   assert.match(html, /1\.523,00/, 'do zapłaty po odliczeniu zaliczki');
+});
+
+test('render: klient z rabatem — trzy kolumny: cena przed rabatem, rabat, cena po rabacie', () => {
+  const base = ctx();
+  // Pierwsza pozycja z rabatem 60% (1 460,00 → 584,00), pozostałe bez rabatu
+  const items = base.invoice.items.map((it, i) => (i === 0
+    ? { ...it, meta: { ...(it.meta || {}), priceBeforeDiscountMinor: 146000, discountPercent: 60 } }
+    : it));
+  const table = itemsTable(renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'pl', items } }));
+
+  assert.match(table, /^<table class="items items--discount">/);
+  assert.match(table, /<th class="col-before">Cena przed rabatem<\/th>\s*<th class="col-disc">Rabat<\/th>\s*<th class="col-net">Cena po rabacie<\/th>/);
+  assert.doesNotMatch(table, /Wartość netto/, 'kolumna „po rabacie” zastępuje „Wartość netto”');
+  // Polski zapis nie grupuje liczb czterocyfrowych (1460,00) — separator opcjonalny
+  assert.match(table, /<td class="col-before">1\s?460,00<\/td>\s*<td class="col-disc">60%<\/td>\s*<td class="col-net">584,00<\/td>/);
+  // Pozycja bez rabatu: „przed” = netto, rabat „—”
+  assert.match(table, /<td class="col-before">1\s?215,00<\/td>\s*<td class="col-disc">—<\/td>\s*<td class="col-net">1\s?215,00<\/td>/);
+  // RAZEM przed rabatem: 1460 + 1215 + 300 = 2975,00; po rabacie = suma netto 2099,00
+  assert.match(table, /<td class="col-before">2\s?975,00<\/td>\s*<td><\/td>\s*<td class="col-net">2\s?099,00<\/td>/);
+});
+
+test('render: różne rabaty składników ceny (Cozy) — rozbicie pod łącznym procentem', () => {
+  const base = ctx();
+  const items = base.invoice.items.map((it, i) => (i === 0
+    ? { ...it, netAmount: 22870, meta: { ...(it.meta || {}), priceBeforeDiscountMinor: 48800, discountPercent: 53.14, discountTerms: [{ part: 'price', percent: 60 }, { part: 'surcharges', percent: 35 }] } }
+    : it));
+  const pl = itemsTable(renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'pl', items } }));
+  assert.match(pl, /<td class="col-disc">53,14%<span class="items__terms"><span class="items__term">cena 60%<\/span><span class="items__term">dopłaty 35%<\/span><\/span><\/td>/);
+  const de = itemsTable(renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'de', items } }));
+  assert.match(de, /<span class="items__term">Preis 60\s?%<\/span><span class="items__term">Aufpreise 35\s?%<\/span>/);
+});
+
+test('render: bez rabatów tabela pozycji jak dotąd', () => {
+  const base = ctx();
+  const table = itemsTable(renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'pl' } }));
+  assert.match(table, /^<table class="items">/);
+  assert.match(table, /<th class="col-net">Wartość netto<\/th>/);
+  assert.doesNotMatch(table, /col-before|col-disc/);
+});
+
+test('summarizeItemDiscounts: przełącznik i suma przed rabatem (pozycja bez rabatu liczy się netto)', () => {
+  assert.deepEqual(summarizeItemDiscounts([]), { show: false, beforeTotal: 0 });
+  assert.deepEqual(summarizeItemDiscounts([{ netAmount: 100 }, { netAmount: 50, meta: {} }]), { show: false, beforeTotal: 150 });
+  assert.deepEqual(
+    summarizeItemDiscounts([{ netAmount: 13896, meta: { priceBeforeDiscountMinor: 34740, discountPercent: 60 } }, { netAmount: 500 }]),
+    { show: true, beforeTotal: 35240 }
+  );
+  // Niespójne meta (procent bez kwoty) — liczy się netto, nie 0
+  assert.equal(summarizeItemDiscounts([{ netAmount: 700, meta: { discountPercent: 10 } }]).beforeTotal, 700);
 });
 
 test('render: język dokumentu decyduje o etykietach', () => {

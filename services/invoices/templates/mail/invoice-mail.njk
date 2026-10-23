@@ -13,11 +13,11 @@
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e1e4e8;border-radius:6px;">
   {% if redirect %}
   <tr><td style="padding:14px 24px;background:#fff4ce;border-bottom:1px solid #f0d27a;border-radius:6px 6px 0 0;font-size:13px;line-height:1.5;">
-    <strong>TRYB TESTOWY — ten mail NIE trafił do klienta.</strong><br>
+    <strong>TRYB TESTOWY ({{ redirect.envLabel }}) — ten mail NIE trafił do klienta.</strong><br>
     {% if redirect.intendedTo %}
-    W trybie produkcyjnym adresat: <strong>{{ redirect.intendedTo }}</strong>
+    Normalnie trafiłby do: <strong>{{ redirect.intendedTo }}</strong>
     {% else %}
-    <strong>Nabywca nie ma adresu e-mail</strong> — w trybie produkcyjnym ten mail nie zostałby wysłany.
+    <strong>Nabywca nie ma adresu e-mail</strong> — przy wysyłce do klientów ten mail by nie wyszedł.
     {% endif %}
     (nabywca: {{ invoice.buyer.name }}, poziom {{ invoice.level }}{% if invoice.orderId %}, zamówienie id {{ invoice.orderId }}{% endif %}).
     {% if redirect.replyTo %}<br>Odpowiedź klienta trafiłaby do: {{ redirect.replyTo }}{% endif %}

@@ -72,6 +72,11 @@ module.exports = {
     // Brak zmiennej = wyłączone (ta sama konwencja co `vat`).
     invoices: [process.env.INVOICES_ENABLED, process.env.INVOICES, process.env.INVOICE]
       .some((v) => String(v).toLowerCase() === 'true'),
+    // `INVOICES_ADMIN_ONLY=true` — moduł faktur (menu, panel, API, odbiorca
+    // w zamówieniu, asystent) widzi WYŁĄCZNIE administrator; automat i maile
+    // działają normalnie. Reguła w `services/invoices/access.js`. Ma sens
+    // tylko razem z `INVOICES_ENABLED=true`.
+    invoicesAdminOnly: String(process.env.INVOICES_ADMIN_ONLY).toLowerCase() === 'true',
 
     // Moduł „Klienci organizacji" (`/org/customers`). Przy `false` router nie
     // jest w ogóle montowany (adresy zwracają 404) — ta sama konwencja co

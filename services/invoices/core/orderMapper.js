@@ -198,6 +198,24 @@ function mapOrderItemsToInvoiceItems({ orderItems, resolveTax, currency = 'EUR',
     // pokazujemy w kolumnie „ilość" jako informację.
     const unitPriceNetMinor = totalNetMinor;
 
+    // Rabat klienta organizacji (warstwa SUB — np. klient Luxanu albo Cozy): faktura
+    // pokazuje cenę PRZED rabatem, rabat i cenę po rabacie, jak klient widzi to
+    // w zamówieniu (decyzja właściciela 2026-10-22). Tylko do WYDRUKU, w `meta` —
+    // kwoty liczą się dalej z wartości po rabacie, bo zaliczka i częściowe
+    // fakturowanie (`main.js`) traktują `unitPriceNetMinor` jako wartość netto.
+    // Procent z obu kwot, nie nominalny `SUB___CENA_RABAT`: w „po” siedzi też rabat
+    // klienta (grupa, bonus portalu — `form.js`), więc nominalny by się nie zgadzał.
+    const beforeDiscountMinor = priceSource === 'sub'
+      ? money.toMinor(num(params[OrderParam.SUB_LIST_VALUE]), currency)
+      : 0;
+    const discount = beforeDiscountMinor > totalNetMinor && totalNetMinor > 0
+      ? {
+        priceBeforeDiscountMinor: beforeDiscountMinor,
+        discountPercent: discountPercentOf(beforeDiscountMinor, totalNetMinor),
+        ...discountTermsOf(params)
+      }
+      : {};
+
     const tax = resolveTax({ isService: isInstallation, isInstallation });
 
     return {
@@ -224,10 +242,47 @@ function mapOrderItemsToInvoiceItems({ orderItems, resolveTax, currency = 'EUR',
         asortmentGroup: item.asortment_group_number || null,
         department: item.department || null,
         orderPosition: item.orderpos || null,
-        discountPercentSource: item.discount_percentage != null ? Number(item.discount_percentage) : null
+        discountPercentSource: item.discount_percentage != null ? Number(item.discount_percentage) : null,
+        ...discount
       }
     };
   });
+}
+
+/**
+ * Rabat w procentach z wartości przed i po rabacie (2 miejsca po przecinku) —
+ * `przed × (100% − rabat) = po`, więc trzy kolumny na fakturze się zgadzają.
+ *
+ * @param {number} beforeMinor
+ * @param {number} afterMinor
+ * @returns {number} np. 60 albo 61.6
+ */
+function discountPercentOf(beforeMinor, afterMinor) {
+  return Math.round((1 - afterMinor / beforeMinor) * 10000) / 100;
+}
+
+/** Składniki ceny SUB z własnym rabatem — kolejność jak na wydruku. */
+const SUB_DISCOUNT_PARTS = Object.freeze([
+  { part: 'price', base: 'SUB___CENA', rate: 'SUB___CENA_RABAT' },
+  { part: 'surcharges', base: 'SUB___DOPLATA', rate: 'SUB___DOPLATA_RABAT' },
+  { part: 'el_surcharges', base: 'SUB___DOPLATA_EL', rate: 'SUB___DOPLATA_EL_RABAT' }
+]);
+
+/**
+ * Warunki rabatu klienta, gdy składniki ceny mają RÓŻNE rabaty — np. klient Cozy:
+ * 60% od ceny katalogowej i 35% od dopłat (`OPIS_RABATU` „CATALOGUSPRIJS
+ * KORTING=60.00%,EXTRA KORTING=35.00%"). Wtedy łączny rabat pozycji (53,14%)
+ * nie przypomina żadnej z tych liczb, więc wydruk pokazuje je pod nim. Jeden
+ * rabat (np. Luxan: 60%) — nic do dodania.
+ *
+ * @param {Record<string, any>} params
+ * @returns {{ discountTerms?: Array<{ part: string, percent: number }> }}
+ */
+function discountTermsOf(params) {
+  const terms = SUB_DISCOUNT_PARTS
+    .filter((p) => num(params[p.base]) > 0 && num(params[p.rate]) > 0)
+    .map((p) => ({ part: p.part, percent: Math.round(num(params[p.rate]) * 10000) / 100 }));
+  return new Set(terms.map((t) => t.percent)).size > 1 ? { discountTerms: terms } : {};
 }
 
 /**

@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 
 const { readAutoInvoiceConfig, runAutoInvoicing, AUTO_ACTOR } = require('../autoInvoicing');
 const { HKL_ORG_ID } = require('../core/pricing');
-const { ZERO_TOTAL_ERROR_CODE } = require('../main');
+const { ZERO_TOTAL_ERROR_CODE, NO_LETTERHEAD_ERROR_CODE } = require('../main');
 
 const quiet = () => {};
 const ON = { invoicesEnabled: true };
@@ -120,12 +120,42 @@ test('przebieg: wystawia fakturę z numerem jako AUTO, typ invoice', async () =>
   const result = await runAutoInvoicing({ config: config(), deps: { repository, service, log: quiet } });
 
   assert.deepEqual(result.created.map((c) => c.number), ['2026/1', '2026/2']);
-  assert.deepEqual(service.calls[0], { orderId: 1, level: 2, documentType: 'invoice', issue: true, createdByPin: AUTO_ACTOR });
+  // `requireLetterhead`: automat wystawia dokument organizacji tylko na jej formatce
+  assert.deepEqual(service.calls[0], { orderId: 1, level: 2, documentType: 'invoice', issue: true, createdByPin: AUTO_ACTOR, requireLetterhead: true });
   // Domyślnie automat przechodzi WSZYSTKIE poziomy, każdy z tym samym progiem
   assert.deepEqual(repository.queries.map((q) => q.level), [1, 2, 3, 4]);
   assert.ok(repository.queries.every((q) => q.since === '2026-10-01'));
   // Tylko poziom 1 wyklucza organizację (HKL nie sprzedaje sam sobie)
   assert.deepEqual(repository.queries.map((q) => q.excludeOrganizationId), [HKL_ORG_ID, null, null, null]);
+});
+
+test('przebieg: wystawca bez formatki — dokument czeka (jeden wpis na wystawcę), to nie błąd', async () => {
+  const service = {
+    calls: [],
+    createFromOrder: async (params) => {
+      service.calls.push(params);
+      if (params.orderId === 5 || params.orderId === 6) {
+        const err = new Error('Wystawca Luxan Spółka z o.o. nie ma formatki (papieru firmowego) — dokument czeka, aż zostanie przypisana.');
+        err.code = NO_LETTERHEAD_ERROR_CODE;
+        err.issuerName = 'Luxan Spółka z o.o.';
+        throw err;
+      }
+      return { id: 900 + params.orderId, number: `2026/${params.orderId}` };
+    }
+  };
+  const logs = [];
+  const result = await runAutoInvoicing({
+    config: config(),
+    deps: { repository: fakeRepository({ 2: [order(4), order(5), order(6)] }), service, log: (m) => logs.push(m) }
+  });
+
+  assert.deepEqual(result.created.map((c) => c.orderId), [4]);
+  assert.deepEqual(result.failed, [], 'brak formatki to nie awaria — kod wyjścia cyklu zostaje 0');
+  assert.deepEqual(result.skippedNoLetterhead.map((s) => [s.orderId, s.issuer]), [[5, 'Luxan Spółka z o.o.'], [6, 'Luxan Spółka z o.o.']]);
+  assert.ok(service.calls.every((c) => c.requireLetterhead === true));
+  const waiting = logs.filter((m) => /czeka 2 — wystawca Luxan Spółka z o\.o\. bez formatki/.test(m));
+  assert.equal(waiting.length, 1, 'jeden zbiorczy wpis na wystawcę, nie wpis na zamówienie');
+  assert.match(logs[logs.length - 1], /wystawiono 1, błędy 0, czeka na formatkę 2/);
 });
 
 test('przebieg: poziomy 3 i 4 wystawiane jak pozostałe (odbiorca z zamówienia)', async () => {

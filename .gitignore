@@ -17,3 +17,5 @@ configtest/run-in-progress.json
 configtest/DISABLED
 # Sekrety lokalne — NIE trafiają do gita ani na serwery (update.sh)
 .env.local
+# Błędy uruchomienia cyklu tła z crona (scripts/prodStatusSync.js) — stan tej maszyny
+logs/prodstatus-cron.log

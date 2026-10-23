@@ -27,6 +27,14 @@ const OrderParam = Object.freeze({
    */
   LIST_VALUE: 'SUMA_BRUTTO',
 
+  /**
+   * Wartość pozycji PRZED rabatem w cenniku organizacji (warstwa SUB, klient
+   * organizacji ≠ HKL) — „GES.WERT" w zamówieniu. Też NETTO. Po rabacie
+   * (cennikowym `SUB___CENA_RABAT` i rabacie klienta) = `SUB___WARTOSC_KONCOWA`
+   * = `order_item.total_price_sub`.
+   */
+  SUB_LIST_VALUE: 'SUB___SUMA_BRUTTO',
+
   /** Powierzchnia w m² — dana techniczna konfiguracji, NIE ilość do rozliczenia. */
   AREA: 'POW',
   /** Szerokość w mm — do kolumny „Wymiary". */

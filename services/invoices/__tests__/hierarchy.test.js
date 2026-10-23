@@ -247,6 +247,16 @@ test('buildRegistryRows uzupełnia numer VAT-UE z pola ogólnego', () => {
   assert.equal(rows.find((r) => r.key === 'USTIDNR').missing, false);
 });
 
+test('buildRegistryRows: nabywca spoza PL nie dostaje etykiety „NIP" (2026-10-22: „NIP: ATU44756402")', () => {
+  const at = buildRegistryRows({ vatEuId: 'ATU44756402' }, 'AT');
+  assert.deepEqual(at.map((r) => [r.label, r.value]), [['UID-Nr.', 'ATU44756402']]);
+  // Kraj spoza tabeli — neutralny numer VAT, nie polski NIP
+  const dk = buildRegistryRows({ taxId: 'DK37817120' }, 'DK');
+  assert.deepEqual(dk.map((r) => [r.label, r.value]), [['VAT ID', 'DK37817120']]);
+  // Pusty kraj — jak dotąd zestaw polski
+  assert.equal(buildRegistryRows({ taxId: '9552572532' }, '')[0].label, 'NIP');
+});
+
 /* ---------------------------------------------------------------- */
 /* Częściowe fakturowanie                                            */
 /* ---------------------------------------------------------------- */

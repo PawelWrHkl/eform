@@ -164,6 +164,24 @@ function resolveTemplateFiles(template = {}, { exists = fs.existsSync, warn = lo
 }
 
 /**
+ * Kolumny „cena przed rabatem / rabat / cena po rabacie" w tabeli pozycji —
+ * tylko gdy któraś pozycja ma rabat klienta organizacji (`meta.discountPercent`,
+ * `core/orderMapper.js`). Pozycja bez rabatu ma „przed" = wartość netto.
+ *
+ * @param {Array<{ netAmount: number, meta?: { priceBeforeDiscountMinor?: number, discountPercent?: number } }>} items
+ * @returns {{ show: boolean, beforeTotal: number }} kwoty w groszach
+ */
+function summarizeItemDiscounts(items) {
+  const list = Array.isArray(items) ? items : [];
+  const show = list.some((it) => Number(it.meta && it.meta.discountPercent) > 0);
+  const beforeOf = (it) => {
+    const before = Number(it.meta && it.meta.priceBeforeDiscountMinor);
+    return Number(it.meta && it.meta.discountPercent) > 0 && before > 0 ? Math.trunc(before) : Math.trunc(Number(it.netAmount) || 0);
+  };
+  return { show, beforeTotal: list.reduce((sum, it) => sum + beforeOf(it), 0) };
+}
+
+/**
  * Buduje kompletny dokument HTML faktury (CSS inline, logo jako data URI).
  *
  * @param {Object} params
@@ -193,7 +211,8 @@ function renderInvoiceHtml({ invoice, profile = {}, template = {}, logoDataUri =
     profile,
     logoDataUri,
     footerNote,
-    lang
+    lang,
+    discounts: summarizeItemDiscounts(invoice.items)
   });
 
   return `<!DOCTYPE html>
@@ -228,11 +247,15 @@ const PX_PER_MM = 96 / 25.4;
  * Chromium układa stronę na szerokości `W / s`, więc wiersze się nie
  * wydłużają, a wysokość spada co najmniej proporcjonalnie.
  *
+ * Próg 0,75 (wcześniej 0,8): od 2026-10-22 kolumny rabatu klienta i dane
+ * krajowe (Leistungsdatum, USt-IdNr.) wydłużyły krótkie faktury — np. Luxan
+ * GmbH → Best & Sohn, 2 pozycje: skala 0,774 → druga strona z samymi podpisami.
+ *
  * @param {import('playwright').Page} page
  * @param {{ contentWidthMm: number, availableHeightMm: number, minScale?: number }} fit
  * @returns {Promise<number>}
  */
-async function fitScale(page, { contentWidthMm, availableHeightMm, minScale = 0.8 }) {
+async function fitScale(page, { contentWidthMm, availableHeightMm, minScale = 0.75 }) {
   // Wysokość okna minimalna: `scrollHeight` dokumentu nigdy nie schodzi poniżej
   // okna, więc mierzymy samo `body` (marginesy 0 w `invoice.css`).
   await page.setViewportSize({ width: Math.round(contentWidthMm * PX_PER_MM), height: 100 });
@@ -418,6 +441,7 @@ module.exports = {
   createTranslator,
   createEnvironment,
   buildThemeCss,
+  summarizeItemDiscounts,
   renderInvoiceHtml,
   renderPdfFromHtml,
   renderInvoicePdf,

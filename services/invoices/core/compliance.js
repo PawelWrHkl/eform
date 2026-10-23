@@ -45,8 +45,20 @@ const REGISTRY_FIELDS = Object.freeze({
     { key: 'SIRET', label: 'N° SIRET', required: false },
     { key: 'NAF', label: 'Code NAF/APE', required: false },
     { key: 'TVA', label: 'N° TVA intracommunautaire', required: true, fromVatEu: true }
+  ],
+  AT: [
+    { key: 'UID', label: 'UID-Nr.', required: true, fromVatEu: true }
   ]
 });
+
+/**
+ * Kraj spoza tabeli (DK, CH, BE…) — neutralny numer VAT. Wcześniej działał tu
+ * fallback na PL, więc np. austriacki nabywca dostawał „NIP: ATU44756402"
+ * (2026-10-22). PL zostaje tylko dla pustego kraju.
+ */
+const GENERIC_REGISTRY_FIELDS = Object.freeze([
+  { key: 'VAT', label: 'VAT ID', required: false, fromVatEu: true }
+]);
 
 /** Stawki VAT drukowane w podsumowaniu — kolejność ma znaczenie na dokumencie. */
 const RATE_TABLES = Object.freeze({
@@ -203,7 +215,8 @@ function normalize(country) {
  * @returns {Array<{ key: string, label: string, value: string, required: boolean, missing: boolean }>}
  */
 function buildRegistryRows(party, country, opts = {}) {
-  const fields = REGISTRY_FIELDS[normalize(country)] || REGISTRY_FIELDS.PL;
+  const code = normalize(country);
+  const fields = REGISTRY_FIELDS[code] || (code ? GENERIC_REGISTRY_FIELDS : REGISTRY_FIELDS.PL);
   const registry = (party && party.registry) || {};
 
   return fields.map((field) => {

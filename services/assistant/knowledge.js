@@ -59,8 +59,11 @@ function meets(requires, flags) {
 function flagsFor(account, deps = {}) {
 	const features = deps.features || require('../../config').features || {};
 	const type = account && account.type;
+	const { canAccessInvoices } = require('../invoices/access');
 	return {
-		invoices: !!features.invoices && type !== 'group_shop',
+		// Ta sama reguła co menu portalu (także tryb INVOICES_ADMIN_ONLY);
+		// `describeAccount` (sessionContext.js) zwraca dla admina `type: 'admin'`
+		invoices: canAccessInvoices({ isAdmin: type === 'admin', isGroupShop: type === 'group_shop' }, features),
 		group: type === 'group'
 	};
 }

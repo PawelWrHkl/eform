@@ -27,7 +27,7 @@ const { organizationIdFromSession, scopeFromSession, canAccessInvoice } = requir
 const hierarchy = require('../core/hierarchy');
 const { resolvePriceBasis, PriceBasis, HKL_ORG_ID } = require('../core/pricing');
 const { parseSpeditionNumbers } = require('../../prodStatus');
-const { AUTO_ACTOR } = require('../autoInvoicing');
+const { AUTO_ACTOR, readAutoInvoiceConfig } = require('../autoInvoicing');
 const { listBackgrounds } = require('../templateAssignment');
 const { parsePageMargins } = require('../core/templates');
 const { log } = require('../../../utils/logging');
@@ -242,6 +242,76 @@ async function loadOrdersWindow({ organizationId, clientId, level, lang }) {
   };
 }
 
+/** Ilu nabywców najwyżej pokazuje przegląd — dalej trzeba zawęzić okres. */
+const OVERVIEW_LIMIT = 300;
+
+/** `RRRR-MM-DD` będące prawdziwą datą (30 lutego odpada). */
+function isIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
+/**
+ * Okres przeglądu z adresu: brak `?od` → od startu automatu faktur
+ * (`INVOICE_AUTOGEN_SINCE`; bez niego cały okres), `?od=` (puste) → cały okres,
+ * `?od=RRRR-MM-DD` → od tego dnia wysyłki. Czysta funkcja.
+ *
+ * @param {unknown} raw         `req.query.od`
+ * @param {string|null} autoSince
+ * @returns {string|null}
+ */
+function resolveOverviewSince(raw, autoSince) {
+  if (raw === undefined) return autoSince || null;
+  return isIsoDate(raw) ? String(raw) : null;
+}
+
+/**
+ * Przegląd „wystawione / niewystawione" na ekranie startowym panelu (poziomy 1 i 2):
+ * każdy nabywca z zamówieniami wysłanymi do klienta, najpierw ci z zamówieniami
+ * bez faktury. Liczby z tej samej reguły co okno zamówień klienta
+ * (`repository.listInvoiceOverview`).
+ *
+ * Błąd przeglądu NIE wywraca panelu — wybór klienta działa dalej, a przegląd
+ * pokazuje komunikat (szczegóły w logu).
+ *
+ * @param {{ level: number, organizationId: number, rawSince: unknown, lang: string }} params
+ * @returns {Promise<Object|null>} `null` dla poziomów 3/4 (odbiorcy końcowi)
+ */
+async function loadInvoiceOverview({ level, organizationId, rawSince, lang }) {
+  if (level !== hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION && level !== hierarchy.InvoiceLevel.ORGANIZATION_TO_USER) {
+    return null;
+  }
+  const autoSince = readAutoInvoiceConfig().since;
+  const since = resolveOverviewSince(rawSince, autoSince);
+  const base = { since, autoSince, isDefaultSince: rawSince === undefined && !!autoSince };
+  try {
+    const rows = await repository.listInvoiceOverview({ level, organizationId, since, hklOrganizationId: HKL_ORG_ID });
+    rows.sort((a, b) => (b.pending - a.pending)
+      || (new Date(b.lastShipped || 0) - new Date(a.lastShipped || 0))
+      || a.name.localeCompare(b.name, lang));
+    const totals = rows.reduce((t, r) => ({
+      shipped: t.shipped + r.shipped,
+      invoiced: t.invoiced + r.invoiced,
+      pending: t.pending + r.pending
+    }), { shipped: 0, invoiced: 0, pending: 0 });
+    return {
+      ...base,
+      clients: rows.length,
+      totals,
+      truncated: rows.length > OVERVIEW_LIMIT,
+      rows: rows.slice(0, OVERVIEW_LIMIT).map((r) => ({
+        ...r,
+        lastShippedFmt: formatDate(r.lastShipped, lang),
+        lastInvoiceFmt: formatDate(r.lastInvoice, lang)
+      }))
+    };
+  } catch (err) {
+    log(`[invoices] przegląd (poziom ${level}, organizacja ${organizationId}): ${err.message}`);
+    return { ...base, error: true, rows: [], clients: 0, totals: { shipped: 0, invoiced: 0, pending: 0 } };
+  }
+}
+
 /** Lista dokumentów z kwotami sformatowanymi do wyświetlenia. */
 function decorateInvoices(rows, lang) {
   return (rows || []).map((r) => ({
@@ -339,9 +409,11 @@ router.get('/', requireLogin, async (req, res) => {
     }
 
     const ctx = await buildPanelContext(req, null);
+    const overview = await loadInvoiceOverview({ level: ctx.level, organizationId, rawSince: req.query.od, lang });
     return res.render('owner/invoices.njk', {
       L,
       panelLang: lang,
+      overview,
       level: ctx.level,
       levelOptions: ctx.allowedLevels.map((lv) => ({ level: lv, label: L[`level_${lv}`] || `#${lv}`, active: lv === ctx.level })),
       priceBasis: ctx.priceBasis,
@@ -511,3 +583,6 @@ router.get('/:id/view', requireLogin, async (req, res) => {
 });
 
 module.exports = router;
+// Czyste funkcje widoku — do testów
+module.exports.resolveOverviewSince = resolveOverviewSince;
+module.exports.isIsoDate = isIsoDate;

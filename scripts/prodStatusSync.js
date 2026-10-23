@@ -1,47 +1,68 @@
 #!/usr/bin/env node
 /**
  * Jednorazowy cykl tła: synchronizacja statusów produkcji WSZYSTKICH klientów
- * (`status.txt` → `position_statuses` + `order.prod_status`) i automatyczne
- * faktury za zamówienia wysłane do klienta.
+ * (`status.txt` → `position_statuses` + `order.prod_status`), automatyczne
+ * faktury za zamówienia wysłane do klienta i maile z tymi fakturami
+ * (`services/invoices/invoiceMailer.js`, sterowane `INVOICE_MAIL_*` w `.env`).
  *
  * Kto to uruchamia:
- *   - domyślnie `server.js` — co `PROD_STATUS_SYNC_INTERVAL_MIN` minut jako
- *     osobny proces (`services/prodStatusScheduler.js`), więc działa także
- *     w kontenerze bez żadnej dodatkowej konfiguracji,
- *   - przy `PROD_STATUS_SYNC_MODE=external` — cron/systemd, np.
- *     `0 * * * * cd /ścieżka/eform && node scripts/prodStatusSync.js`.
+ *   - przy `PROD_STATUS_SYNC_MODE=external` — cron, niezależnie od serwera. Tak
+ *     jest od 2026-10-22 na hoście :8000 (crontab użytkownika pawel) i na produkcji
+ *     (`/etc/cron.d/eform-prodstatus`, `docker exec` w kontenerze `eform`): co
+ *     godzinę o :05, o 00:05 z `--full`, pod `timeout 30m` — przy cronie
+ *     zawieszonego przebiegu nie przerwie harmonogram serwera. Wpisy:
+ *     `services/invoices/README.md`,
+ *   - domyślnie (`child`) `server.js` — co `PROD_STATUS_SYNC_INTERVAL_MIN` minut
+ *     jako osobny proces (`services/prodStatusScheduler.js`), więc działa także
+ *     w kontenerze bez żadnej dodatkowej konfiguracji.
+ * Przebieg zlecony przez serwer, który wstał jeszcze przed przełączeniem `.env`
+ * na `external`/`off`, kończy się od razu (`modeBlockingServerRun`) — zmiana
+ * trybu działa bez restartu serwera.
  *
  * Ręcznie:
  *   npm run prodstatus:run                       jeden cykl
  *   npm run prodstatus:dry                       nic nie zapisuje: różnice + lista faktur do wystawienia
  *   node scripts/prodStatusSync.js --full        przelicz nagłówki wszystkich zamówień z pliku
- *   node scripts/prodStatusSync.js --no-invoices sama synchronizacja statusów
+ *   node scripts/prodStatusSync.js --no-invoices sama synchronizacja statusów (bez faktur i maili)
+ *   node scripts/prodStatusSync.js --no-mail     statusy + faktury, bez maili z fakturami
  *
  * Kody wyjścia: 0 — OK (także „inny proces trzyma blokadę" i faktury pominięte
- * z powodu zerowej wartości — nic do zafakturowania), 1 — część zapisów albo
- * faktur się nie udała, 2 — cykl padł.
+ * z powodu zerowej wartości — nic do zafakturowania), 1 — część zapisów,
+ * faktur albo maili z fakturami się nie udała, 2 — cykl padł.
  */
 
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+// Te same pliki i ta sama kolejność co w `server.js` (`.env.local` wygrywa):
+// uruchomiony z crona skrypt nie dziedziczy już środowiska po serwerze.
+require('dotenv').config({ path: [path.join(__dirname, '..', '.env.local'), path.join(__dirname, '..', '.env')] });
 
 const { runProdStatusCycle } = require('../services/prodStatusCycle');
+const { modeBlockingServerRun } = require('../services/prodStatusScheduler');
 const { closePool } = require('../db/core');
 const { log } = require('../utils/logging');
 
 const args = new Set(process.argv.slice(2));
 
 (async () => {
+    // Bez zapytań do bazy pula nie ma połączeń, więc proces kończy się sam
+    const blockedBy = modeBlockingServerRun();
+    if (blockedBy) {
+        log(`[prodStatus] PROD_STATUS_SYNC_MODE=${blockedBy} — przebieg zlecony przez serwer pominięty (serwer wstał przed zmianą .env; po restarcie przestanie go zlecać)`);
+        return;
+    }
+
     let code = 0;
     try {
         const result = await runProdStatusCycle({
             dryRun: args.has('--dry-run'),
             full: args.has('--full'),
-            invoices: !args.has('--no-invoices')
+            invoices: !args.has('--no-invoices'),
+            mail: !args.has('--no-mail')
         });
         const statusFailures = result.statuses?.failed || 0;
         const invoiceFailures = result.autoInvoices?.failed?.length || 0;
-        if (statusFailures || invoiceFailures) code = 1;
+        const mailFailures = result.invoiceMails?.failed?.length || 0;
+        if (statusFailures || invoiceFailures || mailFailures) code = 1;
     } catch (err) {
         log(`[prodStatus] cykl przerwany: ${err && err.stack ? err.stack : err}`);
         code = 2;

@@ -1,0 +1,78 @@
+{#
+  Przegląd „wystawione / niewystawione" — ekran startowy panelu faktur, poziomy 1 i 2.
+  Dane: `services/invoices/http/panel.js:loadInvoiceOverview` →
+  `repository.listInvoiceOverview` (ta sama reguła co okno zamówień klienta).
+  Najpierw nabywcy z zamówieniami bez faktury; „Otwórz" prowadzi do ekranu
+  nabywcy, gdzie widać jego faktury i zamówienia czekające na fakturę.
+#}
+<section class="inv-card inv-overview">
+  <h3 class="inv-card__title">{{ L.overview_title }}</h3>
+  <p class="inv-overview__hint">{{ L.overview_hint_1 if level == 1 else L.overview_hint_2 }}</p>
+
+  <form class="inv-form inv-overview__filter" method="get" action="/invoices">
+    <input type="hidden" name="level" value="{{ level }}">
+    <label class="inv-field">
+      <span class="inv-label">{{ L.overview_since }}</span>
+      <input type="date" name="od" value="{{ overview.since or '' }}">
+    </label>
+    <button type="submit" class="inv-btn inv-btn--primary">{{ L.overview_show }}</button>
+    <a class="inv-btn inv-btn--ghost" href="/invoices?level={{ level }}&amp;od=">{{ L.overview_all }}</a>
+    {% if overview.isDefaultSince %}
+      <span class="inv-overview__note">{{ L.overview_since_default }}</span>
+    {% endif %}
+  </form>
+
+  {% if overview.error %}
+    <p class="inv-empty inv-overview__error">{{ L.overview_error }}</p>
+  {% elif not overview.rows.length %}
+    <p class="inv-empty">{{ L.overview_empty }}</p>
+  {% else %}
+    <div class="inv-overview__totals">
+      {{ L.overview_total }}: <strong>{{ overview.clients }}</strong> {{ L.overview_clients }} ·
+      {{ L.overview_col_shipped }} <strong>{{ overview.totals.shipped }}</strong> ·
+      {{ L.overview_col_invoiced }} <strong>{{ overview.totals.invoiced }}</strong> ·
+      {{ L.overview_col_pending }}
+      <span class="inv-tag {{ 'inv-tag--warn' if overview.totals.pending else 'inv-tag--ok' }}">{{ overview.totals.pending }}</span>
+      {% if not overview.since %}· {{ L.overview_period_all }}{% endif %}
+    </div>
+    <div class="inv-table-wrap">
+      <table class="inv-table inv-overview__table">
+        <thead>
+          <tr>
+            <th>{{ L.overview_col_organization if level == 1 else L.overview_col_client }}</th>
+            <th class="ta-r">{{ L.overview_col_shipped }}</th>
+            <th class="ta-r">{{ L.overview_col_invoiced }}</th>
+            <th class="ta-r">{{ L.overview_col_pending }}</th>
+            <th>{{ L.overview_col_last_shipped }}</th>
+            <th>{{ L.overview_col_last_invoice }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in overview.rows %}
+            <tr data-client-id="{{ row.clientId }}">
+              <td class="inv-order-name" title="{{ row.name }}">
+                {{- row.name if row.name else '—' -}}
+                {% if row.ident %}<span class="inv-order-ref">{{ row.ident }}</span>{% endif %}
+              </td>
+              <td class="ta-r">{{ row.shipped }}</td>
+              <td class="ta-r">{{ row.invoiced }}</td>
+              <td class="ta-r">
+                <span class="inv-tag {{ 'inv-tag--warn' if row.pending else 'inv-tag--ok' }}">{{ row.pending }}</span>
+              </td>
+              <td class="inv-nowrap">{{ row.lastShippedFmt or '—' }}</td>
+              <td class="inv-nowrap">{{ row.lastInvoiceFmt or '—' }}</td>
+              {# Bez `inv-actions`: ta klasa robi z komórki flexa i rozjeżdża linię wiersza #}
+              <td class="inv-nowrap ta-r">
+                <a class="inv-link" href="/invoices/client/{{ row.clientId }}?level={{ level }}">{{ L.overview_open }}</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if overview.truncated %}
+      <p class="inv-overview__note">{{ L.overview_truncated | replace('{shown}', overview.rows.length) | replace('{total}', overview.clients) }}</p>
+    {% endif %}
+  {% endif %}
+</section>

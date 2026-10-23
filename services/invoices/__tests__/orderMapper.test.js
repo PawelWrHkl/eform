@@ -127,6 +127,70 @@ test('mapowanie: tryb cen klienta bierze total_price_sub', () => {
   assert.equal(items[0].unitPriceNetMinor, 52000);
 });
 
+test('mapowanie: klient organizacji z rabatem (SUB___) — cena przed rabatem i rabat w meta, kwota bez zmian', () => {
+  // Realna pozycja klienta Luxanu: GES.WERT 347,40 (SUB___SUMA_BRUTTO), rabat 60%
+  // (SUB___CENA_RABAT 0,6) → GES.WERT N. RABATT 138,96 = total_price_sub
+  const [item] = mapOrderItemsToInvoiceItems({
+    orderItems: [{
+      id: 1, total_price: '95.38', total_price_sub: '138.96',
+      json_parameters: { ILOSC: 1, SUB___SUMA_BRUTTO: 347.4, SUB___CENA_RABAT: 0.6, SUB___WARTOSC_KONCOWA: 138.96 }
+    }],
+    resolveTax: standardTax,
+    currency: 'EUR',
+    useSubPrices: true
+  });
+  assert.equal(item.unitPriceNetMinor, 13896, 'kwota faktury = wartość po rabacie, jak dotąd');
+  assert.equal(item.discountPercent, 0, 'rabat NIE trafia do kalkulatora (zaliczka, częściowe fakturowanie) — tylko do wydruku');
+  assert.equal(item.discountAmountMinor, undefined);
+  assert.equal(item.meta.priceBeforeDiscountMinor, 34740);
+  assert.equal(item.meta.discountPercent, 60);
+});
+
+test('mapowanie: rabat cennikowy + rabat klienta — procent z kwot, żeby przed × (100% − rabat) = po', () => {
+  // 60% z cennika i 5% rabatu klienta (wliczone w SUB___WARTOSC_KONCOWA): 347,40 × 0,4 × 0,95 = 132,01.
+  // Nominalne 60% nie zgadzałoby się z kwotą po rabacie.
+  const [item] = mapOrderItemsToInvoiceItems({
+    orderItems: [{ id: 1, total_price_sub: '132.01', json_parameters: { SUB___SUMA_BRUTTO: '347.40', SUB___CENA_RABAT: 0.6 } }],
+    resolveTax: standardTax,
+    useSubPrices: true
+  });
+  assert.equal(item.meta.discountPercent, 62);
+  assert.equal(Math.round(item.meta.priceBeforeDiscountMinor * (1 - item.meta.discountPercent / 100)), item.unitPriceNetMinor);
+});
+
+test('mapowanie: różne rabaty ceny i dopłat (Cozy) — łączny procent + warunki do wydruku', () => {
+  // Realna pozycja klienta Cozy: cena 354 −60%, dopłaty 134 −35% → 141,60 + 87,10 = 228,70
+  const [cozy] = mapOrderItemsToInvoiceItems({
+    orderItems: [{
+      id: 1, total_price_sub: '228.70',
+      json_parameters: { SUB___CENA: 354, SUB___CENA_RABAT: 0.6, SUB___DOPLATA: 134, SUB___DOPLATA_RABAT: 0.35, SUB___DOPLATA_EL: 0, SUB___DOPLATA_EL_RABAT: 0, SUB___SUMA_BRUTTO: 488 }
+    }],
+    resolveTax: standardTax,
+    useSubPrices: true
+  });
+  assert.equal(cozy.meta.discountPercent, 53.14);
+  assert.deepEqual(cozy.meta.discountTerms, [{ part: 'price', percent: 60 }, { part: 'surcharges', percent: 35 }]);
+
+  // Luxan: jeden rabat na całą cenę (dopłaty bez własnego) — bez rozbicia
+  const [luxan] = mapOrderItemsToInvoiceItems({
+    orderItems: [{ id: 2, total_price_sub: '138.96', json_parameters: { SUB___CENA: 241, SUB___CENA_RABAT: 0.6, SUB___DOPLATA: 106.4, SUB___DOPLATA_EL_RABAT: 0, SUB___SUMA_BRUTTO: 347.4 } }],
+    resolveTax: standardTax,
+    useSubPrices: true
+  });
+  assert.equal(luxan.meta.discountPercent, 60);
+  assert.equal(luxan.meta.discountTerms, undefined);
+});
+
+test('mapowanie: bez rabatu albo poza warstwą SUB — bez kolumn rabatu', () => {
+  const metaOf = (row, useSubPrices) => mapOrderItemsToInvoiceItems({ orderItems: [row], resolveTax: standardTax, useSubPrices })[0].meta;
+  // brak „przed", „przed" = „po", „po" wyższe niż „przed" (dopłata) — nic do pokazania
+  assert.equal(metaOf({ id: 1, total_price_sub: '138.96', json_parameters: {} }, true).discountPercent, undefined);
+  assert.equal(metaOf({ id: 1, total_price_sub: '138.96', json_parameters: { SUB___SUMA_BRUTTO: 138.96 } }, true).discountPercent, undefined);
+  assert.equal(metaOf({ id: 1, total_price_sub: '140.00', json_parameters: { SUB___SUMA_BRUTTO: 138.96 } }, true).discountPercent, undefined);
+  // klient HKL (warstwa bazowa) — to nie rabat SUB___, faktura jak dotąd
+  assert.equal(metaOf({ id: 1, total_price: '138.96', json_parameters: { SUB___SUMA_BRUTTO: 347.4, SUMA_BRUTTO: 347.4 } }, false).discountPercent, undefined);
+});
+
 test('mapowanie: json_parameters jako string JSON jest parsowany', () => {
   const items = mapOrderItemsToInvoiceItems({
     orderItems: [{ id: 1, total_price: '100.00', json_parameters: '{"ILOSC":3,"POW":0}' }],

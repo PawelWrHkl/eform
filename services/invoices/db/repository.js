@@ -862,6 +862,107 @@ async function listInvoiceableOrdersForClient({ organizationId, clientId, level,
 }
 
 /**
+ * PRZEGLĄD dla panelu (`/invoices`, poziomy 1 i 2): każdy nabywca z
+ * zamówieniami wysłanymi do klienta (`status = 'sent'` i `prod_status = '!sent!'`)
+ * — ile z nich ma fakturę, ile nie, kiedy była ostatnia wysyłka i ostatnia faktura.
+ *
+ * „Z fakturą" = nieanulowany dokument `invoice`/`final` tego poziomu na
+ * zamówieniu albo faktura zbiorcza obejmująca jego pozycje — dokładne
+ * dopełnienie `invoiceableForClientWhere`, więc „bez faktury" w przeglądzie
+ * równa się liczbie zamówień w oknie zamówień klienta (przy tym samym okresie).
+ *
+ * Nabywca per poziom (tak jak automat, `AUTO_LEVEL_SQL`):
+ *   1 — organizacja zamówienia ≠ HKL; faktury poziomu 1 mają `organization_id`
+ *       organizacji-nabywcy (jak w `listInvoices` dla poziomu 1),
+ *   2 — klient organizacji z sesji, bez własnego konta organizacji (organizacja
+ *       nie fakturuje sama siebie).
+ *
+ * @param {{ level: number, organizationId: number, since?: string|null, hklOrganizationId: number }} params
+ * @returns {Promise<Array<{ clientId: number, name: string, ident: string, shipped: number, invoiced: number, pending: number, lastShipped: Date|null, documents: number, lastInvoice: Date|null }>>}
+ */
+async function listInvoiceOverview({ level, organizationId, since = null, hklOrganizationId }) {
+  const lvl = Number(level);
+  if (lvl !== 1 && lvl !== 2) return [];
+
+  const invoicedSql = `(EXISTS (SELECT 1 FROM invoice i
+                                 WHERE i.order_id = o.id AND i.level = ?
+                                   AND i.document_type IN ('invoice', 'final')
+                                   AND i.status <> 'cancelled')
+                        OR ${linkedDocumentSql("AND il.document_type IN ('invoice', 'final') AND il.status <> 'cancelled'")})`;
+  const sinceSql = since ? 'AND o.delivery_date >= ?' : '';
+
+  let ordersSql;
+  let ordersValues;
+  let documentsSql;
+  let documentsValues;
+  if (lvl === 1) {
+    ordersSql = `
+      SELECT org.id AS client_id, org.name AS name, org.ident AS ident,
+             COUNT(*) AS shipped,
+             SUM(CASE WHEN ${invoicedSql} THEN 1 ELSE 0 END) AS invoiced,
+             MAX(o.delivery_date) AS last_shipped
+        FROM \`order\` o
+        JOIN organization org ON org.id = o.organization_id
+       WHERE o.status = 'sent' AND o.prod_status = '!sent!'
+         AND o.organization_id <> ?
+         ${sinceSql}
+       GROUP BY org.id, org.name, org.ident`;
+    ordersValues = [lvl, [lvl], Number(hklOrganizationId)];
+    documentsSql = `
+      SELECT organization_id AS client_id, COUNT(*) AS documents, MAX(issue_date) AS last_invoice
+        FROM invoice
+       WHERE level = 1 AND document_type IN ('invoice', 'final') AND status <> 'cancelled'
+       GROUP BY organization_id`;
+    documentsValues = [];
+  } else {
+    ordersSql = `
+      SELECT u.id AS client_id, u.client_name AS name, u.ident AS ident,
+             COUNT(*) AS shipped,
+             SUM(CASE WHEN ${invoicedSql} THEN 1 ELSE 0 END) AS invoiced,
+             MAX(o.delivery_date) AS last_shipped
+        FROM \`order\` o
+        JOIN \`user\` u ON u.id = o.user_id
+        JOIN organization org ON org.id = o.organization_id
+       WHERE o.organization_id = ? AND o.status = 'sent' AND o.prod_status = '!sent!'
+         AND UPPER(u.ident) <> UPPER(org.ident)
+         ${sinceSql}
+       GROUP BY u.id, u.client_name, u.ident`;
+    ordersValues = [lvl, [lvl], Number(organizationId)];
+    documentsSql = `
+      SELECT buyer_user_id AS client_id, COUNT(*) AS documents, MAX(issue_date) AS last_invoice
+        FROM invoice
+       WHERE organization_id = ? AND level = 2 AND buyer_user_id IS NOT NULL
+         AND document_type IN ('invoice', 'final') AND status <> 'cancelled'
+       GROUP BY buyer_user_id`;
+    documentsValues = [Number(organizationId)];
+  }
+  if (since) ordersValues.push(since);
+
+  const [orderRows, documentRows] = await Promise.all([
+    strictQuery(ordersSql, ordersValues),
+    strictQuery(documentsSql, documentsValues)
+  ]);
+  const documentsByClient = new Map(documentRows.map((r) => [Number(r.client_id), r]));
+
+  return orderRows.map((r) => {
+    const shipped = Number(r.shipped) || 0;
+    const invoiced = Number(r.invoiced) || 0;
+    const docs = documentsByClient.get(Number(r.client_id));
+    return {
+      clientId: Number(r.client_id),
+      name: r.name || '',
+      ident: r.ident || '',
+      shipped,
+      invoiced,
+      pending: shipped - invoiced,
+      lastShipped: r.last_shipped || null,
+      documents: docs ? Number(docs.documents) || 0 : 0,
+      lastInvoice: docs ? docs.last_invoice || null : null
+    };
+  });
+}
+
+/**
  * Dokument obejmujący zamówienie `o` przez swoje POZYCJE, a nie przez
  * `invoice.order_id` — tak rozpoznajemy FAKTURĘ ZBIORCZĄ (dotyczy wielu
  * zamówień, więc `order_id` ma pusty). Bez tego zamówienie z faktury zbiorczej
@@ -1826,6 +1927,7 @@ module.exports = {
   searchInvoiceableOrders,
   countInvoiceableOrdersForClient,
   listInvoiceableOrdersForClient,
+  listInvoiceOverview,
   findAutoInvoiceCandidates,
   findCollectiveCandidates,
   hasLevelInvoice,

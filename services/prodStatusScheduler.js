@@ -18,12 +18,15 @@
  * Konfiguracja (`.env`):
  *   PROD_STATUS_SYNC_MODE=child|external|off  domyślnie `child` (ten moduł);
  *                                             `external` = uruchamia cron/systemd
+ *                                             (host :8000 i produkcja od 2026-10-22 —
+ *                                             wpisy crona w `services/invoices/README.md`)
  *   PROD_STATUS_SYNC_INTERVAL_MIN=60          co ile minut (minimum 5)
  *
  * Kilka instancji na jednej bazie (host + kontenery) jest bezpieczne — cykl bierze
  * blokadę w MySQL (`services/prodStatusCycle.js`), a pozostałe go pomijają.
  */
 
+const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { log: defaultLog } = require('../utils/logging');
@@ -59,6 +62,50 @@ function readSchedulerConfig(env = process.env) {
         intervalMin = DEFAULT_INTERVAL_MIN;
     }
     return { mode, intervalMin, warnings };
+}
+
+/**
+ * Czy bieżący proces odpalił harmonogram serwera? `runNow` uruchamia skrypt
+ * bezpośrednio (`spawn(process.execPath, [SCRIPT])`), więc rodzicem jest proces
+ * `server.js`; cron, `docker exec` i `npm run prodstatus:*` mają innego rodzica.
+ * Czyta `/proc` (Linux) — gdzie go nie ma, zwraca `false` i przebieg idzie normalnie.
+ *
+ * @param {Object} [opts]
+ * @param {number} [opts.ppid]
+ * @param {Function} [opts.readFile]  podmiana `fs.readFileSync` w testach
+ * @returns {boolean}
+ */
+function isSpawnedByServer({ ppid = process.ppid, readFile = fs.readFileSync } = {}) {
+    try {
+        return String(readFile(`/proc/${ppid}/cmdline`, 'utf8'))
+            .split('\0')
+            .some((arg) => path.basename(arg) === 'server.js');
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Tryb z `.env`, w którym ten przebieg NIE powinien ruszyć, albo `null`.
+ *
+ * Serwer czyta `PROD_STATUS_SYNC_MODE` tylko przy starcie. Serwer, który wstał
+ * w trybie `child`, po przełączeniu `.env` na `external` (cron) albo `off` dalej
+ * co godzinę odpala `scripts/prodStatusSync.js` — aż do restartu, a restart
+ * wylogowuje wszystkich (sesje w pamięci). Skrypt czyta `.env` przy każdym
+ * przebiegu, więc sam rozpoznaje przebieg zlecony przez taki serwer i go pomija:
+ * od chwili zmiany `.env` cykl ma jednego wyzwalacza.
+ * Warunek: serwer wstał BEZ `PROD_STATUS_SYNC_MODE` (domyślny `child`) — wartość,
+ * którą miał przy starcie, przechodzi na dziecko i wygrywa z plikiem (dotenv nie
+ * nadpisuje zmiennych już ustawionych).
+ *
+ * @param {Object} [opts]
+ * @param {Record<string, string|undefined>} [opts.env]
+ * @param {boolean} [opts.spawnedByServer]
+ * @returns {string|null}
+ */
+function modeBlockingServerRun({ env = process.env, spawnedByServer = isSpawnedByServer() } = {}) {
+    const { mode } = readSchedulerConfig(env);
+    return spawnedByServer && mode !== 'child' ? mode : null;
 }
 
 /**
@@ -143,4 +190,4 @@ function startProdStatusScheduler({ env = process.env, spawnFn = spawn, log = de
     };
 }
 
-module.exports = { SCRIPT, readSchedulerConfig, startProdStatusScheduler };
+module.exports = { SCRIPT, readSchedulerConfig, isSpawnedByServer, modeBlockingServerRun, startProdStatusScheduler };

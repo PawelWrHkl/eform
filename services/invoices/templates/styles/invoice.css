@@ -510,6 +510,30 @@ body {
     margin-bottom: 0.8mm;
 }
 
+/* Rabat klienta organizacji: trzy kolumny zamiast „Wartość netto". Nagłówek
+   i tak ma wtedy dwie linie, więc łamią się WSZYSTKIE etykiety — inaczej
+   szerokość zabierałyby nagłówki „Wartość brutto"/„Kwota VAT", a opisy
+   pozycji w zwężonej kolumnie nazwy rosłyby w pionie (2 strony PDF). */
+.items--discount thead th {
+    white-space: normal;
+}
+
+.items .col-disc {
+    white-space: nowrap;
+}
+
+/* Rozbicie rabatu na składniki ceny pod łącznym procentem */
+.items__terms {
+    display: block;
+    margin-top: 0.5mm;
+    font-size: 0.85em;
+    color: var(--ink-soft);
+}
+
+.items__term {
+    display: block;
+}
+
 /* Kolumny „Zamówienie" i „Wymiary" nie mogą się łamać — to identyfikatory */
 .items .col-order,
 .items .col-dim {

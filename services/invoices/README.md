@@ -222,6 +222,12 @@ bo tłumaczenie zmieniłoby ich skutek prawny.
 ⚠️ `missing`/ostrzeżenia o brakujących numerach dotyczą **tylko wystawcy** —
 wystawca nie ma obowiązku znać SIREN-u kontrahenta.
 
+Nabywca z kraju spoza tabeli: AT → „UID-Nr.", pozostałe (DK, CH, BE…) → neutralne
+„VAT ID" (`GENERIC_REGISTRY_FIELDS`). Do 2026-10-22 działał tu fallback na PL, więc
+austriacki nabywca dostawał „NIP: ATU…". Zestaw PL zostaje tylko dla pustego kraju.
+Etykiety są zapisane na dokumencie (`invoice.compliance`) — poprawka dotyczy faktur
+wystawionych od tej chwili.
+
 ## Reguły podatkowe
 
 `core/taxRules.js` rozstrzyga w tej kolejności:
@@ -234,6 +240,14 @@ wystawca nie ma obowiązku znać SIREN-u kontrahenta.
 
 Kategoria, nie sama stawka, decyduje o adnotacji na dokumencie — 0% przy WDT i 0%
 przy eksporcie to różne stany prawne.
+
+⚠️ **Bez kraju sprzedawcy albo nabywcy dokument NIE powstaje** (`main.js:buildDocument`,
+błąd `INVOICE_COUNTRY_MISSING`; automat liczy go jako błąd przebiegu). Sam
+`resolveTaxTreatment` przy braku kraju sprzedawcy przyjmuje 0% „np” — 2026-10-22 tak
+wyszło 94 faktury pierwszego przebiegu na produkcji, gdzie organizacje nie miały
+`organization.country` (także krajowe PL→PL i DE→DE, które mają mieć 23% i 19%).
+Kraje organizacji: `db/data_organization_country.sql` (idempotentne). Nowa organizacja
+albo konto klienta bez kraju = brak faktury, dopóki ktoś go nie uzupełni.
 
 ### VIES
 
@@ -250,6 +264,15 @@ Sterowanie z API: `vatEuVerified: true|false` nadpisuje ręcznie, `skipVies: tru
 pomija sprawdzenie.
 
 ## Kto co może (autoryzacja)
+
+**Tryb „tylko administrator" (`INVOICES_ADMIN_ONLY=true`, obok `INVOICES_ENABLED=true`)**
+— moduł (menu, panel `/invoices`, API `/api/v1/invoices`, sekcja odbiorcy w
+zamówieniu, rozdział o fakturach i linki w asystencie Eforku) widzi WYŁĄCZNIE
+admin; każde inne zalogowane konto dostaje 403, niezalogowane — przekierowanie
+do logowania. Automat i maile z fakturami działają normalnie. Jedna reguła dla
+wszystkich wejść: `access.js:canAccessInvoices` (używają jej `server.js` i
+`services/assistant/{tools,knowledge}.js`). Tryb na start produkcji: admin
+ogląda, co wystawia automat, zanim faktury zobaczą organizacje i salony.
 
 ⚠️ Fakturowanie **nie jest** operacją wyłącznie organizacji. Poziom 3 należy do
 zwykłego użytkownika (salonu) — bez tego formularz odbiorców końcowych nie miałby
@@ -329,14 +352,18 @@ z plikiem produkcji (zlecenie `active`), nie wysłany towar.
 ## Automatyczne wystawianie faktur (`autoInvoicing.js`)
 
 Faktura powstaje sama, gdy zamówienie wyjedzie do klienta — bez wchodzenia na
-żadną stronę. Przebieg co godzinę w osobnym procesie:
+żadną stronę. Przebieg co godzinę w osobnym procesie — na hoście :8000 i na
+produkcji uruchamia go **cron**, niezależnie od serwera (niżej: „Uruchamianie
+z crona"); domyślnie (`PROD_STATUS_SYNC_MODE=child`) robi to sam `server.js`:
 
 ```
-server.js ──(co PROD_STATUS_SYNC_INTERVAL_MIN)──▶ scripts/prodStatusSync.js   (spawn, osobny proces)
+cron (:05, o 00:05 --full)  ─┐
+server.js (tryb child)      ─┴─▶ scripts/prodStatusSync.js   (osobny proces)
                                                    ├─ GET_LOCK na bazę          (services/prodStatusCycle.js)
                                                    ├─ status.txt → position_statuses + order.prod_status
                                                    │                            (services/prodStatus.js:syncAllProdStatuses)
-                                                   └─ autoInvoicing.runAutoInvoicing()
+                                                   ├─ autoInvoicing.runAutoInvoicing()
+                                                   └─ invoiceMailer.runInvoiceMailing()   (maile z fakturami, niżej)
 ```
 
 Zamówienie dostaje fakturę, gdy (`repository.findAutoInvoiceCandidates`):
@@ -385,7 +412,7 @@ w podsumowaniu `pominięte (zerowa wartość) N`, i **nie** psuje kodu wyjścia 
 | `INVOICE_AUTOGEN_ORGS` | wszystkie | lista `organization.id` — automat tylko dla tych organizacji |
 | `INVOICE_AUTOGEN_ISSUE` | `true` | `false` → szkice bez numeru, do przejrzenia i wystawienia ręcznie |
 | `INVOICE_AUTOGEN_MAX_PER_RUN` | `100` | bezpiecznik: najwięcej zamówień na jeden przebieg |
-| `PROD_STATUS_SYNC_MODE` | `child` | `child` — cykl uruchamia `server.js`; `external` — cron/systemd (`node scripts/prodStatusSync.js`); `off` |
+| `PROD_STATUS_SYNC_MODE` | `child` | `child` — cykl uruchamia `server.js`; `external` — cron/systemd (`node scripts/prodStatusSync.js`; host :8000 i produkcja od 2026-10-22); `off` |
 | `PROD_STATUS_SYNC_INTERVAL_MIN` | `60` | co ile minut (min. 5) |
 
 Ręcznie: `npm run prodstatus:dry` (nic nie zapisuje — pokazuje różnice statusów
@@ -396,6 +423,130 @@ i listę faktur do wystawienia), `npm run prodstatus:run` (jeden cykl),
 testowej) jest bezpieczne: cykl bierze `GET_LOCK('eform:prodstatus:<baza>')`, a
 pozostałe instancje pomijają termin. Automat włączaj jednak tylko w JEDNYM `.env`
 na bazę — tam, skąd faktury mają wychodzić.
+
+### Uruchamianie z crona (`PROD_STATUS_SYNC_MODE=external`)
+
+Od 2026-10-22 cykl to osobne narzędzie: odpala go cron, nie serwer — restart czy
+awaria aplikacji nie przesuwa ani nie zatrzymuje harmonogramu, a zadanie widać
+w crontabie. Co godzinę o :05, o 00:05 z `--full` (raz dziennie przelicza nagłówki
+wszystkich zamówień z pliku — to robił pierwszy cykl dnia w serwerze). Pod
+`timeout 30m`: przy cronie zawieszonego przebiegu nie przerwie harmonogram serwera.
+Wyjście normalne idzie do `/dev/null`, bo wszystko jest w dziennym logu aplikacji;
+osobny plik zbiera tylko błędy uruchomienia (stderr) i kody ≠ 0 — pusty = wszystko gra.
+
+| | Host :8000 (baza testowa) | Produkcja (31.70.87.147) |
+|---|---|---|
+| Wpis | crontab użytkownika `pawel` (`crontab -l`, blok „eForm (host :8000…)") | `/etc/cron.d/eform-prodstatus` (root) |
+| Polecenie | `cd …/eform && timeout 30m <node z nvm> scripts/prodStatusSync.js` | `flock -n -E 75 /run/lock/eform-prodstatus.lock docker exec -w /app eform timeout 30m node scripts/prodStatusSync.js` — Node 18 i Chromium do PDF są tylko w kontenerze |
+| Przebiegi | `/mnt/eform/log/datatest/log-RRRR-MM-DD.txt` | `/eform/log/data/log-RRRR-MM-DD.txt` |
+| Błędy i kody ≠ 0 | `eform/logs/prodstatus-cron.log` (w `.gitignore`) | `/eform/log/data/prodstatus-cron.log` |
+
+Kody w pliku błędów: `1` — część zapisów, faktur albo maili się nie udała (szczegóły
+w dziennym logu), `2` — cykl padł, `124` — przekroczone 30 min, `75` — poprzedni
+przebieg jeszcze trwa (tylko produkcja, `flock`). Skrypt ładuje `.env.local` i `.env`
+tak jak `server.js` — z crona nie dziedziczy już środowiska po serwerze.
+
+**Przełączenie bez restartu.** Serwer czyta `PROD_STATUS_SYNC_MODE` tylko przy
+starcie, a restart wylogowuje wszystkich (sesje w pamięci). Serwer, który wstał
+w trybie `child`, po zmianie `.env` na `external` dalej co godzinę odpala skrypt —
+ten jednak rozpoznaje, że zlecił go serwer (rodzic `server.js` w `/proc`,
+`prodStatusScheduler.isSpawnedByServer`), i kończy od razu z wpisem
+`[prodStatus] PROD_STATUS_SYNC_MODE=external — przebieg zlecony przez serwer pominięty`.
+Od chwili zmiany `.env` cykl ma więc jednego wyzwalacza; po najbliższym restarcie
+serwer przestaje go zlecać w ogóle (`[prodStatus] PROD_STATUS_SYNC_MODE=external —
+serwer nie uruchamia synchronizacji statusów`). Działa, gdy serwer wstał bez tej
+zmiennej (tak było na obu środowiskach) — wartość ze startu wygrywa z plikiem.
+
+Sprawdzenie: `grep -a '\[prodStatus\]' <dzienny log>` (ostatnie przebiegi i godziny),
+plik błędów pusty. Wyłączenie: zakomentować wpisy crona. Powrót do serwera:
+`PROD_STATUS_SYNC_MODE=child` (albo usunąć) w `.env` + restart aplikacji + usunąć
+wpisy crona — dwa wyzwalacze naraz nie zaszkodzą (`GET_LOCK`), ale dublują przebiegi.
+
+## Rabat klienta na fakturze (klient organizacji, ceny SUB___)
+
+Decyzja właściciela 2026-10-22: klient organizacji ≠ HKL (np. klient Luxanu albo
+Cozy), który w zamówieniu ma cenę po rabacie, na fakturze widzi trzy kolumny zamiast
+„Wartość netto": **Cena przed rabatem | Rabat | Cena po rabacie** (= wartość netto
+pozycji). Faktura bez rabatów — tabela jak dotąd. Klienci HKL (warstwa bazowa) —
+bez zmian.
+
+- **Skąd dane** (`core/orderMapper.js`, tylko warstwa SUB): przed = `SUB___SUMA_BRUTTO`
+  (GES.WERT, netto mimo nazwy), po = `total_price_sub` (= `SUB___WARTOSC_KONCOWA`).
+  Zapisywane WYŁĄCZNIE w `invoice_item.meta` (`priceBeforeDiscountMinor`,
+  `discountPercent`, `discountTerms`) — kwoty, VAT, zaliczka, częściowe fakturowanie
+  i korekty liczą się dalej z wartości po rabacie (`unit_price_net`/`net_amount` bez
+  zmian). Częściowe fakturowanie skaluje „przed" w tej samej proporcji co netto.
+- **Procent = z kwot** (2 miejsca), nie nominalny `SUB___CENA_RABAT`: w „po" siedzi też
+  rabat klienta (grupa, bonus portalu), a składniki ceny mogą mieć różne rabaty —
+  `przed × (100% − rabat) = po` zawsze się zgadza.
+- **Różne rabaty składników** (Cozy: `CATALOGUSPRIJS KORTING=60%, EXTRA KORTING=35%` →
+  cena −60%, dopłaty −35%; łącznie 488,00 → 228,70 = 53,14%): pod łącznym procentem
+  drobnym drukiem „cena 60% / dopłaty 35%" (`discountTerms` z `SUB___CENA_RABAT`,
+  `SUB___DOPLATA_RABAT`, `SUB___DOPLATA_EL_RABAT`; tylko składniki z kwotą > 0).
+- **Wydruk**: `templates/partials/items_table.njk` (tryb `items--discount`: wszystkie
+  nagłówki łamią się na 2 linie, żeby nie zwężać kolumny nazwy), suma „przed" w RAZEM —
+  `render/renderer.js:summarizeItemDiscounts`. Etykiety `items.price_before_discount`,
+  `items.discount`, `items.price_after_discount`, `items.discount_on_*` (pl/en/de).
+- Produkcja 2026-10-22 (podgląd): Luxan GmbH 56/93 pozycji z rabatem (60, 55, 70, 58%…),
+  Cozy 6/6 (cena 60%, dopłaty 35%), HKL 0.
+
+## Maile z fakturami (`invoiceMailer.js`)
+
+Każda faktura automatu (`created_by_pin = 'AUTO'`, wystawiona — z numerem, nie
+anulowana) wychodzi mailem z PDF w załączniku, w języku faktury, w tym samym
+cyklu co jej wystawienie. Domyślnie WYŁĄCZONE.
+
+**Dwa tryby — o tym, czy mail może trafić do klienta, decyduje wyłącznie `.env`:**
+
+| Tryb | Ustawienie | Adresat | Znacznik w `invoice_event` |
+|---|---|---|---|
+| testowy | `INVOICE_MAIL_REDIRECT=a@x,b@y` | WYŁĄCZNIE te adresy; w temacie `[TEST · do klienta: <adres nabywcy>]` (na produkcji `PRODUKCJA`), w treści baner | `mail_redirected` |
+| do nabywcy | `INVOICE_MAIL_TO_BUYER=true` i puste REDIRECT | `invoice.buyer_email` (kilka adresów w polu — wszystkie), Reply-To = e-mail wystawcy, opcjonalnie `INVOICE_MAIL_BCC` | `mail_sent` |
+
+REDIRECT wygrywa zawsze (także przy `TO_BUYER=true`); wpisany, ale błędny
+REDIRECT blokuje wysyłkę, zamiast przełączyć na klientów. Tuż przed wysyłką
+`assertRecipientsAllowed` sprawdza jeszcze raz WSZYSTKIE adresy wiadomości — w
+trybie testowym adres spoza listy albo jakiekolwiek DW/UDW zatrzymuje mail.
+⚠️ Baza testowa jest kopią produkcji: faktury mają tam PRAWDZIWE adresy klientów,
+więc poza produkcją REDIRECT zostaje na stałe.
+
+| Zmienna `.env` | Domyślnie | Znaczenie |
+|---|---|---|
+| `INVOICE_MAIL_ENABLED` | wyłączone | `true` włącza wysyłkę |
+| `INVOICE_MAIL_SINCE` | — | **wymagane**, `RRRR-MM-DD`: tylko faktury utworzone od tego dnia (włączenie nie roześle historii) |
+| `INVOICE_MAIL_REDIRECT` | — | tryb testowy (wyżej) |
+| `INVOICE_MAIL_TO_BUYER` | — | tryb do nabywcy (wyżej) |
+| `INVOICE_MAIL_BCC` | — | ukryta kopia maili do nabywców |
+| `INVOICE_MAIL_MAX_PER_RUN` | `50` | bezpiecznik na jeden przebieg |
+
+Wysłane = wpis w `invoice_event` (do kogo, docelowy adres nabywcy, `messageId`
+z SMTP) — bez migracji. Nieudana próba = `mail_failed` z błędem; faktura wraca w
+kolejnym przebiegu, najwyżej 3 próby (`MAX_ATTEMPTS`). Nic starszego niż 14 dni
+(`MAX_AGE_DAYS`) nie wychodzi automatycznie, niezależnie od `SINCE`. Awaria poczty
+nie przerywa cyklu — jest częściową porażką (kod 1 `scripts/prodStatusSync.js`).
+Nadawca: skrzynka `MAILBOT_USER` (SPF/DKIM), w nazwie — wystawca faktury.
+
+⚠️ Przejście z trybu testowego na „do nabywcy": przesuń `INVOICE_MAIL_SINCE` na
+dzień przełączenia — tryby mają osobne znaczniki (`mail_redirected` nie blokuje
+`mail_sent`), więc stara data rozesłałaby klientom faktury widziane dotąd tylko
+przez testerów.
+
+Ręcznie: `npm run prodstatus:dry` pokazuje też listę maili do wysłania;
+`node scripts/prodStatusSync.js --no-mail` — cykl bez maili.
+
+## Przegląd „wystawione / niewystawione" (panel, poziomy 1 i 2)
+
+Ekran startowy `/invoices` pokazuje pod wyborem klienta tabelę wszystkich
+nabywców z zamówieniami wysłanymi do klienta (`status='sent'` + `!sent!`): ile
+wysłanych, ile z fakturą, ile bez, ostatnia wysyłka, ostatnia faktura, „Otwórz"
+→ ekran nabywcy. Najpierw ci z zamówieniami bez faktury. Okres: domyślnie od
+`INVOICE_AUTOGEN_SINCE` (start automatu), `?od=RRRR-MM-DD` albo „Cały okres"
+(`?od=`), po dacie wysyłki (`order.delivery_date`, jak automat). „Z fakturą" =
+dopełnienie warunku okna zamówień (`invoiceableForClientWhere`), więc liczba
+„bez faktury" zgadza się z oknem na ekranie klienta. Poziom 1 — organizacje ≠ HKL,
+poziom 2 — klienci organizacji z sesji bez jej własnego konta.
+`repository.listInvoiceOverview`, `http/panel.js:loadInvoiceOverview`,
+`templates/owner/partials/invoice_overview.njk`. Błąd przeglądu nie blokuje panelu.
 
 ## Fakturowanie niestandardowe — faktura zbiorcza (`core/collective.js`)
 
@@ -455,6 +606,17 @@ firmowym w `img/invoice-background/` (`COZY.pdf`, `HKL.pdf`, `LUXANGMBH.pdf`).
 Treść faktury (ten sam szablon Nunjucks dla wszystkich) jest nakładana na formatkę
 na każdej stronie; formatka zostaje wektorowa.
 
+⚠️ **Formatka niesie dane i RACHUNEK wystawcy** (stopka: bank, IBAN, rejestr). Dlatego
+faktura HKL → Luxan/Cozy (poziom 1) idzie na papierze HKL, a nie Luxanu — inaczej
+Luxan dostałby fakturę HKL z własnym kontem do przelewu. „Cozy na papierze Cozy, Luxan
+na papierze Luxanu" (właściciel, 2026-10-22) = ich faktury dla ich klientów (poziom 2/4).
+**Automat** wystawia dokument organizacji tylko na JEJ formatce (`requireLetterhead`,
+błąd `INVOICE_NO_LETTERHEAD` → w logu `[invoices:auto] czeka N — wystawca … bez
+formatki`, bez wpływu na kod wyjścia). Stan 2026-10-22: **Luxan Sp. z o.o.
+(LUXAN_EWA_KRAWCZYK) nie ma formatki** — papier Luxan GmbH ma niemiecki rachunek
+i HRB, więc nie wolno go podstawić; jej faktury dla klientów czekają na PDF z polskimi
+danymi i rachunkiem. Ręczne wystawienie w panelu działa bez tej reguły.
+
 Gdzie w bazie (`db/schema_v3.sql`):
 
 ```
@@ -489,7 +651,8 @@ Zasady:
   organizacja zamówienia, poziom 3 (salon) → domyślny. Wybór po organizacji zamówienia
   drukowałby fakturę HKL na papierze Luxanu.
 - **Rozmiar i orientacja strony pochodzą z formatki** (COZY/LUXANGMBH: 290×210 mm poziomo).
-  Gdy treść nie mieści się na jednej stronie o niewiele, PDF jest pomniejszany (min. 80%),
+  Gdy treść nie mieści się na jednej stronie o niewiele, PDF jest pomniejszany (min. 75%;
+  do 2026-10-22 80% — kolumny rabatu i dane krajowe wydłużyły krótkie faktury),
   żeby blok „Płatność + podpisy" nie spadał na pustą drugą stronę. Długie faktury mają
   skalę 100% i kolejne strony — każda na formatce.
 - **Faktura pamięta kod szablonu** (`invoice.template_code`) z chwili wystawienia. Gdy obecny

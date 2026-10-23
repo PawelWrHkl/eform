@@ -57,13 +57,14 @@ async function acquireDbLock(name) {
 
 /**
  * @param {Object} [opts]
- * @param {boolean} [opts.dryRun=false]  nic nie zapisuj (statusy: tylko różnice; faktury: tylko lista)
+ * @param {boolean} [opts.dryRun=false]  nic nie zapisuj (statusy: tylko różnice; faktury i maile: tylko lista)
  * @param {boolean} [opts.full=false]    przelicz nagłówki wszystkich zamówień z pliku
  * @param {boolean} [opts.invoices=true] uruchom automat faktur po synchronizacji
- * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, log }`
- * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null }>}
+ * @param {boolean} [opts.mail=true]     wyślij maile z fakturami automatu (`invoiceMailer.js`); tylko razem z `invoices`
+ * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runInvoiceMailing, log }`
+ * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null, invoiceMails?: object|null }>}
  */
-async function runProdStatusCycle({ dryRun = false, full = false, invoices = true, deps = {} } = {}) {
+async function runProdStatusCycle({ dryRun = false, full = false, invoices = true, mail = true, deps = {} } = {}) {
     const log = deps.log || defaultLog;
     const lock = await (deps.acquireLock || acquireDbLock)(lockName());
     if (!lock) {
@@ -74,12 +75,27 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
     try {
         const statuses = await (deps.syncStatuses || syncAllProdStatuses)({ dryRun, full });
         let autoInvoices = null;
+        let invoiceMails = null;
         if (invoices) {
             // Leniwie: sama synchronizacja statusów nie potrzebuje modułu faktur
             const runAutoInvoicing = deps.runAutoInvoicing || require('./invoices/autoInvoicing').runAutoInvoicing;
             autoInvoices = await runAutoInvoicing({ dryRun });
+            // Maile PO automacie, w tym samym przebiegu: faktura wystawiona przed
+            // chwilą wychodzi od razu, a nieudane z poprzednich przebiegów są
+            // ponawiane. Wyłączone w `.env` = nic się nie dzieje (`INVOICE_MAIL_ENABLED`).
+            if (mail) {
+                try {
+                    const runInvoiceMailing = deps.runInvoiceMailing || require('./invoices/invoiceMailer').runInvoiceMailing;
+                    invoiceMails = await runInvoiceMailing({ dryRun });
+                } catch (err) {
+                    // Statusy i faktury są już zapisane — awaria poczty (SMTP, zapytanie)
+                    // to częściowa porażka cyklu (kod 1), nie jego przerwanie
+                    log(`[invoices:mail] przebieg przerwany: ${err && err.message ? err.message : err}`);
+                    invoiceMails = { sent: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
+                }
+            }
         }
-        return { statuses, autoInvoices };
+        return { statuses, autoInvoices, invoiceMails };
     } finally {
         await lock.release();
     }

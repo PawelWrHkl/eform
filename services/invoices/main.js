@@ -122,6 +122,22 @@ function isShippedOrder(order) {
  */
 const ZERO_TOTAL_ERROR_CODE = 'INVOICE_ZERO_TOTAL';
 
+/**
+ * Kod błędu „sprzedawca albo nabywca bez kraju” (`createFromOrder`). Bez obu krajów
+ * nie da się ustalić VAT (krajowy / WDT / eksport — `core/taxRules.js`), a reguły
+ * przy braku kraju sprzedawcy przyjmują 0% „np”. 2026-10-22 tak wyszły WSZYSTKIE
+ * faktury pierwszego przebiegu na produkcji (organizacje bez `country`), m.in.
+ * krajowe PL→PL i DE→DE, które mają mieć 23% i 19% — stąd blokada zamiast cichej stawki.
+ */
+const COUNTRY_MISSING_ERROR_CODE = 'INVOICE_COUNTRY_MISSING';
+
+/**
+ * Kod błędu „wystawca-organizacja bez formatki” — tylko przy `requireLetterhead`
+ * (automat). Formatka niesie dane i rachunek wystawcy, szablon domyślny rachunku
+ * nie ma; automat traktuje ten kod jak „czeka na formatkę”, nie jak awarię.
+ */
+const NO_LETTERHEAD_ERROR_CODE = 'INVOICE_NO_LETTERHEAD';
+
 class InvoiceService {
   /**
    * @param {Object} [deps]
@@ -193,9 +209,10 @@ class InvoiceService {
    * @param {boolean} [params.issue=true]
    * @param {string} [params.lang]
    * @param {string} [params.createdByPin]
+   * @param {boolean} [params.requireLetterhead=false] tylko na formatce wystawcy (automat) — patrz `NO_LETTERHEAD_ERROR_CODE`
    * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
    */
-  async createCollective({ orderIds, period, level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, issue = true, lang, createdByPin }) {
+  async createCollective({ orderIds, period, level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, issue = true, lang, createdByPin, requireLetterhead = false }) {
     if (!Array.isArray(orderIds) || !orderIds.length) throw new Error('Faktura zbiorcza wymaga listy zamówień');
     if (Number(level) !== hierarchy.InvoiceLevel.ORGANIZATION_TO_USER) {
       throw new Error('Faktura zbiorcza dotyczy wyłącznie poziomu 2 (organizacja → klient)');
@@ -220,6 +237,7 @@ class InvoiceService {
       issue,
       lang,
       createdByPin,
+      requireLetterhead,
       sources,
       collective: { period },
       saleDate: period.end,
@@ -347,6 +365,48 @@ class InvoiceService {
       }
     });
     const { seller, buyer } = parties;
+    for (const [role, party, where] of [
+      ['sprzedawcy', seller, 'kraj organizacji (`organization.country`) albo profil fakturowania wystawcy'],
+      ['nabywcy', buyer, 'kraj w danych nabywcy (konto klienta, organizacja albo odbiorca końcowy)']
+    ]) {
+      if (party && party.country) continue;
+      const err = new Error(
+        `Brak kraju ${role} (${(party && party.name) || '—'}) — bez niego nie da się ustalić VAT `
+        + `(krajowy / WDT / eksport). Uzupełnij ${where}.`
+      );
+      err.code = COUNTRY_MISSING_ERROR_CODE;
+      throw err;
+    }
+
+    // Szablon WYSTAWCY: na poziomie 1 to HKL, nie organizacja zamówienia
+    // (patrz `core/templates.js`). Własny szablon w profilu wystawcy wygrywa.
+    // Formatka niesie dane i RACHUNEK wystawcy — dlatego faktura HKL → Luxan
+    // idzie na papierze HKL, nie Luxanu (Luxan płaci na konto HKL).
+    const templateOrgId = templates.templateOrganizationId({
+      level,
+      orderOrganizationId: source.order.organization_id,
+      manufacturerOrganizationId: HKL_ORG_ID
+    });
+    const templateOrgProfile = !templateOrgId
+      ? null
+      : (Number(templateOrgId) === Number(profile.organizationId)
+        ? profile
+        : await this.repository.getOrganizationProfile(templateOrgId));
+    const templateCode = templates.pickTemplateCode(
+      issuerProfile.templateCode,
+      templateOrgProfile && templateOrgProfile.templateCode
+    );
+    // Automat wystawia dokument organizacji tylko na JEJ papierze (decyzja właściciela
+    // 2026-10-22: Cozy na papierze Cozy, Luxan na papierze Luxanu; Luxan Sp. z o.o.
+    // nie ma jeszcze formatki, więc jej faktury czekają). Salon (poziom 3) wystawia
+    // we własnym imieniu na szablonie domyślnym. Panel bez `requireLetterhead` — jak dotąd.
+    if (params.requireLetterhead && levelDef.issuerType !== hierarchy.IssuerType.USER
+      && templateCode === templates.DEFAULT_TEMPLATE_CODE) {
+      const err = new Error(`Wystawca ${seller.name || '—'} nie ma formatki (papieru firmowego) — dokument czeka, aż zostanie przypisana.`);
+      err.code = NO_LETTERHEAD_ERROR_CODE;
+      err.issuerName = seller.name || '';
+      throw err;
+    }
 
     // Weryfikacja numeru VAT-UE nabywcy. Stawki NIE warunkuje (o niej decyduje
     // para krajów — `core/taxRules.js`); zapisujemy ją na dokumencie jako dowód
@@ -436,12 +496,17 @@ class InvoiceService {
           alreadyInvoicedMinor: alreadyMinor
         });
 
+        // Cena przed rabatem (wydruk, `core/orderMapper.js`) — ta sama część co netto
+        const beforeMinor = Number(base.meta && base.meta.priceBeforeDiscountMinor);
         return {
           ...base,
           unitPriceNetMinor: netMinor,
           description: [base.description, `${line.quantity}/${line.ordered}`].filter(Boolean).join(' · '),
           meta: {
             ...base.meta,
+            ...(beforeMinor > 0 && base.unitPriceNetMinor > 0
+              ? { priceBeforeDiscountMinor: money.roundHalfUp((beforeMinor * netMinor) / base.unitPriceNetMinor) }
+              : {}),
             displayQuantity: line.quantity,
             invoicedQuantity: line.quantity,
             orderedQuantity: line.ordered,
@@ -566,23 +631,6 @@ class InvoiceService {
       deliveryDate
     });
     complianceContext.warnings.forEach((w) => this.log(`[invoices] order ${ref}: ${w}`));
-
-    // Szablon WYSTAWCY: na poziomie 1 to HKL, nie organizacja zamówienia
-    // (patrz `core/templates.js`). Własny szablon w profilu wystawcy wygrywa.
-    const templateOrgId = templates.templateOrganizationId({
-      level,
-      orderOrganizationId: source.order.organization_id,
-      manufacturerOrganizationId: HKL_ORG_ID
-    });
-    const templateOrgProfile = !templateOrgId
-      ? null
-      : (Number(templateOrgId) === Number(profile.organizationId)
-        ? profile
-        : await this.repository.getOrganizationProfile(templateOrgId));
-    const templateCode = templates.pickTemplateCode(
-      issuerProfile.templateCode,
-      templateOrgProfile && templateOrgProfile.templateCode
-    );
 
     // Adres dostawy trafia na dokument TYLKO gdy realnie różni się od adresu
     // rejestrowego nabywcy — powtarzanie tego samego adresu dwa razy to szum.
@@ -899,6 +947,8 @@ class InvoiceService {
 module.exports = {
   InvoiceService,
   ZERO_TOTAL_ERROR_CODE,
+  COUNTRY_MISSING_ERROR_CODE,
+  NO_LETTERHEAD_ERROR_CODE,
   SHIPPED_PROD_STATUS,
   isShippedOrder,
   // Ponowny eksport rdzenia — pozwala używać kalkulatora/reguł bez serwisu

@@ -174,6 +174,113 @@ test('serwis: zamówienie o zerowej wartości nie tworzy dokumentu', async () =>
   );
 });
 
+test('serwis: sprzedawca albo nabywca bez kraju — dokument zablokowany zamiast VAT 0% „np”', async () => {
+  const { InvoiceService, COUNTRY_MISSING_ERROR_CODE } = require('../main');
+
+  // Produkcja 2026-10-22: organizacje bez `country` → reguły dawały 0% „np” także
+  // sprzedaży krajowej PL→PL (powinno być 23%). Pozycja ma cenę, więc blokuje kraj, nie zero.
+  const repositoryWith = ({ sellerCountry, buyerCountry }) => ({
+    async getOrderInvoiceSource() {
+      return {
+        order: { id: 1, organization_id: 3, order_idx: '999', status: 'sent', prod_status: '!sent!' },
+        orderItems: [{ id: 1, total_price: '120.00', unit_price: '120.00', json_parameters: { ILOSC: '1' } }],
+        organization: { id: 3, name: 'HKL', country: sellerCountry },
+        user: { id: 9, client_name: 'Naoknie sp. z o.o.', country: buyerCountry },
+        groupShop: null
+      };
+    },
+    async getOrganizationProfile() {
+      return { organizationId: 3, orgCode: 'HKL', seller: { name: 'HKL', country: sellerCountry }, localCurrency: 'PLN', defaultCurrency: 'EUR', defaultPaymentDays: 14, defaultLang: 'pl', templateCode: 'default', numberPatterns: {}, footerNotes: {} };
+    },
+    async getIssuerProfile() {
+      return {
+        issuerType: 'organization', issuerId: 3, level: 2, name: 'HKL Dekoracja Okien Sp. z o.o.', country: sellerCountry,
+        taxId: '955', registryNumbers: { NIP: '955' }, currency: 'EUR', localCurrency: 'PLN',
+        paymentDays: 14, defaultLang: 'pl', templateCode: 'default', themeVars: {},
+        numberPattern: '{YYYY}/{NR:5}', legalSettings: {}, footerNotes: {}
+      };
+    },
+    async getAllocatedQuantities() { return new Map(); },
+    async getEndClient() { return null; },
+    async getAdvanceInvoicesForOrder() { return []; },
+    async createInvoice() { throw new Error('createInvoice nie powinno zostać wywołane'); }
+  });
+  const vies = { check: async () => { throw new Error('VIES nie powinien być pytany — kraj sprawdzany wcześniej'); } };
+
+  for (const [countries, who, name] of [
+    [{ sellerCountry: '', buyerCountry: 'PL' }, 'sprzedawcy', 'HKL Dekoracja Okien Sp. z o.o.'],
+    [{ sellerCountry: null, buyerCountry: 'PL' }, 'sprzedawcy', 'HKL Dekoracja Okien Sp. z o.o.'],
+    [{ sellerCountry: 'PL', buyerCountry: null }, 'nabywcy', 'Naoknie sp. z o.o.']
+  ]) {
+    const service = new InvoiceService({ repository: repositoryWith(countries), log: () => {}, vies });
+    await assert.rejects(
+      () => service.createFromOrder({ orderId: 1 }),
+      (err) => err.code === COUNTRY_MISSING_ERROR_CODE
+        && err.message.startsWith(`Brak kraju ${who} (${name})`)
+        && /nie da się ustalić VAT/.test(err.message),
+      `brak kraju ${who} (${JSON.stringify(countries)}) musi zatrzymać wystawienie`
+    );
+  }
+});
+
+test('serwis: automat (requireLetterhead) czeka z dokumentem organizacji bez formatki; panel wystawia jak dotąd', async () => {
+  const { InvoiceService, NO_LETTERHEAD_ERROR_CODE } = require('../main');
+
+  // Luxan Sp. z o.o. (2026-10-22): poziom 2, organizacja bez formatki — papier Luxan GmbH
+  // ma niemiecki rachunek i rejestr, więc nie wolno go podstawić; dokument ma czekać.
+  const build = ({ orgTemplate }) => {
+    const saved = [];
+    const repository = {
+      async getOrderInvoiceSource() {
+        return {
+          order: { id: 7, organization_id: 4, order_idx: '120', status: 'sent', prod_status: '!sent!' },
+          orderItems: [{ id: 1, total_price: '80.00', unit_price: '80.00', json_parameters: { ILOSC: '1' } }],
+          organization: { id: 4, name: 'Luxan Spółka z o.o.', country: 'PL' },
+          user: { id: 9, client_name: 'Salon Kowalski', country: 'PL' },
+          groupShop: null
+        };
+      },
+      async getOrganizationProfile(id) {
+        return { organizationId: id, orgCode: 'LUXAN_EWA_KRAWCZYK', templateCode: orgTemplate, seller: { name: 'Luxan Spółka z o.o.', country: 'PL' }, localCurrency: 'PLN', defaultCurrency: 'EUR', defaultPaymentDays: 14, defaultLang: 'pl', numberPatterns: {}, footerNotes: {} };
+      },
+      async getIssuerProfile() {
+        return {
+          issuerType: 'organization', issuerId: 4, level: 2, name: 'Luxan Spółka z o.o.', country: 'PL',
+          taxId: 'PL8513194309', registryNumbers: { NIP: '8513194309' }, currency: 'EUR', localCurrency: 'PLN',
+          paymentDays: 14, defaultLang: 'pl', templateCode: orgTemplate || 'default', themeVars: {},
+          numberPattern: '{YYYY}/{NR:5}', legalSettings: {}, footerNotes: {}
+        };
+      },
+      async getAllocatedQuantities() { return new Map(); },
+      async getEndClient() { return null; },
+      async getAdvanceInvoicesForOrder() { return []; },
+      async createInvoice(invoice) { saved.push(invoice); return { id: 11, number: null }; }
+    };
+    const service = new InvoiceService({
+      repository,
+      log: () => {},
+      vies: { check: async () => ({ checked: false, valid: false }) },
+      currency: { getRate: async () => { throw new Error('bez sieci w teście'); } }
+    });
+    return { service, saved };
+  };
+
+  const waiting = build({ orgTemplate: null });
+  await assert.rejects(
+    () => waiting.service.createFromOrder({ orderId: 7, level: 2, requireLetterhead: true }),
+    (err) => err.code === NO_LETTERHEAD_ERROR_CODE && err.issuerName === 'Luxan Spółka z o.o.' && /nie ma formatki/.test(err.message)
+  );
+  assert.equal(waiting.saved.length, 0, 'automat nie może zapisać dokumentu na gołym papierze');
+
+  const manual = build({ orgTemplate: null });
+  await manual.service.createFromOrder({ orderId: 7, level: 2 });
+  assert.equal(manual.saved[0].templateCode, 'default', 'ręcznie z panelu — jak dotąd, szablon domyślny');
+
+  const withPaper = build({ orgTemplate: 'LUXANPL' });
+  await withPaper.service.createFromOrder({ orderId: 7, level: 2, requireLetterhead: true });
+  assert.equal(withPaper.saved[0].templateCode, 'LUXANPL', 'po przypisaniu formatki automat wystawia na niej');
+});
+
 test('serwis: allowZeroTotal pozwala wymusić dokument na zero', async () => {
   const { InvoiceService } = require('../main');
   let saved = null;

@@ -75,8 +75,19 @@ function parseEmailList(value) {
 }
 
 /**
+ * Środowisko w temacie i banerze maila testowego — maile z bazy testowej
+ * i z produkcji trafiają do tych samych osób i muszą dać się odróżnić.
+ *
+ * @param {Record<string, string|undefined>} env
+ * @returns {string}
+ */
+function environmentLabel(env) {
+  return String(env.NODE_ENV || '').trim().toLowerCase() === 'prod' ? 'PRODUKCJA' : 'TEST';
+}
+
+/**
  * @param {Record<string, string|undefined>} [env]
- * @returns {{ enabled: boolean, active: boolean, mode: string|null, since: string|null, redirect: string[], bcc: string[], maxPerRun: number, from: string, problems: string[] }}
+ * @returns {{ enabled: boolean, active: boolean, mode: string|null, since: string|null, redirect: string[], bcc: string[], maxPerRun: number, from: string, envLabel: string, problems: string[] }}
  */
 function readInvoiceMailConfig(env = process.env) {
   const enabled = String(env.INVOICE_MAIL_ENABLED).toLowerCase() === 'true';
@@ -117,8 +128,42 @@ function readInvoiceMailConfig(env = process.env) {
     bcc: bcc.valid,
     maxPerRun: Number.isInteger(maxPerRun) && maxPerRun > 0 ? maxPerRun : DEFAULT_MAX_PER_RUN,
     from,
+    envLabel: environmentLabel(env),
     problems
   };
+}
+
+/** Wszystkie adresy z pól adresowych wiadomości (nodemailer: string „a, b" albo tablica). */
+function messageRecipients(message) {
+  return ['to', 'cc', 'bcc']
+    .flatMap((field) => {
+      const value = message[field];
+      if (!value) return [];
+      const list = Array.isArray(value) ? value : [value];
+      return list.flatMap((v) => parseEmailList(typeof v === 'object' && v ? v.address : v).valid);
+    })
+    .map((a) => a.toLowerCase());
+}
+
+/**
+ * Ostatnia kontrola tuż przed wysyłką — niezależna od tego, jak wiadomość
+ * została zbudowana. W trybie testowym JAKIKOLWIEK adres spoza
+ * `INVOICE_MAIL_REDIRECT` (także w DW/UDW) blokuje wysyłkę: mail z prawdziwym
+ * adresem klienta nie może wyjść przez pomyłkę w kodzie.
+ *
+ * @param {Record<string, any>} message
+ * @param {ReturnType<typeof readInvoiceMailConfig>} config
+ */
+function assertRecipientsAllowed(message, config) {
+  const recipients = messageRecipients(message);
+  if (!recipients.length) throw new Error('wiadomość bez adresata');
+  if (config.mode === MailMode.REDIRECT) {
+    const allowed = new Set(config.redirect.map((a) => a.toLowerCase()));
+    const outside = recipients.filter((a) => !allowed.has(a));
+    if (outside.length || message.cc || message.bcc) {
+      throw new Error(`tryb testowy: zablokowano wysyłkę do adresu spoza INVOICE_MAIL_REDIRECT (${outside.join(', ') || 'DW/UDW'})`);
+    }
+  }
 }
 
 /** Późniejsza z dat: próg z konfiguracji albo „dziś minus MAX_AGE_DAYS". */
@@ -132,7 +177,7 @@ function toCrlf(text) {
   return String(text).replace(/\r\n|\r|\n/g, '\r\n');
 }
 
-const TEXT_TEMPLATE = `{% if redirect %}TRYB TESTOWY — ten mail NIE trafił do klienta. {% if redirect.intendedTo %}Adresat w trybie produkcyjnym: {{ redirect.intendedTo }}{% else %}Nabywca nie ma adresu e-mail.{% endif %} (nabywca: {{ invoice.buyer.name }})
+const TEXT_TEMPLATE = `{% if redirect %}TRYB TESTOWY ({{ redirect.envLabel }}) — ten mail NIE trafił do klienta. {% if redirect.intendedTo %}Normalnie trafiłby do: {{ redirect.intendedTo }}{% else %}Nabywca nie ma adresu e-mail.{% endif %} (nabywca: {{ invoice.buyer.name }})
 
 {% endif %}{{ t('mail.greeting') }}
 {{ t('mail.intro') }}
@@ -144,6 +189,7 @@ const TEXT_TEMPLATE = `{% if redirect %}TRYB TESTOWY — ten mail NIE trafił do
 {{ t('totals.amount_due') }}: {{ (invoice.amountDue if invoice.amountDue is not none else invoice.totalGross) | money }} {{ invoice.currency }}
 
 {{ t('mail.attachment') }}{% if hasReplyTo %} {{ t('mail.questions') }}{% endif %}
+
 
 {{ t('mail.regards') }}
 {{ invoice.seller.name }}`;
@@ -167,7 +213,7 @@ function buildInvoiceMail({ invoice, pdf, issuerEmail = '', config }) {
   const intendedTo = parseEmailList(invoice.buyer && invoice.buyer.email).valid;
   const replyTo = parseEmailList(issuerEmail).valid[0] || '';
   const redirect = config.mode === MailMode.REDIRECT
-    ? { intendedTo: intendedTo.join(', '), replyTo }
+    ? { intendedTo: intendedTo.join(', '), replyTo, envLabel: config.envLabel || 'TEST' }
     : null;
 
   const vars = { invoice, docLabel, redirect, hasReplyTo: !!replyTo };
@@ -182,7 +228,9 @@ function buildInvoiceMail({ invoice, pdf, issuerEmail = '', config }) {
     // Nadawca to skrzynka systemu (SPF/DKIM), w nazwie wystawca faktury
     from: { name: sellerName || 'eForm', address: config.from },
     to: to.join(', '),
-    subject: redirect ? `[TEST → ${redirect.intendedTo || 'brak adresu nabywcy'}] ${subject}` : subject,
+    subject: redirect
+      ? `[${redirect.envLabel} · do klienta: ${redirect.intendedTo || 'brak adresu'}] ${subject}`
+      : subject,
     html: toCrlf(html),
     text: toCrlf(text),
     attachments: pdf
@@ -282,6 +330,7 @@ async function runInvoiceMailing({ dryRun = false, config = readInvoiceMailConfi
       service = service || getService();
       const pdf = await service.renderPdf(row.id);
       const { message, to, intendedTo } = buildInvoiceMail({ invoice, pdf, issuerEmail, config });
+      assertRecipientsAllowed(message, config);
       const info = await sendMail(message);
 
       const payload = { mode: config.mode, to, intendedTo, messageId: (info && info.messageId) || null };
@@ -319,8 +368,10 @@ module.exports = {
   MAX_ATTEMPTS,
   MAX_AGE_DAYS,
   parseEmailList,
+  environmentLabel,
   readInvoiceMailConfig,
   effectiveSince,
+  assertRecipientsAllowed,
   buildInvoiceMail,
   runInvoiceMailing
 };

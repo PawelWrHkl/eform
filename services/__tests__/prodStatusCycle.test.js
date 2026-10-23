@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 
 const { runProdStatusCycle, lockName } = require('../prodStatusCycle');
-const { readSchedulerConfig, startProdStatusScheduler, SCRIPT } = require('../prodStatusScheduler');
+const { readSchedulerConfig, isSpawnedByServer, modeBlockingServerRun, startProdStatusScheduler, SCRIPT } = require('../prodStatusScheduler');
 
 const quiet = () => {};
 
@@ -17,7 +17,7 @@ function fakeLock() {
   return lock;
 }
 
-test('cykl: najpierw statusy, potem faktury, blokada zwolniona', async () => {
+test('cykl: najpierw statusy, potem faktury, potem maile z fakturami, blokada zwolniona', async () => {
   const order = [];
   const lock = fakeLock();
   const result = await runProdStatusCycle({
@@ -25,11 +25,65 @@ test('cykl: najpierw statusy, potem faktury, blokada zwolniona', async () => {
       log: quiet,
       acquireLock: async () => lock,
       syncStatuses: async () => { order.push('statuses'); return { inserted: 1 }; },
-      runAutoInvoicing: async () => { order.push('invoices'); return { created: [] }; }
+      runAutoInvoicing: async () => { order.push('invoices'); return { created: [] }; },
+      runInvoiceMailing: async ({ dryRun }) => { order.push(`mail:${dryRun}`); return { sent: [], failed: [], planned: [] }; }
     }
   });
-  assert.deepEqual(order, ['statuses', 'invoices']);
+  assert.deepEqual(order, ['statuses', 'invoices', 'mail:false']);
   assert.equal(result.statuses.inserted, 1);
+  assert.deepEqual(result.invoiceMails, { sent: [], failed: [], planned: [] });
+  assert.equal(lock.released, 1);
+});
+
+test('cykl: dry-run dociera do maili jako dry-run (nic nie wysyła)', async () => {
+  let mailDry = null;
+  await runProdStatusCycle({
+    dryRun: true,
+    deps: {
+      log: quiet,
+      acquireLock: async () => fakeLock(),
+      syncStatuses: async () => ({}),
+      runAutoInvoicing: async () => ({ created: [] }),
+      runInvoiceMailing: async ({ dryRun }) => { mailDry = dryRun; return { sent: [], failed: [], planned: [] }; }
+    }
+  });
+  assert.equal(mailDry, true);
+});
+
+test('cykl: --no-mail — faktury tak, maili nie', async () => {
+  let mailed = false;
+  const result = await runProdStatusCycle({
+    mail: false,
+    deps: {
+      log: quiet,
+      acquireLock: async () => fakeLock(),
+      syncStatuses: async () => ({}),
+      runAutoInvoicing: async () => ({ created: [] }),
+      runInvoiceMailing: async () => { mailed = true; }
+    }
+  });
+  assert.equal(mailed, false);
+  assert.equal(result.invoiceMails, null);
+  assert.deepEqual(result.autoInvoices, { created: [] });
+});
+
+test('cykl: awaria poczty nie przerywa cyklu — zapisana jako nieudana wysyłka, blokada zwolniona', async () => {
+  const lock = fakeLock();
+  const logs = [];
+  const result = await runProdStatusCycle({
+    deps: {
+      log: (m) => logs.push(m),
+      acquireLock: async () => lock,
+      syncStatuses: async () => ({ inserted: 2 }),
+      runAutoInvoicing: async () => ({ created: [{ invoiceId: 1 }] }),
+      runInvoiceMailing: async () => { throw new Error('SMTP nie odpowiada'); }
+    }
+  });
+  assert.equal(result.statuses.inserted, 2);
+  assert.equal(result.autoInvoices.created.length, 1);
+  assert.equal(result.invoiceMails.failed.length, 1);
+  assert.match(result.invoiceMails.failed[0].error, /SMTP nie odpowiada/);
+  assert.ok(logs.some((m) => /\[invoices:mail\] przebieg przerwany: SMTP nie odpowiada/.test(m)));
   assert.equal(lock.released, 1);
 });
 
@@ -57,14 +111,23 @@ test('cykl: błąd synchronizacji zwalnia blokadę i nie uruchamia faktur', asyn
   assert.equal(invoices, false);
 });
 
-test('cykl: --no-invoices pomija automat faktur', async () => {
+test('cykl: --no-invoices pomija automat faktur i maile', async () => {
   let invoices = false;
+  let mailed = false;
   const result = await runProdStatusCycle({
     invoices: false,
-    deps: { log: quiet, acquireLock: async () => fakeLock(), syncStatuses: async () => ({}), runAutoInvoicing: async () => { invoices = true; } }
+    deps: {
+      log: quiet,
+      acquireLock: async () => fakeLock(),
+      syncStatuses: async () => ({}),
+      runAutoInvoicing: async () => { invoices = true; },
+      runInvoiceMailing: async () => { mailed = true; }
+    }
   });
   assert.equal(invoices, false);
+  assert.equal(mailed, false);
   assert.equal(result.autoInvoices, null);
+  assert.equal(result.invoiceMails, null);
 });
 
 test('lockName: zawiera nazwę bazy i mieści się w limicie GET_LOCK', () => {
@@ -101,6 +164,33 @@ test('harmonogram: nieudany cykl --full jest powtarzany w następnym', () => {
   } finally {
     scheduler.stop();
   }
+});
+
+test('harmonogram: przebieg rozpoznaje, że odpalił go serwer (rodzic server.js w /proc)', () => {
+  const read = [];
+  const cmdline = (args) => (file) => { read.push(file); return `${args.join('\0')}\0`; };
+  // Kontener produkcji: `npm start` → `node --openssl-legacy-provider server.js`
+  assert.equal(isSpawnedByServer({ ppid: 19, readFile: cmdline(['node', '--openssl-legacy-provider', 'server.js']) }), true);
+  assert.equal(read[0], '/proc/19/cmdline');
+  // Host :8000: potomek `node --watch server.js`
+  assert.equal(isSpawnedByServer({ ppid: 7, readFile: cmdline(['/home/pawel/.nvm/versions/node/v23.10.0/bin/node', 'server.js']) }), true);
+  // Cron przez powłokę, `npm run prodstatus:run`, plik o podobnej nazwie
+  assert.equal(isSpawnedByServer({ ppid: 7, readFile: cmdline(['/bin/sh', '-c', 'node scripts/prodStatusSync.js']) }), false);
+  assert.equal(isSpawnedByServer({ ppid: 7, readFile: cmdline(['npm', 'run', 'prodstatus:run']) }), false);
+  assert.equal(isSpawnedByServer({ ppid: 7, readFile: cmdline(['node', 'old_server.js']) }), false);
+  // `docker exec` (rodzic poza przestrzenią PID-ów kontenera, ppid 0) i system bez /proc
+  const missing = () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); };
+  assert.equal(isSpawnedByServer({ ppid: 0, readFile: missing }), false);
+});
+
+test('harmonogram: po przełączeniu .env na external/off przebieg zlecony przez serwer jest pomijany', () => {
+  assert.equal(modeBlockingServerRun({ env: { PROD_STATUS_SYNC_MODE: 'external' }, spawnedByServer: true }), 'external');
+  assert.equal(modeBlockingServerRun({ env: { PROD_STATUS_SYNC_MODE: 'off' }, spawnedByServer: true }), 'off');
+  // Cron albo ręcznie — przebieg idzie zawsze
+  assert.equal(modeBlockingServerRun({ env: { PROD_STATUS_SYNC_MODE: 'external' }, spawnedByServer: false }), null);
+  // Tryb child (domyślny; nieznana wartość też daje child) — serwer jest właściwym wyzwalaczem
+  assert.equal(modeBlockingServerRun({ env: {}, spawnedByServer: true }), null);
+  assert.equal(modeBlockingServerRun({ env: { PROD_STATUS_SYNC_MODE: 'cron' }, spawnedByServer: true }), null);
 });
 
 test('harmonogram: tryb external/off — serwer niczego nie uruchamia', () => {

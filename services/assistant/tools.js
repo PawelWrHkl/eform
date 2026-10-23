@@ -56,7 +56,8 @@ function scopeFromRequest(req, lang) {
 		// Pracownik bez „Wszystkie zamówienia” widzi tylko swoje — jak lista „Wysłane zlecenia”.
 		employeeId: isEmployee && !(perms && perms.can_see_all_orders) ? (req.session.employee && req.session.employee.id) || -1 : null,
 		groupUserId: getActiveGroupShopId(req) || null,
-		invoices: !!features.invoices && !u.isGroupShop,
+		// Ta sama reguła co menu portalu (także tryb INVOICES_ADMIN_ONLY)
+		invoices: require('../invoices/access').canAccessInvoices(u, features),
 		cancelCtx: {
 			sessionUser: u,
 			sessionEmployee: req.session.employee,
