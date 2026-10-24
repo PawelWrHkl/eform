@@ -22,6 +22,8 @@ const nunjucks = require('nunjucks');
 const money = require('../core/money');
 const { DocumentType, PaymentMethod } = require('../domain/constants');
 const { DEFAULT_TEMPLATE, normalizeTemplatePath, parsePageMargins } = require('../core/templates');
+const { DOCUMENT_LANGUAGES } = require('../core/language');
+const { visibleClauses } = require('../core/compliance');
 const { log } = require('../../../utils/logging');
 
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
@@ -39,7 +41,7 @@ body, .invoice { background: transparent !important; }
 const I18N_DIR = path.join(__dirname, '..', 'i18n');
 
 /** Języki z gotowym słownikiem. Brakujący język → fallback na `pl`. */
-const SUPPORTED_LANGS = ['pl', 'en', 'de'];
+const SUPPORTED_LANGS = DOCUMENT_LANGUAGES;
 
 /** @type {Map<string, Record<string, string>>} */
 const dictionaryCache = new Map();
@@ -204,7 +206,10 @@ function renderInvoiceHtml({ invoice, profile = {}, template = {}, logoDataUri =
   const css = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf8') : '';
   const themeCss = buildThemeCss(template.themeVars, profile.themeVars);
 
-  const footerNote = (profile.footerNotes && (profile.footerNotes[lang] || profile.footerNotes.pl)) || '';
+  // Stopka w języku dokumentu; brak — angielska, nigdy polska na fakturze dla
+  // klienta z innego kraju (od 2026-10-23 język = kraj klienta, `core/language.js`)
+  const notes = profile.footerNotes || {};
+  const footerNote = notes[lang] || (lang === 'pl' ? '' : notes.en) || '';
 
   const body = env.render(templateFile, {
     invoice,
@@ -212,7 +217,9 @@ function renderInvoiceHtml({ invoice, profile = {}, template = {}, logoDataUri =
     logoDataUri,
     footerNote,
     lang,
-    discounts: summarizeItemDiscounts(invoice.items)
+    discounts: summarizeItemDiscounts(invoice.items),
+    // Klauzule kraju wystawcy, które nie dublują adnotacji VAT w języku klienta
+    clauses: visibleClauses(invoice.compliance, lang)
   });
 
   return `<!DOCTYPE html>

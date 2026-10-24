@@ -25,6 +25,15 @@ module.exports = {
   slopePhotoPath: path.join(ROOT_DIR, 'data/WYMIAROWANIE_SLOPOW/TYP'),
   usersPath: path.join(ROOT_DIR, 'data/data'),
   outputData: process.env.OUTPUT_DIR || '/mnt/eform/datatest/out',
+  // Filmy wysyłane linkiem (`routes/film.js`): /film/<nazwa> — strona z odtwarzaczem,
+  // /film/<nazwa>.mp4 — plik, napisy w `<nazwa>_sub/` (*_PL.srt itd.). Domyślnie `movies/`
+  // w repo; katalog jest w .gitignore, bo plik 200 MB nie przeszedłby przez push
+  // auto-commitu (limit GitHuba 100 MB).
+  moviesDir: process.env.MOVIES_DIR || path.join(__dirname, 'movies'),
+  // Publiczny adres aplikacji (np. https://e-orders.eu) — do adresów bezwzględnych
+  // w podglądzie linku do filmu. nginx produkcji nie wysyła X-Forwarded-Proto, więc
+  // z samego żądania wyszłoby http://. Brak = adres liczony z żądania.
+  publicBaseUrl: String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, ''),
   shortJsonDir: path.join(ROOT_DIR, 'json_short'),
   // Automatyczny tester konfiguratora (services/configuratorTester) — raporty JSON per przebieg.
   configTestOutputDir: process.env.CONFIGTEST_OUTPUT_DIR || path.join(ROOT_DIR, 'configtest-output'),

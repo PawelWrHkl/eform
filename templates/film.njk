@@ -1,0 +1,87 @@
+{#
+  Strona z filmem wysyłanym linkiem — `routes/film.js` (GET /film/<nazwa>).
+  Samodzielna, bez base.njk: odbiorca linku zwykle nie ma konta, więc nie ma
+  tu menu, sesji ani skryptów aplikacji. Tekstów prawie brak — link trafia do
+  klientów w różnych językach; napisy (`<track>`, wybór w menu odtwarzacza)
+  startują w języku przeglądarki. Tagi Open Graph dają podgląd linku w Teams,
+  WhatsAppie i poczcie; `noindex`, bo to nie jest strona dla wyszukiwarek.
+#}
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>eForm — film</title>
+  <meta property="og:type" content="video.other">
+  <meta property="og:title" content="eForm — film">
+  <meta property="og:url" content="{{ pageUrl }}">
+  <meta property="og:video" content="{{ absoluteVideoUrl }}">
+  {% if secure %}<meta property="og:video:secure_url" content="{{ absoluteVideoUrl }}">{% endif %}
+  <meta property="og:video:type" content="video/mp4">
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #111317;
+      color: #c9ced6;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    .film {
+      box-sizing: border-box;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .film__brand {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+
+    /* Film 2520×1080: szerokość okna, ale nigdy wyższy niż ekran — bez przewijania.
+       `auto 21 / 9` trzyma kształt (2520:1080 = 21:9), zanim przyjdą wymiary filmu;
+       inny film po wczytaniu dostaje własne proporcje. */
+    .film__video {
+      display: block;
+      width: 100%;
+      max-width: 1680px;
+      max-height: calc(100vh - 80px);
+      aspect-ratio: auto 21 / 9;
+      background: #000;
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
+    }
+
+    .film__video a {
+      color: inherit;
+    }
+
+    /* Przeglądarka liczy napisy jako 5% wysokości filmu — na telefonie w pionie
+       film 21:9 ma ~150 px i wychodzi nieczytelne 7–8 px. Na pełnym ekranie
+       i na komputerze zostaje rozmiar przeglądarki. */
+    .film__video::cue {
+      font-size: max(13px, 100%);
+    }
+  </style>
+</head>
+<body>
+  <main class="film">
+    <div class="film__brand">eForm</div>
+    <video class="film__video" controls playsinline preload="metadata" src="{{ videoUrl }}">
+      {% for sub in subtitles %}
+      <track kind="subtitles" src="{{ sub.url }}" srclang="{{ sub.lang }}" label="{{ sub.label }}"{% if sub.isDefault %} default{% endif %}>
+      {% endfor %}
+      <a href="{{ videoUrl }}">{{ name }}.mp4</a>
+    </video>
+  </main>
+</body>
+</html>

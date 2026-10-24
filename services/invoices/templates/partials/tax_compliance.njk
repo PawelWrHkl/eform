@@ -6,9 +6,12 @@
   zapisany na dokumencie). Dzięki temu faktura wystawiona rok temu drukuje
   klauzule obowiązujące wtedy, a nie dzisiejsze.
 
-  Teksty klauzul są w oryginalnym języku prawnym (niemieckie brzmienie na
-  fakturze niemieckiej, francuskie na francuskiej) — celowo bez i18n, bo
-  tłumaczenie zmieniłoby ich skutek prawny.
+  Teksty klauzul są w oryginalnym języku prawnym kraju wystawcy — celowo bez
+  i18n, bo tłumaczenie zmieniłoby ich skutek prawny. Od 2026-10-23 faktura jest
+  w języku KLIENTA, więc renderer podaje `clauses` (`compliance.visibleClauses`):
+  klauzule dublujące adnotację VAT (WDT, odwrotne obciążenie, eksport, zwolnienie)
+  tylko gdy język dokumentu = język prawny wystawcy — inaczej tę samą podstawę
+  niesie adnotacja z podsumowania VAT, już w języku klienta.
 
   Makro `registryLines` renderuje numery rejestrowe strony; używa go
   `seller_buyer.njk`.
@@ -27,20 +30,19 @@
 {% if invoice.compliance %}
   {% set c = invoice.compliance %}
 
-  {# Data dostawy/usługi — obowiązkowa u wystawcy niemieckiego (§ 14 UStG) #}
+  {# Data dostawy/usługi — obowiązkowa u wystawcy niemieckiego (§ 14 UStG).
+     Etykieta w języku dokumentu: po niemiecku słownik daje „Leistungsdatum". #}
   {% if c.requiresDeliveryDate and c.deliveryDate %}
     <div class="compliance-delivery">
-      <span class="label">
-        {%- if c.sellerCountry == 'DE' %}Leistungsdatum{% else %}{{ t('header.delivery_date') }}{% endif -%}
-      </span>:
+      <span class="label">{{ t('header.delivery_date') }}</span>:
       <strong>{{ c.deliveryDate | date }}</strong>
     </div>
   {% endif %}
 
-  {% if c.clauses | length %}
+  {% if clauses | length %}
     <section class="compliance">
       <ul class="compliance__clauses">
-        {% for clause in c.clauses %}
+        {% for clause in clauses %}
           <li>{{ clause.text }}</li>
         {% endfor %}
       </ul>

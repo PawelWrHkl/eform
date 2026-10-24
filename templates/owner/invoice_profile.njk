@@ -73,12 +73,10 @@
                 <option value="{{ m }}"{% if m == profile.defaultPaymentMethod %} selected{% endif %}>{{ m }}</option>
               {% endfor %}
             </select></label>
-          <label class="inv-field"><span class="inv-label">{{ L.lang }}</span>
-            <select name="default_lang">
-              {% for l in docLangs %}
-                <option value="{{ l }}"{% if l == profile.defaultLang %} selected{% endif %}>{{ l }}</option>
-              {% endfor %}
-            </select></label>
+          {# Od 2026-10-23 język faktury wynika z kraju klienta (`core/language.js`),
+             nie z profilu — dawne pole `default_lang` niczego już nie zmieniało #}
+          <div class="inv-field"><span class="inv-label">{{ L.lang }}</span>
+            <span class="inv-hint">{{ L.lang_by_country }}</span></div>
           <label class="inv-field"><span class="inv-label">{{ L.accent_color }}</span>
             <input name="theme_accent" type="color" value="{{ profile.themeVars.accent if profile.themeVars.accent else '#1f2937' }}"></label>
         </div>

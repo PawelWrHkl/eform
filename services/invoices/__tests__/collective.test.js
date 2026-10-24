@@ -11,6 +11,7 @@ const assert = require('node:assert/strict');
 
 const { periodFor, isPeriodClosed, groupCollectiveCandidates, normalizeSchedule } = require('../core/collective');
 const { runAutoInvoicing, readAutoInvoiceConfig, AUTO_ACTOR } = require('../autoInvoicing');
+const { addDays } = require('../core/dates');
 
 const quiet = () => {};
 
@@ -73,12 +74,12 @@ test('groupCollectiveCandidates: klient + sklep grupowy + okres, otwarte okresy 
 /* InvoiceService.createCollective                                     */
 /* ------------------------------------------------------------------ */
 
-function source(orderId, { userId = 9, idx = String(orderId), prod = '!sent!', price = '100.00', groupUserId = null } = {}) {
+function source(orderId, { userId = 9, idx = String(orderId), prod = '!sent!', price = '100.00', groupUserId = null, country = 'PL' } = {}) {
   return {
     order: { id: orderId, organization_id: 3, order_idx: idx, status: 'sent', prod_status: prod, group_user_id: groupUserId, commision: `Zam ${idx}` },
     orderItems: [{ id: orderId * 10, total_price: price, json_parameters: { ILOSC: 1 } }],
     organization: { id: 3, name: 'HKL', country: 'PL' },
-    user: { id: userId, client_name: 'Klient', country: 'PL' },
+    user: { id: userId, client_name: 'Klient', country },
     groupShop: null
   };
 }
@@ -127,7 +128,19 @@ test('createCollective: jedna faktura z pozycji wszystkich zamówień, numer zam
   assert.deepEqual(inv.items.map((i) => [i.orderItemId, i.orderNumber]), [[10, '201'], [20, '202']]);
   assert.equal(inv.totalNet, 15000);
   assert.match(inv.notes, /Faktura zbiorcza za okres .*Zamówienia: 201, 202/);
+  assert.equal(inv.orderName, 'Zbiorcza 2026-09 · 2 zam.');
   assert.equal(inv.level, 2);
+});
+
+test('createCollective: klient z NL — notka i „nazwa zamówienia" po niderlandzku, bez polskich wstawek', async () => {
+  const repository = fakeRepository({ 1: source(1, { idx: '201', country: 'NL' }), 2: source(2, { idx: '202', country: 'NL' }) });
+  await service(repository).createCollective({ orderIds: [1, 2], period: { key: '2026-W42', start: '2026-10-12', end: '2026-10-18' } });
+  const inv = repository.saved[0];
+
+  assert.equal(inv.lang, 'nl');
+  assert.equal(inv.orderName, 'Verzamelfactuur 2026-W42 · 2 bestellingen');
+  assert.match(inv.notes, /^Verzamelfactuur voor de periode .* Bestellingen: 201, 202\.$/);
+  assert.doesNotMatch(`${inv.orderName} ${inv.notes}`, /Zbiorcza|zam\.|Zamówienia/);
 });
 
 test('createCollective: zamówienia różnych klientów albo bez !sent! — odmowa bez zapisu', async () => {
@@ -223,4 +236,111 @@ test('automat: dry-run wypisuje faktury zbiorcze bez wystawiania', async () => {
   });
   assert.equal(result.planned.length, 1);
   assert.equal(result.planned[0].collective, true);
+});
+
+/* ------------------------------------------------------------------ */
+/* Symulacja crona dzień po dniu (pytanie właściciela 2026-10-23:       */
+/* „tygodniowo = jedna faktura na tydzień, miesięcznie = jedna na       */
+/* miesiąc, ze wszystkich zamówień")                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Atrapa bazy z regułami zapytań repozytorium: kandydatem do faktury zbiorczej
+ * jest zlecenie już wysłane (data wysyłki minęła i status doszedł do
+ * `status.txt`), bez faktury poziomu 2 — także zbiorczej (`linkedDocumentSql`).
+ * Automat chodzi kilka razy na dobę, jak cron co godzinę.
+ *
+ * @param {Array<{ id: number, delivery_date: string, invoice_schedule: string, user_id?: number, group_user_id?: number, statusArrives?: string }>} orders
+ */
+function cronSimulation(orders) {
+  let today = '';
+  const invoices = [];
+  const invoicedBy = new Map();
+  const shipped = (o) => o.delivery_date <= today && (!o.statusArrives || o.statusArrives <= today);
+  const repository = {
+    async findAutoInvoiceCandidates() { return []; },
+    async findCollectiveCandidates() {
+      return orders.filter((o) => shipped(o) && !invoicedBy.has(o.id)).map((o) => ({ user_id: 7, user_ident: 'TCN', ...o }));
+    },
+    async hasLevelInvoice({ orderId }) { return invoicedBy.has(orderId); }
+  };
+  const svc = {
+    async createCollective({ orderIds, period }) {
+      const invoice = { id: invoices.length + 1, period: period.key, orderIds, issuedOn: today };
+      invoices.push(invoice);
+      for (const id of orderIds) invoicedBy.set(id, invoice.id);
+      return { id: invoice.id, number: `2026/${String(invoice.id).padStart(5, '0')}` };
+    }
+  };
+  return {
+    invoices,
+    async runDaily(from, to, runsPerDay = 3) {
+      for (let day = from; day <= to; day = addDays(day, 1)) {
+        today = day;
+        for (let run = 0; run < runsPerDay; run++) {
+          const at = new Date(`${day}T${String(run * 8).padStart(2, '0')}:05:00`);
+          await runAutoInvoicing({ config: autoConfig(), deps: { repository, service: svc, log: quiet, now: () => at } });
+        }
+      }
+    }
+  };
+}
+
+const weekly = (id, day, extra = {}) => ({ id, delivery_date: day, invoice_schedule: 'weekly', ...extra });
+const monthly = (id, day, extra = {}) => ({ id, delivery_date: day, invoice_schedule: 'monthly', ...extra });
+
+test('tygodniowo: jedna faktura na tydzień ze wszystkich zleceń tego tygodnia (cron przez 5 tygodni)', async () => {
+  const sim = cronSimulation([
+    weekly(1, '2026-10-05'), weekly(2, '2026-10-07'), weekly(3, '2026-10-11'), // tydzień 41: pon, śr, nd
+    weekly(4, '2026-10-13'), weekly(5, '2026-10-16'), //                         tydzień 42 (43 bez wysyłek)
+    weekly(6, '2026-10-26'), weekly(7, '2026-11-01') //                          tydzień 44 na przełomie miesięcy
+  ]);
+  await sim.runDaily('2026-10-05', '2026-11-08');
+  assert.deepEqual(sim.invoices.map((i) => [i.period, i.orderIds, i.issuedOn]), [
+    ['2026-W41', [1, 2, 3], '2026-10-13'],
+    ['2026-W42', [4, 5], '2026-10-20'],
+    ['2026-W44', [6, 7], '2026-11-03']
+  ], 'faktura we wtorek po tygodniu, każdy tydzień raz, mimo 3 przebiegów dziennie');
+});
+
+test('miesięcznie: jedna faktura na miesiąc kalendarzowy ze wszystkich zleceń (cron przez 2 miesiące)', async () => {
+  const sim = cronSimulation([
+    monthly(1, '2026-10-01'), monthly(2, '2026-10-15'), monthly(3, '2026-10-31'),
+    monthly(4, '2026-11-02'), monthly(5, '2026-11-30'),
+    monthly(6, '2026-12-01') // grudzień jeszcze otwarty
+  ]);
+  await sim.runDaily('2026-10-01', '2026-12-10');
+  assert.deepEqual(sim.invoices.map((i) => [i.period, i.orderIds, i.issuedOn]), [
+    ['2026-10', [1, 2, 3], '2026-11-02'],
+    ['2026-11', [4, 5], '2026-12-02']
+  ], 'faktura drugiego dnia następnego miesiąca');
+});
+
+test('klient tygodniowy, miesięczny i sklep grupowy w tych samych dniach — faktury się nie mieszają', async () => {
+  const sim = cronSimulation([
+    weekly(1, '2026-10-06'),
+    weekly(2, '2026-10-07', { group_user_id: 11 }),
+    monthly(3, '2026-10-06', { user_id: 8 }),
+    weekly(4, '2026-10-08'),
+    monthly(5, '2026-10-21', { user_id: 8 })
+  ]);
+  await sim.runDaily('2026-10-05', '2026-11-03');
+  assert.deepEqual(sim.invoices.map((i) => [i.period, i.orderIds]), [
+    ['2026-W41', [1, 4]],
+    ['2026-W41', [2]],
+    ['2026-10', [3, 5]]
+  ]);
+});
+
+test('status wysyłki do poniedziałku zdąży na fakturę tygodnia; spóźniony bardziej — osobna faktura za ten tydzień', async () => {
+  const sim = cronSimulation([
+    weekly(1, '2026-10-06'),
+    weekly(2, '2026-10-11', { statusArrives: '2026-10-12' }), // niedzielna wysyłka, status w poniedziałek
+    weekly(3, '2026-10-09', { statusArrives: '2026-10-15' }) //  status 4 dni po końcu tygodnia
+  ]);
+  await sim.runDaily('2026-10-05', '2026-10-20');
+  assert.deepEqual(sim.invoices.map((i) => [i.period, i.orderIds, i.issuedOn]), [
+    ['2026-W41', [1, 2], '2026-10-13'],
+    ['2026-W41', [3], '2026-10-15']
+  ], 'wystawionej faktury się nie zmienia — spóźnione zlecenie dostaje drugą za swój tydzień');
 });

@@ -19,6 +19,7 @@ const compliance = require('./core/compliance');
 const pricing = require('./core/pricing');
 const clientDiscount = require('./core/clientDiscount');
 const templates = require('./core/templates');
+const language = require('./core/language');
 const { calcSubTotals, HKL_ORG_ID } = require('../subPrices');
 const { log: defaultLog } = require('../../utils/logging');
 
@@ -104,6 +105,21 @@ function collectiveNote(lang, period, sources) {
     .replace('{orders}', sources.map((s) => String(s.order.order_idx || s.order.id)).join(', '));
 }
 
+/**
+ * „Nazwa zamówienia" faktury zbiorczej (nagłówek wydruku i mail) w języku
+ * dokumentu — np. `Verzamelfactuur 2026-W42 · 5 bestellingen`.
+ *
+ * @param {string} lang
+ * @param {{ key: string }} period
+ * @param {number} count
+ * @returns {string}
+ */
+function collectiveOrderName(lang, period, count) {
+  return renderer.createTranslator(lang)('collective.order_name')
+    .replace('{period}', period.key)
+    .replace('{count}', String(count));
+}
+
 /** Status produkcji zlecenia wysłanego do klienta (`status.txt`). */
 const SHIPPED_PROD_STATUS = '!sent!';
 
@@ -165,7 +181,7 @@ class InvoiceService {
    * @param {Object} params
    * @param {number} params.orderId
    * @param {string} [params.documentType='invoice'] Patrz `DocumentType`.
-   * @param {string} [params.lang]                   Domyślnie język profilu organizacji.
+   * @param {string} [params.lang]                   Domyślnie wg kraju nabywcy (`core/language.js`).
    * @param {string} [params.currency]               Domyślnie waluta profilu.
    * @param {boolean} [params.issue=false]           `true` → od razu nadaje numer i status `issued`.
    * @param {boolean} [params.vatEuVerified=false]   Numer VAT-UE nabywcy potwierdzony w VIES.
@@ -341,7 +357,6 @@ class InvoiceService {
     const profile = await this.repository.getOrganizationProfile(source.order.organization_id);
     if (!profile) throw new Error(`Brak organizacji ${source.order.organization_id}`);
 
-    const lang = params.lang || issuerProfile.defaultLang || profile.defaultLang;
     // Waluta jest stała — patrz DOCUMENT_CURRENCY
     const currency = DOCUMENT_CURRENCY;
     const today = todayIso(this.now());
@@ -377,6 +392,8 @@ class InvoiceService {
       err.code = COUNTRY_MISSING_ERROR_CODE;
       throw err;
     }
+    // Język dokumentu = kraj nabywcy (`core/language.js`); jawny wybór z panelu wygrywa
+    const lang = language.documentLanguage(params.lang, buyer.country);
 
     // Szablon WYSTAWCY: na poziomie 1 to HKL, nie organizacja zamówienia
     // (patrz `core/templates.js`). Własny szablon w profilu wystawcy wygrywa.
@@ -694,7 +711,7 @@ class InvoiceService {
       // faktura dotyczy; sam numer zamówienia nic mu nie mówi. Kopiowana na
       // dokument, nie doczytywana z zamówienia przy każdym renderze.
       orderName: collective
-        ? `Zbiorcza ${collective.period.key} · ${sources.length} zam.`
+        ? collectiveOrderName(lang, collective.period, sources.length)
         : (source.order.commision || ''),
       lang,
       templateCode,

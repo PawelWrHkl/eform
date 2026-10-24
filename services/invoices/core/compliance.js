@@ -187,6 +187,40 @@ const CLAUSES = Object.freeze({
  */
 const DELIVERY_DATE_REQUIRED = Object.freeze({ PL: false, DE: true, NL: false, FR: false });
 
+/** Język, w którym brzmią klauzule kraju wystawcy (`CLAUSES`). */
+const CLAUSE_LANGUAGE = Object.freeze({ PL: 'pl', DE: 'de', NL: 'nl', FR: 'fr' });
+
+/**
+ * Klauzule, które powtarzają adnotację z podsumowania VAT (`legal.*` w języku
+ * dokumentu, z artykułem dyrektywy 2006/112/WE — art. 226 pkt 11 dopuszcza takie
+ * odesłanie): WDT, odwrotne obciążenie, eksport, zwolnienie.
+ */
+const CLAUSES_COVERED_BY_LEGAL_NOTE = new Set([
+  'pl_wdt', 'pl_reverse_charge', 'pl_export', 'pl_exempt',
+  'de_wdt', 'de_reverse_charge', 'de_export',
+  'nl_wdt', 'nl_reverse_charge', 'nl_export',
+  'fr_wdt', 'fr_reverse_charge', 'fr_export'
+]);
+
+/**
+ * Klauzule do wydruku w danym języku dokumentu. Od 2026-10-23 faktura jest w języku
+ * KLIENTA (`core/language.js`), a klauzule zapisane na dokumencie brzmią w języku
+ * kraju wystawcy — powtórzenia adnotacji VAT drukujemy więc tylko wtedy, gdy oba
+ * języki się zgadzają; w pozostałych podstawa jest już w adnotacji, w języku klienta
+ * (inaczej np. faktura dla holenderskiego klienta HKL miałaby zdanie po polsku).
+ * Klauzule bez odpowiednika (podzielona płatność, Kleinunternehmer, kary FR) zostają.
+ * Liczone przy wydruku — działa także dla dokumentów wystawionych wcześniej.
+ *
+ * @param {{ sellerCountry?: string, clauses?: Array<{ id: string, text: string }> }|null|undefined} context  `invoice.compliance`
+ * @param {string} lang  język dokumentu
+ * @returns {Array<{ id: string, text: string }>}
+ */
+function visibleClauses(context, lang) {
+  const clauses = context && Array.isArray(context.clauses) ? context.clauses : [];
+  if (CLAUSE_LANGUAGE[normalize(context && context.sellerCountry)] === lang) return clauses;
+  return clauses.filter((clause) => !CLAUSES_COVERED_BY_LEGAL_NOTE.has(clause.id));
+}
+
 /**
  * @param {string|null|undefined} country
  * @returns {string}
@@ -315,5 +349,6 @@ module.exports = {
   CLAUSES,
   DELIVERY_DATE_REQUIRED,
   buildRegistryRows,
-  buildComplianceContext
+  buildComplianceContext,
+  visibleClauses
 };

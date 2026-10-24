@@ -9,7 +9,9 @@ const PUBLIC_PREFIXES = [
   '/change-language',
   '/translations',
   '/languages',
-  '/env'
+  '/env',
+  // Film wysłany linkiem komuś spoza eForm działa także w czasie przerwy technicznej
+  '/film/'
 ];
 
 function isPublicWhenBlocked(req) {

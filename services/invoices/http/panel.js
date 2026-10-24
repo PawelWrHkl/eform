@@ -30,6 +30,7 @@ const { parseSpeditionNumbers } = require('../../prodStatus');
 const { AUTO_ACTOR, readAutoInvoiceConfig } = require('../autoInvoicing');
 const { listBackgrounds } = require('../templateAssignment');
 const { parsePageMargins } = require('../core/templates');
+const { DOCUMENT_LANGUAGES } = require('../core/language');
 const { log } = require('../../../utils/logging');
 
 const router = express.Router();
@@ -424,7 +425,7 @@ router.get('/', requireLogin, async (req, res) => {
       currency: DOCUMENT_CURRENCY,
       documentTypes: [],
       statuses: InvoiceStatus,
-      docLangs: ['pl', 'en', 'de']
+      docLangs: DOCUMENT_LANGUAGES
     });
   } catch (err) {
     log(`[invoices] panel GET /: ${err.message}`);
@@ -478,7 +479,7 @@ router.get('/client/:clientId', requireLogin, async (req, res) => {
         ? [DocumentType.PROFORMA, DocumentType.INVOICE]
         : [DocumentType.PROFORMA, DocumentType.ADVANCE, DocumentType.INVOICE, DocumentType.FINAL],
       statuses: InvoiceStatus,
-      docLangs: ['pl', 'en', 'de']
+      docLangs: DOCUMENT_LANGUAGES
     });
   } catch (err) {
     log(`[invoices] panel GET /client/${clientId}: ${err.message}`);
@@ -515,7 +516,7 @@ router.get('/profile', requireLogin, requireOwner, async (req, res) => {
       bgMargins: parsePageMargins(orgTemplate && orgTemplate.pageMargins),
       backgrounds,
       currency: DOCUMENT_CURRENCY,
-      docLangs: ['pl', 'en', 'de'],
+      docLangs: DOCUMENT_LANGUAGES,
       paymentMethods: ['transfer', 'cash', 'card', 'cod', 'prepaid'],
       defaultPatterns: require('../core/numbering').DEFAULT_PATTERNS
     });

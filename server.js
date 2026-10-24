@@ -26,6 +26,7 @@ const assistantRoutes = require('./routes/assistant');
 // każdym wdrożeniu (`update.sh` restartuje kontener, `--watch` proces hosta).
 const ASSET_VERSION = Date.now().toString(36);
 const groupRoutes = require('./routes/group');
+const filmRoutes = require('./routes/film');
 const { addOrganizationsForAdmin } = require('./middleware/loginMixture.js');
 const usersDb = require('./db/users.js');
 const groupDb = require('./db/group.js');
@@ -358,6 +359,8 @@ app.use('/user', userRoutes);
 app.use('/panel', userPanelRoutes);
 app.use('/admin', adminRoutes);
 app.use('/group', groupRoutes);
+// Filmy wysyłane linkiem — bez logowania (`routes/film.js`)
+app.use('/film', filmRoutes);
 app.use('/', mainRoutes);
 app.use('/orders', ordersRoutes);
 app.use('/position', positionsRoutes);

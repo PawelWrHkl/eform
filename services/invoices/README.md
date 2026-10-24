@@ -60,7 +60,7 @@ services/invoices/
 │   ├── partials/                header, seller_buyer, items_table,
 │   │                            vat_summary, payment, footer
 │   └── styles/invoice.css       arkusz + zmienne motywu
-├── i18n/{pl,en,de}.json         słowniki dokumentu
+├── i18n/{pl,en,de,nl,fr}.json   słowniki dokumentu (język = kraj klienta, core/language.js)
 ├── examples/invoice-payload.json pełny kontekst przekazywany do szablonu
 └── __tests__/                   54 testy (node:test, bez bazy i sieci)
 ```
@@ -215,9 +215,28 @@ klauzule obowiązujące wtedy. Szablon `partials/tax_compliance.njk` tylko druku
 | NL | KVK-nummer, Btw-identificatienummer | intracommunautaire levering, btw verlegd; stawki 21/9/0 |
 | FR | SIREN, SIRET, NAF/APE, N° TVA | „TVA non applicable, art. 293 B du CGI", „Taux des pénalités de retard : …", **„Indemnité forfaitaire pour frais de recouvrement : 40 €"** |
 
-⚠️ Teksty klauzul są w oryginalnym języku prawnym (niemiecka faktura ma niemieckie
-brzmienie, nawet gdy reszta dokumentu jest po polsku) — celowo **nie** przez i18n,
-bo tłumaczenie zmieniłoby ich skutek prawny.
+⚠️ Teksty klauzul są w oryginalnym języku prawnym kraju wystawcy — celowo **nie**
+przez i18n, bo tłumaczenie zmieniłoby ich skutek prawny. Od 2026-10-23 dokument jest
+w języku KLIENTA (niżej), więc klauzule dublujące adnotację z podsumowania VAT (WDT,
+odwrotne obciążenie, eksport, zwolnienie) drukujemy tylko, gdy język dokumentu =
+język prawny wystawcy (`compliance.visibleClauses`, liczone przy wydruku); w innym
+języku tę samą podstawę niesie adnotacja `legal.*` z artykułem dyrektywy 2006/112/WE.
+Klauzule bez odpowiednika (podzielona płatność, Kleinunternehmer, kary FR) zostają.
+
+### Język dokumentu = kraj klienta
+
+Decyzja właściciela 2026-10-23 (`core/language.js`): nabywca z **NL → niderlandzki,
+PL → polski, DE i AT → niemiecki, FR → francuski, każdy inny kraj → angielski**. Dotyczy
+etykiet, adnotacji VAT, daty dostawy („Leistungsdatum" tylko po niemiecku), stopki
+organizacji (brak w tym języku → angielska, nigdy polska) i maila z fakturą (baner
+trybu testowego zostaje po polsku). Wcześniej decydował profil wystawcy (`pl`), więc
+np. faktura Luxan GmbH dla niemieckiego klienta miała polskie etykiety i niemieckie
+klauzule. Panel: lista „Język dokumentu" ma domyślnie „wg kraju klienta"; konkretny
+język to świadome nadpisanie. Pole języka w profilu organizacji zastąpił opis reguły.
+Słowniki: `i18n/{pl,en,de,nl,fr}.json` (96 kluczy; test pilnuje kompletności). Polskie
+adnotacje `legal.*` powołują się na dyrektywę (polska ustawa byłaby błędna przy
+wystawcy z DE/NL — po polsku dostaje fakturę tylko klient z PL). Język zapisuje się na
+dokumencie (`invoice.lang`) przy wystawieniu.
 
 ⚠️ `missing`/ostrzeżenia o brakujących numerach dotyczą **tylko wystawcy** —
 wystawca nie ma obowiązku znać SIREN-u kontrahenta.
@@ -575,14 +594,21 @@ Ustawia to admin: `/admin/users` → konto → karta **„Fakturowanie niestanda
   za jedno zamówienie): pozycje wszystkich zamówień, każda z numerem swojego zamówienia
   (`invoice_item.order_number`); data sprzedaży i dostawy = koniec okresu; `invoice.order_id`
   pusty, `order_ref` = lista numerów (skracana do 64 znaków), w uwagach okres i pełna lista
-  w języku dokumentu (`collective.note` w `i18n/*.json`).
+  w języku dokumentu (`collective.note` w `i18n/*.json`). „Nazwa zamówienia" w nagłówku
+  i w mailu też w języku dokumentu (`collective.order_name`, np. „Verzamelfactuur 2026-W42 ·
+  5 bestellingen") — do 2026-10-23 była na sztywno po polsku („Zbiorcza … zam.").
 - ⚠️ „Zafakturowane" rozpoznajemy także po POZYCJACH (`repository.linkedDocumentSql`) —
   faktura zbiorcza nie ma `order_id`, więc samo `invoice.order_id = o.id` uznałoby jej
   zamówienia za niezafakturowane i automat wystawiłby im drugie faktury.
+- Status wysyłki, który dojdzie do `status.txt` później niż dzień po końcu okresu: zlecenie
+  dostaje OSOBNĄ fakturę za swój okres (wystawionej faktury nie zmieniamy) — test
+  „status wysyłki do poniedziałku zdąży…" w `__tests__/collective.test.js`.
 - Ręczna faktura z okna zamówień wyjmuje zlecenie z faktury zbiorczej — karta klienta i okno
   pokazują ostrzeżenie dla klientów z harmonogramem.
 - Kod działa także przed migracją (`supportsInvoiceSchedule`) — wtedy fakturowanie
-  niestandardowe jest po prostu nieaktywne.
+  niestandardowe jest po prostu nieaktywne. ⚠️ Wynik sprawdzenia kolumny jest zapamiętany
+  na proces: po migracji panel (zapis w `/admin/users`, znacznik na karcie klienta) wymaga
+  restartu; automat chodzi w osobnym procesie crona, więc widzi kolumnę od następnego przebiegu.
 
 ## Okno zamówień (widok klienta, poziom 2)
 
@@ -602,9 +628,19 @@ Pozostałe poziomy (1, 3, 4) zostają przy comboboxie — także tylko zlecenia 
 ## Formatki organizacji (papier firmowy)
 
 Każda organizacja drukuje faktury na własnej **formatce** — PDF-ie z papierem
-firmowym w `img/invoice-background/` (`COZY.pdf`, `HKL.pdf`, `LUXANGMBH.pdf`).
+firmowym w `img/invoice-background/` (`COZY.pdf`, `HKL_POZIOM.pdf`, `LUXANGMBH.pdf`).
 Treść faktury (ten sam szablon Nunjucks dla wszystkich) jest nakładana na formatkę
 na każdej stronie; formatka zostaje wektorowa.
+
+**Wszystkie faktury są POZIOME** (decyzja właściciela 2026-10-23): rozmiar strony
+bierze się z formatki, a bez formatki — A4 poziomo. Jedyna pionowa formatka, `HKL.pdf`
+(A4 ×1,34, pion), została zastąpiona `HKL_POZIOM.pdf` (A4 poziomo) złożoną z jej
+WYCINKÓW (PyMuPDF `show_pdf_page` z `clip` — dane firmy, wyróżnienia i rachunki
+EUR/PLN są dokładnie te z oryginału, bez przepisywania): nagłówek = logo | wyróżnienia |
+dane firmy, stopka = rachunek EUR | rachunek PLN w pełnej wielkości (czytelniej niż na
+oryginale). Marginesy 30/12/25/12 mm (pole treści ~155 mm, jak Luxan 159 mm).
+Przypisana z `--code HKL`, więc drukują się na niej także wcześniej wystawione
+(testowe) faktury HKL. `HKL.pdf` zostaje w katalogu jako źródło.
 
 ⚠️ **Formatka niesie dane i RACHUNEK wystawcy** (stopka: bank, IBAN, rejestr). Dlatego
 faktura HKL → Luxan/Cozy (poziom 1) idzie na papierze HKL, a nie Luxanu — inaczej
@@ -678,7 +714,7 @@ Do rozważenia: pozioma formatka HKL w formacie A4 jak COZY/LUXANGMBH.
 | Formatka (papier firmowy) organizacji | PDF do `img/invoice-background/` + `node scripts/setInvoiceTemplate.js <ORG> --background <plik.pdf> --margins …` |
 | Własny układ treści dla organizacji | Kopia `templates/invoice-main.njk` + `--template <plik.njk>` w tym samym skrypcie |
 | Zmienić kolory/font | `theme_vars` w profilu organizacji (CSS custom properties, walidowane w `renderer.buildThemeCss`) |
-| Nowy język | `i18n/<kod>.json` + wpis w `renderer.SUPPORTED_LANGS` (test pilnuje kompletności kluczy) |
+| Nowy język | `i18n/<kod>.json` + wpis w `core/language.js` (`DOCUMENT_LANGUAGES`, a dla kraju — `LANGUAGE_BY_BUYER_COUNTRY`); test pilnuje kompletności kluczy |
 | Inne źródło kursów (EBC, własna tabela) | Klasa z metodą `fetchRate(currency, isoDate)` przekazana do `CurrencyConverter` |
 | Nowy wzorzec numeracji | `number_patterns` w profilu; znaczniki `{YYYY} {YY} {MM} {DD} {NR} {NR:n} {ORG} {TYPE}` |
 | Nowa kategoria podatkowa | `domain/constants.js` (+ `LEGAL_NOTE_KEYS`) i gałąź w `core/taxRules.js` |

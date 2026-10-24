@@ -213,7 +213,9 @@
     "overview_clients": "nabywców",
     "overview_empty": "Brak zamówień wysłanych do klienta w tym okresie.",
     "overview_error": "Nie udało się wczytać przeglądu — szczegóły w logu serwera.",
-    "overview_truncated": "Pokazano {shown} z {total} nabywców (najpierw ci z zamówieniami bez faktury) — zawęź okres."
+    "overview_truncated": "Pokazano {shown} z {total} nabywców (najpierw ci z zamówieniami bez faktury) — zawęź okres.",
+    "lang_auto": "wg kraju klienta",
+    "lang_by_country": "Wg kraju klienta: NL → niderlandzki, PL → polski, DE i AT → niemiecki, FR → francuski, pozostali → angielski."
   },
   "en": {
     "title": "Invoices",
@@ -422,7 +424,9 @@
     "overview_clients": "buyers",
     "overview_empty": "No orders shipped to the customer in this period.",
     "overview_error": "Could not load the overview — see the server log.",
-    "overview_truncated": "Showing {shown} of {total} buyers (those with uninvoiced orders first) — narrow the period."
+    "overview_truncated": "Showing {shown} of {total} buyers (those with uninvoiced orders first) — narrow the period.",
+    "lang_auto": "by client's country",
+    "lang_by_country": "By client's country: NL → Dutch, PL → Polish, DE and AT → German, FR → French, others → English."
   },
   "de": {
     "title": "Rechnungen",
@@ -631,6 +635,8 @@
     "overview_clients": "Käufer",
     "overview_empty": "Keine an den Kunden versandten Aufträge in diesem Zeitraum.",
     "overview_error": "Übersicht konnte nicht geladen werden — Details im Serverprotokoll.",
-    "overview_truncated": "{shown} von {total} Käufern angezeigt (zuerst die mit offenen Aufträgen) — Zeitraum eingrenzen."
+    "overview_truncated": "{shown} von {total} Käufern angezeigt (zuerst die mit offenen Aufträgen) — Zeitraum eingrenzen.",
+    "lang_auto": "nach Land des Kunden",
+    "lang_by_country": "Nach Land des Kunden: NL → Niederländisch, PL → Polnisch, DE und AT → Deutsch, FR → Französisch, übrige → Englisch."
   }
 }

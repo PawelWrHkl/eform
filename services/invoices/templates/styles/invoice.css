@@ -88,12 +88,20 @@ body {
     margin-bottom: 1.5mm;
 }
 
+/* Nazwa sprzedawcy się nie ściska — zawija się pasek dat po prawej. Bez tego
+   szeroki pasek (daty + nazwa zamówienia) łamał „Sp. z o.o." na dwa wiersze. */
+.doc-header__brand {
+    flex: 0 0 auto;
+    max-width: 45%;
+}
+
 .doc-header__seller-name {
     font-weight: 700;
     font-size: 1.1em;
 }
 
 .doc-header__meta {
+    flex: 1 1 auto;
     text-align: right;
     min-width: 70mm;
 }
@@ -440,6 +448,10 @@ body {
             flex-direction: column;
         }
 
+        .doc-header__brand {
+            max-width: none;
+        }
+
         .doc-header__meta {
             text-align: left;
             min-width: 0;
@@ -639,9 +651,10 @@ body {
 }
 
 /* Nazwa zamówienia bywa długa (np. „Kowalski — dom, parter") — nie może
-   rozpychać paska dat ani łamać się w połowie wyrazu. */
+   rozpychać paska dat ani łamać się w połowie wyrazu. 95 mm mieści nazwę
+   faktury zbiorczej w każdym języku („Verzamelfactuur 2026-W42 · 14 bestellingen"). */
 .doc-date--wide .doc-date__value {
-    max-width: 70mm;
+    max-width: 95mm;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

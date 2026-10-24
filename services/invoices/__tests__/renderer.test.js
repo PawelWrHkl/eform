@@ -12,6 +12,8 @@ const fs = require('fs');
 const path = require('path');
 
 const { renderInvoiceHtml, createTranslator, buildThemeCss, summarizeItemDiscounts, SUPPORTED_LANGS } = require('../render/renderer');
+const { buildComplianceContext } = require('../core/compliance');
+const { TaxCategory } = require('../domain/constants');
 
 const payload = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'examples', 'invoice-payload.json'), 'utf8'));
 
@@ -110,6 +112,41 @@ test('summarizeItemDiscounts: przełącznik i suma przed rabatem (pozycja bez ra
   );
   // Niespójne meta (procent bez kwoty) — liczy się netto, nie 0
   assert.equal(summarizeItemDiscounts([{ netAmount: 700, meta: { discountPercent: 10 } }]).beforeTotal, 700);
+});
+
+test('render: faktura po niderlandzku i po francusku — etykiety, adnotacja VAT, bez polskiej stopki', () => {
+  const base = ctx();
+  const nl = renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'nl' } });
+  assert.match(nl, /<html lang="nl">/);
+  for (const label of ['Verkoper', 'Koper', 'Btw-overzicht', 'Te betalen', 'Omschrijving goederen / diensten']) assert.match(nl, new RegExp(label));
+  assert.match(nl, /Intracommunautaire levering — 0% btw \(art\. 138 Richtlijn 2006\/112\/EG\)\./);
+  // Profil ma stopkę tylko pl i de — na fakturze po niderlandzku żadnej z nich
+  assert.doesNotMatch(nl, /Sąd Rejonowy|Amtsgericht/);
+
+  const fr = renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'fr' } });
+  for (const label of ['Vendeur', 'Acheteur', 'Récapitulatif TVA', 'Net à payer']) assert.match(fr, new RegExp(label));
+  assert.match(fr, /Livraison intracommunautaire — TVA 0 % \(art\. 138 de la directive 2006\/112\/CE\)\./);
+});
+
+test('render: sprzedawca z DE — klauzula po niemiecku tylko na fakturze niemieckiej, data dostawy w języku dokumentu', () => {
+  const base = ctx();
+  const compliance = buildComplianceContext({
+    seller: { country: 'DE', vatEuId: 'DE814603367' },
+    buyer: { country: 'NL' },
+    taxLines: [{ taxCategory: TaxCategory.INTRA_EU_GOODS, taxRate: 0 }],
+    currency: 'EUR',
+    localCurrency: 'EUR',
+    deliveryDate: '2026-10-01'
+  });
+  const nl = renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'nl', compliance } });
+  assert.doesNotMatch(nl, /Steuerfreie innergemeinschaftliche Lieferung/, 'klient z NL: bez niemieckiego zdania');
+  assert.match(nl, /Leveringsdatum<\/span>:/);
+
+  const de = renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'de', compliance } });
+  assert.match(de, /Steuerfreie innergemeinschaftliche Lieferung/);
+  assert.match(de, /Leistungsdatum<\/span>:/);
+  // Data sprzedaży i data dostawy to dwie różne daty — po niemiecku też różne etykiety
+  assert.match(de, /Verkaufsdatum/);
 });
 
 test('render: język dokumentu decyduje o etykietach', () => {

@@ -108,9 +108,11 @@
 
               <label class="inv-field inv-field--narrow">
                 <span class="inv-label">{{ L.lang }}</span>
+                {# Domyślnie język z kraju klienta (`core/language.js`); konkretny = świadome nadpisanie #}
                 <select name="lang">
+                  <option value="" selected>{{ L.lang_auto }}</option>
                   {% for l in docLangs %}
-                    <option value="{{ l }}"{% if l == panelLang %} selected{% endif %}>{{ l }}</option>
+                    <option value="{{ l }}">{{ l }}</option>
                   {% endfor %}
                 </select>
               </label>

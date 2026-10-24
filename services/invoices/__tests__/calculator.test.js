@@ -281,6 +281,51 @@ test('serwis: automat (requireLetterhead) czeka z dokumentem organizacji bez for
   assert.equal(withPaper.saved[0].templateCode, 'LUXANPL', 'po przypisaniu formatki automat wystawia na niej');
 });
 
+test('serwis: język dokumentu wg kraju nabywcy (NL/PL/DE/FR, reszta en), jawny wybór z panelu wygrywa', async () => {
+  const { InvoiceService } = require('../main');
+  const issue = async (buyerCountry, params = {}) => {
+    let saved = null;
+    const repository = {
+      async getOrderInvoiceSource() {
+        return {
+          order: { id: 3, organization_id: 5, order_idx: '7', status: 'sent', prod_status: '!sent!' },
+          orderItems: [{ id: 1, total_price: '50.00', total_price_sub: '50.00', json_parameters: { ILOSC: '1' } }],
+          organization: { id: 5, name: 'Luxan Krawczyk Sonnenschutzsysteme GmbH', country: 'DE' },
+          user: { id: 9, client_name: 'Kunde', country: buyerCountry },
+          groupShop: null
+        };
+      },
+      async getOrganizationProfile(id) {
+        // Profil wystawcy z polskim domyślnym językiem — nie może już decydować
+        return { organizationId: id, orgCode: 'LUXANGMBH', defaultLang: 'pl', templateCode: 'LUXANGMBH', seller: { name: 'Luxan GmbH', country: 'DE' }, localCurrency: 'EUR', defaultCurrency: 'EUR', defaultPaymentDays: 14, numberPatterns: {}, footerNotes: {} };
+      },
+      async getIssuerProfile() {
+        return {
+          issuerType: 'organization', issuerId: 5, level: 2, name: 'Luxan GmbH', country: 'DE', defaultLang: 'pl',
+          taxId: 'DE814603367', registryNumbers: {}, currency: 'EUR', localCurrency: 'EUR', paymentDays: 14,
+          templateCode: 'LUXANGMBH', themeVars: {}, numberPattern: '{YYYY}/{NR:5}', legalSettings: {}, footerNotes: {}
+        };
+      },
+      async getAllocatedQuantities() { return new Map(); },
+      async getEndClient() { return null; },
+      async getAdvanceInvoicesForOrder() { return []; },
+      async createInvoice(invoice) { saved = invoice; return { id: 1, number: null }; }
+    };
+    const service = new InvoiceService({ repository, log: () => {}, vies: { check: async () => ({ checked: false, valid: false }) } });
+    await service.createFromOrder({ orderId: 3, level: 2, skipVies: true, ...params });
+    return saved.lang;
+  };
+
+  assert.equal(await issue('DE'), 'de', 'Luxan GmbH → klient niemiecki: po niemiecku (było po polsku z profilu)');
+  assert.equal(await issue('NL'), 'nl');
+  assert.equal(await issue('FR'), 'fr');
+  assert.equal(await issue('PL'), 'pl');
+  assert.equal(await issue('AT'), 'de', 'Austria po niemiecku');
+  assert.equal(await issue('DK'), 'en');
+  assert.equal(await issue('NL', { lang: 'de' }), 'de', 'świadomy wybór w panelu');
+  assert.equal(await issue('NL', { lang: '' }), 'nl', '„wg kraju klienta" w panelu');
+});
+
 test('serwis: allowZeroTotal pozwala wymusić dokument na zero', async () => {
   const { InvoiceService } = require('../main');
   let saved = null;
