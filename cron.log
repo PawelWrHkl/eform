@@ -4379,3 +4379,34 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-24 10:35:01 - Start ===
 === 2026-10-24 10:35:01 - Dodawanie zmian do commita ===
+[main 61a7fc1] Automatic commit 2026-10-24 10:35
+ 38 files changed, 18323 insertions(+), 283 deletions(-)
+ create mode 100755 "Nowy Obraz \342\200\224 mapa bitowa.bmp"
+ rewrite configtest/nightly.out (69%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 img/invoice-background/HKL_POZIOM.pdf
+ create mode 100644 routes/__tests__/film.test.js
+ create mode 100644 routes/film.js
+ create mode 100644 scripts/hklLandscapeLetterhead.py
+ create mode 100644 services/invoices/__tests__/language.test.js
+ create mode 100644 services/invoices/core/language.js
+ create mode 100644 services/invoices/i18n/fr.json
+ create mode 100644 services/invoices/i18n/nl.json
+ create mode 100644 templates/film.njk
+=== 2026-10-24 10:35:04 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 63.76 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 104 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 65 high, 30 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   b413727..61a7fc1  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-24 10:35:11 - Koniec ===
+=== 2026-10-24 12:00:01 - Start ===
+=== 2026-10-24 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-25 10:35:01 - Start ===
+=== 2026-10-25 10:35:01 - Dodawanie zmian do commita ===
