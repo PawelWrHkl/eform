@@ -2,27 +2,35 @@
   Strony transakcji. Dane są zdenormalizowaną KOPIĄ z chwili wystawienia
   (patrz `db/schema.sql`) — szablon nigdy nie dociąga bieżących danych klienta.
 #}
-{% from "partials/tax_compliance.njk" import registryLines %}
-
+{# Zwarto, w 3 liniach (uwaga KK 2026-10-26: góra faktury zajmowała 1/3
+   strony): tytuł + nazwa | adres | numery rejestrowe + kontakt. Separatory
+   („, ” i „ · ”) dokłada CSS (`.party__addr`, `.party__ids`). #}
 {% macro party(title, p, registry) %}
+  {% set place = ((p.zip or '') ~ ' ' ~ (p.city or '')) | trim %}
   <section class="party">
-    <h2 class="party__title">{{ title }}</h2>
-    <div class="party__name">{{ p.name }}</div>
-    {% if p.street %}<div class="party__line">{{ p.street }}</div>{% endif %}
-    {% if p.zip or p.city %}<div class="party__line">{{ p.zip }} {{ p.city }}</div>{% endif %}
-    {% if p.country %}<div class="party__line">{{ p.country }}</div>{% endif %}
+    <div class="party__head">
+      <h2 class="party__title">{{ title }}</h2>
+      <span class="party__name">{{ p.name }}</span>
+    </div>
+    {% if p.street or place or p.country %}
+      <div class="party__line party__addr">
+        {%- if p.street %}<span>{{ p.street }}</span>{% endif -%}
+        {%- if place %}<span>{{ place }}</span>{% endif -%}
+        {%- if p.country %}<span>{{ p.country }}</span>{% endif -%}
+      </div>
+    {% endif %}
     {# Numery rejestrowe w formacie kraju strony (NIP/REGON, Steuernummer +
        USt-IdNr., KVK + Btw-id, SIREN/SIRET/NAF/TVA) — z `invoice.compliance`.
        Fallback na pola ogólne, gdy dokument powstał przed wdrożeniem v2. #}
-    {% if registry and registry | length %}
-      {{ registryLines(registry) }}
-    {% elif p.vatEuId %}
-      <div class="party__line"><span class="label">{{ t('party.vat_eu_id') }}:</span> {{ p.vatEuId }}</div>
-    {% elif p.taxId %}
-      <div class="party__line"><span class="label">{{ t('party.tax_id') }}:</span> {{ p.taxId }}</div>
-    {% endif %}
-    {% if p.email %}<div class="party__line">{{ p.email }}</div>{% endif %}
-    {% if p.phone %}<div class="party__line">{{ p.phone }}</div>{% endif %}
+    <div class="party__line party__ids">
+      {%- if registry and registry | length %}
+        {%- for row in registry %}{% if row.value %}<span class="party__registry"><span class="label">{{ row.label }}:</span> {{ row.value }}</span>{% endif %}{% endfor -%}
+      {%- elif p.vatEuId %}<span><span class="label">{{ t('party.vat_eu_id') }}:</span> {{ p.vatEuId }}</span>
+      {%- elif p.taxId %}<span><span class="label">{{ t('party.tax_id') }}:</span> {{ p.taxId }}</span>
+      {%- endif -%}
+      {%- if p.email %}<span>{{ p.email }}</span>{% endif -%}
+      {%- if p.phone %}<span>{{ p.phone }}</span>{% endif -%}
+    </div>
   </section>
 {% endmacro %}
 

@@ -434,6 +434,17 @@ const isOrganization = searchMount?.dataset.organization === 'true';
 const isGroup = window.isGroup === true;
 const orderPath = isSent ? '/orders/history/order' : '/orders/order';
 
+// „Zamów ponownie” — ten sam SVG co templates/partials/reorder_icon.njk.
+// Tabela: sama ikona + dymek; karta na telefonie: ikona + napis (brak najechania).
+const REORDER_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="20.5" r="1.3"/><circle cx="18" cy="20.5" r="1.3"/><path d="M1.5 2.5h2.6l2.3 11.6a1.8 1.8 0 0 0 1.8 1.5h9.4a1.8 1.8 0 0 0 1.8-1.4L21.5 7"/><path d="M15.8 6.2a3.6 3.6 0 1 0 .9 3.6"/><path d="M16.3 3.6v2.8h-2.8"/></svg>';
+
+function reorderBtn(id, labeled) {
+	const label = escapeHtml(t('orders.reorder'));
+	return labeled
+		? `<button type="button" class="btn reorder-btn reorder-btn--labeled copy-order-btn stop-propagation" data-id="${id}" onclick="event.stopPropagation()">${REORDER_ICON}<span>${label}</span></button>`
+		: `<button type="button" class="action-btn action-btn-copy reorder-btn copy-order-btn stop-propagation has-tooltip" data-id="${id}" data-tooltip="${label}" aria-label="${label}" onclick="event.stopPropagation()">${REORDER_ICON}</button>`;
+}
+
 function renderTableRow(order) {
 	const id = escapeHtml(String(order.id));
 
@@ -472,7 +483,7 @@ function renderTableRow(order) {
 		<th scope="row">${order.delivery_date ? escapeHtml(order.delivery_date) : (!order.prod_status && order.max_prod_days ? escapeHtml(order.max_prod_days + ' ' + t('termin.days')) : '-')}</th>
 		${trackingCell}
 		<td>
-			<button class="btn btn-outline-secondary copy-order-btn stop-propagation" data-id="${id}" onclick="event.stopPropagation()">${escapeHtml(t('orders.reorder'))}</button>
+			${reorderBtn(id, false)}
 		</td>` : '';
 
 	const actionBtns = (!isSent && !isEmployee) ? `
@@ -539,7 +550,7 @@ function renderMobileCard(order) {
 		${trackingHTML}` : '';
 
 	const actions = isSent
-		? `<button class="btn btn-outline-secondary copy-order-btn stop-propagation" data-id="${id}" onclick="event.stopPropagation()">${escapeHtml(t('orders.reorder'))}</button>`
+		? reorderBtn(id, true)
 		: (!isEmployee ? `
 			<button class="action-btn action-btn-delete delete-position-btn stop-propagation"
 				data-href="/orders/order/${id}/delete" type="button" onclick="event.stopPropagation()">

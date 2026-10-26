@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Poziomy papier firmowy HKL dla faktur (img/invoice-background/HKL_POZIOM.pdf), 2026-10-23.
+# Poziomy papier firmowy HKL dla faktur (img/invoice-background/HKL_POZIOM.pdf), 2026-10-23;
+# nagłówek o połowę niższy od 2026-10-26 (uwaga KK: góra faktury zajmowała 1/3 strony).
 # Wszystkie faktury mają być poziome, a jedyna pionowa formatka to HKL.pdf — ta jest
 # składana z jej wycinków, więc dane firmy, wyróżnienia i rachunki zostają 1:1.
 #
@@ -7,7 +8,7 @@
 #   python3 -m venv /tmp/venv-pdf && /tmp/venv-pdf/bin/pip install pymupdf
 #   /tmp/venv-pdf/bin/python scripts/hklLandscapeLetterhead.py \
 #       img/invoice-background/HKL.pdf img/invoice-background/HKL_POZIOM.pdf
-# Potem: node scripts/setInvoiceTemplate.js HKL --background HKL_POZIOM.pdf --margins 30,12,25,12 --code HKL
+# Potem: node scripts/setInvoiceTemplate.js HKL --background HKL_POZIOM.pdf --margins 18,12,25,12 --code HKL
 # (współrzędne wycinków w pt, względem pionowego HKL.pdf 799×1129 pt).
 import sys
 import fitz
@@ -29,8 +30,8 @@ def place(clip, x, y, scale):
 logo = fitz.Rect(50, 40, 233, 108)
 dane = fitz.Rect(388, 40, 757, 108)
 odznaki = fitz.Rect(52, 955, 762, 1040)      # bez linii stopki oryginału
-s_head = 0.8
-top = 16
+s_head = 0.4
+top = 10
 head_h = logo.height * s_head
 place(logo, M, top, s_head)
 r_dane = place(dane, W - M - dane.width * s_head, top, s_head)

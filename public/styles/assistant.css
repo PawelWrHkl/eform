@@ -526,6 +526,11 @@
 	box-shadow: none;
 	opacity: 0.75;
 }
+/* Przeglądarka czeka na kliknięcie, zanim Eforek zacznie mówić (speech.js) — głośniki pulsują. */
+#eform-assistant.ea-sound-blocked .ea-sound,
+.ea-sound-blocked .ea-tour-sound,
+#eform-assistant.ea-sound-blocked ~ * .ea-tour-sound { animation: ea-sound-pulse 1s ease-in-out infinite; }
+@keyframes ea-sound-pulse { 50% { transform: scale(1.25); opacity: 1; } }
 .ea-tour .ea-tour-sound:hover,
 .ea-tour .ea-tour-sound:focus-visible { opacity: 1; background: rgba(15, 23, 42, 0.06); }
 

@@ -2,6 +2,9 @@
 
 import { showToast } from "./toast.js";
 
+const EYE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.73 5.08a10.74 10.74 0 0 1 11.2 6.57 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49"/><path d="M14.08 14.16a3 3 0 0 1-4.24-4.24"/><path d="M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14"/><path d="m2 2 20 20"/></svg>';
+
 
 export function createElement(tag, attributes = {}, parent = null) {
     const element = document.createElement(tag);
@@ -110,8 +113,33 @@ export function createInfoDialog({
 
     if (input) {
         const inputDiv = createElement('div', { id: 'diag-input-container', class: ['diag-input-container'] }, dialog)
-        createElement('label', { for: 'dialog-input', class: ['dialog-label', 'mb-1'], text: input.name }, inputDiv)
-        createElement('input', { type: input.type, class: ['dialog-inputs'], id: input.id }, inputDiv)
+        createElement('label', { for: input.id, class: ['dialog-label', 'mb-1'], text: input.name }, inputDiv)
+        if (input.type === 'password') {
+            // Hasło z okiem „pokaż/ukryj” w polu (kłódki cen w order.js i każdy
+            // inny monit o hasło). Styl: `.dialog-password-*` w dialog.css.
+            const wrap = createElement('div', { class: ['dialog-password-wrap'] }, inputDiv)
+            const field = createElement('input', { type: 'password', class: ['dialog-inputs'], id: input.id }, wrap)
+            const toggleLabel = window.t?.('group.sf_password_toggle') || 'Pokaż/ukryj hasło'
+            const toggle = createElement('button', {
+                type: 'button',
+                class: ['dialog-password-toggle'],
+                title: toggleLabel,
+                'aria-label': toggleLabel,
+                'aria-controls': input.id,
+                'aria-pressed': 'false',
+                html: EYE_ICON
+            }, wrap)
+            toggle.addEventListener('click', () => {
+                const show = field.type === 'password'
+                field.type = show ? 'text' : 'password'
+                toggle.setAttribute('aria-pressed', String(show))
+                toggle.innerHTML = show ? EYE_OFF_ICON : EYE_ICON
+                field.focus()
+                field.setSelectionRange(field.value.length, field.value.length)
+            })
+        } else {
+            createElement('input', { type: input.type, class: ['dialog-inputs'], id: input.id }, inputDiv)
+        }
     }
     if (checkbox) {
         // ⚠️ `for` MUSI wskazywać na `checkbox.id` (nie stały `dialog-checkbox`,
@@ -154,7 +182,8 @@ export function createInfoDialog({
     const enterButton = buttonElements.find(btn => btn.dataset.enter === "true");
     if (enterButton) {
         dialog.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
+            // Enter na oku przełącza widoczność hasła, a nie zatwierdza okna.
+            if (e.key === "Enter" && !e.target.closest(".dialog-password-toggle")) {
                 e.preventDefault();
                 enterButton.click();
             }

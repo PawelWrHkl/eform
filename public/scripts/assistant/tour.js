@@ -527,8 +527,13 @@
 
 	// Głośnik w dymku pokazu — wycisza szczekanie (wybór zapamiętuje przeglądarka).
 	var soundBtn = null;
+	/** Głośnik: mowa (speech.js) i szczekanie (avatar.js) — jeden przełącznik. */
+	function soundApi() {
+		if (A.speech && A.speech.enabled) return { enabled: true, muted: A.speech.muted, setMuted: A.speech.setMuted };
+		return A.avatar && A.avatar.sound;
+	}
 	function ensureSoundButton() {
-		var snd = A.avatar && A.avatar.sound;
+		var snd = soundApi();
 		if (soundBtn || !snd || !snd.enabled) return;
 		soundBtn = el('button', 'ea-tour-sound');
 		soundBtn.type = 'button';
@@ -539,8 +544,9 @@
 		});
 		paintSound();
 	}
+	window.addEventListener('eform-assistant:sound', function () { if (soundBtn) paintSound(); });
 	function paintSound() {
-		var muted = A.avatar.sound.muted();
+		var muted = soundApi().muted();
 		soundBtn.textContent = muted ? '🔇' : '🔊';
 		soundBtn.title = muted ? (S.soundOn || '') : (S.soundOff || '');
 		soundBtn.setAttribute('aria-label', soundBtn.title);
@@ -598,8 +604,20 @@
 	// Układ strony zmienia się też bez przewijania (rozwinięcia, dociągane dane).
 	setInterval(function () { if (run && target && !nextBtn.disabled) reposition(); }, 700);
 
+	/** Eforek czyta dymek na głos — raz na krok (i jeszcze raz, gdy dojdzie wyjaśnienie). */
+	var spokenKey = null;
+	function speakStep(step, note) {
+		if (!A.speech) return;
+		var key = run.i + '|' + (note || '') + '|' + step.text;
+		if (key === spokenKey) return;
+		var onlyNote = spokenKey && spokenKey.indexOf(run.i + '|') === 0 && note;
+		spokenKey = key;
+		A.speech.say(onlyNote ? note : (note ? note + ' ' : '') + step.text);
+	}
+
 	function showCallout(step, note) {
 		save(); // klient może sam kliknąć wskazany przycisk i przejść dalej — pokaz to podchwyci
+		speakStep(step, note);
 		var n = run.i + 1;
 		var total = run.steps.length;
 		stepLabel.textContent = (S.tourStep || '{n}/{total}').replace('{n}', n).replace('{total}', total);
@@ -854,8 +872,11 @@
 			return;
 		}
 		// Klient czyta dymek; po czasie czytania (albo od razu po „Dalej") piesek klika.
+		var waited = 0;
 		var doTap = function () {
 			if (pendingTap !== doTap) return;
+			// Eforek jeszcze mówi — kliknie po zdaniu (najwyżej 12 s czekania).
+			if (A.speech && A.speech.speaking() && waited < 12000) { waited += 300; return later(doTap, 300); }
 			pendingTap = null;
 			if (!run || target !== node) return;
 			nextBtn.disabled = true;
@@ -895,7 +916,7 @@
 		(function tick(ms) {
 			later(function () {
 				if (!run || run.steps[run.i] !== step) return;
-				if (hovering) return tick(1500);
+				if (hovering || (A.speech && A.speech.speaking())) return tick(1500);
 				stop(true);
 			}, ms);
 		})(wait);
@@ -937,6 +958,9 @@
 	function stop(finished) {
 		clearTimers();
 		pendingTap = null;
+		spokenKey = null;
+		// Zakończony ręcznie — cisza; zakończony sam — Eforek dokończy zdanie.
+		if (!finished && A.speech) A.speech.stop();
 		run = null;
 		target = null;
 		clearSaved();
@@ -957,6 +981,7 @@
 
 	nextBtn.addEventListener('click', function () {
 		if (!run) return;
+		if (A.speech) A.speech.stop();
 		// Piesek czeka z kliknięciem, aż klient przeczyta — „Dalej" = klikaj już.
 		if (pendingTap) return pendingTap();
 		run.i += 1;

@@ -437,6 +437,8 @@
 			state.messages.push({ role: 'user', text: question });
 			render();
 			emit('thinking');
+			// Nowe pytanie — Eforek przestaje czytać poprzednią odpowiedź.
+			if (window.eformAssistant && window.eformAssistant.speech) window.eformAssistant.speech.stop();
 			return api('POST', '/assistant/ask', { question: question, page: pageContext() });
 		}).then(function (r) {
 			state.busy = false;
@@ -451,6 +453,8 @@
 			}
 			render();
 			emit('answer', { status: d.answer ? d.status : 'error', length: (d.answer || '').length });
+			// Eforek czyta odpowiedź na głos (speech.js; wyciszenie — głośnik w nagłówku).
+			if (d.answer && window.eformAssistant && window.eformAssistant.speech) window.eformAssistant.speech.sayAnswer(d.answer, d.refs);
 			// Pokaz krok po kroku startuje sam (klient o niego prosił) — po chwili na przeczytanie zapowiedzi.
 			if (d.tour && d.tour.length && window.eformAssistant && window.eformAssistant.tour) {
 				setTimeout(function () { window.eformAssistant.tour.start(d.tour); }, 1200);

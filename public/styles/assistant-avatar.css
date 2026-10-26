@@ -307,6 +307,10 @@
 .ea-avatar[data-state="tap"] .av-paw-r { animation: av-tap 0.38s ease-in-out; transform: rotate(-96deg); }
 @keyframes av-tap { 0%, 100% { transform: rotate(-96deg); } 45% { transform: rotate(-68deg) translateY(2px); } }
 
+/* Eforek czyta na głos (speech.js) — biegający piesek rusza pyszczkiem */
+#eform-assistant.ea-speaking .ea-runner .av-mouth { animation: av-talk 0.28s ease-in-out infinite alternate; }
+#eform-assistant.ea-speaking .ea-runner .av-smile { opacity: 0; }
+
 /* szczeknięcie: pyszczek kłapie, dymek „Hau!" wyskakuje nad głową */
 .ea-runner.ea-runner-barking .av-mouth { animation: av-talk 0.13s ease-in-out 6 alternate; }
 .ea-runner.ea-runner-barking .av-smile { animation: av-hide 0.8s step-end; }

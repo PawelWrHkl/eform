@@ -61,6 +61,19 @@ function buildDialog(ui) {
     ]);
 
     closeBtn.addEventListener('click', () => node.close());
+    // ⚠️ Esc ma TYLKO zamknąć okno. Widok zlecenia ma globalny skrót
+    // „Esc = wstecz" (base.njk keydown na `window`, blok `key_nav` w order.njk
+    // → `history.back()`): bez tego Esc w oknie cofał przeglądarkę — po dodaniu
+    // pozycji na formularz nowej pozycji, który wczytywał ostatnią konfigurację
+    // i wyglądał jak kolejna pozycja do zapisania (zgłoszenie 2026-10-25).
+    // Nasłuch w fazie przechwytywania na `window` odpala się PRZED tamtym.
+    window.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' && event.keyCode !== 27) return;
+        if (!node.open) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        node.close();
+    }, true);
     // Klik w tło (poza ramką okna) zamyka — jak w pozostałych oknach portalu.
     node.addEventListener('click', (event) => {
         if (event.target === node) node.close();

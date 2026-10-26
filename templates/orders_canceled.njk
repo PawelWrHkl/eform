@@ -53,7 +53,7 @@
     <td>{{ order.canceled_at_label or '-' }}</td>
     <td><span class="order-status-badge order-status-badge--canceled">{{ __('cancel_order.status_canceled') }}</span></td>
     <td>
-        <button class='btn btn-outline-secondary copy-order-btn' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>
+        <button type="button" class="action-btn action-btn-copy reorder-btn copy-order-btn stop-propagation has-tooltip" data-id="{{ order.id }}" data-tooltip="{{ __('orders.reorder') }}" aria-label="{{ __('orders.reorder') }}" onclick="event.stopPropagation()">{% include 'partials/reorder_icon.njk' %}</button>
     </td>
 {% endblock %}
 {% block buttons_space %}{% endblock buttons_space %}
@@ -63,7 +63,7 @@
         {% if order.canceled_at_label %}<span>{{ __('cancel_order.canceled_at') }}: {{ order.canceled_at_label }}</span>{% endif %}
     </div>
     <div class="mobile-order-actions">
-        <button class='btn btn-outline-secondary copy-order-btn stop-propagation' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>
+        <button type="button" class="btn reorder-btn reorder-btn--labeled copy-order-btn stop-propagation" data-id="{{ order.id }}" onclick="event.stopPropagation()">{% include 'partials/reorder_icon.njk' %}<span>{{ __('orders.reorder') }}</span></button>
     </div>
 {% endblock %}
 {% block empty %}

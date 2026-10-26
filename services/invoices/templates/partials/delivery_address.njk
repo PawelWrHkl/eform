@@ -11,10 +11,15 @@
 {% if invoice.deliveryAddress %}
   {% set d = invoice.deliveryAddress %}
   <section class="delivery-address">
-    <h2 class="party__title">{{ t('party.delivery_address') }}</h2>
-    {% if d.name %}<div class="party__name">{{ d.name }}</div>{% endif %}
-    {% if d.street %}<div class="party__line">{{ d.street }}</div>{% endif %}
-    {% if d.zip or d.city %}<div class="party__line">{{ d.zip }} {{ d.city }}</div>{% endif %}
-    {% if d.country %}<div class="party__line">{{ d.country }}</div>{% endif %}
+    {% set place = ((d.zip or '') ~ ' ' ~ (d.city or '')) | trim %}
+    <div class="party__head">
+      <h2 class="party__title">{{ t('party.delivery_address') }}</h2>
+      {% if d.name %}<span class="party__name">{{ d.name }}</span>{% endif %}
+    </div>
+    <div class="party__line party__addr">
+      {%- if d.street %}<span>{{ d.street }}</span>{% endif -%}
+      {%- if place %}<span>{{ place }}</span>{% endif -%}
+      {%- if d.country %}<span>{{ d.country }}</span>{% endif -%}
+    </div>
   </section>
 {% endif %}

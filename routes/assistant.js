@@ -30,6 +30,7 @@ const prompt = require('../services/assistant/prompt');
 const { normalizeLang } = require('../services/assistant/labels');
 const voiceService = require('../services/assistant/voice/voiceService');
 const tools = require('../services/assistant/tools');
+const tts = require('../services/assistant/tts');
 const { loadEmployeePermissions } = require('../middleware/employeePermissions');
 const config = require('../config');
 const { log } = require('../utils/logging');
@@ -169,6 +170,28 @@ router.get('/order-place/:id', loadEmployeePermissions, async (req, res) => {
 });
 
 // „×" na dymku maskotki — dymek znika do końca sesji logowania (server.js → assistantBoot.bubbleHidden).
+// Czytanie na głos: 1) tekst → id nagrania, 2) <audio> pobiera je strumieniem.
+router.post('/speak', (req, res) => {
+	try {
+		const body = req.body || {};
+		const { id } = tts.prepare(body.text, body.lang || langOf(req), sessionContext.userKey(req));
+		return res.json({ success: true, url: `/assistant/speak/${id}` });
+	} catch (err) {
+		if (!(err instanceof tts.TtsError)) log('[assistant] /speak:', err && err.message);
+		return res.status((err && err.status) || 500).json({ success: false, error: (err && err.code) || 'error' });
+	}
+});
+
+router.get('/speak/:id', async (req, res) => {
+	try {
+		await tts.stream(req.params.id, res);
+	} catch (err) {
+		log('[assistant] /speak/:id:', err && err.message);
+		if (!res.headersSent) res.status((err && err.status) || 500).end();
+		else res.end();
+	}
+});
+
 router.post('/bubble/hide', (req, res) => {
 	req.session.assistantBubbleHidden = true;
 	res.json({ success: true });

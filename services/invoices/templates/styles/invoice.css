@@ -60,24 +60,23 @@ body {
 /* ---------- Nagłówek ---------- */
 
 .doc-header {
-    padding-bottom: 2mm;
+    padding-bottom: 1.5mm;
     border-bottom: 2px solid var(--accent);
 }
 
-/* Tytuł + numer: jedna wyśrodkowana linia nad resztą nagłówka */
+/* Tytuł + numer: jedna linia, nigdy rozdzielone */
 .doc-header__titlebar {
     display: flex;
-    justify-content: center;
     align-items: baseline;
-    gap: 4mm;
-    margin-bottom: 2mm;
+    gap: 3mm;
+    white-space: nowrap;
 }
 
-/* Sprzedawca po lewej, daty po prawej — pod paskiem tytułu */
+/* Tytuł (z logo, gdy brak papieru firmowego) po lewej, daty po prawej — jeden wiersz */
 .doc-header__row {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 8mm;
 }
 
@@ -85,19 +84,15 @@ body {
     display: block;
     max-width: 34mm;
     max-height: 13mm;
-    margin-bottom: 1.5mm;
 }
 
-/* Nazwa sprzedawcy się nie ściska — zawija się pasek dat po prawej. Bez tego
-   szeroki pasek (daty + nazwa zamówienia) łamał „Sp. z o.o." na dwa wiersze. */
+/* Lewa strona (logo + tytuł) się nie ściska — zawija się pasek dat po prawej */
 .doc-header__brand {
     flex: 0 0 auto;
     max-width: 45%;
-}
-
-.doc-header__seller-name {
-    font-weight: 700;
-    font-size: 1.1em;
+    display: flex;
+    align-items: center;
+    gap: 4mm;
 }
 
 .doc-header__meta {
@@ -155,19 +150,26 @@ body {
 .parties {
     display: flex;
     gap: 6mm;
-    margin: 5mm 0;
+    margin: 2.5mm 0;
 }
 
 .party {
     flex: 1 1 0;
     max-width: 45%;
-    padding: 2.5mm;
+    padding: 1.5mm 2.5mm;
     border: 1px solid var(--line);
     border-radius: 1.5mm;
 }
 
+/* Tytuł („Sprzedawca") i nazwa w jednej linii */
+.party__head {
+    display: flex;
+    align-items: baseline;
+    gap: 2mm;
+}
+
 .party__title {
-    margin: 0 0 1.5mm;
+    margin: 0;
     font-size: 0.85em;
     font-weight: 700;
     text-transform: uppercase;
@@ -177,7 +179,16 @@ body {
 
 .party__name {
     font-weight: 700;
-    margin-bottom: 1mm;
+}
+
+/* Adres i numery w jednej linii każde; separatory z CSS, puste pola znikają */
+.party__addr > span + span::before {
+    content: ", ";
+}
+
+.party__ids > span + span::before {
+    content: " · ";
+    color: var(--ink-soft);
 }
 
 .party__line {
@@ -587,7 +598,7 @@ body {
 }
 
 .row--parties {
-    margin: 3mm 0;
+    margin: 2mm 0;
 }
 
 .row--parties .parties {

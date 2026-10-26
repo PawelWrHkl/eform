@@ -878,3 +878,58 @@ dialog.compact-dialog #status-info:empty {
 	margin: 0;
 	padding: 0;
 }
+
+/* Pole hasła z okiem „pokaż/ukryj” — createInfoDialog (components/htmlManipulator.js)
+   buduje je dla każdego `input.type === 'password'` (kłódki cen w order.js).
+   Pole na całą szerokość kontenera, oko wewnątrz przy prawej krawędzi. Selektory
+   z `.dialog-password-wrap`, bo globalny `button` z theme.css ma padding,
+   obramowanie, tło i efekty najechania. */
+.dialog-password-wrap {
+	position: relative;
+	width: 100%;
+}
+
+.dialog-password-wrap .dialog-inputs {
+	width: 100%;
+	padding-right: 44px !important;
+	box-sizing: border-box;
+}
+
+.dialog-password-wrap .dialog-password-toggle {
+	position: absolute;
+	top: 50%;
+	right: 6px;
+	transform: translateY(-50%);
+	width: 34px;
+	height: 34px;
+	min-width: 0;
+	min-height: 0;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: var(--radius-md, 8px);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-secondary);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.dialog-password-wrap .dialog-password-toggle:hover,
+.dialog-password-wrap .dialog-password-toggle:focus-visible {
+	transform: translateY(-50%);
+	background: var(--bg-hover);
+	box-shadow: none;
+	color: var(--text-primary);
+}
+
+.dialog-password-wrap .dialog-password-toggle::after {
+	display: none;
+}
+
+.dialog-password-wrap .dialog-password-toggle svg {
+	display: block;
+	flex-shrink: 0;
+}

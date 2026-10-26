@@ -1,21 +1,19 @@
 {# Nagłówek: logo, typ i numer dokumentu, daty, referencje (zamówienie/korekta). #}
 <header class="doc-header">
-  {# ⚠️ Tytuł i numer w JEDNEJ linii, wyśrodkowane na całej szerokości strony.
-     Wcześniej siedziały jeden pod drugim w prawej kolumnie nagłówka, przez co
-     najważniejsza informacja dokumentu („Faktura VAT 2026/00001") była
-     rozbita na dwa wiersze i zepchnięta do rogu. #}
-  <div class="doc-header__titlebar">
-    <h1 class="doc-header__title">{{ t('doc.' ~ invoice.documentType) }}</h1>
-    {# Szkic nie ma jeszcze numeru — numer nadajemy przy wystawieniu #}
-    <span class="doc-header__number">{{ invoice.number if invoice.number else '—' }}</span>
-  </div>
-
+  {# ⚠️ JEDEN wiersz: tytuł z numerem po lewej, daty po prawej (uwaga KK
+     2026-10-26: góra faktury zajmowała 1/3 strony). Nazwy sprzedawcy tu nie
+     ma — jest na papierze firmowym i w bloku „Sprzedawca" tuż pod spodem.
+     Tytuł i numer nigdy się nie rozdzielają („Faktura VAT 2026/00001"). #}
   <div class="doc-header__row">
     <div class="doc-header__brand">
       {% if logoDataUri %}
         <img class="doc-header__logo" src="{{ logoDataUri }}" alt="">
       {% endif %}
-      <div class="doc-header__seller-name">{{ invoice.seller.name }}</div>
+      <div class="doc-header__titlebar">
+        <h1 class="doc-header__title">{{ t('doc.' ~ invoice.documentType) }}</h1>
+        {# Szkic nie ma jeszcze numeru — numer nadajemy przy wystawieniu #}
+        <span class="doc-header__number">{{ invoice.number if invoice.number else '—' }}</span>
+      </div>
     </div>
 
     <div class="doc-header__meta">

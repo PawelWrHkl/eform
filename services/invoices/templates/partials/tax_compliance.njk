@@ -12,20 +12,7 @@
   klauzule dublujące adnotację VAT (WDT, odwrotne obciążenie, eksport, zwolnienie)
   tylko gdy język dokumentu = język prawny wystawcy — inaczej tę samą podstawę
   niesie adnotacja z podsumowania VAT, już w języku klienta.
-
-  Makro `registryLines` renderuje numery rejestrowe strony; używa go
-  `seller_buyer.njk`.
 #}
-
-{% macro registryLines(rows) %}
-  {% for row in rows %}
-    {% if row.value %}
-      <div class="party__line party__registry">
-        <span class="label">{{ row.label }}:</span> {{ row.value }}
-      </div>
-    {% endif %}
-  {% endfor %}
-{% endmacro %}
 
 {% if invoice.compliance %}
   {% set c = invoice.compliance %}

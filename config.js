@@ -183,6 +183,16 @@ module.exports = {
       maxSessionMinutes: Number(process.env.ASSISTANT_VOICE_MAX_SESSION_MINUTES) || 10,
       maxMinutesPerDay: Number(process.env.ASSISTANT_VOICE_MAX_MINUTES_PER_DAY) || 30
     },
+    // Eforek czyta na głos odpowiedzi i dymki pokazu (`ASSISTANT_TTS_ENABLED=true`) —
+    // synteza mowy OpenAI (services/assistant/tts.js), zawsze OpenAI, jak głos.
+    tts: {
+      enabled: envSwitch(process.env.ASSISTANT_TTS_ENABLED),
+      url: process.env.OPENAI_TTS_URL || 'https://api.openai.com/v1/audio/speech',
+      model: process.env.ASSISTANT_TTS_MODEL || 'gpt-4o-mini-tts',
+      voice: process.env.ASSISTANT_TTS_VOICE || process.env.ASSISTANT_VOICE || 'marin',
+      timeoutMs: Number(process.env.ASSISTANT_TTS_TIMEOUT_MS) || 30000,
+      maxCharsPerDay: Number(process.env.ASSISTANT_TTS_MAX_CHARS_PER_DAY) || 30000
+    },
 
     // Animowana maskotka (piesek Eforek, public/scripts/assistant/avatar.js) na
     // przycisku „Pomoc" i w nagłówku okna. Czysto wizualna: wyłączona = okno

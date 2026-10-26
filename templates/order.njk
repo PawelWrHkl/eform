@@ -626,16 +626,13 @@
                                                                                                                    z pozycji (`services/subPrices.js calcClientDiscountTotal`), więc stopka
                                                                                                                    zgadza się z tym, co widać przy pozycjach. Ukryta do kliknięcia kłódki
                                                                                                                    „Pokaż cenę po rabacie" (`client-discount-row`, public/scripts/order.js). #}
-                                                                                                                {# Pozycje sprzed 2026-09-11 mają osobny wiersz „Wartość po rabacie"
-   (`afterClientDiscount`); nowsze niosą rabat w `SUB___WARTOSC_KONCOWA`, czyli
-   w `subLocked`. Ta stopka `subLocked` nie pokazuje nigdzie indziej, więc
-   warunek `!= subLocked` (zgłoszenie 2026-10-21) chował sumę po rabacie przy
-   każdej nowej pozycji — klient i grupa-matka nie widzieli jej nawet po kłódce. #}
-{% set afterDiscountTotal = totalPrice.afterClientDiscount or totalPrice.subLocked %}
-{% if afterDiscountTotal and afterDiscountTotal != 0 %}
+                                                                                                                {# Tylko gdy podsumowanie NIE pokazuje juz tej samej kwoty: odkad calcSubTotals
+   bierze „Wartosc po rabacie” jako ostateczna wartosc pozycji, subLocked bywa
+   dokladnie ta liczba i bez tego warunku kwota dublowalaby sie w stopce. #}
+{% if totalPrice.afterClientDiscount and totalPrice.afterClientDiscount != totalPrice.subLocked %}
                                                                                                                     <div class="total-price d-flex justify-content-end align-items-center client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}">
                                                                                                                         <span class='total price-label sub-total col-3 text-center'>
-                                                                                                                            {{ __('form.value_after_discount_label') }}: {{ afterDiscountTotal | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
+                                                                                                                            {{ __('form.value_after_discount_label') }}: {{ totalPrice.afterClientDiscount | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
                                                                                                                         </span>
                                                                                                                     </div>
                                                                                                                 {% endif %}

@@ -80,7 +80,7 @@
                         {% endblock %}
                         {% block mobile_order_actions %}
                             <div class="mobile-order-actions">
-                                <button class='btn btn-outline-secondary copy-order-btn stop-propagation' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>
+                                <button type="button" class="btn reorder-btn reorder-btn--labeled copy-order-btn stop-propagation" data-id="{{ order.id }}" onclick="event.stopPropagation()">{% include 'partials/reorder_icon.njk' %}<span>{{ __('orders.reorder') }}</span></button>
                                     {% include 'partials/cancel_order_btn.njk' %}
                                 {% if isAdmin %}
                                 <button class="btn btn-sm btn-warning open-correction-btn stop-propagation ms-1" data-order-id="{{ order.id }}" onclick="event.stopPropagation()" title="Korekta zlecenia">
@@ -142,7 +142,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <button class='btn btn-outline-secondary w-50 copy-order-btn' data-id='{{ order.id }}' onclick="event.stopPropagation()">{{ __('orders.reorder') }}</button>
+                                    <button type="button" class="action-btn action-btn-copy reorder-btn copy-order-btn stop-propagation has-tooltip" data-id="{{ order.id }}" data-tooltip="{{ __('orders.reorder') }}" aria-label="{{ __('orders.reorder') }}" onclick="event.stopPropagation()">{% include 'partials/reorder_icon.njk' %}</button>
                                     {% include 'partials/cancel_order_btn.njk' %}
                                 </td>
                                 {% if isAdmin %}
