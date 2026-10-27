@@ -1,4 +1,5 @@
 import { DataLoader } from "./formTools/dataLoader.js";
+import { activateExtraFunctions, syncExtraFunctions } from "./formTools/extraFunctions/index.js";
 import {
   getPossibleValues,
   createInputField,
@@ -37,7 +38,7 @@ import { stopSpin, startSpin } from "./components/hourglass.js";
 import { fillLocalPositionObject } from "./formTools/localStorageManager.js";
 import { getUid } from './formTools/getUid.js';
 import { generateShortJson } from './formTools/shortJsonGen.js';
-import { formatVatRateLabel } from './formTools/vatLabel.js';
+import { formatVatRateLabel, vatUsesClientPrice } from './formTools/vatLabel.js';
 import { applyCurrencyToParams, refreshSavedCurrencyLabels, withCurrencyLabel } from './formTools/currencyLabel.js';
 
 // Czy na tej stronie stoi już formularz zbudowany wcześniej — wtedy
@@ -513,6 +514,16 @@ export async function generateForm(
   previousFormOnPage = true;
   setupFileRemovalListener(params, inputs, values, displayValues);
 
+  // Funkcje dodatkowe pól (kolumna EXTRAFUNC, np. `popup-input`) — opis:
+  // docs/EXTRAFUNC.md. PO słuchaczach `change` wyżej: ich
+  // obsługa musi zobaczyć wartość już wpisaną przez formularz.
+  activateExtraFunctions(params, {
+    requestUpdate: (name) => updateProcedure({
+      ...COMMON_PARAMS, options, name, value: values[name], tagName: inputs[name]?.tagName, filters, attrValues: semafor.attrValues,
+      flags: { buildValues: true, updateInputs: true, updateStates: true }
+    })
+  }).mount({ inputs, values, displayValues, allOptionsByParameter });
+
   // Recompute a single calculated param after leaving manual-override mode.
   window.recalcManualParam = async (name) => {
     await updateProcedure({
@@ -620,6 +631,7 @@ export async function updateProcedure({
   window.checkedParams = findParamFromValues(values, allOptionsByParameter);
   if (afterSend) validateAllFieldsOnSubmit(inputs, values)
   if (resetDeps) resetDependences([params, displayValues], name, inputs, values, allOptionsByParameter, dependencesAtSelection);
+  syncExtraFunctions({ values, displayValues, allOptionsByParameter });
   window.shortJson = generateShortJson(params, values);
   fillLocalPositionObject(values, displayValues);
   hideParams(params, inputs)
@@ -770,8 +782,9 @@ function appendDeferredAttachmentAreaDivs(destinationNode) {
  * VAT field (read-only, percentage from services/vatCalculator.js via
  * window.vatRate) + VAT-amount field (read-only, the VAT rate applied in
  * euros) + gross-value field (read-only) — all three filled by
- * pricesCalculator.js' applyVatToGrossValue() from SUB___SUMA_BRUTTO on every
- * recalculation. None is a param.txt-driven field — same pattern as
+ * pricesCalculator.js' applyVatToGrossValue() on every recalculation (HKL:
+ * SUMA_BRUTTO, visible; any other org or group_user: SUB___WARTOSC_KONCOWA,
+ * hidden like =HASLO() params — vatLabel.js vatUsesClientPrice()). None is a param.txt-driven field — same pattern as
  * buildCommentSpace().
  *
  * Always built, even at vatRate === 0 (cross-border/export sale — a real,
@@ -788,18 +801,6 @@ export function buildVatFields(destinationNode) {
   // no VAT field is created at all — but the deferred attachment divs still
   // have to be appended, since this function owns that final step.
   if (!window.vatEnabled) {
-    appendDeferredAttachmentAreaDivs(destinationNode);
-    return {};
-  }
-
-  // ⚠️ TYMCZASOWO wyłączone dla konta podrzędnego grupy (`group_user`): na tym
-  // poziomie VAT/WARTOSC_VAT/WARTOSC_BRUTTO nie mają się pokazywać ani w
-  // konfiguracji pozycji, ani w podglądzie zamówienia (decyzja właściciela,
-  // 2026-08-21). Pola nie powstają, więc `applyVatToGrossValue` nie ma czego
-  // wypełnić i do zapisu nie idą żadne klucze VAT — patrz też pominięcie
-  // wierszy VAT w `templates/order.njk`. Załączniki dokładamy tak czy tak, bo
-  // ta funkcja jest właścicielem tego ostatniego kroku.
-  if (window.isGroupShop) {
     appendDeferredAttachmentAreaDivs(destinationNode);
     return {};
   }
@@ -848,6 +849,15 @@ export function buildVatFields(destinationNode) {
     disabled: true,
     value: '0'
   }, bruttoDiv);
+
+  // ⚠️ Poza HKL (i zawsze dla `group_user`) VAT liczy się od ceny klienta
+  // `SUB___WARTOSC_KONCOWA` i ma być ukryty tak jak parametry z `=HASLO()`
+  // (decyzja właściciela 2026-10-26). Pola MUSZĄ jednak powstać —
+  // `applyVatToGrossValue` bez `#WARTOSC_BRUTTO` nic nie liczy — więc tylko
+  // ich nie pokazujemy (ten sam `display: none` co `hideLockedParamRows`).
+  if (vatUsesClientPrice()) {
+    for (const div of [vatDiv, vatValueDiv, bruttoDiv]) div.style.display = 'none';
+  }
 
   appendDeferredAttachmentAreaDivs(destinationNode);
 

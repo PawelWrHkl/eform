@@ -34,7 +34,7 @@ const toolsModule = require('../tools');
 const pages = require('../pages');
 const tourModule = require('../tour');
 
-const HISTORY_FOR_VOICE = 12;
+const HISTORY_FOR_VOICE = 40; // cała rozmowa z okna czatu
 /** Ponowne połączenie po przejściu na inną stronę „kontynuuje" tylko świeżą rozmowę. */
 const RESUME_WINDOW_MS = 2 * 60 * 1000;
 const PENDING_TTL_MS = 2 * 60 * 60 * 1000;
@@ -326,7 +326,8 @@ async function startCall(p, deps = {}) {
 
 	const state = assistantService.getState(p.session);
 	flushInto(state);
-	const history = state.messages.slice(-HISTORY_FOR_VOICE).map((m) => ({ role: m.role, text: m.text }));
+	// Rozmowa z czatu z nazwami zleceń i notkami o pokazach (jak w czacie — assistantService.historyForModel).
+	const history = assistantService.historyForModel(state.messages.slice(-HISTORY_FOR_VOICE));
 	const scope = p.scope && p.scope.userId ? p.scope : null;
 	const elements = uiCatalog.describeAvailable(p.page && p.page.elements, p.lang, deps, scope);
 	const getKnowledge = deps.getKnowledgeText || knowledge.getKnowledgeText;

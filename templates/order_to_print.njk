@@ -259,10 +259,10 @@
                                     {% endif %}
                                     {% if clientView or showBoth or isGroupShop %}
                                     {% for entry in rowObj.item.subParamValues %}
-                                        {# ⚠️ VAT nie jest `locked`, więc bez tego warunku wychodziłby razem
-                                           z resztą SUB — grupa typu `client` nie ma go widzieć w PDF, tak
-                                           jak na ekranie (`templates/order.njk`). #}
-                                        {% set isVatRow = hideClientVat and (entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO') %}
+                                        {# ⚠️ VAT klienta (`SUB___`) jest ukryty jak parametry z `=HASLO()` (decyzja
+                                           właściciela 2026-10-26) — nie drukujemy go nigdy, także z pozycji
+                                           zapisanych wcześniej z `locked: false`. #}
+                                        {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
                                         {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not isVatRow %}
                                             <td class="print-price" colspan="2">
                                                 <span class="print-price-label">{{ entry.display }}:</span>
@@ -310,7 +310,7 @@
                                 {% if prices and (clientView or showBoth) %}
                                     <tr class="print-price-row">
                                         {% for entry in rowObj.item.subParamValues %}
-                                            {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+                                            {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not (hideClientVat and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                                 <td class="print-hidden-price" colspan="2">
                                                     <span class="print-price-label">{{ entry.display }}:</span>
                                                     <b>{{ pdfCellBold(entry.value) }}</b>
@@ -351,7 +351,7 @@
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
-                            {{ sendData.total | replace(__('order.total') + ': ', '') }}
+                            {{ sendData.total | replace(__('order.total') + ': ', '') | replace(__('order.total_list_gross') + ': ', '') }}
                         </span>
                     </div>
                 </div>
@@ -374,7 +374,7 @@
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
-                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
+                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
                         </span>
                     </div>
                 </div>
@@ -382,7 +382,7 @@
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
-                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
+                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
                         </span>
                     </div>
                 </div>
@@ -391,7 +391,7 @@
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
-                            {{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
+                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
                         </span>
                     </div>
                 </div>
@@ -404,6 +404,21 @@
                         </span>
                     </div>
                 </div>
+                {# Wiersze VAT pod sumą klienta (`services/subPrices.js buildPdfSendDataTotals`, 2026-10-26). #}
+                {% if sendData.total_vat %}
+                <div id='total-container' style='padding-right: 10%;'>
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total gold price-label col-3 text-center'>{{ sendData.total_vat }}</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if sendData.total_gross %}
+                <div id='total-container' style='padding-right: 10%;'>
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total gold price-label col-3 text-center'>{{ sendData.total_gross }}</span>
+                    </div>
+                </div>
+                {% endif %}
             {% elif prices and not clientView and totalPrice %}
                 <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
@@ -424,6 +439,17 @@
                         </span>
                     </div>
                 </div>
+                {# VAT i brutto pod sumą klienta — jak `partials/order_vat_totals.njk` na ekranie. #}
+                {% if totalPrice.subVat and not (isGroupShop or (isGroup and isGroupClientType)) %}
+                <div id='total-container' style='padding-right: 10%;'>
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total gold price-label col-3 text-center'>{{ __('order.total_vat') }} {{ totalPrice.vatRate }}%: <span class="pdf-val">{{ totalPrice.subVat }}{{ currencySuffix | default('€') }}</span></span>
+                    </div>
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total gold price-label col-3 text-center'>{{ __('order.total_gross_incl_vat') }}: <span class="pdf-val">{{ totalPrice.subGross }}{{ currencySuffix | default('€') }}</span></span>
+                    </div>
+                </div>
+                {% endif %}
             {% endif %}
             {# Ta sama zasada co w order.njk — bez dublowania kwoty z podsumowania. #}
 {% set afterDiscountTotal = ((totalPrice.afterClientDiscount or totalPrice.subLocked) if isGroupClientType else (totalPrice.afterClientDiscount if totalPrice.afterClientDiscount != totalPrice.subLocked else null)) if totalPrice else null %}{% if showClientDiscount and afterDiscountTotal and afterDiscountTotal != 0 %}

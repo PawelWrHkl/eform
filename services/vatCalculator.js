@@ -150,6 +150,56 @@ async function resolveVatRateForUser(userId, orgId) {
 }
 
 /**
+ * Stawka VAT zlecenia KONTA PODRZĘDNEGO GRUPY (`order.group_user_id`) — albo
+ * null, gdy zlecenie nie jest grupowe.
+ *
+ * ⚠️ Cena klienta grupy (`SUB___`) to sprzedaż GRUPY-MATKI jej klientowi, nie
+ * HKL grupie (decyzja właściciela 2026-10-27): sprzedawcą jest grupa
+ * (`order.user_id`, `user.country`), nabywcą konto podrzędne
+ * (`group_user.country`). Kraj konta podrzędnego w bazie bywa pusty — wtedy
+ * to klient z kraju grupy, czyli sprzedaż krajowa. Ogólna reguła
+ * (`resolveVatRateForUser`: kraj grupy vs kraj organizacji HKL) dawała grupom
+ * spoza Polski 0%, jak przy dostawie HKL → grupa.
+ *
+ * @param {number} orderId
+ * @returns {Promise<{vatRate: number, reason: string}|null>}
+ */
+async function resolveGroupVatRateForOrder(orderId) {
+  if (!orderId) return null;
+  const rows = await db.selectQuery(
+    `SELECT u.role, u.country AS group_country, gu.country AS client_country
+     FROM \`order\` o
+     JOIN group_user gu ON gu.id = o.group_user_id
+     JOIN \`user\` u ON u.id = o.user_id
+     WHERE o.id = ?`,
+    orderId
+  );
+  const row = rows?.[0];
+  if (!row || row.role !== 'group') return null;
+  const sellerCountry = row.group_country;
+  return calculateVatDetails(row.client_country || sellerCountry, sellerCountry);
+}
+
+/**
+ * Stawka VAT zlecenia — dla jego WŁAŚCICIELA (`order.user_id` /
+ * `order.organization_id`), nie dla zalogowanego: admin czy grupa-matka
+ * oglądają cudze zlecenia. Ta sama reguła co `resolveVatRateForUser`, a dla
+ * zlecenia konta podrzędnego grupy — `resolveGroupVatRateForOrder`.
+ *
+ * @param {number} orderId
+ * @returns {Promise<{vatRate: number|null, reason: string}>}
+ */
+async function resolveVatRateForOrder(orderId) {
+  if (!vatFeatureEnabled) return { vatRate: null, reason: 'disabled' };
+  const group = await resolveGroupVatRateForOrder(orderId);
+  if (group) return group;
+  const rows = await db.selectQuery('SELECT user_id, organization_id FROM `order` WHERE id = ?', orderId);
+  const order = rows?.[0];
+  if (!order) return { vatRate: null, reason: 'unknown' };
+  return resolveVatRateForUser(order.user_id, order.organization_id);
+}
+
+/**
  * Template locals for every view that shows the VAT block (new position,
  * position edit, admin-redit). Returns `{}` when the feature is off, so a
  * caller spreading the result into res.render() leaves no VAT locals behind.
@@ -158,15 +208,23 @@ async function resolveVatRateForUser(userId, orgId) {
  * (see services/subPriceContext.js's nonHklOrg check), so VAT there must be
  * computed from the plain SUMA_BRUTTO, not SUB___SUMA_BRUTTO.
  *
+ * `orderId` (gdy znany): zlecenie konta podrzędnego grupy dostaje stawkę
+ * sprzedaży grupa → klient (`resolveGroupVatRateForOrder`) — ta sama, którą
+ * pokazuje stopka zlecenia, niezależnie od tego, czy pozycję konfiguruje
+ * klient, czy grupa w jego kontekście.
+ *
  * @param {import('express').Request} req
+ * @param {number} [orderId]
  * @returns {Promise<{vatEnabled?: boolean, vatRate?: number, vatReason?: string, isHklOrg?: boolean}>}
  */
-async function resolveVatLocals(req) {
+async function resolveVatLocals(req, orderId) {
   if (!vatFeatureEnabled) return {};
 
   const ownerService = require('./owner.js');
   const currentUser = ownerService.getCurrentUser(req);
-  const { vatRate, reason: vatReason } = await resolveVatRateForUser(currentUser?.userId, currentUser?.orgId);
+  const group = await resolveGroupVatRateForOrder(orderId);
+  const { vatRate, reason: vatReason } = group
+    || await resolveVatRateForUser(currentUser?.userId, currentUser?.orgId);
 
   return { vatEnabled: true, vatRate, vatReason, isHklOrg: Number(currentUser?.orgId) === 3 };
 }
@@ -174,6 +232,8 @@ async function resolveVatLocals(req) {
 module.exports = {
   vatFeatureEnabled,
   resolveVatLocals,
+  resolveVatRateForOrder,
+  resolveGroupVatRateForOrder,
   VAT_RATES_BY_COUNTRY,
   EU_VAT_RATES,
   EU_MEMBER_COUNTRIES,

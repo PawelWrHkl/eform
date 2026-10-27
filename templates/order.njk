@@ -53,7 +53,9 @@
                                                    odsłania NARAZ wiersz cen SUB i wiersz rabatu, po podaniu hasła tego konta
                                                    (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
                                                    (przełącznik cen SUB przez sesję, „Pokaż cenę zakupu klienta") wrócił 2026-10-09
-                                                   dla grupy-matki (`isGroup`); konto podrzędne (`isGroupShop`) nadal go nie ma. #}
+                                                   dla grupy-matki (`isGroup`); konto podrzędne (`isGroupShop`) nadal go nie ma.
+                                                   Od 2026-10-27 grupy go nie mają: ceny wg cennika widzą zawsze, a kłódka
+                                                   odsłania złoty wiersz (rabat, po rabacie, VAT, brutto). #}
                                                 {% if (isGroup or isGroupShop) and not hidePrices %}
                                                     <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
                                                         <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
@@ -63,7 +65,7 @@
                                                 <button id="unlockBtn" class="btn">
                                                     <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
                                                 {% endif %}
-                                                    {% if (isGroup or canViewSubPrices or viewAsOrganization) and not isGroupShop %}
+                                                    {% if (canViewSubPrices or viewAsOrganization) and not isGroup and not isGroupShop %}
                                                         <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
                                                             <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
                                                     {% endif %}
@@ -137,7 +139,9 @@
                                                                        odsłania NARAZ wiersz cen SUB i wiersz rabatu, po podaniu hasła tego konta
                                                                        (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
                                                                        (przełącznik cen SUB przez sesję, „Pokaż cenę zakupu klienta") wrócił 2026-10-09
-                                                   dla grupy-matki (`isGroup`); konto podrzędne (`isGroupShop`) nadal go nie ma. #}
+                                                   dla grupy-matki (`isGroup`); konto podrzędne (`isGroupShop`) nadal go nie ma.
+                                                   Od 2026-10-27 grupy go nie mają: ceny wg cennika widzą zawsze, a kłódka
+                                                   odsłania złoty wiersz (rabat, po rabacie, VAT, brutto). #}
                                                                     {% if (isGroup or isGroupShop) and not hidePrices %}
                                                                         <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
                                                                             <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
@@ -147,7 +151,7 @@
                                                                     <button id="unlockBtn" class="btn">
                                                                         <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
                                                                     {% endif %}
-                                                                        {% if (isGroup or canViewSubPrices or viewAsOrganization) and not isGroupShop %}
+                                                                        {% if (canViewSubPrices or viewAsOrganization) and not isGroup and not isGroupShop %}
                                                                             <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
                                                                                 <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
                                                                         {% endif %}
@@ -306,10 +310,11 @@
                                                                                                                         {% for header in table.headers2 %}
                                                                                                                             {# VAT katalogowy (organizacje HKL: klucze `VAT`/`WARTOSC_VAT`/`WARTOSC_BRUTTO`
                                                                                                                                bez prefiksu `SUB___`) — konto podrzędne go nie widzi zawsze, grupa-matka
-                                                                                                                               typu `client` też (na jej prośbę). Klucz odzyskujemy z `headerKeys2`
+                                                                                                                               typu też nie — ich VAT jest w złotym wierszu pod kłódką, liczony od ceny
+                                                                                                                                klienta (2026-10-27). Klucz odzyskujemy z `headerKeys2`
                                                                                                                                (`display||key`), bo pętla ma tu tylko etykietę wyświetlaną. #}
                                                                                                                             {% set headerKey = table.headerKeys2[loop.index0] or '' %}
-                                                                                                                            {% set isVatRow = (isGroupShop or (isGroup and isGroupClientType)) and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
+                                                                                                                            {% set isVatRow = (isGroupShop or isGroup) and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
                                                                                                                             {% if not(header in rowObj.item.lockedParams) and not isVatRow %}
                                                                                                                                 {% set value = rowObj.row.row2[header] %}
                                                                                                                                 {% if value and value != '-' and value != '' %}
@@ -326,6 +331,43 @@
                                                                                                             {% endif %}
                                                                                                             {% if (isGroup or isGroupShop or canViewSubPrices or viewAsOrganization or (isClient and itemHasSubPrices)) and rowObj.item.subParamValues and rowObj.item.subParamValues.length > 0 %}
                                                                                                                 {% set isOrgView = isOrgAccount or viewAsOrganization %}
+                                                                                                                {# Grupa-matka i jej konto podrzędne — układ klienta organizacji spoza HKL
+                                                                                                                   (decyzja właściciela 2026-10-27): ceny wg cennika (`SUB___`) zawsze, a pod
+                                                                                                                   kłódką „Pokaż cenę po rabacie” trzeci, ZŁOTY wiersz jak ceny ukryte —
+                                                                                                                   rabat matki, cena i wartość po rabacie, VAT, brutto (`item.groupGoldValues`,
+                                                                                                                   services/subPrices.js `attachGroupGoldValues`). Ceny zakupu (wiersz wyżej)
+                                                                                                                   widzi tylko matka. Zapisane wiersze VAT pozycji są tu pominięte — VAT
+                                                                                                                   złotego wiersza liczy serwer stawką zlecenia, tak samo jak w stopce. #}
+                                                                                                                {% if isGroup or isGroupShop %}
+                                                                                                                <tr class="sub-params-row" style="display: table-row;">
+                                                                                                                    <td colspan="100%" class="sub-params-cell">
+                                                                                                                        <div class="sub-params-container">
+                                                                                                                            {% for entry in rowObj.item.subParamValues %}
+                                                                                                                                {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not (entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
+                                                                                                                                    <span class="sub-param-item">
+                                                                                                                                        <span class="sub-param-label">{{ entry.display }}:</span>
+                                                                                                                                        <b class="sub-param-value">{{ entry.value }}</b>
+                                                                                                                                    </span>
+                                                                                                                                {% endif %}
+                                                                                                                            {% endfor %}
+                                                                                                                        </div>
+                                                                                                                    </td>
+                                                                                                                </tr>
+                                                                                                                {% if discountPricesUnlocked and not hidePrices and rowObj.item.groupGoldValues and rowObj.item.groupGoldValues.length > 0 %}
+                                                                                                                <tr class="sub-params-row sub-params-locked-row" style="display: table-row;">
+                                                                                                                    <td colspan="100%" class="sub-params-cell">
+                                                                                                                        <div class="sub-params-container">
+                                                                                                                            {% for entry in rowObj.item.groupGoldValues %}
+                                                                                                                                <span class="sub-param-item gold">
+                                                                                                                                    <span class="sub-param-label">{{ entry.display }}:</span>
+                                                                                                                                    <b class="sub-param-value">{{ entry.value }}</b>
+                                                                                                                                </span>
+                                                                                                                            {% endfor %}
+                                                                                                                        </div>
+                                                                                                                    </td>
+                                                                                                                </tr>
+                                                                                                                {% endif %}
+                                                                                                                {% else %}
                                                                                                                 <tr class="sub-params-row"{% if isGroupShop or (isClient and itemHasSubPrices) or (hasSubPriceToggle and itemHasSubPrices) or (isGroup and showSub) or (isGroup and discountPricesUnlocked) %} style="display: table-row;"{% endif %}>
                                                                                                                     <td colspan="100%" class="sub-params-cell">
                                                                                                                         <div class="sub-params-container">
@@ -343,8 +385,12 @@
                                                                                                                                        przy renderze. #}
                                                                                                                                     {% set hideVatFromRole = isGroupShop or (isGroup and isGroupClientType) %}
                                                                                                                                     {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
-                                                                                                                                    {% if (not hideVatFromRole or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgView and prices) or ((isGroup or isGroupShop) and discountPricesUnlocked)) %}
-                                                                                                                                    <span class="sub-param-item{% if entry.locked %} gold{% endif %}">
+                                                                                                                                    {# Poza HKL VAT jest ukryty jak parametry z `=HASLO()` (decyzja właściciela
+                                                                                                                                       2026-10-26) — liczymy go jako `locked` także w pozycjach zapisanych
+                                                                                                                                       wcześniej z `locked: false`. #}
+                                                                                                                                    {% set entryLocked = entry.locked or isVatRow %}
+                                                                                                                                    {% if (not hideVatFromRole or not isVatRow) and not isClientDiscountRow and (not entryLocked or (not isOrgView and prices) or ((isGroup or isGroupShop) and discountPricesUnlocked)) %}
+                                                                                                                                    <span class="sub-param-item{% if entryLocked %} gold{% endif %}">
                                                                                                                                         <span class="sub-param-label">{{ entry.display }}:</span>
                                                                                                                                         <b class="sub-param-value">{{ entry.value }}</b>
                                                                                                                                     </span>
@@ -354,34 +400,12 @@
                                                                                                                         </div>
                                                                                                                     </td>
                                                                                                                 </tr>
-{# Rabat klienta grupy w OSOBNYM wierszu pod cenami SUB — odsłaniany kłódką
-   (`showDiscountPriceBtn`, public/scripts/order.js), stan czytany serwerowo
-   z `discountPricesUnlocked` (server.js, `req.session.user.showDiscountPrices`
-   /`showDiscountPricesOnce`). ⚠️ `d-none` niesie `!important`, więc gdy nie
-   jest dodane, potrzebny jest własny inline `display: table-row` — sam
-   `.sub-params-row` jest w CSS ukryty. #}
-{% if rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 and (isGroup or isGroupShop) and not hidePrices %}
-    <tr class="sub-params-row client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}" style="display: table-row;">
-        <td colspan="100%" class="sub-params-cell">
-            <div class="sub-params-container">
-                {% for entry in rowObj.item.clientDiscountValues %}
-                    {% if entry.value and entry.value != '-' and entry.value != '' %}
-                        <span class="sub-param-item gold">
-                            <span class="sub-param-label">{{ entry.display }}:</span>
-                            <b class="sub-param-value">{{ entry.value }}</b>
-                        </span>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </td>
-    </tr>
-{% endif %}
                                                                                                                 {% if isOrgView and showCatalogPrices and prices %}
                                                                                                                 <tr class="sub-params-row" style="display: table-row;">
                                                                                                                     <td colspan="100%" class="sub-params-cell">
                                                                                                                         <div class="sub-params-container">
                                                                                                                             {% for entry in rowObj.item.subParamValues %}
-                                                                                                                                {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+                                                                                                                                {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                                                                                                                     <span class="sub-param-item gold">
                                                                                                                                         <span class="sub-param-label">{{ entry.display }}:</span>
                                                                                                                                         <b class="sub-param-value">{{ entry.value }}</b>
@@ -391,6 +415,7 @@
                                                                                                                         </div>
                                                                                                                     </td>
                                                                                                                 </tr>
+                                                                                                                {% endif %}
                                                                                                                 {% endif %}
                                                                                                             {% endif %}
                                                                                                             {% set itemProdDays = itemProductionDays[rowObj.item.id] %}
@@ -464,7 +489,7 @@
                                                                                                                         <div class="mobile-sub-params mobile-item-prices">
                                                                                                                             {% for header in table.headers2 %}
                                                                                                                             {% set headerKey = table.headerKeys2[loop.index0] or '' %}
-                                                                                                                            {% set isVatRow = (isGroupShop or (isGroup and isGroupClientType)) and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
+                                                                                                                            {% set isVatRow = (isGroupShop or isGroup) and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
                                                                                                                             {% if not(header in rowObj.item.lockedParams) and not isVatRow %}
                                                                                                                                     <div class="mobile-sub-param-item">
                                                                                                                                         <strong>{{ header }}:</strong>
@@ -483,6 +508,28 @@
                                                                                                                         {% endif %}
                                                                                                                         {% if (isGroup or isGroupShop or canViewSubPrices or viewAsOrganization or (isClient and itemHasSubPrices)) and rowObj.item.subParamValues and rowObj.item.subParamValues.length > 0 %}
                                                                                                                             {% set isOrgViewM = isOrgAccount or viewAsOrganization %}
+                                                                                                                            {# Jak w wersji desktopowej: grupa i konto podrzędne — ceny wg cennika zawsze,
+                                                                                                                               złoty wiersz (rabat matki, po rabacie, VAT, brutto) pod kłódką. #}
+                                                                                                                            {% if isGroup or isGroupShop %}
+                                                                                                                            <div class="mobile-sub-params" style="display: block;">
+                                                                                                                                {% for entry in rowObj.item.subParamValues %}
+                                                                                                                                {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not (entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
+                                                                                                                                <div class="mobile-sub-param-item">
+                                                                                                                                    <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
+                                                                                                                                </div>
+                                                                                                                                {% endif %}
+                                                                                                                                {% endfor %}
+                                                                                                                            </div>
+                                                                                                                            {% if discountPricesUnlocked and not hidePrices and rowObj.item.groupGoldValues and rowObj.item.groupGoldValues.length > 0 %}
+                                                                                                                            <div class="mobile-sub-params mobile-sub-params-locked" style="display: block;">
+                                                                                                                                {% for entry in rowObj.item.groupGoldValues %}
+                                                                                                                                <div class="mobile-sub-param-item gold">
+                                                                                                                                    <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
+                                                                                                                                </div>
+                                                                                                                                {% endfor %}
+                                                                                                                            </div>
+                                                                                                                            {% endif %}
+                                                                                                                            {% else %}
                                                                                                                             <div class="mobile-sub-params"{% if isGroupShop or (isClient and itemHasSubPrices) or (hasSubPriceToggle and itemHasSubPrices) or (isGroup and showSub) or (isGroup and discountPricesUnlocked) %} style="display: block;"{% endif %}>
                                                                                                                                 {% for entry in rowObj.item.subParamValues %}
                                                                                                                                     {% if entry.value and entry.value != '-' and entry.value != '' %}
@@ -493,36 +540,29 @@
                                                                                                                                            nie widzą VAT-u. #}
                                                                                                                                         {% set hideVatFromRoleM = isGroupShop or (isGroup and isGroupClientType) %}
                                                                                                                                         {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
-                                                                                                                                        {% if (not hideVatFromRoleM or not isVatRow) and not isClientDiscountRow and (not entry.locked or (not isOrgViewM and prices) or ((isGroup or isGroupShop) and discountPricesUnlocked)) %}
-                                                                                                                                        <div class="mobile-sub-param-item{% if entry.locked %} gold{% endif %}">
+                                                                                                                                        {# Poza HKL VAT jest ukryty jak parametry z `=HASLO()` (decyzja właściciela
+                                                                                                                                           2026-10-26) — liczymy go jako `locked` także w pozycjach zapisanych
+                                                                                                                                           wcześniej z `locked: false`. #}
+                                                                                                                                        {% set entryLocked = entry.locked or isVatRow %}
+                                                                                                                                        {% if (not hideVatFromRoleM or not isVatRow) and not isClientDiscountRow and (not entryLocked or (not isOrgViewM and prices) or ((isGroup or isGroupShop) and discountPricesUnlocked)) %}
+                                                                                                                                        <div class="mobile-sub-param-item{% if entryLocked %} gold{% endif %}">
                                                                                                                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                                                                                                                         </div>
                                                                                                                                         {% endif %}
                                                                                                                                     {% endif %}
                                                                                                                                 {% endfor %}
                                                                                                                             </div>
-{# Jak w wersji desktopowej: rabat w osobnym bloku pod cenami SUB. #}
-{% if rowObj.item.clientDiscountValues and rowObj.item.clientDiscountValues.length > 0 and (isGroup or isGroupShop) and not hidePrices %}
-    <div class="mobile-sub-params client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}" style="display: block;">
-        {% for entry in rowObj.item.clientDiscountValues %}
-            {% if entry.value and entry.value != '-' and entry.value != '' %}
-                <div class="mobile-sub-param-item gold">
-                    <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
-                </div>
-            {% endif %}
-        {% endfor %}
-    </div>
-{% endif %}
                                                                                                                             {% if isOrgViewM and showCatalogPrices and prices %}
                                                                                                                             <div class="mobile-sub-params" style="display: block;">
                                                                                                                                 {% for entry in rowObj.item.subParamValues %}
-                                                                                                                                    {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+                                                                                                                                    {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                                                                                                                         <div class="mobile-sub-param-item gold">
                                                                                                                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                                                                                                                         </div>
                                                                                                                                     {% endif %}
                                                                                                                                 {% endfor %}
                                                                                                                             </div>
+                                                                                                                            {% endif %}
                                                                                                                             {% endif %}
                                                                                                                         {% endif %}
                                                                                                                         <div class="mobile-item-actions">
@@ -583,66 +623,46 @@
                                                                                                     {% endfor %}
                                                                                                     {% if totalPrice and not hidePrices %}
                                                                                                         <div id='total-container' data-sub-total="{{ totalPrice.subVisible or 0 }}" data-prices-unlocked="{{ 'true' if prices else 'false' }}">
-                                                                                                            {# Grupa typu `client` i jej klient końcowy widzą OBIE sumy: katalogową (HKL)
-                                                                                                               i sumę klienta (SUB___). Pozostałe role zostają przy jednej sumie —
-                                                                                                               dokładnie jak dotąd (gałąź `{% else %}` niżej). #}
-                                                                                                            {% if isGroupClientType and (isGroup or isGroupShop) %}
-                                                                                                                {# Suma widoczna od razu:
-                                                                                                                   • grupa-matka → katalogowa („HKL"), bo to jej cena zakupu,
-                                                                                                                   • konto podrzędne (`group_user`) → JEGO suma `SUB___` z pozycji
-                                                                                                                     („WARTOŚĆ BR.[€]" = `SUB___SUMA_BRUTTO`, czyli `totalPrice.subVisible`).
-                                                                                                                   ⚠️ Konto podrzędne NIE MOŻE widzieć sumy katalogowej. #}
+                                                                                                            {# Grupa-matka i jej konto podrzędne (każdego typu) — stopka jak u klienta
+                                                                                                               organizacji spoza HKL (decyzja właściciela 2026-10-27):
+                                                                                                               1. „HKL Razem” — ceny zakupu, tylko matka (konto podrzędne NIE MOŻE ich widzieć),
+                                                                                                               2. „Razem wg cennika brutto” — suma `SUB___` (`totalPrice.subVisible`),
+                                                                                                               a pod kłódką „Pokaż cenę po rabacie” złote, jak ceny ukryte:
+                                                                                                               3. „Razem po rabacie … netto” — suma `SUB___WARTOSC_KONCOWA` (`subLocked`),
+                                                                                                               4. „VAT x%” i 5. brutto — `partials/order_vat_totals.njk`.
+                                                                                                               Dawna suma „Wartość po rabacie” (`afterClientDiscount`) odpadła: dla pozycji
+                                                                                                               z tym starym wierszem `calcSubTotals` i tak bierze go do `subLocked`. #}
+                                                                                                            {% if isGroup or isGroupShop %}
                                                                                                                 {% if not isGroupShop %}
-                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center">
-                                                                                                                        <span class='total price-label col-3 text-center'>
-                                                                                                                            {% if totalPrice.visible and totalPrice.visible != '0.00' %}
-                                                                                                                                HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
-                                                                                                                            {% else %}
-                                                                                                                                {{ __('order.according_to_price') }}
-                                                                                                                            {% endif %}
-                                                                                                                        </span>
-                                                                                                                    </div>
-                                                                                                                    {# Grupa-matka po odsłonięciu cen klienta kłódką widzi też sumę
-                                                                                                                       SWOJEGO klienta — tę samą, którą ma w stopce konto podrzędne. #}
-                                                                                                                    {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}">
-                                                                                                                        <span class='total price-label sub-total col-3 text-center'>
-                                                                                                                            {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
-                                                                                                                        </span>
-                                                                                                                    </div>
-                                                                                                                    {% endif %}
-                                                                                                                {% else %}
-                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center">
-                                                                                                                        <span class='total price-label sub-total col-3 text-center'>
-                                                                                                                            {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                                                                                                                {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
-                                                                                                                            {% else %}
-                                                                                                                                {{ __('order.according_to_price') }}
-                                                                                                                            {% endif %}
-                                                                                                                        </span>
-                                                                                                                    </div>
+                                                                                                                <div class="total-price d-flex justify-content-end align-items-center">
+                                                                                                                    <span class='total price-label col-3 text-center'>
+                                                                                                                        {% if totalPrice.visible and totalPrice.visible != '0.00' %}
+                                                                                                                            HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
+                                                                                                                        {% else %}
+                                                                                                                            {{ __('order.according_to_price') }}
+                                                                                                                        {% endif %}
+                                                                                                                    </span>
+                                                                                                                </div>
                                                                                                                 {% endif %}
-                                                                                                                {# Suma PO RABACIE klienta — dokładnie suma wierszy „Wartość po rabacie"
-                                                                                                                   z pozycji (`services/subPrices.js calcClientDiscountTotal`), więc stopka
-                                                                                                                   zgadza się z tym, co widać przy pozycjach. Ukryta do kliknięcia kłódki
-                                                                                                                   „Pokaż cenę po rabacie" (`client-discount-row`, public/scripts/order.js). #}
-                                                                                                                {# Tylko gdy podsumowanie NIE pokazuje juz tej samej kwoty: odkad calcSubTotals
-   bierze „Wartosc po rabacie” jako ostateczna wartosc pozycji, subLocked bywa
-   dokladnie ta liczba i bez tego warunku kwota dublowalaby sie w stopce. #}
-{% if totalPrice.afterClientDiscount and totalPrice.afterClientDiscount != totalPrice.subLocked %}
-                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center client-discount-row{% if not discountPricesUnlocked %} d-none{% endif %}">
-                                                                                                                        <span class='total price-label sub-total col-3 text-center'>
-                                                                                                                            {{ __('form.value_after_discount_label') }}: {{ totalPrice.afterClientDiscount | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
-                                                                                                                        </span>
-                                                                                                                    </div>
+                                                                                                                {% if hasSubPrices or isGroupShop %}
+                                                                                                                <div class="total-price d-flex justify-content-end align-items-center">
+                                                                                                                    <span class='total price-label sub-total col-3 text-center'>
+                                                                                                                        {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                                                                                                                            {{ __('order.total_list_gross') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
+                                                                                                                        {% else %}
+                                                                                                                            {{ __('order.according_to_price') }}
+                                                                                                                        {% endif %}
+                                                                                                                    </span>
+                                                                                                                </div>
                                                                                                                 {% endif %}
-                                                                                                                {# Admin/owner w kontekście grupy: suma SUB___ obok katalogowej, gdy kłódka odsłania ceny katalogowe. #}
-                                                                                                                {% if hasSubPriceToggle and showCatalogPrices and hasSubPrices and totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                                                                                                    <div class="total-price d-flex justify-content-end align-items-center">
-                                                                                                                        <span class='total price-label sub-total col-3 text-center'>
-                                                                                                                            {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
-                                                                                                                        </span>
-                                                                                                                    </div>
+                                                                                                                {% if discountPricesUnlocked and totalPrice.subLocked and totalPrice.subLocked != 0 %}
+                                                                                                                <div class="total-price d-flex justify-content-end align-items-center">
+                                                                                                                    <span class='total gold price-label col-3 text-center'>
+                                                                                                                        {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} netto
+                                                                                                                    </span>
+                                                                                                                </div>
+                                                                                                                {% set vatTotalsApplyFactor = true %}
+                                                                                                                {% include 'partials/order_vat_totals.njk' %}
                                                                                                                 {% endif %}
                                                                                                             {% else %}
                                                                                                             {# Stopka = to, co widać w tabeli (zgłoszenie 2026-10-09): ceny zwykłe
@@ -666,7 +686,7 @@
                                                                                                             <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                 <span class='total price-label sub-total col-3 text-center'>
                                                                                                                     {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                                                                                                    {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
+                                                                                                                    {{ __('order.total_list_gross') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
                                                                                                                     {% else %}
                                                                                                                         {{ __('order.according_to_price') }}
                                                                                                                     {% endif %}
@@ -680,6 +700,8 @@
                                                                                                                         {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} netto
                                                                                                                     </span>
                                                                                                                 </div>
+                                                                                                                {% set vatTotalsApplyFactor = true %}
+                                                                                                                {% include 'partials/order_vat_totals.njk' %}
                                                                                                             {% endif %}
                                                                                                             </div>
                                                                                                         </div>

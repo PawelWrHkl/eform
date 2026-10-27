@@ -77,11 +77,11 @@
               {% if (clientView or showBoth) and not withoutPrices %}
               <tr>
                 {% for entry in rowObj.item.subParamValues %}
-                  {# ⚠️ VAT (`SUB___VAT`/`SUB___WARTOSC_VAT`/`SUB___WARTOSC_BRUTTO`) NIE jest
-                     `locked`, więc bez tego warunku wychodziłby razem z resztą SUB — grupa
-                     typu `client` (matka i konto podrzędne) nie ma go widzieć w PDF, tak jak
-                     na ekranie (`templates/order.njk`). #}
-                  {% set isVatRow = hideClientVat and (entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO') %}
+                  {# ⚠️ VAT klienta (`SUB___VAT`/`SUB___WARTOSC_VAT`/`SUB___WARTOSC_BRUTTO`) jest
+                     ukryty jak parametry z `=HASLO()` (decyzja właściciela 2026-10-26) —
+                     w PDF-ie nie ma go nigdy, także z pozycji zapisanych wcześniej
+                     z `locked: false`. #}
+                  {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
                   {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not isVatRow %}
                     <td class="price" colspan="2">
                       <span class="price-label">{{ entry.display }}:</span>
@@ -121,7 +121,7 @@
               {% if prices and (clientView or showBoth) %}
               <tr>
                 {% for entry in rowObj.item.subParamValues %}
-                  {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+                  {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not (hideClientVat and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                     <td class="price" colspan="2">
                       <span class="price-label gold">{{ entry.display }}:</span>
                       <b>{{ pdfCellBold(entry.value) }}</b>
@@ -174,18 +174,21 @@
         </div>
       {% endif %}
       {# Ceny zwykłe i SUB___ w dokumencie → obie sumy: „HKL Razem” (zwykłe) i
-         „Razem” (`total_sub`, SUB___) — jak stopka zlecenia (2026-10-09). #}
+         suma SUB___ (`total_sub`) — jak stopka zlecenia (2026-10-09).
+         Suma cen klienta (`total_sub`, a w `total` przy `total_is_sub`) ma od
+         2026-10-26 etykietę `order.total_list_gross` („GESAMTBETRAG LISTENPREIS BRUTTO”). #}
       {% if sendData.total %}
+        {% set totalLabel = __('order.total_list_gross') if sendData.total_is_sub else __('order.total') %}
         <div id='total-container'>
           <div class="total-price">
-            {% if sendData.total_sub %}HKL {% endif %}{{ __('order.total') }}: <span class="pdf-val">{{ sendData.total | replace(__('order.total') + ': ', '') }}</span>
+            {% if sendData.total_sub %}HKL {% endif %}{{ totalLabel }}: <span class="pdf-val">{{ sendData.total | replace(totalLabel + ': ', '') | replace(__('order.total') + ': ', '') }}</span>
           </div>
         </div>
       {% endif %}
       {% if sendData.total_sub %}
         <div id='total-container'>
           <div class="total-price">
-            {{ __('order.total') }}: <span class="pdf-val">{{ sendData.total_sub | replace(__('order.total') + ': ', '') }}</span>
+            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ sendData.total_sub | replace(__('order.total_list_gross') + ': ', '') | replace(__('order.total') + ': ', '') }}</span>
           </div>
         </div>
       {% endif %}
@@ -196,6 +199,17 @@
           </div>
         </div>
       {% endif %}
+      {# VAT i brutto pod sumą klienta (`services/subPrices.js buildPdfSendDataTotals`,
+         decyzja właściciela 2026-10-26) — gotowe napisy „VAT 19%: …” / „Brutto Betrag inkl. MwSt: …”. #}
+      {% for vatLine in [sendData.total_vat, sendData.total_gross] %}
+        {% if vatLine %}
+        <div id='total-container'>
+          <div class="total-price">
+            {{ vatLine.split(': ')[0] }}: <span class="pdf-val">{{ vatLine.split(': ').slice(1).join(': ') }}</span>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
       {% if sendData.total_client_discount %}
         <div id='total-container'>
           <div class="total-price discount">

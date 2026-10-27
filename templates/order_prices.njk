@@ -191,7 +191,7 @@
                           <td colspan="100%" class="sub-params-cell">
                             <div class="sub-params-container">
                               {% for entry in rowObj.item.subParamValues %}
-                                {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}
+                                {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                   <span class="sub-param-item">
                                     <span class="sub-param-label">{{ entry.display }}:</span>
                                     <b class="sub-param-value">{{ entry.value }}</b>
@@ -205,7 +205,7 @@
                           <td colspan="100%" class="sub-params-cell">
                             <div class="sub-params-container">
                               {% for entry in rowObj.item.subParamValues %}
-                                {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+                                {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                   <span class="sub-param-item">
                                     <span class="sub-param-label">{{ entry.display }}:</span>
                                     <b class="sub-param-value">{{ entry.value }}</b>
@@ -221,7 +221,7 @@
                           <td colspan="100%" class="sub-params-cell">
                             <div class="sub-params-container">
                               {% for entry in rowObj.item.subParamValues %}
-                                {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}
+                                {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                   <span class="sub-param-item">
                                     <span class="sub-param-label">{{ entry.display }}:</span>
                                     <b class="sub-param-value">{{ entry.value }}</b>
@@ -235,7 +235,7 @@
                           <td colspan="100%" class="sub-params-cell">
                             <div class="sub-params-container">
                               {% for entry in rowObj.item.subParamValues %}
-                                {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+                                {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                   <span class="sub-param-item gold">
                                     <span class="sub-param-label">{{ entry.display }}:</span>
                                     <b class="sub-param-value">{{ entry.value }}</b>
@@ -368,7 +368,7 @@
                                   {% if isClient and hasSubPrices and rowObj.item.subParamValues and rowObj.item.subParamValues.length > 0 %}
                                     <div class="mobile-sub-params" style="display: block;">
                                       {% for entry in rowObj.item.subParamValues %}
-                                        {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}
+                                        {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                           <div class="mobile-sub-param-item">
                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                           </div>
@@ -377,7 +377,7 @@
                                     </div>
                                     <div class="mobile-sub-params mobile-sub-params-locked" style="display: block;">
                                       {% for entry in rowObj.item.subParamValues %}
-                                        {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+                                        {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                           <div class="mobile-sub-param-item">
                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                           </div>
@@ -388,7 +388,7 @@
                                   {% if hasSubPriceToggle and rowObj.item.subParamValues and rowObj.item.subParamValues.length > 0 %}
                                     <div class="mobile-sub-params" style="display: block;">
                                       {% for entry in rowObj.item.subParamValues %}
-                                        {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked %}
+                                        {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                           <div class="mobile-sub-param-item">
                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                           </div>
@@ -397,7 +397,7 @@
                                     </div>
                                     <div class="mobile-sub-params mobile-sub-params-locked" style="display: block;">
                                       {% for entry in rowObj.item.subParamValues %}
-                                        {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked %}
+                                        {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not ((isGroupShop or (isGroup and isGroupClientType)) and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
                                           <div class="mobile-sub-param-item gold">
                                             <strong>{{ entry.display }}:</strong> <b class="sub-param-value">{{ entry.value }}</b>
                                           </div>
@@ -499,7 +499,7 @@
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total price-label sub-total col-3 text-center p-price'>
                                     {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                    {{ __('order.total') }}: {{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
+                                    {{ __('order.total_list_gross') }}: {{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
                                     {% else %}
                                       {{ __('order.according_to_price') }}</span>
                                     {% endif %}
@@ -509,6 +509,8 @@
                                   <span class='total gold price-label col-3 text-center'>
                                     {{ __('order.total_hidden') }}: {{ totalPrice.subLocked }}{{ currencySuffix | default('€') }} netto</span>
                                 </div>
+                                {% set vatTotalsApplyFactor = false %}
+                                {% include 'partials/order_vat_totals.njk' %}
                                 {% endif %}
                               {% elif hasSubPriceToggle and hasSubPrices %}
                                 {% if showCatalogPrices %}
@@ -525,7 +527,7 @@
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total price-label sub-total col-3 text-center'>
                                     {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                    {{ __('order.total') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}</span>
+                                    {{ __('order.total_list_gross') }}: {{ totalPrice.subVisible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}</span>
                                     {% else %}
                                     {{ __('order.according_to_price') }}</span>
                                     {% endif %}
@@ -535,6 +537,8 @@
                                   <span class='total gold price-label col-3 text-center'>
                                     {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} netto</span>
                                 </div>
+                                {% set vatTotalsApplyFactor = true %}
+                                {% include 'partials/order_vat_totals.njk' %}
                                 {% endif %}
                               {% else %}
                               <div class="total-price d-flex justify-content-end align-items-center col-12">

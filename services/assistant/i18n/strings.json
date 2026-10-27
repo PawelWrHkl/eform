@@ -71,7 +71,9 @@
 		"tourConfirm": "Gotowe — teraz wystarczy potwierdzić w tym okienku. To ostatnie kliknięcie należy do Pana/Pani.",
 		"tourConfirmCancel": "Zaznacz pole potwierdzenia, przejdź dalej i potwierdź anulowanie — to ostatnie kliknięcie należy do Pana/Pani.",
 		"tourActionMissing": "Tego nie da się teraz zrobić dla tego zamówienia — nie widzę takiego przycisku w jego wierszu.",
-		"tourDoneHidden": "Zrobione!"
+		"tourDoneHidden": "Zrobione!",
+		"tourPickYourself": "Nie widzę na liście „{value}” — proszę wybrać właściwą pozycję samemu, a potem kliknąć „Dalej”.",
+		"tourAvailable": "Do wyboru: {list}."
 	},
 	"en": {
 		"title": "Eforek",
@@ -145,7 +147,9 @@
 		"tourConfirm": "Done — now just confirm in this window. The final click is yours.",
 		"tourConfirmCancel": "Tick the confirmation box, continue and confirm the cancellation — the final click is yours.",
 		"tourActionMissing": "This can’t be done for this order right now — I don’t see that button in its row.",
-		"tourDoneHidden": "Done!"
+		"tourDoneHidden": "Done!",
+		"tourPickYourself": "I can’t find “{value}” in the list — please pick the right option yourself, then click “Next”.",
+		"tourAvailable": "Available: {list}."
 	},
 	"de": {
 		"title": "Eforek",
@@ -219,7 +223,9 @@
 		"tourConfirm": "Fertig — jetzt nur noch in diesem Fenster bestätigen. Der letzte Klick gehört Ihnen.",
 		"tourConfirmCancel": "Setzen Sie das Bestätigungshäkchen, gehen Sie weiter und bestätigen Sie die Stornierung — der letzte Klick gehört Ihnen.",
 		"tourActionMissing": "Das ist für diese Bestellung gerade nicht möglich — ich sehe diese Schaltfläche in ihrer Zeile nicht.",
-		"tourDoneHidden": "Erledigt!"
+		"tourDoneHidden": "Erledigt!",
+		"tourPickYourself": "„{value}“ finde ich in der Liste nicht — bitte wählen Sie selbst und klicken Sie dann auf „Weiter“.",
+		"tourAvailable": "Zur Auswahl: {list}."
 	},
 	"fr": {
 		"title": "Eforek",
@@ -293,7 +299,9 @@
 		"tourConfirm": "C’est prêt — il suffit de confirmer dans cette fenêtre. Le dernier clic vous appartient.",
 		"tourConfirmCancel": "Cochez la case de confirmation, continuez puis confirmez l’annulation — le dernier clic vous appartient.",
 		"tourActionMissing": "Ce n’est pas possible pour cette commande pour le moment — je ne vois pas ce bouton sur sa ligne.",
-		"tourDoneHidden": "C’est fait !"
+		"tourDoneHidden": "C’est fait !",
+		"tourPickYourself": "Je ne trouve pas « {value} » dans la liste — choisissez vous-même, puis cliquez sur « Suivant ».",
+		"tourAvailable": "Au choix : {list}."
 	},
 	"nl": {
 		"title": "Eforek",
@@ -367,6 +375,8 @@
 		"tourConfirm": "Klaar — bevestig nu alleen nog in dit venster. De laatste klik is aan u.",
 		"tourConfirmCancel": "Vink het bevestigingsvakje aan, ga verder en bevestig de annulering — de laatste klik is aan u.",
 		"tourActionMissing": "Dit kan nu niet voor deze bestelling — ik zie die knop niet in de regel.",
-		"tourDoneHidden": "Klaar!"
+		"tourDoneHidden": "Klaar!",
+		"tourPickYourself": "Ik vind „{value}” niet in de lijst — kies zelf de juiste optie en klik dan op „Verder”.",
+		"tourAvailable": "Beschikbaar: {list}."
 	}
 }

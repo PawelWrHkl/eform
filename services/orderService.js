@@ -2,6 +2,9 @@ const _ = require("n_");
 const { features } = require('../config');
 const { withCurrencyLabel, isMonetaryParamName } = require('./currency');
 
+/** VAT ceny klienta zapisany przy pozycji (pricesCalculator.js) — nie pokazujemy go per pozycja. */
+const SUB_VAT_KEYS = new Set(['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']);
+
 // Rabat klienta grupy zapisany przed zmianą nazw kluczy — patrz niżej.
 const LEGACY_CLIENT_DISCOUNT_KEYS = new Set(['RABAT_KLIENTA', 'WARTOSC_PO_RABACIE']);
 const CLIENT_DISCOUNT_KEYS = new Set(['SUB___RABAT_KLIENTA', 'SUB___WARTOSC_PO_RABACIE']);
@@ -207,6 +210,11 @@ async function jsonTextBackToMap(orderItems, options = {}) {
 
       // SUB___ params: store in subParamValues, skip main table entirely
       if (key.startsWith('SUB___')) {
+        // VAT per pozycja NIE idzie do widoku ani do dokumentów (decyzja
+        // właściciela 2026-10-27): na zleceniu zostaje tylko suma VAT w stopce
+        // (`partials/order_vat_totals.njk`). Wartości zostają w `json_parameters_desc`
+        // — formularz pozycji nadal je czyta.
+        if (SUB_VAT_KEYS.has(key)) continue;
         if (isRabatParamName(key) && isZeroRabatDisplayValue(value)) {
           continue;
         }

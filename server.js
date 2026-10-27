@@ -128,6 +128,10 @@ else {
 		}
 	}));
 }
+// TYMCZASOWE — diagnoza utraty kontekstu klienta admina (middleware/contextTrace.js).
+const contextTraceMw = require('./middleware/contextTrace');
+contextTraceMw.installStoreTrace(sessionStore);
+app.use(contextTraceMw.contextTrace);
 const { restoreFromRememberCookie } = require('./middleware/rememberMe');
 app.use(restoreFromRememberCookie);
 

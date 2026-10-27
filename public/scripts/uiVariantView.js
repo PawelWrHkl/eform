@@ -149,20 +149,8 @@ function whenDesktop(apply, revert) {
     };
 }
 
-// ── adapter: powłoka (okruszki, awatar, karta konta) ───────────────────────
-
-const LEGAL_FORMS = new Set(['sp', 'z', 'o', 'oo', 'sa', 'sk', 'spk', 'gmbh', 'ag', 'kg', 'ug', 'ohg', 'bv', 'nv', 'vof', 'sarl', 'sas', 'eurl', 'ltd', 'llc', 'inc', 'co', 'srl', 'spa', 'e', 'k']);
-
-/** Inicjały do awatara: „Paweł Woroniecki” → PW, „Testowy sp. z o.o.” → TE. */
-export function initialsOf(name) {
-    const words = String(name || '')
-        .split(/[\s.,&/()+-]+/)
-        .map((w) => w.trim())
-        .filter((w) => /\p{L}/u.test(w) && !LEGAL_FORMS.has(w.toLowerCase()));
-    if (!words.length) return '';
-    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-    return (words[0][0] + words[1][0]).toUpperCase();
-}
+// ── adapter: powłoka (okruszki, karta konta) ─────────────────────────────
+// Awatar z inicjałami w menu konta wypełnia headerMenu.js (oba warianty).
 
 function pageTitle() {
     switch (page) {
@@ -227,13 +215,6 @@ function buildBreadcrumb() {
 
 function fillAccount(data) {
     if (!data) return;
-    const initials = initialsOf(window.hideParentUserInfo ? (data.shopName || data.name) : data.name);
-    document.querySelectorAll('.efor-avatar[data-efor-initials]').forEach((node) => {
-        if (!initials) return;
-        node.textContent = initials;
-        node.classList.add('has-initials');
-    });
-
     const card = document.querySelector('[data-efor-user-card]');
     if (!card) return;
     const nameEl = card.querySelector('[data-efor-user-name]');

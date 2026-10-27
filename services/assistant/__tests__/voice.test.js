@@ -354,7 +354,7 @@ const SCOPE = { userId: 42, pin: 'P', lang: 'pl', isEmployee: false, isGroup: fa
 
 test('narzędzia głosu: open_page (enum stron konta), open_order i dane konta — tylko z zakresem konta', () => {
 	const names = voice.buildTools(['nav_history'], ['history', 'offers'], SCOPE).map((t) => t.name);
-	assert.deepEqual(names, ['highlight_element', 'show_consultant_form', 'open_page', 'open_order', 'find_orders', 'get_order', 'get_account_overview', 'get_delivery_times', 'list_employees', 'list_catalogs', 'get_import_log', 'start_tour']);
+	assert.deepEqual(names, ['highlight_element', 'show_consultant_form', 'open_page', 'open_order', 'find_orders', 'get_order', 'get_account_overview', 'get_delivery_times', 'list_employees', 'list_catalogs', 'list_products', 'get_import_log', 'start_tour']);
 	const openPage = voice.buildTools([], ['history'], SCOPE).find((t) => t.name === 'open_page');
 	assert.deepEqual(openPage.parameters.properties.page.enum, ['history']);
 	assert.ok(voice.buildTools([], ['history'], SCOPE).every((t) => t.strict === undefined), 'Realtime bez pola strict');

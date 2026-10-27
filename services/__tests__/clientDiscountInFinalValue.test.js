@@ -58,7 +58,7 @@ function buildBundle() {
     stdin: {
       contents: `
         export { applyClientDiscount, applyVatToGrossValue } from ${JSON.stringify(PRICES)};
-        export { getTotal } from ${JSON.stringify(FORM)};
+        export { getTotal, buildVatFields } from ${JSON.stringify(FORM)};
       `,
       resolveDir: ROOT,
       loader: 'js'
@@ -394,30 +394,101 @@ test('stary wiersz kwoty rabatu znika przy edycji pozycji zapisanej wcześniej',
   assert.equal(window.__discountTest.getTotal(dv).total_sub, 112.07);
 });
 
-test('VAT liczy się od kwoty przed rabatem klienta I przed ekstra rabatem', () => {
-  // Grupa 39 nie ma `SUB___SUMA_BRUTTO`, więc `applyVatToGrossValue` sięga po
-  // `SUB___WARTOSC_KONCOWA`. Żaden z dwóch rabatów nie rusza podstawy VAT
-  // (decyzja właściciela z 2026-08-21) — stąd zapamiętana kwota sprzed nich.
-  // ⚠️ ZMIANA 2026-09-22: podstawą jest teraz 100, nie 99. Dotąd bonus siedział
-  // w `SUB___CENA_RABAT`, czyli w cenniku, więc VAT szedł za nim; teraz bonus
-  // schodzi po cenniku i jest traktowany jak rabat klienta.
-  const window = makeWindow({ clientDiscountPercent: 16, portalUsageDiscountPercent: 1 });
+/** Okno z włączonym VAT-em i polem `#WARTOSC_BRUTTO` — bez niego VAT się nie liczy. */
+function makeVatWindow({ isHklOrg = false, isGroupShop = false, ...opts } = {}) {
+  const window = makeWindow(opts);
   window.vatEnabled = true;
   window.vatRate = 19;
+  window.isHklOrg = isHklOrg;
+  window.isGroupShop = isGroupShop;
   const bruttoInput = window.document.createElement('input');
   bruttoInput.id = 'WARTOSC_BRUTTO';
   window.document.body.appendChild(bruttoInput);
+  return window;
+}
 
-  const values = valuesFixture(100, 1, 100);
+const SUB_VAT_KEYS = ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO'];
+
+test('poza HKL VAT liczy się od SUB___WARTOSC_KONCOWA — po rabacie klienta i ekstra rabacie', () => {
+  // Decyzja właściciela 2026-10-26: podstawą jest parametr SUB___WARTOSC_KONCOWA,
+  // nawet gdy grupa ma też `SUB___SUMA_BRUTTO` (do tej daty: kwota sprzed rabatu).
+  const window = makeVatWindow({ clientDiscountPercent: 16, portalUsageDiscountPercent: 1 });
+  const values = { ...valuesFixture(100, 1, 100), SUB___SUMA_BRUTTO: 100 };
   const dv = displayValuesFixture(window, 100);
 
   window.__discountTest.applyClientDiscount(values, dv);
   window.__discountTest.applyVatToGrossValue(values, dv);
 
-  assert.equal(values.SUB___CENA_KONCOWA, 84.15, '15%, a potem 1% od reszty');
-  // podstawa VAT: 100 (przed obydwoma rabatami), nie 84.15
-  assert.equal(values.WARTOSC_BRUTTO, 119, '100 × 1.19');
-  assert.equal(values.WARTOSC_VAT, 19);
+  assert.equal(values.SUB___WARTOSC_KONCOWA, 84.15, '15%, a potem 1% od reszty');
+  assert.equal(values.WARTOSC_BRUTTO, 100.14, '84.15 × 1.19');
+  assert.equal(values.WARTOSC_VAT, 15.99);
+});
+
+test('poza HKL wszystkie wiersze VAT są ukryte jak parametry z =HASLO() (locked + sub)', () => {
+  const window = makeVatWindow();
+  const values = valuesFixture(100);
+  const dv = displayValuesFixture(window, 100);
+
+  window.__discountTest.applyVatToGrossValue(values, dv);
+
+  for (const key of SUB_VAT_KEYS) {
+    assert.equal(dv.get(key).locked, true, `${key} locked`);
+    assert.equal(dv.get(key).sub, true, `${key} sub`);
+    // `hideLocked`/`hideSub` przepisują flagi z tych list przy każdym przeliczeniu
+    assert.ok(window.lockedParams.includes(key), `${key} w lockedParams`);
+    assert.ok(window.subParams.includes(key), `${key} w subParams`);
+  }
+  assert.equal(dv.get('SUB___WARTOSC_BRUTTO').option_value, '119');
+  assert.equal(dv.has('WARTOSC_BRUTTO'), false, 'żadnego jawnego wiersza VAT');
+});
+
+test('klient HKL bez zmian — VAT od SUMA_BRUTTO, jawne wiersze bez prefiksu', () => {
+  const window = makeVatWindow({ isHklOrg: true });
+  const values = { SUMA_BRUTTO: 200, WARTOSC_KONCOWA: 150 };
+  const dv = new window.Map();
+
+  window.__discountTest.applyVatToGrossValue(values, dv);
+
+  assert.equal(values.WARTOSC_BRUTTO, 238, '200 × 1.19');
+  for (const key of ['VAT', 'WARTOSC_VAT', 'WARTOSC_BRUTTO']) {
+    assert.equal(dv.get(key).locked, false, `${key} widoczny`);
+    assert.equal(dv.get(key).sub, false);
+  }
+  assert.equal(window.lockedParams.length, 0);
+});
+
+test('group_user z ceną SUB___ — VAT od SUB___WARTOSC_KONCOWA i ukryty, także w organizacji HKL', () => {
+  // Do 2026-10-26 konto podrzędne grupy nie miało VAT-u wcale.
+  const window = makeVatWindow({ isHklOrg: true, isGroupShop: true });
+  const values = { ...valuesFixture(50, 2), SUMA_BRUTTO: 999 };
+  const dv = displayValuesFixture(window, 50, 2);
+
+  window.__discountTest.applyVatToGrossValue(values, dv);
+
+  assert.equal(values.WARTOSC_BRUTTO, 119, '100 × 1.19, nie zwykłe SUMA_BRUTTO');
+  for (const key of SUB_VAT_KEYS) assert.equal(dv.get(key).locked, true, `${key} locked`);
+});
+
+test('pola VAT w formularzu: poza HKL i dla group_user powstają, ale są ukryte; HKL widzi je jak dotąd', () => {
+  const cases = [
+    [{ isHklOrg: false }, 'none'],
+    [{ isHklOrg: true, isGroupShop: true }, 'none'],
+    [{ isHklOrg: true }, '']
+  ];
+  for (const [ctx, display] of cases) {
+    const window = makeWindow();
+    Object.assign(window, { vatEnabled: true, vatRate: 19 }, ctx);
+    const form = window.document.createElement('div');
+    window.document.body.appendChild(form);
+
+    window.__discountTest.buildVatFields(form);
+
+    for (const id of ['VAT', 'WARTOSC_VAT', 'WARTOSC_BRUTTO']) {
+      const input = window.document.getElementById(id);
+      assert.ok(input, `${id} musi powstać (${JSON.stringify(ctx)})`);
+      assert.equal(input.parentNode.style.display, display, `${id} ${JSON.stringify(ctx)}`);
+    }
+  }
 });
 
 test('rabat cennikowy zostaje NIETKNIĘTY (60%), a bonus stoi zaraz za nim', () => {

@@ -271,7 +271,7 @@ router.get('/:positionId/edit/', requireLogin, loadEmployeePermissions, filterPr
       return res.redirect(clientGroupBlock.redirect);
     }
 
-    const vatLocals = await resolveVatLocals(req);
+    const vatLocals = await resolveVatLocals(req, orderId);
     // Ten sam rabat co przy zakładaniu pozycji — inaczej edycja pozycji
     // zapisałaby cenę bez rabatu (services/groupDiscount.js).
     const { total: clientDiscountPercent, portalBonus: portalUsageDiscountPercent } =
@@ -307,7 +307,7 @@ router.get('/:positionId/admin-redit/', requireLogin, async (req, res) => {
     }
     // Resolved AFTER setContextUserByIdent so it reflects the order owner
     // (client), not the admin's own org/country.
-    const vatLocals = await resolveVatLocals(req);
+    const vatLocals = await resolveVatLocals(req, orderId);
     const currencyLocals = await currencyLocalsForOrder(orderId);
     return res.render('admin_edit_position.njk', { position: result, orderId: orderId, hidePrices: false, ...vatLocals, ...currencyLocals })
   }

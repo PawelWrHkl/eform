@@ -120,11 +120,61 @@
 	audio.addEventListener('error', function () { if (current) speakBrowser(current, generation); });
 
 	/** Przeczytaj tekst (kolejka). Pomijane: wyciszone, rozmowa głosowa trwa, pusty tekst. */
+	/**
+	 * Dłuższy tekst → kawałki po zdaniach (do ~280 znaków): pierwsze zdanie syntezuje się
+	 * szybko, więc Eforek zaczyna mówić od razu, a długa odpowiedź nie zostaje ucięta.
+	 */
+	function chunks(t) {
+		var parts = t.match(/[^.!?…]+[.!?…]+["”»)]*\s*|[^.!?…]+$/g) || [t];
+		var out = [];
+		var cur = '';
+		parts.forEach(function (p) {
+			p = p.trim();
+			if (!p) return;
+			if (cur && (cur + ' ' + p).length > 280) { out.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p;
+		});
+		if (cur) out.push(cur);
+		return out.map(function (c) { return c.length > 600 ? c.slice(0, 600) : c; });
+	}
+
 	function say(text) {
 		var t = String(text || '').replace(/\s+/g, ' ').trim();
 		if (!enabled || !t || muted() || voiceBusy()) return;
-		queue.push({ text: t });
+		chunks(t).forEach(function (c) { queue.push({ text: c }); });
 		next();
+	}
+
+	/**
+	 * Przygotowanie nagrań z wyprzedzeniem (np. wszystkie dymki pokazu na starcie) —
+	 * serwer trzyma gotowe nagrania w pamięci, więc potem Eforek mówi bez czekania.
+	 */
+	var prefetched = {};
+	function prefetch(texts) {
+		if (!serverTts || muted()) return;
+		(texts || []).forEach(function (text, i) {
+			var t = String(text || '').replace(/\s+/g, ' ').trim();
+			if (!t) return;
+			chunks(t).forEach(function (c) {
+				if (prefetched[c]) return; // ten sam tekst już się nagrywa
+				prefetched[c] = true;
+				// Po kolei, z odstępem — żeby nie zablokować bieżącej wypowiedzi.
+				window.setTimeout(function () {
+					A.api('POST', '/assistant/speak', { text: c, lang: LANG }).then(function (r) {
+						if (r.ok && r.data && r.data.url) return fetch(r.data.url, { credentials: 'same-origin' }).then(function (res) { return res.arrayBuffer(); });
+					}).catch(function () { /* nagra się przy czytaniu */ });
+				}, 150 + i * 400);
+			});
+		});
+	}
+
+	/** `cb` dopiero, gdy Eforek skończy mówić (z krótką pauzą); najwyżej `maxMs`. */
+	function whenIdle(cb, maxMs) {
+		var started = Date.now();
+		var limit = maxMs || 60000;
+		(function check() {
+			if (!speaking() || Date.now() - started > limit) return window.setTimeout(cb, speaking() ? 0 : 500);
+			window.setTimeout(check, 250);
+		})();
 	}
 
 	/** Odpowiedź czatu: znaczniki [[…]] → nazwy z odnośników (strona, zlecenie, plik). */
@@ -149,7 +199,7 @@
 	}
 
 	function speaking() {
-		return !!(current || queue.length);
+		return !!(current || queue.length || blocked);
 	}
 
 	// Pierwszy gest klienta: odblokowanie odtwarzacza i zaległa wypowiedź.
@@ -200,6 +250,8 @@
 		sayAnswer: sayAnswer,
 		stop: stop,
 		speaking: speaking,
+		prefetch: prefetch,
+		whenIdle: whenIdle,
 		muted: muted,
 		setMuted: setMuted
 	};

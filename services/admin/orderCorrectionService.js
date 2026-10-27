@@ -14,7 +14,8 @@ const { getProductionSendSkipClient, shouldForceProductionSend } = require('../.
 const {
     orderHasSubPrices,
     resolveSubPricePdfView,
-    buildPdfSendDataTotals
+    buildPdfSendDataTotals,
+    attachSubVatTotals
 } = require('../subPrices');
 const { log } = require('../../utils/logging');
 const { currencyLocalsForOrder } = require('../currency');
@@ -126,6 +127,8 @@ async function submitCorrection(req, orderId, prices) {
     }
 
     const totalPrice = await db.getTotal(orderId);
+    // Stawka VAT właściciela zlecenia — wiersze VAT pod sumą klienta w PDF.
+    await attachSubVatTotals(totalPrice, orderId);
     const confLang = require('../mailBot/conf');
     const i18n = confLang(lang);
     const __ = (key) => i18n.__(key, { locale: lang });
@@ -141,7 +144,8 @@ async function submitCorrection(req, orderId, prices) {
         translate: __,
         showGoldPrices,
         currency: priceCurrency,
-        withSubTotal: true
+        withSubTotal: true,
+        vatRate: totalPrice.vatRate
     }));
 
     // Potwierdzenie korekty w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML

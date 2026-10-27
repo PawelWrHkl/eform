@@ -22,6 +22,8 @@
  *   dialog    — element okna potwierdzenia (natywny <dialog> w warstwie top-layer):
  *               pokaz wchodzi z pieskiem do środka okna, a po jego zamknięciu kończy się,
  *   href      — stały adres, gdy elementu nie widać (np. flaga języka w zwiniętym menu),
+ *   fill      — 'text' / 'select': Eforek wpisuje albo wybiera w nim `value` z kroku
+ *               (nazwa zamówienia, dział i grupa produktu w konfiguratorze),
  *   hiddenOk  — przełącznik widoku działający także bez widocznego przycisku (telefon,
  *               zwinięte menu): Eforek klika go wprost, bez wskazywania,
  *   navTo     — strona (pages.js), na którą prowadzi element menu; gdy go nie
@@ -83,9 +85,9 @@ const CATALOG = [
 	{ key: 'nav_history', selectors: ['#orders-history-nav-btn', '.m-bottomnav [data-m-nav="orders"]'], labelKey: 'base.orders_history', description: 'menu: wysłane zlecenia', screens: ['any'], click: true, navTo: 'history' },
 	{ key: 'nav_employee_panel', selectors: ['#employee-panel-nav-btn'], labelKey: 'base.employee_panel', description: 'menu: panel pracowników', screens: ['any'], click: true, navTo: 'employees' },
 	{ key: 'nav_invoices', selectors: ['#invoices-nav-btn'], labelKey: null, description: 'menu: moduł „Faktury" (tylko gdy moduł jest włączony)', screens: ['any'], click: true, navTo: 'invoices' },
-	{ key: 'user_panel_btn', selectors: ['#user-panel-header-btn'], labelKey: 'panel.nav_link', description: 'nagłówek: panel użytkownika (dane konta, hasło, katalogi)', screens: ['any'], click: true, navTo: 'account' },
+	{ key: 'user_panel_btn', selectors: ['#user-panel-header-btn'], labelKey: 'panel.nav_link', description: 'nagłówek → menu konta (awatar ze strzałką): panel użytkownika (dane konta, hasło, katalogi)', screens: ['any'], click: true, navTo: 'account' },
 	{ key: 'mobile_menu', selectors: ['.navbar-toggler'], labelKey: null, description: 'telefon: przycisk menu (trzy kreski)', screens: ['any'], click: true },
-	{ key: 'tour_button', selectors: ['#intro-tour-header-btn'], labelKey: null, description: 'nagłówek: ikona kompasu — przewodnik po stronie', screens: ['any'], js: true },
+	{ key: 'tour_button', selectors: ['#intro-tour-header-btn'], labelKey: null, description: 'nagłówek → menu konta (awatar ze strzałką): „Przewodnik po portalu” (ikona kompasu)', screens: ['any'] },
 	{ key: 'language_switcher', selectors: ['.language-switcher', '.efor-lang'], labelKey: null, description: 'nagłówek: wybór języka (flagi)', screens: ['any'] },
 	...['pl', 'en', 'de', 'nl', 'fr'].map((l) => ({
 		key: `lang_${l}`,
@@ -96,8 +98,8 @@ const CATALOG = [
 		click: true,
 		href: `/change-language?lang=${l}`
 	})),
-	{ key: 'theme_toggle', selectors: ['#theme-toggle'], labelKey: null, description: 'nagłówek: tryb jasny/ciemny (księżyc/słońce) — klik przełącza', screens: ['any'], js: true, click: true, hiddenOk: true },
-	{ key: 'ui_variant_toggle', selectors: ['#ui-variant-toggle', '.ui-variant-toggle--menu'], labelKey: null, description: 'nagłówek: „Zmień wygląd" (klasyczny/nowy) — klik przełącza', screens: ['any'], click: true, hiddenOk: true },
+	{ key: 'theme_toggle', selectors: ['#theme-toggle'], labelKey: null, description: 'nagłówek → menu konta (awatar ze strzałką): „Tryb ciemny” z suwakiem — klik przełącza', screens: ['any'], click: true, hiddenOk: true },
+	{ key: 'ui_variant_toggle', selectors: ['#ui-variant-toggle', '.ui-variant-toggle--menu'], labelKey: null, description: 'nagłówek → menu konta (awatar ze strzałką): „Zmień wygląd" (klasyczny/nowy) — klik przełącza', screens: ['any'], click: true, hiddenOk: true },
 	{ key: 'logout_btn', selectors: ['#logout-nav-btn'], labelKey: 'base.logout', description: 'menu: wylogowanie (klik od razu wylogowuje — tylko na wyraźną prośbę)', screens: ['any'], click: true },
 	{ key: 'footer_contact', selectors: ['.site-footer a[href="/contact"]'], labelKey: 'site.contact', description: 'stopka: dane kontaktowe', screens: ['any'], click: true, navTo: 'contact' },
 
@@ -105,12 +107,12 @@ const CATALOG = [
 	{ key: 'home_recent_toggle', selectors: ['#orders-toggle'], labelKey: 'base.show_orders', description: 'strona główna: rozwinięcie ostatnich ofert i zamówień', screens: ['home'], click: true },
 
 	// ── nowa oferta (nagłówek zamówienia) ──
-	{ key: 'commission_input', selectors: ['#commission-input'], labelKey: 'new-order.order_name', description: 'pole nazwy zamówienia (obowiązkowe)', screens: ['new_order', 'order_edit'] },
+	{ key: 'commission_input', selectors: ['#commission-input'], labelKey: 'new-order.order_name', description: 'pole nazwy zamówienia (obowiązkowe) — Eforek wpisuje value', screens: ['new_order', 'order_edit'], fill: 'text' },
 	{ key: 'address_checkbox', selectors: ['#address-checkbox-container', '#show-addresses-checkbox'], labelKey: 'new-order.chcekbox_address_label', description: 'wybór adresu dostawy z listy', screens: ['new_order', 'order_edit'] },
 	{ key: 'add_address_btn', selectors: ['#add-delivery-address-btn'], labelKey: 'order.create_address', description: 'otwiera okno nowego adresu dostawy', screens: ['new_order', 'order_edit'], click: true },
 	{ key: 'send_address_checkbox', selectors: ['#send-address-checkbox-container', '#show-send-address-checkbox'], labelKey: 'new-order.send_chcekbox_address_label', description: 'jednorazowy adres wysyłki', screens: ['new_order', 'order_edit'] },
 	{ key: 'comment_input', selectors: ['#comment'], labelKey: 'new-order.comments', description: 'uwagi do zamówienia', screens: ['new_order', 'order_edit'] },
-	{ key: 'save_new_order', selectors: ['#save-order-btn'], labelKey: 'new-order.save_button', description: 'zapis nagłówka nowej oferty (klika użytkownik)', screens: ['new_order'] },
+	{ key: 'save_new_order', selectors: ['#save-order-btn'], labelKey: 'new-order.save_button', description: 'zapis nagłówka — tworzy nową ofertę (szkic, można ją usunąć) i otwiera jej widok', screens: ['new_order'], click: true },
 
 	// ── listy: oferty / wysłane / anulowane ──
 	{ key: 'offer_row', selectors: ['.order-row'], labelKey: null, description: 'wiersz oferty na liście — otwiera ofertę', screens: ['offers'], click: true },
@@ -153,8 +155,8 @@ const CATALOG = [
 	{ key: 'move_position', selectors: ['.move-up-btn'], labelKey: 'order.move_up', description: 'strzałki zmiany kolejności pozycji', screens: ['order_view'] },
 
 	// ── konfigurator ──
-	{ key: 'department_select', selectors: ['#department-select'], labelKey: 'form.department_label', description: 'wybór działu (rodzaju produktu)', screens: ['configurator'] },
-	{ key: 'product_group_select', selectors: ['#asortment-group-select'], labelKey: 'form.group_label', description: 'wybór grupy produktu', screens: ['configurator'] },
+	{ key: 'department_select', selectors: ['#department-select'], labelKey: 'form.department_label', description: 'wybór działu (rodzaju produktu, np. plisy, rolety) — Eforek wybiera pozycję pasującą do value', screens: ['configurator'], fill: 'select' },
+	{ key: 'product_group_select', selectors: ['#asortment-group-select'], labelKey: 'form.group_label', description: 'wybór grupy / systemu produktu (np. Cosiflor) — Eforek wybiera pozycję pasującą do value', screens: ['configurator'], fill: 'select' },
 	{ key: 'dynamic_form', selectors: ['#dynamic-form'], labelKey: null, description: 'formularz parametrów produktu (wypełniać po kolei)', screens: ['configurator'], appears: 'choice' },
 	{ key: 'info_icon', selectors: ['.param-info-icon'], labelKey: null, description: 'ikonka „i" z opisem parametru', screens: ['configurator'], appears: 'choice', js: true },
 	{ key: 'comment_link', selectors: ['#show-comment-button'], labelKey: 'form.add_comment_button', description: 'link „dodaj komentarz" do pozycji (odsłania pole)', screens: ['configurator'], appears: 'choice', click: true, js: true },
@@ -236,7 +238,8 @@ function describeForTour(scope, lang, deps = {}) {
 		description: e.description,
 		screens: e.screens.filter((sc) => screenAllowed(sc, scope)).map((sc) => SCREENS[sc].label),
 		click: !!e.click,
-		confirm: !!e.confirm
+		confirm: !!e.confirm,
+		fill: e.fill || null
 	}));
 }
 
@@ -255,6 +258,7 @@ function clientTourMeta(scope) {
 		if (e.confirm) elements[e.key].k = 1;
 		if (e.dialog) elements[e.key].d = 1;
 		if (e.hiddenOk) elements[e.key].h = 1;
+		if (e.fill) elements[e.key].f = e.fill;
 		if (e.appears) elements[e.key].w = e.appears;
 		if (e.empty) elements[e.key].e = e.empty;
 	}

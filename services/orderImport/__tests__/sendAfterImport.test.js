@@ -5,10 +5,50 @@ const assert = require('node:assert/strict');
 
 const {
   sendImportedOrder,
+  isImportAutoSendEnabled,
   buildImportRequestContext,
   normalizeOrderItems,
   parseJsonField
 } = require('../sendAfterImport');
+
+test('isImportAutoSendEnabled: unset = on, explicit true = on, anything else = off', () => {
+  const prev = process.env.IMPORT_AUTO_SEND;
+  try {
+    delete process.env.IMPORT_AUTO_SEND;
+    assert.equal(isImportAutoSendEnabled(), true);
+    for (const v of ['true', 'TRUE', '1', 'on', 'yes', ' true ']) {
+      process.env.IMPORT_AUTO_SEND = v;
+      assert.equal(isImportAutoSendEnabled(), true, `"${v}" powinno włączać`);
+    }
+    for (const v of ['false', 'FALSE', '0', 'off', 'no', 'flase']) {
+      process.env.IMPORT_AUTO_SEND = v;
+      assert.equal(isImportAutoSendEnabled(), false, `"${v}" powinno wyłączać`);
+    }
+  } finally {
+    if (prev === undefined) delete process.env.IMPORT_AUTO_SEND;
+    else process.env.IMPORT_AUTO_SEND = prev;
+  }
+});
+
+test('sendImportedOrder skips without touching the DB when IMPORT_AUTO_SEND=false', async () => {
+  const prev = process.env.IMPORT_AUTO_SEND;
+  process.env.IMPORT_AUTO_SEND = 'false';
+  try {
+    const ordersDb = {
+      async getOrderDataToSend() { throw new Error('nie powinno dotykać bazy'); }
+    };
+    const r = await sendImportedOrder({
+      orderId: 1,
+      user: { id: 1, pin: 'P1', ident: 'U1', client_name: 'Acme', organization_id: 3, org_ident: 'ORG' },
+      lang: 'pl',
+      deps: { orders: ordersDb }
+    });
+    assert.deepEqual(r, { sent: false, skipped: 'IMPORT_AUTO_SEND=false' });
+  } finally {
+    if (prev === undefined) delete process.env.IMPORT_AUTO_SEND;
+    else process.env.IMPORT_AUTO_SEND = prev;
+  }
+});
 
 test('parseJsonField parses string JSON and passes through objects', () => {
   assert.deepEqual(parseJsonField('{"a":1}'), { a: 1 });

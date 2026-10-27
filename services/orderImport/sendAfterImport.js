@@ -80,6 +80,19 @@ function formatSendTotals(sendData, lang, orgId, ordersDb) {
 }
 
 /**
+ * Przełącznik `IMPORT_AUTO_SEND` z .env:
+ *   - brak zmiennej  → true (dotychczasowe zachowanie)
+ *   - `true`/`1`/`on`/`yes` → true
+ *   - cokolwiek innego (w tym `false`, `0`) → false: zlecenie z importu zostaje
+ *     niewysłane i trzeba je wysłać ręcznie z panelu.
+ */
+function isImportAutoSendEnabled() {
+  const raw = process.env.IMPORT_AUTO_SEND;
+  if (raw == null || raw.trim() === '') return true;
+  return ['true', '1', 'on', 'yes'].includes(raw.trim().toLowerCase());
+}
+
+/**
  * @param {object} ctx
  * @param {number} ctx.orderId
  * @param {object} ctx.user      Row from userResolver (needs id, pin, ident, client_name, organization_id, org_ident)
@@ -104,6 +117,10 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
   const prodPdfUpload = deps.uploadProductionPdf || uploadProductionPdf;
   const productionSkipClient = deps.getProductionSendSkipClient || getProductionSendSkipClient;
   const saveProdDays = deps.recalcAndSaveProdDays || recalcAndSaveProdDays;
+
+  if (!isImportAutoSendEnabled()) {
+    return { sent: false, skipped: 'IMPORT_AUTO_SEND=false' };
+  }
 
   if (!orderId || !user) {
     return { sent: false, error: 'orderId and user are required' };
@@ -269,6 +286,7 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
 
 module.exports = {
   sendImportedOrder,
+  isImportAutoSendEnabled,
   buildImportRequestContext,
   normalizeOrderItems,
   parseJsonField

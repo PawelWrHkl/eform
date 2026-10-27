@@ -141,8 +141,20 @@ const {
     calcSubTotals,
     resolveSubPricePdfView,
     resolveGroupClientPdfPriceView,
-    buildPdfSendDataTotals
+    buildPdfSendDataTotals,
+    attachSubVatTotals,
+    attachGroupGoldValues
 } = require('../services/subPrices');
+
+/**
+ * Złoty wiersz pozycji grupy (rabat matki, po rabacie —
+ * `services/subPrices.js attachGroupGoldValues`) w podglądzie zlecenia grupy-
+ * -matki i jej konta podrzędnego. Bez VAT-u pozycji (od 27.10).
+ */
+function attachGroupGoldRows(res, cleanOrderItems) {
+    if (!(res.locals.isGroup || res.locals.isGroupShop)) return;
+    attachGroupGoldValues(cleanOrderItems);
+}
 
 
 router.use(async (req, res, next) => {
@@ -660,6 +672,9 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
+        await attachSubVatTotals(totalPrice, orderDetails.id);
+        attachGroupGoldRows(res, cleanOrderItems);
         // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
         // które widać przy pozycjach (services/subPrices.js).
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
@@ -791,6 +806,9 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
+        await attachSubVatTotals(totalPrice, orderDetails.id);
+        attachGroupGoldRows(res, cleanOrderItems);
         // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
         // które widać przy pozycjach (services/subPrices.js).
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
@@ -1093,6 +1111,8 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
+        await attachSubVatTotals(totalPrice, order.orderDetails.id);
         // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
         // które widać przy pozycjach (services/subPrices.js).
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
@@ -1155,14 +1175,16 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
                 totalPrice,
                 translate: __,
                 currency: priceCurrency,
-                withSubTotal: !isGroupPdf
+                withSubTotal: !isGroupPdf,
+                vatRate: hideClientVat ? null : totalPrice.vatRate
             }));
         } else {
             // Visible total mirrors page behaviour — always shown; hidden/gold prices excluded
             sendData.total_hidden = null;
             if (effectiveClientView) {
                 sendData.total = totalPrice.subVisible && totalPrice.subVisible !== 0
-                    ? `${__('order.total')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}` : null;
+                    ? `${__('order.total_list_gross')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}` : null;
+                sendData.total_is_sub = true;
             } else if (totalPrice?.visible && Number(totalPrice.visible) !== 0) {
                 sendData.total = `${__('order.total')}: ${formatAmount(totalPrice.visible, priceCurrency)}`;
             } else {
@@ -1171,7 +1193,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
             // Ceny zwykłe i SUB___ w dokumencie → obie sumy (jak stopka zlecenia).
             sendData.total_sub = !isGroupPdf && effectiveShowBoth && !effectiveClientView
                 && totalPrice.subVisible && totalPrice.subVisible !== 0
-                ? `${__('order.total')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}` : null;
+                ? `${__('order.total_list_gross')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}` : null;
         }
 
         // Suma „Wartość po rabacie" dla `order-pdf.njk` (PDF długi) — ten szablon
@@ -1195,7 +1217,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         // („Razem” obok „HKL Razem”) — jak stopka `order.njk` (templates/order.njk).
         if (isGroupClientPdf && !res.locals.isGroupShop && discountUnlocked
             && totalPrice.subVisible && Number(totalPrice.subVisible) !== 0 && sendData.total) {
-            sendData.total_sub = `${__('order.total')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}`;
+            sendData.total_sub = `${__('order.total_list_gross')}: ${formatAmount(totalPrice.subVisible, priceCurrency)}`;
         }
 
         const currentUser = ownerService.getCurrentUser(req);
@@ -1322,7 +1344,7 @@ router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermission
     // invoice wording. See services/vatCalculator.js.
     // Skipped entirely while the feature is off (config.js `features.vat`) —
     // no locals, so form.njk renders no VAT markup at all.
-    const vatLocals = vatFeatureEnabled ? await resolveVatLocals(req) : {};
+    const vatLocals = vatFeatureEnabled ? await resolveVatLocals(req, req.params.orderId) : {};
 
     // Rabat klienta grupy (`group_user.discount_percent`) — liczony z konta
     // podrzędnego przypisanego do ZAMÓWIENIA, więc wychodzi ten sam niezależnie
@@ -1584,6 +1606,9 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         }
 
         const totalPrice = await db.getTotal(id);
+        // Stawka VAT właściciela zlecenia — wiersze VAT pod sumą klienta w PDF.
+        // `subLocked` liczy tu sam `buildPdfSendDataTotals`, potrzebna jest stawka.
+        await attachSubVatTotals(totalPrice, id);
 
         // JĘZYK POTWIERDZENIA (AB): `user.ab_lang` wymusza język dokumentu.
         // ⚠️ Dotyczy CAŁEJ treści dokumentu, nie tylko etykiet — jeśli język
@@ -1614,7 +1639,10 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             translate: __,
             showGoldPrices,
             currency: priceCurrency,
-            withSubTotal: !(res.locals.isGroup || res.locals.isGroupShop)
+            withSubTotal: !(res.locals.isGroup || res.locals.isGroupShop),
+            // Konto podrzędne grupy i grupa-matka typu `client` VAT-u nie widzą
+            // (jak `hideClientVat` w trasie /orderpdf).
+            vatRate: (res.locals.isGroupShop || (res.locals.isGroup && res.locals.isGroupClientType)) ? null : totalPrice.vatRate
         }));
 
         // Klient z `ab_type = without_price` dostaje potwierdzenie BEZ ŻADNYCH cen

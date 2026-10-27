@@ -1,5 +1,6 @@
 import { showOfflineBanner, hideOfflineBanner } from '../components/offlineBanner.js';
 import { idbSetText, idbGetText } from './idbTextCache.js';
+import { parseExtraFuncCell } from './extraFunctions/parseExtraFunc.js';
 
 // Prefiks kluczy cache'u plików tekstowych (param.txt/paramdict.txt/group.txt/
 // prod.txt/aliasy) w IndexedDB (idbTextCache.js) — patrz `loadData()`.
@@ -142,6 +143,11 @@ export class DataLoader {
 
     console.log("CSV przetworzone");
     this.params = this.convertDataToObjects(paramsData,'param');
+    // Kolumna EXTRAFUNC (funkcje dodatkowe pola, np. `popup-input`) — gotowa
+    // lista `[{name, options}]`; starsze wersje reguł nie mają kolumny → [].
+    for (const param of this.params) {
+      param.EXTRAFUNCS = parseExtraFuncCell(param.EXTRAFUNC);
+    }
     this.dictValues = this.convertDataToObjects(dictData);
     return {
       params: this.params,

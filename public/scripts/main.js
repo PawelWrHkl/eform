@@ -29,6 +29,9 @@ const formContainer = document.getElementById("dynamic-form");
 const attachmentContainer = document.getElementById('attachment-container');
 const attachmentsLabel = document.querySelector('.attachment-label');
 let sentState = false;
+let savingPosition = false;
+const CALC_SETTLE_MS = 300;
+const CALC_MAX_WAIT_MS = 60000;
 let isPreparingForm = false;
 let formBuildId = 0;
 
@@ -250,36 +253,59 @@ function setupShowButton(inputs, values, valuesToDisplay, orderId, comment, vers
 
 	const showButton = document.getElementById('show-button');
 
-	showButton.onclick = async function () {
+	showButton.onclick = function () {
+		if (sentState || savingPosition) return;
+		savingPosition = true;
 		setTimeout(async () => {
-			if (!await validateForm(inputs, values)) {
-
-				showToast('error', t("form.incorrect_data"));
-				return;
+			startSpin();
+			try {
+				// Wysyłka dopiero PO końcu przeliczenia, nie po stałym czasie. Wcześniej
+				// `sendData` startowało 1,2 s po `recalculateLastChangedField()` bez
+				// `await`, a łańcuch skryptów cennika (param-CENA-C.js ma ~5 MB i jest
+				// wstrzykiwany od nowa przy każdym przeliczeniu) bywa dłuższy. W bazie
+				// lądował stan pośredni: CENA_SUMA = 0, SUB___CENA_KONCOWA bez rabatu,
+				// puste OPIS_RABATU (2026-10-26: zam. 4373 Hofstetter, 4351 Fuggerhaus).
+				await recalculateLastChangedField();
+				await waitForCalculationsToSettle();
+				if (!await validateForm(inputs, values)) {
+					showToast('error', t("form.incorrect_data"));
+					return;
+				}
+				showToast('success', `${t('form.saved_form_success')}`);
+				sentState = await sendData(inputs, values, valuesToDisplay, orderId, comment, version, groupNumber);
+			} catch (error) {
+				console.error('Zapis pozycji przerwany:', error);
+				showToast('error', t("form.error_saving_form"));
+			} finally {
+				stopSpin();
+				savingPosition = false;
 			}
-			showToast('success', `${t('form.saved_form_success')}`);
-			if (!sentState && window.finishFlag == true) {
-				recalculateLastChangedField();
-				setTimeout(async () => {
-					await sendData(inputs, values, valuesToDisplay, orderId, comment, version, groupNumber);
-					sentState = true;
-				}, 1200);
-			}
-			else {
-				startSpin();
-				setTimeout(async () => {
-					recalculateLastChangedField();
-					setTimeout(async () => {
-						await sendData(inputs, values, valuesToDisplay, orderId, comment, version, groupNumber);
-						sentState = true;
-						stopSpin();
-					}, 1200);
-
-				}, 1200);
-			}
-
 		}, 500);
 	}
+}
+
+/* Kolejka `updateProcedure` (form.js) musi być pusta przez chwilę — jedna zmiana
+   pola potrafi odpalić kilka przeliczeń pod rząd. */
+function waitForCalculationsToSettle() {
+	return new Promise((resolve, reject) => {
+		const start = Date.now();
+		let quietSince = null;
+		const check = () => {
+			const busy = window.isCalculating || (window.calculationQueue?.length ?? 0) > 0;
+			if (busy) {
+				quietSince = null;
+			} else if (quietSince === null) {
+				quietSince = Date.now();
+			} else if (Date.now() - quietSince >= CALC_SETTLE_MS) {
+				return resolve();
+			}
+			if (Date.now() - start > CALC_MAX_WAIT_MS) {
+				return reject(new Error('Przekroczono czas oczekiwania na przeliczenie cen'));
+			}
+			setTimeout(check, 50);
+		};
+		check();
+	});
 }
 
 
@@ -350,9 +376,11 @@ async function sendData(inputs, values, valuesToDisplay, orderId, comment, versi
 			window.location.href = `/orders/order/${orderId}`;
 			return result;
 		}, 500);
+		return true;
 	} catch (error) {
 		console.error("Błąd przy wysyłaniu", error);
 		showToast('error', t("form.error_saving_form"));
+		return false;
 	}
 }
 

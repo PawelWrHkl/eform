@@ -163,7 +163,7 @@ test('PDF totals match page logic for client vs showBoth modes', async () => {
     translate: (key) => key
   });
 
-  assert.equal(clientTotals.total, `order.total: ${SUB_SUMA_VISIBLE}€`);
+  assert.equal(clientTotals.total, `order.total_list_gross: ${SUB_SUMA_VISIBLE}€`);
   assert.equal(clientTotals.total_hidden, `order.total_hidden: ${SUB_SUMA_LOCKED}€ netto`);
   assert.equal(ownerTotals.total, `order.total: ${REGULAR_SUMA}€`);
   assert.equal(ownerTotals.total_hidden, `order.total_hidden: ${SUB_SUMA_LOCKED}€ netto`);
@@ -214,4 +214,26 @@ test('short PDF client view shows SUB line prices and hides regular row-2 prices
   assert.doesNotMatch(html, new RegExp(REGULAR_CENA.replace('.', '\\.')));
   assert.match(html, new RegExp(String(SUB_SUMA_VISIBLE)));
   assert.doesNotMatch(html, new RegExp(String(REGULAR_SUMA).replace('.', '\\.')));
+});
+
+test('PDF z cenami: VAT per pozycja (SUB___VAT*) nigdzie nie wychodzi — ani dla klienta, ani dla grupy', async () => {
+  // Decyzja właściciela 2026-10-27: VAT jest tylko w sumie zlecenia. `orderService`
+  // odrzuca wiersze SUB___VAT* z `subParamValues`, więc PDF ich nie ma niezależnie od roli.
+  const vatRows = [
+    ['SUB___VAT', { param_description: 'MWST [%]', option_value: '19%', row: '2', locked: true, sub: true }],
+    ['SUB___WARTOSC_VAT', { param_description: 'MWST-BETRAG [€]', option_value: '24.84', row: '2', locked: true, sub: true }],
+    ['SUB___WARTOSC_BRUTTO', { param_description: 'BRUTTOWERT [€]', option_value: '155.56', row: '2', locked: true, sub: true }]
+  ];
+  const item = makeOrderItem();
+  item.json_parameters_desc = [...item.json_parameters_desc, ...vatRows];
+  const { cleanOrderItems } = await orderService.jsonTextBackToMap([item]);
+  const render = (hideClientVat) => renderOrderPdfHtml({
+    orderDetails: {}, cleanOrderItems, sendData: {}, clientView: true, prices: true, hideClientVat
+  });
+
+  for (const hideClientVat of [false, true]) {
+    const html = render(hideClientVat);
+    assert.doesNotMatch(html, /MWST|BRUTTOWERT|VAT \[%\]/, `hideClientVat=${hideClientVat}`);
+    assert.match(html, new RegExp(String(SUB_SUMA_LOCKED)), 'reszta złotych cen klienta zostaje');
+  }
 });

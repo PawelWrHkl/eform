@@ -15,6 +15,7 @@
         <link rel="stylesheet" href="/styles/form.css?v={{ assetVersion }}">
         <link rel="stylesheet" href="/styles/components.css?v={{ assetVersion }}">
         <link rel="stylesheet" href="/styles/confirm-prompt.css">
+        <link rel="stylesheet" href="/styles/extra-functions.css?v={{ assetVersion }}">
         <link rel="stylesheet" href="/styles/responsive.css?v={{ assetVersion }}">
         <link rel="stylesheet" href="/styles/intro.css">
         <script src="/scripts/themeToggle.js"></script>
@@ -406,23 +407,54 @@
         <a href="/" class="efor-breadcrumb__home" aria-label="{{ eforT.home }}"><svg aria-hidden="true"><use href="#efor-i-home"/></svg></a>
         <ol class="efor-breadcrumb__trail" data-efor-breadcrumb></ol>
     </nav>
-    <a href="/panel" id="user-panel-header-btn" title="{{ __('panel.nav_link') }}" aria-label="{{ __('panel.nav_link') }}">
-        {# Wariant B: awatar z inicjałami zamiast pigułki z napisem (inicjały: uiVariantView.js). #}
-        <span class="efor-avatar efor-v2-only" data-efor-initials aria-hidden="true"><svg><use href="#efor-i-user"/></svg></span>
-        <svg class="efor-avatar__chevron efor-v2-only" aria-hidden="true"><use href="#efor-i-chevron-down"/></svg>
-        <svg class="efor-classic-only" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span class="efor-classic-only">{{ __('panel.nav_link') }}</span>
-    </a>
-    {# „Zmień wygląd” — przełącznik wariantu A ⇄ B, widoczny w obu wariantach.
-       Stan (aria-pressed, podpowiedź) ustawia uiVariant.js; litera A/B na
-       plakietce idzie z CSS (`data-state-*`), więc nie miga przy ładowaniu.
-       Tour i przełącznik motywu wstawia za nim themeToggle.js. #}
-    <button type="button" class="ui-variant-toggle" id="ui-variant-toggle" data-ui-variant-toggle aria-pressed="false"
-            data-hint-efor="{{ eforT.toggleToEfor }}" data-hint-classic="{{ eforT.toggleToClassic }}" title="{{ eforT.toggleToEfor }}">
-        <svg class="ui-variant-toggle__icon" aria-hidden="true"><use href="#efor-i-palette"/></svg>
-        <span class="ui-variant-toggle__label">{{ eforT.toggle }}</span>
-        <span class="ui-variant-toggle__state" aria-hidden="true" data-state-classic="A" data-state-efor="B"></span>
-    </button>
+    {# Menu konta (awatar ▾): panel użytkownika, „Zmień wygląd”, przewodnik i tryb
+       ciemny w jednej liście rozwijanej; języki zostają obok, bez zmian.
+       Rozwijanie: dropdown Bootstrapa (bundle w <head>), zamyka się po wyborze.
+       `data-bs-display="static"` — bez Poppera: globalna animacja `scaleIn` na
+       `.dropdown-menu` (theme.css) nadpisuje jego `transform` i lista lądowała
+       na przycisku; pozycję pod awatarem daje CSS.
+       Identyfikatory pozycji zostają — klika je asystent (services/assistant/
+       uiCatalog.js), tour (intro/main.js), motyw (themeToggle.js) i wariant
+       (uiVariant.js, `data-ui-variant-toggle`). Inicjały, nazwę i mail wpisuje
+       headerMenu.js. Stan przełącznika motywu rysuje CSS z `data-theme` na <html>
+       (bez mignięcia), `aria-checked` ustawia themeToggle.js. #}
+    <div class="header-menu dropdown" data-header-menu>
+        <button type="button" class="header-menu__trigger" id="header-menu-btn" data-bs-toggle="dropdown" data-bs-display="static"
+                aria-expanded="false" aria-label="{{ eforT.accountMenu }}" title="{{ eforT.accountMenu }}">
+            <span class="header-menu__avatar" data-header-menu-initials aria-hidden="true"><svg><use href="#efor-i-user"/></svg></span>
+            <svg class="header-menu__chevron" aria-hidden="true"><use href="#efor-i-chevron-down"/></svg>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end header-menu__panel" aria-labelledby="header-menu-btn">
+            <div class="header-menu__head">
+                <span class="header-menu__avatar header-menu__avatar--lg" data-header-menu-initials aria-hidden="true"><svg><use href="#efor-i-user"/></svg></span>
+                <span class="header-menu__who">
+                    <span class="header-menu__name" data-header-menu-name>{{ eforT.account }}</span>
+                    <span class="header-menu__mail" data-header-menu-mail></span>
+                </span>
+            </div>
+            <a href="/panel" id="user-panel-header-btn" class="dropdown-item header-menu__item">
+                <span class="header-menu__icon" aria-hidden="true"><svg><use href="#efor-i-user"/></svg></span>
+                <span class="header-menu__label">{{ __('panel.nav_link') }}</span>
+                <svg class="header-menu__end" aria-hidden="true"><use href="#efor-i-chevron-right"/></svg>
+            </a>
+            {# Plakietka A/B: treść z `data-state-*` w CSS (sekcja 0 theme-efor-v2.css). #}
+            <button type="button" id="ui-variant-toggle" class="dropdown-item header-menu__item" data-ui-variant-toggle aria-pressed="false">
+                <span class="header-menu__icon" aria-hidden="true"><svg><use href="#efor-i-palette"/></svg></span>
+                <span class="header-menu__label">{{ eforT.toggle }}</span>
+                <span class="ui-variant-toggle__state" aria-hidden="true" data-state-classic="A" data-state-efor="B"></span>
+            </button>
+            <button type="button" id="intro-tour-header-btn" class="dropdown-item header-menu__item">
+                <span class="header-menu__icon" aria-hidden="true"><svg><use href="#efor-i-compass"/></svg></span>
+                <span class="header-menu__label">{{ eforT.tourStart }}</span>
+            </button>
+            <div class="header-menu__sep" role="separator"></div>
+            <button type="button" id="theme-toggle" class="dropdown-item header-menu__item" role="switch" aria-checked="false">
+                <span class="header-menu__icon" aria-hidden="true"><svg><use href="#efor-i-moon"/></svg></span>
+                <span class="header-menu__label">{{ eforT.darkMode }}</span>
+                <span class="header-menu__switch" aria-hidden="true"></span>
+            </button>
+        </div>
+    </div>
     <div class="language-switcher">
         <a href="/change-language?lang=pl" {% if locale=='pl' %} class="active" data-tooltip="{{ __('base.polish_tooltip') }}" {% endif %}><img src="/img/poland.png" alt="Poland flag" width="30" height="28"></a>
         <a href="/change-language?lang=en" {% if locale=='en' %} class="active" data-tooltip="{{ __('base.base.english_tooltip') }}" {% endif %}><img src="/img/united-kingdom.png" alt="UK flag" width="30" height="28"></a>
@@ -629,6 +661,8 @@
    oferty). Czysto prezentacyjne — czytają istniejący DOM i klikają istniejące
    przyciski, nie liczą niczego same. W wariancie A śpią (brak obserwatorów). #}
 <script type="module" src="/scripts/uiVariantView.js?v={{ assetVersion }}"></script>
+{# Menu konta w nagłówku: inicjały, nazwa i mail (oba warianty). #}
+<script type="module" src="/scripts/headerMenu.js?v={{ assetVersion }}"></script>
 {# Asystent eForm (czat AI) — tylko przy ASSISTANT_ENABLED i dozwolonej sesji,
    patrz server.js (`assistantEnabled`) i services/assistant. #}
 {% if assistantEnabled %}{% include "partials/assistant-widget.njk" %}{% endif %}

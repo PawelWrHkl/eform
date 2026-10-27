@@ -10,7 +10,7 @@ const orderCorrectionService = require('../../services/admin/orderCorrectionServ
 const { recalcAndSaveMaxProdDays, buildItemProductionDays, getOrderDeliveryDelay } = require('../../services/productionDays');
 const { getPriceAfterDiscount } = require('../../services/getDiscount.js');
 const { getProductionSendSkipClient } = require('../../utils/productionSendGuard');
-const { orderHasSubPrices, calcSubTotals, resolveSubPricePdfView } = require('../../services/subPrices');
+const { orderHasSubPrices, calcSubTotals, resolveSubPricePdfView, attachSubVatTotals } = require('../../services/subPrices');
 const { availabeLanguages } = require('../../config');
 const { log } = require('../../utils/logging');
 const { currencyLocalsForOrder } = require('../../services/currency');
@@ -152,6 +152,8 @@ router.get('/:orderId', requireCorrectionOrder, loadEmployeePermissions, filterP
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
+        await attachSubVatTotals(totalPrice, orderDetails.id);
         const { isClientView, showBoth: showBothInPdf } = resolveSubPricePdfView(req, hasSubPrices);
 
         res.render('admin/order_corrections/workspace.njk', {

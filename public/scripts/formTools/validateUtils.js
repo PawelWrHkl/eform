@@ -1,6 +1,11 @@
 import { isEnabled } from '../components/htmlManipulator.js';
 import { showToast } from '../components/toast.js';
 import { logFunctionName, resetAllDOM } from './formTools.js';
+// ⚠️ Stała z liścia `extraValue.js`, nie z `index.js`: index → popupInput →
+// toast.js → formTools.js → validateUtils.js to cykl, w którym odczyt na
+// poziomie modułu trafia w niezainicjalizowane wiązanie (TDZ).
+import { EXTRA_SUFFIX } from './extraFunctions/extraValue.js';
+import { validateExtraFunctions } from './extraFunctions/index.js';
 import {
     buildValuesToDisplay,
     findParamFromValues,
@@ -513,7 +518,19 @@ export function validateAllFieldsOnSubmit(inputs, values) {
 
     }
 
-
+    // Funkcje dodatkowe (EXTRAFUNC) — np. `popup-input`: TAK bez wpisanej liczby.
+    for (const { param, message } of validateExtraFunctions({ values })) {
+        const input = inputs[param];
+        if (!input || !enabledParams.hasOwnProperty(param) || inputFlags[param] === false) continue;
+        inputFlags[param] = false;
+        input.classList.add('invalid-input');
+        const label = document.createElement('label');
+        label.id = `${input.id}-label`;
+        label.classList.add('invalid-label');
+        label.setAttribute('for', input.id);
+        label.textContent = message;
+        input.parentNode.appendChild(label);
+    }
 
     afterSend = true;
 
@@ -556,12 +573,18 @@ function neutralValueFor(paramName, currentValue) {
     return 0;
 }
 
+function stripExtraSuffix(key) {
+    return key.endsWith(EXTRA_SUFFIX) ? key.slice(0, -EXTRA_SUFFIX.length) : key;
+}
+
 export function clearDisabledValues(values, displayValues) {
     const enabledParamsKeys = new Set(Object.keys(enabledParams));
     
     for (const key of Object.keys(values)) {
 
-        const baseParam = key.replace(/___DESCRIPTION$/, '');
+        // `<PARAM>___EXTRA` (dana funkcji z EXTRAFUNC) dzieli los parametru jak
+        // `___DESCRIPTION` — inaczej kasowało go KAŻDE przeliczenie.
+        const baseParam = stripExtraSuffix(key.replace(/___DESCRIPTION$/, ''));
 
         if (key.includes('___VISIBLE') || baseParam.includes('___TITLE') || baseParam.includes('___DICT')) {
             

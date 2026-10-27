@@ -70,6 +70,38 @@
 		hiddenDone: 3000,  // „Zrobione!" przy przełączniku bez przycisku
 		finishMin: 7000, finishMax: 16000, finishBase: 3000, finishPerChar: 60 // ostatni krok → powrót na miejsce
 	};
+	function soundOn() {
+		return !!(A.speech && A.speech.enabled && !A.speech.muted());
+	}
+
+	/**
+	 * `fn` dopiero, gdy Eforek skończy mówić (i chwila pauzy) — pokaz nie ucieka przed
+	 * zdaniem i przejście na inną stronę nie ucina dźwięku. Najwyżej 60 s czekania.
+	 */
+	function quietThen(fn) {
+		var waited = 0;
+		var heard = false;
+		var g = function () {
+			if (A.speech && A.speech.speaking() && waited < 60000) {
+				waited += 250;
+				heard = true;
+				return later(g, 250);
+			}
+			if (heard) {
+				heard = false;
+				return later(g, 700);
+			}
+			fn();
+		};
+		return g;
+	}
+
+	/** Pierwsza pauza przed ruchem Eforka: z dźwiękiem krótko (dalej czeka na koniec zdania), bez — czas czytania. */
+	function firstWait(step) {
+		if (reduced) return 200;
+		return soundOn() ? 1500 : readMs(step);
+	}
+
 	function readMs(step) {
 		return Math.max(PACE.readMin, Math.min(PACE.readMax, PACE.readBase + String(step.text || '').length * PACE.readPerChar));
 	}
@@ -154,7 +186,7 @@
 	function normalize(steps) {
 		if (!Array.isArray(steps)) return [];
 		var out = [];
-		steps.slice(0, 8).forEach(function (s) {
+		steps.slice(0, 12).forEach(function (s) {
 			if (!s || typeof s !== 'object') return;
 			var t = String(s.text || '').trim().slice(0, 220);
 			if (!t) return;
@@ -169,7 +201,13 @@
 			var key = typeof s.element === 'string' && META.elements[s.element] && CATALOG[s.element] ? s.element : null;
 			var page = typeof s.page === 'string' && PAGES[s.page] ? s.page : null;
 			if (!key && !page) return;
-			out.push({ element: key, page: page, text: t, click: !!(key && META.elements[key].c && s.click === true) });
+			var st = { element: key, page: page, text: t, click: !!(key && META.elements[key].c && s.click === true) };
+			// Pole z `fill` (nazwa zamówienia, dział, grupa produktu) — Eforek wpisze / wybierze `value`.
+			if (key && META.elements[key].f && typeof s.value === 'string' && s.value.trim()) {
+				st.value = s.value.replace(/\s+/g, ' ').trim().slice(0, 60);
+				st.click = false;
+			}
+			out.push(st);
 		});
 		return withConfirmSteps(out);
 	}
@@ -268,6 +306,20 @@
 			if (n && !A.root.contains(n)) return n;
 		}
 		return null;
+	}
+
+	/**
+	 * Panel użytkownika, „Zmień wygląd”, przewodnik i tryb ciemny siedzą w menu konta
+	 * (`[data-header-menu]`, base.njk) — zamknięta lista chowa je przed wskazaniem,
+	 * więc ją rozwijamy. Na telefonie nagłówka nie widać: zostaje `navTo`/`hiddenOk`.
+	 */
+	function revealInMenu(key) {
+		var node = findAny(key);
+		var menu = node && node.closest ? node.closest('[data-header-menu]') : null;
+		if (!menu || isVisible(node)) return;
+		var trigger = menu.querySelector('[data-bs-toggle="dropdown"]');
+		if (!trigger || !isVisible(trigger) || !window.bootstrap || !window.bootstrap.Dropdown) return;
+		window.bootstrap.Dropdown.getOrCreateInstance(trigger).show();
 	}
 
 	/** Wiersz zlecenia na liście (tabela na komputerze, karta na telefonie). */
@@ -675,6 +727,9 @@
 			return;
 		}
 
+		// Pozycja menu konta w nagłówku — po bieżącym kliknięciu (np. „Dalej”), bo to
+		// samo kliknięcie zamknęłoby listę rozwiniętą od razu (Bootstrap: klik poza nią).
+		later(function () { revealInMenu(step.element); }, 0);
 		// Nowy krok widać od razu (szukanie elementu trwa do 2,5 s — bez tego dymek
 		// stał na poprzednim kroku i klient klikał „Dalej" drugi raz).
 		placeRing(null);
@@ -699,7 +754,7 @@
 						hiddenNode.click();
 						run.i += 1;
 						save();
-						later(function () { if (run) { if (run.i >= run.steps.length) stop(true); else showStep(); } }, PACE.hiddenDone);
+						later(quietThen(function () { if (run) { if (run.i >= run.steps.length) stop(true); else showStep(); } }), PACE.hiddenDone);
 						return;
 					}
 				}
@@ -855,6 +910,95 @@
 		}
 	}
 
+	// ── wpisywanie i wybór (nazwa zamówienia, dział i grupa produktu) ───────
+	function norm(t) {
+		return String(t || '').toLocaleLowerCase('pl').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, ' ').trim();
+	}
+
+	/** Pozycja listy najlepiej pasująca do `wanted`: dokładna → na początku → zawiera (w obie strony). */
+	function bestOption(sel, wanted) {
+		var w = norm(wanted);
+		if (!w) return null;
+		var opts = Array.prototype.filter.call(sel.options, function (o) { return o.value && !o.disabled; });
+		var score = function (o) {
+			var t = norm(o.textContent);
+			if (!t) return 0;
+			if (t === w) return 4;
+			if (t.indexOf(w) === 0) return 3;
+			if (t.indexOf(w) >= 0) return 2;
+			// „plisy cosiflor" w polu działu: wystarczy, że nazwa działu jest w życzeniu.
+			return w.indexOf(t) >= 0 ? 1 : 0;
+		};
+		var best = null;
+		var bestScore = 0;
+		opts.forEach(function (o) { var sc = score(o); if (sc > bestScore) { best = o; bestScore = sc; } });
+		return best;
+	}
+
+	/** Piesek wpisuje tekst litera po literze albo wybiera pozycję z listy; potem następny krok. */
+	function fillStep(node, step) {
+		var kind = META.elements[step.element].f;
+		var go = function () {
+			if (pendingTap !== go) return;
+			pendingTap = null;
+			if (!run || target !== node) return;
+			nextBtn.disabled = true;
+			if (dog && dog.out) dogState('tap');
+			var done = function (ok) {
+				if (!run || target !== node) return;
+				nextBtn.disabled = false;
+				if (!ok) {
+					// Nie ma takiej pozycji (np. inna nazwa produktu u klienta) — klient wybiera sam.
+					// Wymieniamy, co jest na liście — klient od razu widzi, z czego wybrać.
+					var names = Array.prototype.filter.call(node.options || [], function (o) { return o.value && !o.disabled; })
+						.map(function (o) { return o.textContent.trim(); }).filter(Boolean).slice(0, 8);
+					var note = (S.tourPickYourself || '').replace('{value}', step.value);
+					if (names.length) note += ' ' + (S.tourAvailable || '').replace('{list}', names.join(', '));
+					showCallout(step, note);
+					return;
+				}
+				if (dog && dog.out) dogPresent(dog.spot || dogSpot(node.getBoundingClientRect()), true);
+				run.i += 1;
+				save();
+				later(function () { if (run) showStep(); }, reduced ? 200 : 900);
+			};
+			if (kind === 'text') typeInto(node, step.value, done);
+			else pickOption(node, step.value, done);
+		};
+		pendingTap = go;
+		later(quietThen(go), reduced ? 200 : Math.min(firstWait(step), 4000));
+	}
+
+	function typeInto(input, value, done) {
+		try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); }
+		input.value = '';
+		var i = 0;
+		(function next() {
+			if (!run) return;
+			if (i >= value.length) {
+				input.dispatchEvent(new Event('change', { bubbles: true }));
+				return done(true);
+			}
+			input.value += value.charAt(i++);
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+			later(next, reduced ? 0 : 90);
+		})();
+	}
+
+	/** Lista bywa dociągana po wyborze poprzedniej (grupy po dziale) — czekamy do 6 s. */
+	function pickOption(sel, value, done) {
+		var started = Date.now();
+		(function poll() {
+			if (!run) return;
+			var opt = bestOption(sel, value);
+			if (!opt && Date.now() - started < 6000) return later(poll, 250);
+			if (!opt) return done(false);
+			sel.value = opt.value;
+			sel.dispatchEvent(new Event('change', { bubbles: true }));
+			done(true);
+		})();
+	}
+
 	/** Po wskazaniu: klik Eforka (przejścia, zakładki, akcje) albo — na ostatnim kroku — powrót pieska. */
 	function afterPointing(node, step, noted, p) {
 		if (step.order && step.action && !noted) {
@@ -865,18 +1009,16 @@
 				if (run && target === node) rowAction(node, step);
 			};
 			pendingTap = goAction;
-			return later(goAction, reduced ? 100 : PACE.rowAction);
+			return later(quietThen(goAction), reduced ? 100 : PACE.rowAction);
 		}
+		if (step.value && !noted) return fillStep(node, step);
 		if (!step.click || noted) {
 			if (!noted) autoFinish(step);
 			return;
 		}
 		// Klient czyta dymek; po czasie czytania (albo od razu po „Dalej") piesek klika.
-		var waited = 0;
 		var doTap = function () {
 			if (pendingTap !== doTap) return;
-			// Eforek jeszcze mówi — kliknie po zdaniu (najwyżej 12 s czekania).
-			if (A.speech && A.speech.speaking() && waited < 12000) { waited += 300; return later(doTap, 300); }
 			pendingTap = null;
 			if (!run || target !== node) return;
 			nextBtn.disabled = true;
@@ -902,7 +1044,8 @@
 		};
 		pendingTap = doTap;
 		// Przy przycisku akcji klient już przeczytał dymek (przy wierszu) — krócej.
-		later(doTap, reduced ? 200 : (step.quick ? PACE.tap * 3 : readMs(step)));
+		// Klik dopiero, gdy Eforek skończy mówić.
+		later(quietThen(doTap), step.quick ? (reduced ? 200 : PACE.tap * 3) : firstWait(step));
 	}
 
 	/**
@@ -933,6 +1076,8 @@
 
 	function begin(steps, i, seen) {
 		run = { steps: steps, i: i, seen: seen || [] };
+		// Nagrania wszystkich dymków przygotowane od razu — Eforek mówi bez czekania na syntezę.
+		if (A.speech && A.speech.prefetch) A.speech.prefetch(steps.slice(i).map(function (st) { return st.text; }));
 		hovering = false;
 		if (A.close) A.close();
 		if (!ensureDog()) {

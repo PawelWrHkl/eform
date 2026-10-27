@@ -210,3 +210,23 @@ test('relevantHighlight: zostaje element, o którym mowa (także w innej odmiani
 	assert.equal(f('nav_employee_panel', 'Pokażę.', els, [{ element: 'nav_employee_panel' }]), 'nav_employee_panel', 'pierwszy krok pokazu');
 	assert.equal(f(null, 'x', els), null);
 });
+
+test('historyForModel: cała rozmowa; znaczniki z nazwami, notka o pokazie, rozmowa głosowa oznaczona', () => {
+	const out = assistant.historyForModel([
+		{ role: 'user', text: 'Co z zamówieniem 810?' },
+		{ role: 'assistant', text: 'Zamówienie [[order:3175]] jest w [[page:history]].', refs: { '[[order:3175]]': { type: 'order', label: 'Zamówienie nr 810 „SDGFDFG”' }, '[[page:history]]': { type: 'page', label: 'Wysłane zlecenia' } }, tour: [{ element: 'nav_history', click: true }, { order: 3175, number: '810', page: 'history' }] },
+		{ role: 'assistant', text: '', refs: null },
+		{ role: 'assistant', text: 'Słucham.', channel: 'voice' }
+	]);
+	assert.equal(out.length, 3);
+	assert.match(out[1].text, /\[\[order:3175\]\] \(Zamówienie nr 810 „SDGFDFG”\)/);
+	assert.match(out[1].text, /\[Eforek pokazał: nav_history → zlecenie 810\]/);
+	assert.equal(out[2].text, '[rozmowa głosowa] Słucham.');
+});
+
+test('parseModelReply: choices — tylko teksty, przycięte, bez powtórzeń, najwyżej 8; puste → brak pola', () => {
+	const r = assistant.parseModelReply(JSON.stringify({ status: 'answered', answer: 'Który system?', highlight: null, tour: [], choices: ['EOS', ' COSIFLOR ', 'EOS', 7, '', ...Array.from({ length: 10 }, (_, i) => `G${i}`)] }), []);
+	assert.deepEqual(r.choices, ['EOS', 'COSIFLOR', 'G0', 'G1', 'G2', 'G3', 'G4', 'G5']);
+	const none = assistant.parseModelReply(JSON.stringify({ status: 'answered', answer: 'OK', highlight: null, tour: [], choices: [] }), []);
+	assert.equal(none.choices, undefined);
+});

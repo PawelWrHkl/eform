@@ -113,7 +113,7 @@ test('buildPdfSendDataTotals — client view uses SUB totals', () => {
     totalPrice: { visible: REGULAR_SUMA, hidden: '100' },
     translate: (key) => key
   });
-  assert.equal(totals.total, `order.total: ${SUB_SUMA_VISIBLE}€`);
+  assert.equal(totals.total, `order.total_list_gross: ${SUB_SUMA_VISIBLE}€`);
   assert.equal(totals.total_hidden, `order.total_hidden: ${SUB_SUMA_LOCKED}€ netto`);
 });
 

@@ -130,10 +130,10 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
   // wyłącznie przez `clientView`/`showBoth`, nie przez `prices`.
   const withoutPrices = options.withoutPrices === true;
   const showClientDiscount = options.showClientDiscount === true && !withoutPrices;
-  // Grupa typu `client` (matka LUB konto podrzędne) nie ma dostać rozbicia VAT
-  // (`SUB___VAT`/`SUB___WARTOSC_VAT`/`SUB___WARTOSC_BRUTTO`) w PDF-ie — te pola
-  // nie są `locked`, więc bez tej flagi wychodziły razem z resztą SUB, gdy
-  // `showBoth`/`clientView` je odsłaniało (routes/orders.js `isGroupClientPdf`).
+  // Grupa typu `client` (matka LUB konto podrzędne) nie ma dostać VAT-u
+  // katalogowego (`VAT`/`WARTOSC_VAT`/`WARTOSC_BRUTTO`, routes/orders.js
+  // `isGroupClientPdf`). VAT klienta (`SUB___VAT`/…) od 2026-10-26 nie drukuje
+  // się nikomu — jest ukryty jak parametry z `=HASLO()` (order-pdf.njk).
   const hideClientVat = options.hideClientVat === true;
   // Rabat eForma w podsumowaniu (pod ilością sztuk) — `{percent, label}` albo
   // null. Liczy go `services/subPrices.js resolveClientDiscountSummary` z

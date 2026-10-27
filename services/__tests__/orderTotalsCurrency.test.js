@@ -285,16 +285,16 @@ function footerLines(template, context) {
 const OWNER = { hasSubPriceToggle: true, hasSubPrices: true, viewAsOrganization: true };
 
 test('order.njk, admin/owner, kłódka zamknięta (w tabeli tylko SUB___): tylko suma SUB___', () => {
-  assert.deepEqual(footerLines('order.njk', { ...OWNER, showCatalogPrices: false }), ['order.total: 120 zł']);
+  assert.deepEqual(footerLines('order.njk', { ...OWNER, showCatalogPrices: false }), ['order.total_list_gross: 120 zł']);
 });
 
 test('order.njk, admin/owner, kłódka otwarta (w tabeli zwykłe i SUB___): obie sumy, rozróżnione', () => {
   assert.deepEqual(footerLines('order.njk', { ...OWNER, showCatalogPrices: true }),
-    ['HKL order.total: 100.00 zł', 'order.total: 120 zł']);
+    ['HKL order.total: 100.00 zł', 'order.total_list_gross: 120 zł']);
 });
 
 test('order.njk, klient z cenami SUB___: tylko suma SUB___', () => {
-  assert.deepEqual(footerLines('order.njk', { isClient: true, hasSubPrices: true, showCatalogPrices: false }), ['order.total: 120 zł']);
+  assert.deepEqual(footerLines('order.njk', { isClient: true, hasSubPrices: true, showCatalogPrices: false }), ['order.total_list_gross: 120 zł']);
 });
 
 test('order.njk, klient bez cen SUB___ / klient HKL: tylko suma zwykła', () => {
@@ -311,9 +311,9 @@ test('order.njk, ceny SUB___ widoczne, ale suma SUB___ = 0: „Według cennika�
 
 test('order_prices.njk: klient — suma SUB___ bez „HKL”; owner/admin — obie sumy przy kłódce', () => {
   const klient = footerLines('order_prices.njk', { isClient: true, hasSubPrices: true, prices: true });
-  assert.equal(klient[0], 'order.total: 120 zł');
+  assert.equal(klient[0], 'order.total_list_gross: 120 zł');
   const owner = footerLines('order_prices.njk', { ...OWNER, showCatalogPrices: true, prices: true });
-  assert.deepEqual(owner.slice(0, 2), ['HKL order.total: 100.00 zł', 'order.total: 120 zł']);
+  assert.deepEqual(owner.slice(0, 2), ['HKL order.total: 100.00 zł', 'order.total_list_gross: 120 zł']);
   const ownerZero = footerLines('order_prices.njk', { ...OWNER, showCatalogPrices: false, prices: true, totalPrice: { ...TOTAL_PRICE, subVisible: 0 } });
   assert.equal(ownerZero[0], 'order.according_to_price');
 });
@@ -360,7 +360,7 @@ test('buildPdfSendDataTotals showBoth + withSubTotal: suma SUB___ obok zwykłej;
   const orderItems = [{ json_parameters_desc: [['SUB___SUMA_BRUTTO', { option_value: '120', listsum: true }], ['SUB___WARTOSC_KONCOWA', { option_value: '48', listsum: true, locked: true }]] }];
   const base = { showBoth: true, orderItems, totalPrice: { visible: '100.00' }, translate: (k) => k, currency: 'PLN' };
   assert.deepEqual(buildPdfSendDataTotals({ ...base, withSubTotal: true }),
-    { total: 'order.total: 100.00 zł', total_hidden: 'order.total_hidden: 48 zł netto', total_sub: 'order.total: 120 zł' });
+    { total: 'order.total: 100.00 zł', total_hidden: 'order.total_hidden: 48 zł netto', total_sub: 'order.total_list_gross: 120 zł' });
   assert.equal('total_sub' in buildPdfSendDataTotals(base), false);
 });
 
@@ -368,7 +368,7 @@ test('order_to_print_short.njk, showBoth: „HKL Razem” zwykła + „Razem” 
   const both = pdfValues(renderShortPrint({ prices: false, showBoth: true, ...currencyLocals('PLN') }));
   assert.ok(both.includes('100.00 zł') && both.includes('120 zł'), both.join(' | '));
   const html = renderShortPrint({ prices: false, showBoth: true, ...currencyLocals('PLN') }).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  assert.match(html, /HKL order\.total: 100\.00 zł order\.total: 120 zł/);
+  assert.match(html, /HKL order\.total: 100\.00 zł order\.total_list_gross: 120 zł/);
   const group = renderShortPrint({ prices: false, showBoth: true, isGroup: true, ...currencyLocals('PLN') }).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.doesNotMatch(group, /HKL order\.total/);
   assert.doesNotMatch(group, /order\.total: 120 zł/);
@@ -378,8 +378,162 @@ test('mailBot/order-pdf.njk: total_sub → „HKL Razem” + „Razem”; bez to
   const render = (sendData) => mailEnv.render('order-pdf.njk', {
     orderDetails: { order_idx: 1 }, cleanOrderItems: [], logoPath: 'data:,', prices: true, sendData
   }).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  assert.match(render({ total: 'order.total: 100.00 zł', total_sub: 'order.total: 120 zł' }), /HKL order\.total: 100\.00 zł order\.total: 120 zł/);
+  assert.match(render({ total: 'order.total: 100.00 zł', total_sub: 'order.total_list_gross: 120 zł' }), /HKL order\.total: 100\.00 zł order\.total_list_gross: 120 zł/);
+  // `total_sub` zbudowany przed 2026-10-26 (stara etykieta) — kwota bez podwójnej etykiety.
+  assert.match(render({ total: 'order.total: 100.00 zł', total_sub: 'order.total: 120 zł' }), /order\.total_list_gross: 120 zł/);
   const legacy = render({ total: 'order.total: 100.00 zł' });
   assert.match(legacy, /order\.total: 100\.00 zł/);
   assert.doesNotMatch(legacy, /HKL order\.total/);
+});
+
+// ─── VAT pod ukrytą sumą klienta (decyzja właściciela 2026-10-26) ───────────
+// „GESAMTBETRAG LISTENPREIS BRUTTO” zamiast „Gesamtbetrag” przy sumie SUB___,
+// a pod złotą sumą po rabacie (po kłódce): „VAT 19%: …” i „Brutto Betrag inkl.
+// MwSt: …”, liczone od `subLocked` — w każdym wariancie stopki, wydruku i PDF.
+
+const { computeVatTotals } = require('../subPrices');
+// `subLocked` 110 przy 19% → VAT 20.90, brutto 130.90.
+const VAT_TOTAL_PRICE = { ...TOTAL_PRICE, vatRate: 19, subVat: '20.90', subGross: '130.90' };
+const VAT_LINES = ['order.total_vat 19%: 20.90 zł', 'order.total_gross_incl_vat: 130.90 zł'];
+
+test('computeVatTotals: VAT od sumy (nie sumą zaokrągleń), brak stawki lub sumy → null', () => {
+  assert.deepEqual(computeVatTotals(110, 19), { vat: '20.90', gross: '130.90' });
+  assert.deepEqual(computeVatTotals('84.15', 19), { vat: '15.99', gross: '100.14' });
+  assert.deepEqual(computeVatTotals(50, 0), { vat: '0.00', gross: '50.00' }, '0% (reverse charge) to prawdziwa stawka');
+  assert.equal(computeVatTotals(110, null), null, 'VAT wyłączony');
+  assert.equal(computeVatTotals(0, 19), null);
+});
+
+test('order_prices.njk po kłódce: klient i owner/admin — VAT i brutto zaraz pod złotą sumą klienta', () => {
+  const klient = footerLines('order_prices.njk', { isClient: true, hasSubPrices: true, prices: true, totalPrice: VAT_TOTAL_PRICE });
+  assert.deepEqual(klient, ['order.total_list_gross: 120 zł', 'order.total_hidden: 110 zł netto', ...VAT_LINES]);
+  const owner = footerLines('order_prices.njk', { ...OWNER, showCatalogPrices: true, prices: true, totalPrice: VAT_TOTAL_PRICE });
+  assert.deepEqual(owner.slice(-3), ['order.total_hidden: 110 zł netto', ...VAT_LINES]);
+});
+
+test('order.njk: VAT tylko przy odsłoniętej złotej sumie; bez stawki (VAT wyłączony) nic nie dochodzi', () => {
+  const unlocked = footerLines('order.njk', { ...OWNER, showCatalogPrices: true, prices: true, totalPrice: VAT_TOTAL_PRICE });
+  assert.deepEqual(unlocked.slice(-3), ['order.total_hidden: 110 zł netto', ...VAT_LINES]);
+  const locked = footerLines('order.njk', { ...OWNER, showCatalogPrices: true, totalPrice: VAT_TOTAL_PRICE });
+  assert.equal(locked.some((l) => l.includes('total_vat')), false, 'przed kłódką VAT-u nie ma');
+  const off = footerLines('order_prices.njk', { isClient: true, hasSubPrices: true, prices: true });
+  assert.equal(off.some((l) => /total_vat|total_gross_incl_vat/.test(l)), false);
+});
+
+// ─── Grupa-matka i konto podrzędne (decyzja właściciela 2026-10-27) ─────────
+// Jak klient organizacji spoza HKL: ceny wg cennika zawsze, a pod kłódką
+// „Pokaż cenę po rabacie” złoty wiersz i złote sumy — po rabacie netto, VAT, brutto.
+
+const GROUP_ROLES = {
+  'grupa-matka typu client': { isGroup: true, isGroupClientType: true },
+  'grupa-matka typu shop': { isGroup: true },
+  'konto podrzędne grupy client': { isGroupShop: true, isGroupClientType: true },
+  'sklep grupy (shop)': { isGroupShop: true }
+};
+const GOLD_TOTALS = ['order.total_hidden: 110 zł netto', ...VAT_LINES];
+
+test('stopka grupy: HKL Razem tylko u matki, Razem wg cennika zawsze, po kłódce złote: po rabacie, VAT, brutto', () => {
+  for (const [name, role] of Object.entries(GROUP_ROLES)) {
+    const head = [...(role.isGroup ? ['HKL order.total: 100.00 zł'] : []), 'order.total_list_gross: 120 zł'];
+    const ctx = { ...role, hasSubPrices: true, totalPrice: VAT_TOTAL_PRICE };
+    assert.deepEqual(footerLines('order.njk', ctx), head, `${name}: kłódka zamknięta`);
+    assert.deepEqual(footerLines('order.njk', { ...ctx, discountPricesUnlocked: true }), [...head, ...GOLD_TOTALS], `${name}: kłódka otwarta`);
+  }
+});
+
+test('stopka grupy: bez stawki VAT (VAT_ENABLED wyłączony) po kłódce zostaje sama suma po rabacie', () => {
+  const lines = footerLines('order.njk', { isGroup: true, hasSubPrices: true, discountPricesUnlocked: true });
+  assert.deepEqual(lines, ['HKL order.total: 100.00 zł', 'order.total_list_gross: 120 zł', 'order.total_hidden: 110 zł netto']);
+});
+
+const { attachGroupGoldValues } = require('../subPrices');
+
+function groupItem(subParamValues) {
+  return [{ ...CLEAN_ORDER_ITEMS[0], rows: [{ item: { id: 1, lockedParams: [], subParamValues, clientDiscountValues: [] }, row: { row1: {}, row2: {} } }] }];
+}
+
+test('attachGroupGoldValues: rabat matki zamiast cennikowego, po rabacie — BEZ VAT per pozycja', () => {
+  const items = groupItem([
+    { key: 'SUB___SUMA_BRUTTO', display: 'WARTOŚĆ BR.', value: '394.50', locked: false },
+    { key: 'SUB___CENA_RABAT', display: 'RABAT', value: '30%', locked: true },
+    { key: 'SUB___RABAT_KLIENTA', display: 'Rabat klienta', value: '60%', locked: true },
+    { key: 'SUB___CENA_KONCOWA', display: 'CENA NETTO PO RABACIE', value: '157.80', locked: true },
+    { key: 'SUB___WARTOSC_KONCOWA', display: 'WART. NET. PO RABACIE', value: '157.80', locked: true },
+    // VAT zapisany przy pozycji — nie trafia do złotego wiersza
+    { key: 'SUB___VAT', display: 'VAT stary', value: '23%', locked: true },
+    { key: 'SUB___WARTOSC_VAT', display: 'VAT stary', value: '36.29', locked: true },
+    { key: 'SUB___WARTOSC_BRUTTO', display: 'stary', value: '194.09', locked: true }
+  ]);
+  attachGroupGoldValues(items);
+  const gold = items[0].rows[0].item.groupGoldValues.map((e) => `${e.display}: ${e.value}`);
+  assert.deepEqual(gold, [
+    'Rabat klienta: 60%', 'CENA NETTO PO RABACIE: 157.80', 'WART. NET. PO RABACIE: 157.80'
+  ]);
+});
+
+test('attachGroupGoldValues: bez rabatu matki zostaje cennikowy', () => {
+  const items = groupItem([
+    { key: 'SUB___CENA_RABAT', display: 'RABAT', value: '30%', locked: true },
+    { key: 'SUB___WARTOSC_KONCOWA', display: 'WART. NET. PO RABACIE', value: '70.00', locked: true }
+  ]);
+  attachGroupGoldValues(items);
+  assert.deepEqual(items[0].rows[0].item.groupGoldValues.map((e) => e.key), ['SUB___CENA_RABAT', 'SUB___WARTOSC_KONCOWA']);
+});
+
+test('order.njk, grupa: wiersz cennika zawsze, złoty wiersz po kłódce; VAT pozycji nigdzie, VAT tylko w sumie', () => {
+  // `orderService` nie wpuszcza VAT-u pozycji do `subParamValues` — tak wygląda realny wynik.
+  const items = groupItem([
+    { key: 'SUB___SUMA_BRUTTO', display: 'WARTOŚĆ BR.', value: '394.50', locked: false },
+    { key: 'SUB___WARTOSC_KONCOWA', display: 'WART. NET. PO RABACIE', value: '157.80', locked: true }
+  ]);
+  attachGroupGoldValues(items);
+  const render = (ctx) => pagesEnv.render('order.njk', {
+    orderDetails: { id: 1, order_idx: 7, status: 'active' }, cleanOrderItems: items, orderItems: [],
+    totalPrice: VAT_TOTAL_PRICE, hidePrices: false, hasSubPrices: true, ...currencyLocals('PLN'), ...ctx
+  });
+  const table = (html) => html.slice(0, html.indexOf("id='total-container'"));
+  for (const role of [{ isGroup: true, isGroupClientType: true }, { isGroupShop: true }]) {
+    const locked = table(render(role));
+    assert.match(locked, /WARTOŚĆ BR\.:<\/span>\s*<b class="sub-param-value">394\.50/, JSON.stringify(role));
+    assert.doesNotMatch(locked, /sub-params-locked-row|WART\. NET\. PO RABACIE/, JSON.stringify(role));
+    const open = render({ ...role, discountPricesUnlocked: true });
+    const openTable = table(open);
+    assert.match(openTable, /sub-params-locked-row/);
+    assert.match(openTable, /sub-param-item gold">\s*<span class="sub-param-label">WART\. NET\. PO RABACIE:/, JSON.stringify(role));
+    assert.doesNotMatch(open, /VAT \[%\]|WARTOŚĆ VAT|WARTOŚĆ BRUTTO \[PLN\]:<\/span>\s*<b class="sub-param-value">194/, 'VAT pozycji nie pokazujemy');
+    assert.doesNotMatch(open, /<tr class="sub-params-row client-discount-row/, 'stary bursztynowy wiersz rabatu zniknął');
+    assert.match(open, /order\.total_vat 19%: 20\.90 zł/, 'suma VAT zostaje w stopce');
+  }
+});
+
+test('buildPdfSendDataTotals: `vatRate` dokłada total_vat/total_gross pod sumą klienta; bez stawki — nie', () => {
+  const orderItems = [{ json_parameters_desc: [['SUB___SUMA_BRUTTO', { option_value: '120', listsum: true }], ['SUB___WARTOSC_KONCOWA', { option_value: '110', listsum: true, locked: true }]] }];
+  const base = { orderItems, totalPrice: { visible: '100.00' }, translate: (k) => k, currency: 'PLN' };
+  const client = buildPdfSendDataTotals({ ...base, isClientView: true, vatRate: 19 });
+  assert.equal(client.total, 'order.total_list_gross: 120 zł');
+  assert.equal(client.total_is_sub, true);
+  assert.equal(client.total_vat, 'order.total_vat 19%: 20.90 zł');
+  assert.equal(client.total_gross, 'order.total_gross_incl_vat: 130.90 zł');
+  const both = buildPdfSendDataTotals({ ...base, showBoth: true, withSubTotal: true, vatRate: 19 });
+  assert.equal(both.total_vat, 'order.total_vat 19%: 20.90 zł');
+  assert.equal('total_vat' in buildPdfSendDataTotals({ ...base, isClientView: true }), false);
+  // Ceny zwykłe (bez cen klienta w dokumencie) — złota suma to nie cena klienta, VAT-u nie dokładamy.
+  assert.equal('total_vat' in buildPdfSendDataTotals({ ...base, totalPrice: { visible: '100.00', hidden: '90.00' }, vatRate: 19 }), false);
+});
+
+test('mailBot/order-pdf.njk i wydruk: wiersze VAT pod sumą po rabacie', () => {
+  const sendData = {
+    total: 'order.total_list_gross: 120 zł', total_is_sub: true, total_hidden: 'order.total_hidden: 110 zł netto',
+    total_vat: 'order.total_vat 19%: 20.90 zł', total_gross: 'order.total_gross_incl_vat: 130.90 zł'
+  };
+  const pdf = mailEnv.render('order-pdf.njk', {
+    orderDetails: { order_idx: 1 }, cleanOrderItems: [], logoPath: 'data:,', prices: true, sendData
+  }).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(pdf, /order\.total_list_gross: 120 zł order\.total_hidden: 110 zł netto order\.total_vat 19%: 20\.90 zł order\.total_gross_incl_vat: 130\.90 zł/);
+
+  const print = pagesEnv.render('order_to_print.njk', {
+    orderDetails: { order_idx: 1 }, cleanOrderItems: [], prices: true, clientView: true,
+    totalPrice: VAT_TOTAL_PRICE, ...currencyLocals('PLN')
+  }).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(print, /order\.total_list_gross: 120 zł .*order\.total_hidden: 110 zł netto order\.total_vat 19%: 20\.90 zł order\.total_gross_incl_vat: 130\.90 zł/);
 });

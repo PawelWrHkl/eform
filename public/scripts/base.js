@@ -99,7 +99,8 @@ export async function getUserName() {
     }
 
     // Dane konta dla widoków, które nie powinny pytać `/user/name` drugi raz —
-    // karta konta i awatar w wariancie wyglądu B (scripts/uiVariantView.js).
+    // karta konta w wariancie wyglądu B (scripts/uiVariantView.js) i menu konta
+    // w nagłówku (scripts/headerMenu.js).
     window.eformUser = data;
     window.dispatchEvent(new CustomEvent('eform:user-loaded', { detail: data }));
 

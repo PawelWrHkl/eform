@@ -70,6 +70,8 @@ function clearContextUser(req) {
         }
         const previousContext = req.session.context_user;
         delete req.session.context_user;
+        // TYMCZASOWE — diagnoza utraty kontekstu (middleware/contextTrace.js).
+        log(`[ctxTrace] clearContextUser ${previousContext?.ident || null} | ${req.method} ${req.originalUrl}`);
 
         return true;
     } catch (error) {

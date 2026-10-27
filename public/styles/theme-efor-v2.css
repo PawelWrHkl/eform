@@ -52,8 +52,8 @@
 /* =============================================================================
    0. PRZEŁĄCZNIK „ZMIEŃ WYGLĄD” — widoczny w OBU wariantach
    =============================================================================
-   Pigułka w nagłówku (obok „Panelu użytkownika”) i pozycja w menu mobilnym.
-   Plakietka A/B pokazuje aktywny wariant; jej treść idzie z atrybutów
+   Pozycja w menu konta w nagłówku (`.header-menu`, theme.css) i w menu
+   mobilnym. Plakietka A/B pokazuje aktywny wariant; jej treść idzie z atrybutów
    `data-state-*`, więc nic nie miga przy ładowaniu strony. */
 .ui-variant-toggle {
     position: relative;
@@ -155,17 +155,6 @@
     padding: 0 10px;
 }
 
-@media (max-width: 1180px) {
-    /* Wąski desktop: sama ikona + plakietka, pełna nazwa zostaje w `title`. */
-    header.languages .ui-variant-toggle:not(.ui-variant-toggle--menu) .ui-variant-toggle__label {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip: rect(0 0 0 0);
-        white-space: nowrap;
-    }
-}
 
 
 /* =============================================================================
@@ -948,43 +937,17 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         text-overflow: ellipsis;
     }
 
-    /* Prawa grupa */
-    .theme-efor-v2 header.languages #ui-variant-toggle {
-        order: 1;
-    }
-
-    .theme-efor-v2 header.languages #intro-tour-header-btn {
-        order: 2;
-    }
-
-    .theme-efor-v2 header.languages #theme-toggle {
-        order: 3;
-    }
-
+    /* Prawa grupa: język, a na końcu menu konta (awatar ▾) */
     .theme-efor-v2 header.languages .efor-lang {
         order: 4;
     }
 
-    .theme-efor-v2 header.languages #user-panel-header-btn {
+    .theme-efor-v2 header.languages .header-menu {
         order: 5;
     }
 
     .theme-efor-v2 header.languages .language-switcher {
         display: none !important;
-    }
-
-    .theme-efor-v2 .ui-variant-toggle:not(.ui-variant-toggle--menu) {
-        height: 40px;
-        border-color: var(--efor-line-2);
-        background: var(--efor-card);
-        box-shadow: none;
-        color: var(--efor-text);
-        font-weight: 600;
-    }
-
-    .theme-efor-v2 .ui-variant-toggle:not(.ui-variant-toggle--menu):hover {
-        border-color: var(--efor-amber-line);
-        background: var(--efor-cream);
     }
 
     .theme-efor-v2 header.languages .theme-toggle {
@@ -1045,52 +1008,45 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         transform: rotate(180deg);
     }
 
-    /* Awatar = link do panelu użytkownika */
-    .theme-efor-v2 header.languages #user-panel-header-btn {
+    /* Menu konta: awatar ▾ za kreską oddzielającą od reszty paska */
+    .theme-efor-v2 .header-menu__trigger {
         height: 44px;
         gap: 8px;
-        margin-left: 6px !important;
-        padding: 0 2px 0 18px !important;
+        margin-left: 6px;
+        padding: 0 2px 0 18px;
+        border: 0;
         border-left: 1px solid var(--efor-line);
-        border-radius: 0 !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        color: var(--efor-text) !important;
-        transform: none !important;
-        animation: none !important;
+        border-radius: 0;
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none;
+        color: var(--efor-text-2);
     }
 
-    .theme-efor-v2 header.languages #user-panel-header-btn:focus-visible {
+    .theme-efor-v2 .header-menu__trigger:hover,
+    .theme-efor-v2 .header-menu__trigger[aria-expanded="true"] {
+        border-color: var(--efor-line);
+        box-shadow: none;
+        color: var(--efor-ink);
+    }
+
+    .theme-efor-v2 .header-menu__trigger:focus-visible {
+        outline: 3px solid rgba(247, 180, 23, .55);
         outline-offset: 4px;
     }
 
-    .theme-efor-v2 .efor-avatar {
-        display: inline-grid;
-        place-items: center;
+    .theme-efor-v2 .header-menu__trigger .header-menu__avatar {
         width: 40px;
         height: 40px;
-        border-radius: 50%;
-        background: var(--efor-bronze);
-        color: #fff;
         font-size: 14px;
         font-weight: 600;
-        letter-spacing: .02em;
         transition: box-shadow .15s ease;
     }
 
-    .theme-efor-v2 .efor-avatar svg {
-        width: 20px;
-        height: 20px;
-    }
-
-    .theme-efor-v2 header.languages #user-panel-header-btn:hover .efor-avatar {
+    .theme-efor-v2 .header-menu__trigger:hover .header-menu__avatar,
+    .theme-efor-v2 .header-menu__trigger[aria-expanded="true"] .header-menu__avatar {
         box-shadow: 0 0 0 3px var(--efor-amber-100);
-    }
-
-    .theme-efor-v2 .efor-avatar__chevron {
-        width: 16px;
-        height: 16px;
-        color: var(--efor-text-2);
     }
 
     /* Treść strony zaczyna się pod paskiem górnym */
@@ -1771,6 +1727,56 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
     background: var(--efor-amber-50) !important;
     color: var(--efor-ink) !important;
     font-weight: 600;
+}
+
+/* Menu konta w nagłówku (układ: theme.css → „MENU KONTA”) */
+.theme-efor-v2 .header-menu__avatar {
+    background: var(--efor-bronze);
+    color: #fff;
+}
+
+.theme-efor-v2 .header-menu__head {
+    border-bottom-color: var(--efor-line);
+}
+
+.theme-efor-v2 .header-menu__name {
+    color: var(--efor-ink);
+}
+
+.theme-efor-v2 .header-menu__mail {
+    color: var(--efor-soft);
+}
+
+.theme-efor-v2 .header-menu .header-menu__item {
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.theme-efor-v2 .header-menu__icon {
+    border-radius: 8px;
+    background: var(--efor-teal-50);
+    color: var(--efor-teal);
+}
+
+.theme-efor-v2[data-theme="dark"] .header-menu__icon {
+    color: var(--efor-teal-500);
+}
+
+.theme-efor-v2 .header-menu__end {
+    color: var(--efor-soft);
+}
+
+.theme-efor-v2 .header-menu__sep {
+    background: var(--efor-line);
+}
+
+.theme-efor-v2 .header-menu__switch {
+    background: var(--efor-line-strong);
+}
+
+.theme-efor-v2[data-theme="dark"] .header-menu__switch {
+    background: var(--efor-amber);
 }
 
 .theme-efor-v2 dialog {

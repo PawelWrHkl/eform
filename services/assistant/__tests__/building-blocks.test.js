@@ -226,7 +226,7 @@ test('katalog: ekrany istnieją, kliknięcie tylko dla przejść (nigdy zapis/wy
 	}
 	// Nigdy: zapis/zmiana bez pytania, potwierdzenie w oknie portalu (klika użytkownik), przyciski
 	// w wierszach list (Eforek trafia w wiersz po ID zlecenia — krok order z action) i duplikowanie (bez okna).
-	const NEVER_CLICK = ['send_order_list', 'delete_order', 'delete_position', 'duplicate_position', 'save_new_order', 'save_position', 'change_password_btn', 'permission_toggle', 'save_employee', 'cancel_order_btn', 'copy_order', 'catalog_download', 'reset_form', 'group_approve_btn', 'group_reject_btn', 'dialog_confirm', 'cancel_ack_checkbox'];
+	const NEVER_CLICK = ['send_order_list', 'delete_order', 'delete_position', 'duplicate_position', 'save_position', 'change_password_btn', 'permission_toggle', 'save_employee', 'cancel_order_btn', 'copy_order', 'catalog_download', 'reset_form', 'group_approve_btn', 'group_reject_btn', 'dialog_confirm', 'cancel_ack_checkbox'];
 	for (const key of NEVER_CLICK) assert.ok(uiCatalog.BY_KEY.get(key) && !uiCatalog.BY_KEY.get(key).click, `${key} nie może być klikany przez Eforka`);
 	// Przyciski nieodwracalnych akcji Eforek klika tylko dlatego, że w portalu otwierają okno potwierdzenia.
 	for (const key of ['send_order', 'submit_for_approval', 'cancel_order_view', 'group_approve_view', 'group_reject_view']) {

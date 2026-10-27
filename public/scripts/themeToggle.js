@@ -17,7 +17,10 @@
         const smallMoonIcon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
 
         const toggle = document.getElementById('theme-toggle');
-        if (toggle) {
+        if (toggle && toggle.getAttribute('role') === 'switch') {
+            // Pozycja menu konta (base.njk): etykieta i suwak są w szablonie.
+            toggle.setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
+        } else if (toggle) {
             toggle.innerHTML = theme === 'dark' ? sunIcon : moonIcon;
             toggle.setAttribute('aria-label', theme === 'dark' ? 'Przełącz na tryb jasny' : 'Przełącz na tryb ciemny');
         }
@@ -33,33 +36,22 @@
     applyTheme(getPreferredTheme());
 
     document.addEventListener('DOMContentLoaded', function () {
-        // Utwórz przycisk toggle
-        const btn = document.createElement('button');
-        btn.id = 'theme-toggle';
-        btn.className = 'theme-toggle';
-        btn.type = 'button';
-        btn.setAttribute('aria-label', 'Przełącz motyw');
+        // Przełącznik siedzi w menu konta (base.njk); bez menu (np. strona
+        // logowania) tworzymy okrągły przycisk przed flagami języków.
+        let btn = document.getElementById('theme-toggle');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'theme-toggle';
+            btn.className = 'theme-toggle';
+            btn.type = 'button';
+            btn.setAttribute('aria-label', 'Przełącz motyw');
 
-        // Insert into .languages header, before the language-switcher
-        const langHeader = document.querySelector('.languages');
-        const langSwitcher = document.querySelector('.language-switcher');
-        if (langHeader && langSwitcher) {
-            langHeader.insertBefore(btn, langSwitcher);
-        } else {
-            document.body.appendChild(btn);
-        }
-
-        // Insert tour button BEFORE theme toggle (only for logged-in users)
-        if (window.userLoggedIn) {
-            const tourBtn = document.createElement('button');
-            tourBtn.id = 'intro-tour-header-btn';
-            tourBtn.className = 'theme-toggle';
-            tourBtn.type = 'button';
-            tourBtn.setAttribute('aria-label', 'Tour');
-            tourBtn.title = 'Tour';
-            tourBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>';
+            const langHeader = document.querySelector('.languages');
+            const langSwitcher = document.querySelector('.language-switcher');
             if (langHeader && langSwitcher) {
-                langHeader.insertBefore(tourBtn, btn);
+                langHeader.insertBefore(btn, langSwitcher);
+            } else {
+                document.body.appendChild(btn);
             }
         }
 

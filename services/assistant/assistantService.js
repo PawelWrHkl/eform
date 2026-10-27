@@ -33,7 +33,8 @@ const tourModule = require('./tour');
 
 const MAX_QUESTION_CHARS = 1000;
 /** Ile ostatnich wypowiedzi idzie do modelu jako historia. */
-const HISTORY_FOR_MODEL = 12;
+// Cała rozmowa widoczna w oknie czatu (MAX_STORED_MESSAGES) — Eforek ma znać jej kontekst.
+const HISTORY_FOR_MODEL = 40;
 /** Ile wypowiedzi trzymamy w sesji (transkrypt dla konsultanta). */
 const MAX_STORED_MESSAGES = 40;
 const MAX_ANSWER_CHARS = 2000;
@@ -106,6 +107,11 @@ function parseModelReply(text, availableKeys) {
 	const reply = { status: data.status, answer, highlight };
 	// Kroki pokazu weryfikuje ask() (zależą od konta) — tu tylko przekazujemy surowe.
 	if (Array.isArray(data.tour) && data.tour.length) Object.defineProperty(reply, 'rawTour', { value: data.tour, enumerable: false });
+	// Propozycje do kliknięcia (dopytanie o system produktu itp.) — najwyżej 8, krótkie, bez powtórzeń.
+	if (Array.isArray(data.choices)) {
+		const choices = [...new Set(data.choices.filter((c) => typeof c === 'string').map((c) => c.replace(/\s+/g, ' ').trim().slice(0, 60)).filter(Boolean))].slice(0, 8);
+		if (choices.length) reply.choices = choices;
+	}
 	return reply;
 }
 
@@ -159,7 +165,7 @@ async function ask(session, input, deps = {}) {
 	}
 
 	const state = getState(session);
-	const history = state.messages.slice(-HISTORY_FOR_MODEL);
+	const history = historyForModel(state.messages.slice(-HISTORY_FOR_MODEL));
 	pushMessage(state, { role: 'user', text: question });
 
 	// Zakres danych konta (tools.scopeFromRequest) — bez niego Eforek nie ma narzędzi,
@@ -290,7 +296,7 @@ async function ask(session, input, deps = {}) {
 	}
 	if (result.status === 'handoff') state.lastHandoffReason = reason || 'model_handoff';
 
-	pushMessage(state, { role: 'assistant', text: result.answer, status: result.status, highlight: result.highlight, refs: result.refs || null, tour: result.tour || null });
+	pushMessage(state, { role: 'assistant', text: result.answer, status: result.status, highlight: result.highlight, refs: result.refs || null, tour: result.tour || null, choices: result.choices || null });
 	result.messageId = state.messages[state.messages.length - 1].id;
 
 	appendConversationLog({
@@ -340,6 +346,30 @@ function rateMessage(state, messageId, value, meta = {}, deps = {}) {
 	return true;
 }
 
+/**
+ * Rozmowa dla modelu: znaczniki w odpowiedziach Eforka dostają nazwy z odnośników
+ * („[[order:3175]] (Zamówienie nr 810 „SDGFDFG”)”), a odpowiedź z pokazem — notkę,
+ * co piesek pokazywał. Bez tego model nie wiedział, o którym zleceniu była mowa
+ * ani co już pokazał.
+ */
+function historyForModel(messages) {
+	return messages.filter((m) => m && m.text).map((m) => {
+		if (m.role !== 'assistant') return { role: 'user', text: m.text };
+		let text = String(m.text).replace(/\[\[[^\]]+\]\]/g, (tok) => {
+			const ref = m.refs && m.refs[tok];
+			if (!ref) return tok;
+			if (ref.type === 'copy') return `${tok} (przycisk kopiowania zlecenia nr ${ref.number})`;
+			return ref.label ? `${tok} (${ref.label})` : tok;
+		});
+		if (Array.isArray(m.tour) && m.tour.length) {
+			const steps = m.tour.map((st) => (st.order ? `zlecenie ${st.number || st.order}${st.action ? ` (${st.action})` : ''}` : st.element || st.page) + (st.value ? ` = „${st.value}”` : '')).join(' → ');
+			text += `\n[Eforek pokazał: ${steps}]`;
+		}
+		if (m.channel === 'voice') text = `[rozmowa głosowa] ${text}`;
+		return { role: 'assistant', text };
+	});
+}
+
 /** Komunikat systemowy w transkrypcie (np. potwierdzenie przekazania) — bez wywołania modelu. */
 function addNote(state, text, status) {
 	pushMessage(state, { role: 'assistant', text, status });
@@ -354,6 +384,7 @@ function publicMessages(state) {
 		highlight: m.highlight || null,
 		refs: m.refs || null,
 		tour: m.tour || null,
+		choices: m.choices || null,
 		voice: m.channel === 'voice',
 		id: m.id || null,
 		feedback: m.feedback || null
@@ -372,6 +403,7 @@ module.exports = {
 	publicMessages,
 	parseModelReply,
 	relevantHighlight,
+	historyForModel,
 	takeQuota,
 	MAX_QUESTION_CHARS,
 	_usage: usage

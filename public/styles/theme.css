@@ -1109,56 +1109,235 @@ dialog::backdrop {
     ;
 }
 
-/* Panel użytkownika — w tym samym rzędzie co theme-toggle, ale jako pigułka
-   z widocznym napisem (nie sam gołosłowny gest ikony), żeby było od razu
-   jasne, gdzie to prowadzi, bez polegania na hoverze/tooltipie. */
-#user-panel-header-btn {
+/* ============================================
+   MENU KONTA — awatar ▾ w nagłówku (base.njk, `[data-header-menu]`)
+   ============================================
+   Panel użytkownika, „Zmień wygląd”, przewodnik i tryb ciemny w jednej
+   liście. Wygląd samej listy (szkło, cień, animacja) daje `.dropdown-menu`
+   wyżej; tu układ pozycji. Wariant B nadpisuje kolory w theme-efor-v2.css. */
+.header-menu {
     position: relative;
     z-index: 200;
+    display: inline-block;
+    margin: 0 10px 15px 0;
+    vertical-align: middle;
+}
+
+.header-menu__trigger {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    height: 40px;
-    padding: 0 18px 0 14px;
+    gap: 6px;
+    height: 44px;
+    padding: 4px 10px 4px 4px;
+    border: 1px solid var(--border-default);
     border-radius: var(--radius-full);
-    background: var(--brand-gradient);
-    background-size: 200% 200%;
-    color: var(--text-on-brand) !important;
-    font-family: var(--font-sans);
-    font-size: var(--text-sm);
-    font-weight: 700;
-    white-space: nowrap;
-    text-decoration: none !important;
-    box-shadow: var(--shadow-sm), 0 2px 10px var(--brand-primary-glow);
-    margin-bottom: 15px;
-    margin-right: 10px;
-    vertical-align: middle;
-    transition: all var(--transition-fast);
+    background: var(--bg-glass-strong);
+    backdrop-filter: blur(var(--blur-md));
+    -webkit-backdrop-filter: blur(var(--blur-md));
+    box-shadow: var(--shadow-sm);
+    color: var(--text-secondary);
+    letter-spacing: 0;
 }
 
-#user-panel-header-btn svg {
+.header-menu button::after {
+    display: none !important;
+}
+
+.header-menu__trigger:hover,
+.header-menu__trigger[aria-expanded="true"] {
+    border-color: var(--brand-primary);
+    box-shadow: var(--shadow-md);
+    color: var(--text-primary);
+}
+
+.header-menu__trigger:focus-visible {
+    outline: 3px solid var(--brand-primary-glow);
+    outline-offset: 2px;
+}
+
+.header-menu__avatar {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--brand-gradient);
+    color: var(--text-on-brand);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    line-height: 1;
+}
+
+.header-menu__avatar svg {
     width: 18px;
     height: 18px;
-    flex-shrink: 0;
 }
 
-#user-panel-header-btn:hover {
-    animation: gradient-shift 3s ease infinite;
-    transform: scale(1.04);
-    box-shadow: var(--shadow-md), 0 4px 20px var(--brand-primary-glow);
-    color: var(--text-on-brand) !important;
+.header-menu__avatar--lg {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
 }
 
-@media (max-width: 480px) {
-    #user-panel-header-btn span {
-        display: none;
-    }
+.header-menu__chevron {
+    width: 16px;
+    height: 16px;
+    transition: transform var(--transition-fast);
+}
 
-    #user-panel-header-btn {
-        width: 40px;
-        padding: 0;
-        justify-content: center;
-    }
+.header-menu__trigger[aria-expanded="true"] .header-menu__chevron {
+    transform: rotate(180deg);
+}
+
+.header-menu .header-menu__panel {
+    top: 100%;
+    margin-top: 8px;
+    min-width: 272px;
+    transform-origin: top right;
+    max-width: min(320px, calc(100vw - 24px));
+}
+
+.header-menu__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 10px 12px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border-default);
+}
+
+.header-menu__who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.header-menu__name {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-menu__mail {
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-menu__mail:empty {
+    display: none;
+}
+
+/* Pozycje: <a> i <button> wyglądają tak samo (globalna reguła `button`
+   i `.dropdown-item` z layout.css dokładają swoje odstępy — stąd !important). */
+.header-menu .header-menu__item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: 6px 10px !important;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-secondary) !important;
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0;
+    text-align: left;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.header-menu .header-menu__item:hover,
+.header-menu .header-menu__item:focus-visible {
+    background: var(--bg-hover) !important;
+    color: var(--text-primary) !important;
+    box-shadow: none;
+}
+
+.header-menu .header-menu__item:active {
+    background: var(--bg-active) !important;
+    color: var(--text-primary) !important;
+}
+
+.header-menu__icon {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--bg-active);
+    color: var(--brand-primary);
+}
+
+.header-menu__icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.header-menu__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.header-menu__end {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    color: var(--text-tertiary);
+}
+
+.header-menu__sep {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--border-default);
+}
+
+/* Suwak motywu — stan prosto z `data-theme` na <html>, więc nie miga. */
+.header-menu__switch {
+    position: relative;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--border-strong);
+    transition: background-color var(--transition-fast);
+}
+
+.header-menu__switch::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+    transition: transform var(--transition-fast);
+}
+
+[data-theme="dark"] .header-menu__switch {
+    background: var(--brand-primary);
+}
+
+[data-theme="dark"] .header-menu__switch::before {
+    transform: translateX(16px);
 }
 
 /* ============================================

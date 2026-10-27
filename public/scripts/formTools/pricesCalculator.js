@@ -4,7 +4,7 @@ import { loadScript } from './scriptLoader.js';
 import { buildValuesToDisplay } from "./updateFieldsAndValues.js";
 import { validateFormInput } from "./validateUtils.js";
 import { shouldHideRegularPriceRow } from "./createForm.js";
-import { formatVatRateLabel } from "./vatLabel.js";
+import { formatVatRateLabel, vatUsesClientPrice } from "./vatLabel.js";
 import { savedLabelWithCurrency } from "./currencyLabel.js";
 
 /**
@@ -81,22 +81,6 @@ function formatSpecDisplay(raw) {
 
 
 /**
- * Kwota netto pozycji SPRZED rabatu klienta, zapamiętana na czas jednego
- * przeliczenia.
- *
- * ⚠️ Potrzebna, odkąd `applyClientDiscount` obniża `SUB___CENA_KONCOWA`
- * (parametr fakturowy) i idącą za nią `SUB___WARTOSC_KONCOWA`. VAT ma się
- * nadal liczyć od kwoty PRZED rabatem (decyzja właściciela z 2026-08-21), a
- * `applyVatToGrossValue` w grupach bez `SUB___SUMA_BRUTTO` — np. grupa 39 —
- * czyta właśnie `SUB___WARTOSC_KONCOWA`. Bez tego VAT po cichu zmieniłby
- * podstawę.
- *
- * Obie funkcje wołane są po sobie w `updateFieldStates`, więc zmienna żyje
- * dokładnie jedno przeliczenie; `applyVatToGrossValue` ją konsumuje i zeruje.
- */
-let netBeforeClientDiscount = null;
-
-/**
  * Czy ostatnie `applyClientDiscount` zdążyło wpisać rabat do `SUB___WARTOSC_KONCOWA`.
  *
  * `form.js getTotal()` bierze `total_sub` z ostatniego wiersza `listsum` — czyli
@@ -150,7 +134,7 @@ const CLIENT_DISCOUNT_KEYS = ['SUB___RABAT_KLIENTA'];
 /**
  * Kwoty `SUB___`, których `applyClientDiscount` NIE pomniejsza przy widocznych
  * cenach klienta: końcówka łańcucha (rabat już w niej siedzi) i VAT (liczony od
- * kwoty sprzed rabatu).
+ * tej końcówki — rabat jest w nim już wliczony).
  */
 const CLIENT_LIST_DISCOUNT_SKIP = new Set([
     'CENA_KONCOWA', 'WARTOSC_KONCOWA', 'WARTOSC_PO_RABACIE',
@@ -330,13 +314,12 @@ export function applyClientMarkup(values, displayValues) {
  *    Do 2026-09-22 doliczał się jako punkt procentowy do `SUB___CENA_RABAT`
  *    (60% → 61%), przez co liczył się od ceny katalogowej.
  *
- * ⚠️ Rabat NIE wpływa na VAT ani na `WARTOSC_BRUTTO` — te liczą się od
- * nierabatowanego netto, tak jak przed wprowadzeniem rabatu.
+ * ⚠️ Od 2026-10-26 rabat WCHODZI do VAT-u: `applyVatToGrossValue` liczy go od
+ * `SUB___WARTOSC_KONCOWA` po rabacie (do tej daty — od kwoty sprzed rabatu).
  */
 export function applyClientDiscount(values, displayValues) {
-    // Stan z poprzedniego przeliczenia nie może przeciekać — obie zmienne są
-    // modułowe i żyją dokładnie jedno `updateFieldStates`.
-    netBeforeClientDiscount = null;
+    // Stan z poprzedniego przeliczenia nie może przeciekać — zmienna jest
+    // modułowa i żyje dokładnie jedno `updateFieldStates`.
     discountAppliedToSubTotal = false;
 
     // ⚠️ Rejestracja PRZED wyjściem przy zerowym rabacie: `hideSub`/`hideLocked`
@@ -396,13 +379,6 @@ export function applyClientDiscount(values, displayValues) {
     const ilosc = Math.max(1, parseFloat(values['ILOSC']) || 1);
     const hasKoncowa = values['SUB___WARTOSC_KONCOWA'] !== undefined;
     const hasCenaKoncowa = values['SUB___CENA_KONCOWA'] !== undefined;
-    // Podstawa VAT: kwota pozycji PRZED rabatem klienta — ten VAT-u nie rusza
-    // (decyzja właściciela 2026-08-21).
-    // ⚠️ Od 2026-09-22 jest to też kwota PRZED ekstra rabatem. Dotąd bonus
-    // siedział w `SUB___CENA_RABAT`, czyli w cenniku, więc VAT liczył się od
-    // kwoty już po nim. Teraz bonus schodzi dopiero po rabacie cennikowym —
-    // traktujemy go jak rabat klienta, a ten podstawy VAT nie rusza.
-    netBeforeClientDiscount = parseFloat(values['SUB___WARTOSC_KONCOWA']);
 
     // Cena katalogowa — podstawa rabatu klienta grupy, który ZASTĘPUJE rabat
     // cennikowy. Gdy jej nie ma, zostaje cena po rabacie cennikowym.
@@ -527,8 +503,7 @@ export function applyClientDiscount(values, displayValues) {
     // rabatu.
     // ⚠️ Wyłącznie `displayValues` i zawsze liczone od `values` (kwoty silnika
     // sprzed rabatu): formuły czytają `values`, więc przy kolejnym przeliczeniu
-    // rabat nie nałoży się drugi raz, a VAT (`applyVatToGrossValue`) dalej liczy
-    // się od kwoty sprzed rabatu.
+    // rabat nie nałoży się drugi raz.
     if (clientPct > 0) {
         const factor = 1 - Math.min(100, clientPct) / 100;
         for (const [key, row] of displayValues) {
@@ -552,81 +527,55 @@ export function applyClientDiscount(values, displayValues) {
 
 }
 
+/** Klucze VAT w `displayValues` pozycji liczonej od ceny klienta (`SUB___`). */
+const SUB_VAT_KEYS = ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO'];
+
 /**
- * Fills the read-only WARTOSC_VAT (VAT amount in currency) and WARTOSC_BRUTTO
- * fields (built by form.js's buildVatFields()) from SUB___SUMA_BRUTTO + the
+ * Fills the read-only VAT / WARTOSC_VAT / WARTOSC_BRUTTO fields (built by
+ * form.js's buildVatFields()) from the position's net value + the
  * server-computed VAT rate (window.vatRate, see services/vatCalculator.js).
- * Despite its name, SUB___SUMA_BRUTTO is a net value (FORMULA =
- * SUB___CENA_SUMA * ILOSC, no VAT applied) — VAT still needs to be added on
- * top of it.
- * For HKL (window.isHklOrg, org id 3 — SUB___ prices don't apply to it, see
- * services/subPriceContext.js's nonHklOrg check), SUB___* params are never
- * even present in `values`, so the plain SUMA_BRUTTO / WARTOSC_KONCOWA (no
- * SUB___ prefix) is the client's price there instead. Tries the pair matching
- * window.isHklOrg first, then falls back to the other pair (SUB___* undefined
- * for HKL is the norm, not an error — and some non-HKL groups simply don't
- * define SUB___SUMA_BRUTTO/SUB___WARTOSC_KONCOWA in param.txt either), so a
- * wrong/stale isHklOrg detection can't leave the fields stuck at 0.
  *
- * displayValues entries follow the same nomenclature as the other price
- * params: for HKL, VAT/WARTOSC_VAT/WARTOSC_BRUTTO are recorded under their
- * plain names with row '2' (matching CENA/CENA_SUMA/SUMA_BRUTTO/
- * WARTOSC_KONCOWA's own LISTROW). For non-HKL clients they're recorded under
- * SUB___VAT/SUB___WARTOSC_VAT/SUB___WARTOSC_BRUTTO with `sub: true` and row
- * '2', the same shape real SUB___ price params get (see
- * buildValuesToDisplay/hideSub) — so they sit alongside
- * SUB___CENA/SUB___SUMA_BRUTTO rather than the regular price rows.
+ * ⚠️ Dwa tory (decyzja właściciela 2026-10-26, `vatUsesClientPrice()`):
+ *  • **klient HKL** (`window.isHklOrg`, org id 3, i nie `group_user`) — bez
+ *    zmian: podstawą jest zwykłe `SUMA_BRUTTO` (mimo nazwy to netto, FORMULA
+ *    `CENA_SUMA * ILOSC`), a wpisy idą pod klucze bez prefiksu
+ *    (`VAT`/`WARTOSC_VAT`/`WARTOSC_BRUTTO`, row '2'), widoczne;
+ *  • **każda inna organizacja albo `group_user` z ceną `SUB___`** — podstawą
+ *    jest `SUB___WARTOSC_KONCOWA` (wartość końcowa klienta, już PO rabacie
+ *    klienta i ekstra rabacie — z niej idzie faktura), wpisy idą pod
+ *    `SUB___VAT`/`SUB___WARTOSC_VAT`/`SUB___WARTOSC_BRUTTO` z `sub: true`
+ *    i `locked: true` — ukryte dokładnie tak jak parametry z `=HASLO()`
+ *    (w formularzu pola nie są pokazywane, w podglądzie zamówienia dopiero
+ *    po kłódce, w PDF-ie wcale).
  *
- * No-op wherever the WARTOSC_BRUTTO field doesn't exist (edit_form.js /
- * admin_edit_form.js don't build it) — never adds stray keys to
- * values/displayValues on those flows.
+ * Gdy parametru podstawy w grupie nie ma, próbujemy kolejnych kandydatów
+ * (część grup nie definiuje `SUMA_BRUTTO`/`SUB___WARTOSC_KONCOWA`), żeby pola
+ * nie zostały na 0.
+ *
+ * No-op wherever the WARTOSC_BRUTTO field doesn't exist — never adds stray
+ * keys to values/displayValues on those flows.
  */
 export function applyVatToGrossValue(values, displayValues) {
     // Master switch (config.js `features.vat` → window.vatEnabled, injected by
     // the templates). Off: no VAT keys in values/displayValues, nothing saved.
     if (!window.vatEnabled) return;
 
-    // ⚠️ TYMCZASOWO: konto podrzędne grupy (`group_user`) nie widzi VAT-u na
-    // żadnym etapie, więc nie liczymy go wcale — żaden klucz VAT nie wejdzie do
-    // `values`/`displayValues`, a więc i do zapisanej pozycji
-    // (form.js buildVatFields też nie tworzy dla niego pól).
-    if (window.isGroupShop) return;
-
     const bruttoInput = document.getElementById('WARTOSC_BRUTTO');
     if (!bruttoInput) return;
     const vatValueInput = document.getElementById('WARTOSC_VAT');
 
-    const isHklOrg = !!window.isHklOrg;
-    const keyPairs = isHklOrg
-        ? [['SUMA_BRUTTO', 'WARTOSC_KONCOWA'], ['SUB___SUMA_BRUTTO', 'SUB___WARTOSC_KONCOWA']]
-        : [['SUB___SUMA_BRUTTO', 'SUB___WARTOSC_KONCOWA'], ['SUMA_BRUTTO', 'WARTOSC_KONCOWA']];
+    const useClientPrice = vatUsesClientPrice();
+    const baseKeys = useClientPrice
+        ? ['SUB___WARTOSC_KONCOWA', 'SUB___SUMA_BRUTTO', 'SUMA_BRUTTO', 'WARTOSC_KONCOWA']
+        : ['SUMA_BRUTTO', 'WARTOSC_KONCOWA', 'SUB___SUMA_BRUTTO', 'SUB___WARTOSC_KONCOWA'];
 
     let netValue = NaN;
-    let usedKey = null;
-    for (const [sumaBruttoKey, wartoscKoncowaKey] of keyPairs) {
-        const hasSumaBrutto = values[sumaBruttoKey] !== undefined;
-        const rawNetValue = hasSumaBrutto ? values[sumaBruttoKey] : values[wartoscKoncowaKey];
-        netValue = parseFloat(rawNetValue);
-        if (Number.isFinite(netValue)) {
-            usedKey = hasSumaBrutto ? sumaBruttoKey : wartoscKoncowaKey;
-            break;
-        }
+    for (const key of baseKeys) {
+        if (values[key] === undefined) continue;
+        netValue = parseFloat(values[key]);
+        if (Number.isFinite(netValue)) break;
     }
     if (!Number.isFinite(netValue)) return;
-
-    // ⚠️ Rabat klienta grupy NIE wchodzi do VAT-u ani do `WARTOSC_BRUTTO`
-    // (decyzja właściciela): kwota brutto ma zostać taka, jaka była przed
-    // wprowadzeniem rabatu, a rabat siedzi w `SUB___WARTOSC_KONCOWA` i w sumie
-    // SUB pozycji.
-    //
-    // ⚠️ Dlatego w grupach BEZ `SUB___SUMA_BRUTTO` (np. 39 — ma tylko
-    // `SUB___SUMA_NETTO`) podstawą jest `SUB___WARTOSC_KONCOWA`, a ten parametr
-    // niesie już kwotę PO rabacie. Bierzemy wtedy wartość sprzed rabatu,
-    // zapamiętaną przez `applyClientDiscount` chwilę wcześniej — inaczej VAT po
-    // cichu zmieniłby podstawę razem z rabatem.
-    if (usedKey === 'SUB___WARTOSC_KONCOWA' && Number.isFinite(netBeforeClientDiscount)) {
-        netValue = netBeforeClientDiscount;
-    }
 
     const vatRate = Number(window.vatRate) || 0;
     const grossValue = parseFloat((netValue * (1 + vatRate / 100)).toFixed(2));
@@ -637,40 +586,41 @@ export function applyVatToGrossValue(values, displayValues) {
     if (vatValueInput) vatValueInput.value = vatValue;
     bruttoInput.value = grossValue;
 
-    if (displayValues) {
-        const vatKey = isHklOrg ? 'VAT' : 'SUB___VAT';
-        const vatValueKey = isHklOrg ? 'WARTOSC_VAT' : 'SUB___WARTOSC_VAT';
-        const bruttoKey = isHklOrg ? 'WARTOSC_BRUTTO' : 'SUB___WARTOSC_BRUTTO';
+    if (!displayValues) return;
 
-        const existingVat = displayValues.get(vatKey) || {};
-        displayValues.set(vatKey, {
-            param_description: existingVat.param_description || t('form.vat_label'),
-            option_value: formatVatRateLabel(vatRate),
-            option_description: '',
-            locked: false,
-            sub: !isHklOrg,
-            row: existingVat.row || '2'
-        });
+    // ⚠️ Rejestracja jak przy rabacie klienta (`registerClientDiscountKeys`):
+    // `hideSub`/`hideLocked` przepisują flagi z tych list przy każdym
+    // przeliczeniu — bez niej VAT wracałby do zwykłych, widocznych wierszy.
+    if (useClientPrice) registerSubVatKeys();
 
-        const existingVatValue = displayValues.get(vatValueKey) || {};
-        displayValues.set(vatValueKey, {
-            param_description: savedLabelWithCurrency(existingVatValue.param_description, t('form.wartosc_vat_label')),
-            option_value: String(vatValue),
+    const [vatKey, vatValueKey, bruttoKey] = useClientPrice
+        ? SUB_VAT_KEYS
+        : ['VAT', 'WARTOSC_VAT', 'WARTOSC_BRUTTO'];
+    const rows = [
+        [vatKey, existing => existing.param_description || t('form.vat_label'), formatVatRateLabel(vatRate)],
+        [vatValueKey, existing => savedLabelWithCurrency(existing.param_description, t('form.wartosc_vat_label')), String(vatValue)],
+        [bruttoKey, existing => savedLabelWithCurrency(existing.param_description, t('form.wartosc_brutto_label')), String(grossValue)]
+    ];
+    for (const [key, label, value] of rows) {
+        const existing = displayValues.get(key) || {};
+        displayValues.set(key, {
+            param_description: label(existing),
+            option_value: value,
             option_description: '',
-            locked: false,
-            sub: !isHklOrg,
-            row: existingVatValue.row || '2'
+            locked: useClientPrice,
+            sub: useClientPrice,
+            row: existing.row || '2'
         });
+    }
+}
 
-        const existingBrutto = displayValues.get(bruttoKey) || {};
-        displayValues.set(bruttoKey, {
-            param_description: savedLabelWithCurrency(existingBrutto.param_description, t('form.wartosc_brutto_label')),
-            option_value: String(grossValue),
-            option_description: '',
-            locked: false,
-            sub: !isHklOrg,
-            row: existingBrutto.row || '2'
-        });
+/** Patrz `registerClientDiscountKeys` — ten sam powód, klucze VAT klienta. */
+function registerSubVatKeys() {
+    if (!Array.isArray(window.subParams)) window.subParams = [];
+    if (!Array.isArray(window.lockedParams)) window.lockedParams = [];
+    for (const key of SUB_VAT_KEYS) {
+        if (!window.subParams.includes(key)) window.subParams.push(key);
+        if (!window.lockedParams.includes(key)) window.lockedParams.push(key);
     }
 }
 

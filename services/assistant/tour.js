@@ -25,7 +25,8 @@
 const uiCatalog = require('./uiCatalog');
 const pages = require('./pages');
 
-const MAX_STEPS = 8;
+const MAX_STEPS = 12;
+const MAX_VALUE = 60;
 /** Akcje w wierszu zlecenia na liście — każda tylko otwiera okno potwierdzenia portalu. */
 const ORDER_ACTIONS = ['send', 'copy', 'cancel', 'delete'];
 const MAX_TEXT = 220;
@@ -49,7 +50,11 @@ function sanitizeTour(raw, scope = {}) {
 		const element = e && uiCatalog.elementAllowed(e, scope) ? e : null;
 		const page = typeof step.page === 'string' && pages.allowed(step.page, scope) ? step.page : null;
 		if ((!element && !page) || !text) continue;
-		out.push({ element: element ? element.key : null, page, text, click: !!(element && element.click && step.click === true) });
+		const st = { element: element ? element.key : null, page, text, click: !!(element && element.click && step.click === true) };
+		// Wpisanie / wybór: tylko w polach z `fill` (nazwa zamówienia, dział, grupa produktu).
+		const value = element && element.fill && typeof step.value === 'string' ? step.value.replace(/\s+/g, ' ').trim().slice(0, MAX_VALUE) : '';
+		if (value) { st.value = value; st.click = false; }
+		out.push(st);
 	}
 	return out;
 }
@@ -61,7 +66,7 @@ function stepSchema(scope = {}) {
 	return {
 		type: 'object',
 		additionalProperties: false,
-		required: ['element', 'page', 'order', 'action', 'text', 'click'],
+		required: ['element', 'page', 'order', 'action', 'value', 'text', 'click'],
 		properties: {
 			element: { anyOf: [{ type: 'string', enum: elementKeys }, { type: 'null' }] },
 			page: { anyOf: [{ type: 'string', enum: pageKeys }, { type: 'null' }] },
@@ -69,6 +74,8 @@ function stepSchema(scope = {}) {
 			order: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
 			// Akcja na tym zleceniu (przycisk w jego wierszu) — tylko z order; ostateczne potwierdzenie klika użytkownik.
 			action: { anyOf: [{ type: 'string', enum: ORDER_ACTIONS }, { type: 'null' }] },
+			// Co Eforek wpisuje / wybiera w polu z `fill` (np. nazwa „Mustermann”, dział „plisy”).
+			value: { anyOf: [{ type: 'string' }, { type: 'null' }] },
 			text: { type: 'string' },
 			click: { type: 'boolean' }
 		}

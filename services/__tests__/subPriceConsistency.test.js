@@ -56,7 +56,7 @@ test('client page context + PDF use the same SUB totals', async () => {
   assert.equal(res.locals.isClient, true);
   assert.equal(view.isClientView, true);
   assert.equal(totalPrice.subVisible, SUB_SUMA_VISIBLE);
-  assert.equal(pdfTotals.total, `order.total: ${totalPrice.subVisible}€`);
+  assert.equal(pdfTotals.total, `order.total_list_gross: ${totalPrice.subVisible}€`);
   assert.equal(pdfTotals.total_hidden, `order.total_hidden: ${totalPrice.subLocked}€ netto`);
 
   const html = renderOrderPdfHtml({

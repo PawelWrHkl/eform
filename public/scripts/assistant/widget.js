@@ -243,6 +243,16 @@
 		}
 		if (m.id && !m.voice && (m.status === 'answered' || m.status === 'handoff' || m.status === 'off_topic')) bubble.appendChild(feedbackBar(m));
 		messagesEl.appendChild(bubble);
+		// Propozycje Eforka (np. „który system plis?”) — klik = odpowiedź; tylko pod ostatnią wypowiedzią.
+		if (isLast && Array.isArray(m.choices) && m.choices.length) {
+			var box = h('div', { class: 'ea-suggestions ea-choices', role: 'group' });
+			m.choices.forEach(function (c) {
+				var chip = h('button', { type: 'button', class: 'ea-chip', text: c });
+				chip.addEventListener('click', function () { ask(c); });
+				box.appendChild(chip);
+			});
+			messagesEl.appendChild(box);
+		}
 		if (isLast && m.status === 'handoff' && !state.handoffSent) {
 			messagesEl.appendChild(handoffCard('model'));
 		}
@@ -448,7 +458,7 @@
 			if (!d.answer) {
 				state.messages.push({ role: 'assistant', text: S.networkError || '', status: 'error' });
 			} else {
-				state.messages.push({ role: 'assistant', text: d.answer, status: d.status, highlight: d.highlight || null, refs: d.refs || null, tour: d.tour || null, id: d.messageId || null });
+				state.messages.push({ role: 'assistant', text: d.answer, status: d.status, highlight: d.highlight || null, refs: d.refs || null, tour: d.tour || null, choices: d.choices || null, id: d.messageId || null });
 				if (d.status === 'handoff') state.handoffSent = false;
 			}
 			render();
@@ -457,7 +467,15 @@
 			if (d.answer && window.eformAssistant && window.eformAssistant.speech) window.eformAssistant.speech.sayAnswer(d.answer, d.refs);
 			// Pokaz krok po kroku startuje sam (klient o niego prosił) — po chwili na przeczytanie zapowiedzi.
 			if (d.tour && d.tour.length && window.eformAssistant && window.eformAssistant.tour) {
-				setTimeout(function () { window.eformAssistant.tour.start(d.tour); }, 1200);
+				var sp = window.eformAssistant.speech;
+				// Z dźwiękiem: dymki pokazu nagrywają się już teraz, a piesek rusza dopiero,
+				// gdy Eforek doczyta odpowiedź. Bez dźwięku — chwila na przeczytanie zapowiedzi.
+				if (sp && sp.enabled && !sp.muted()) {
+					sp.prefetch(d.tour.map(function (st) { return st.text; }));
+					setTimeout(function () { sp.whenIdle(function () { window.eformAssistant.tour.start(d.tour); }, 60000); }, 400);
+				} else {
+					setTimeout(function () { window.eformAssistant.tour.start(d.tour); }, 1200);
+				}
 			}
 			if (d.highlight && window.innerWidth >= 768) highlight(d.highlight);
 		}).catch(function () {

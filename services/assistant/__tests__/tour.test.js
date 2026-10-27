@@ -48,11 +48,11 @@ test('stepSchema i schemat odpowiedzi: enum elementów wg konta, pole tour wymag
 	const s = tour.stepSchema(EMPLOYEE);
 	const keys = s.properties.element.anyOf[0].enum;
 	assert.ok(keys.includes('nav_history') && !keys.includes('add_employee_btn'));
-	assert.deepEqual(s.required, ['element', 'page', 'order', 'action', 'text', 'click']);
+	assert.deepEqual(s.required, ['element', 'page', 'order', 'action', 'value', 'text', 'click']);
 	assert.deepEqual(s.properties.action.anyOf[0].enum, ['send', 'copy', 'cancel', 'delete']);
 	assert.deepEqual(Object.keys(s.properties).sort(), [...s.required].sort(), 'strict: każde pole wymagane');
 	const format = prompt.buildResponseFormat(['nav_history'], s);
-	assert.deepEqual(format.schema.required, ['status', 'answer', 'highlight', 'tour']);
+	assert.deepEqual(format.schema.required, ['status', 'answer', 'highlight', 'tour', 'choices']);
 	assert.equal(format.schema.properties.tour.type, 'array');
 });
 
@@ -76,7 +76,8 @@ test('reguły czatu: pokaz, Eforek robi za użytkownika, ale ostatnie potwierdze
 	assert.match(prompt.RULES, /EFOREK ROBI ZA UŻYTKOWNIKA/);
 	assert.match(prompt.RULES, /Ostateczne potwierdzenie wysłania, anulowania, usunięcia, skopiowania i zatwierdzenia ZAWSZE klika użytkownik/);
 	assert.match(prompt.RULES, /NIGDY że już wysłano, anulowano lub usunięto/);
-	assert.match(prompt.RULES, /Pól formularzy nie wypełniasz i nie klikasz zapisu/);
+	assert.match(prompt.RULES, /Zapisu pozycji \(save_position\) i innych formularzy nie klikasz/);
+	assert.match(prompt.RULES, /NOWE ZLECENIE OD POCZĄTKU DO KOŃCA/);
 	assert.match(prompt.VOICE_RULES, /start_tour/);
 	assert.match(prompt.VOICE_RULES, /nigdy że już zrobione/);
 });
@@ -107,4 +108,20 @@ test('sanitizeTour: akcja tylko w kroku zlecenia, tylko z listy dozwolonych; z a
 		{ element: null, page: null, order: 3135, text: 'x', click: false },
 		{ element: 'nav_offers', page: null, text: 'menu', click: true }
 	]);
+});
+
+test('sanitizeTour: value tylko w polach z fill (nazwa zamówienia, dział, grupa); wtedy bez kliku; maks. 12 kroków', () => {
+	const steps = tour.sanitizeTour([
+		{ element: 'commission_input', page: null, value: '  Mustermann ', text: 'Wpisuję przykładową nazwę.', click: true },
+		{ element: 'department_select', page: null, value: 'plisy', text: 'Wybieram plisy.', click: false },
+		{ element: 'save_position', page: null, value: 'x', text: 'Kliknij Zapisz.', click: true },
+		{ element: 'save_new_order', page: null, value: null, text: 'Zapisuję szkic.', click: true }
+	], CLIENT);
+	assert.deepEqual(steps, [
+		{ element: 'commission_input', page: null, text: 'Wpisuję przykładową nazwę.', click: false, value: 'Mustermann' },
+		{ element: 'department_select', page: null, text: 'Wybieram plisy.', click: false, value: 'plisy' },
+		{ element: 'save_position', page: null, text: 'Kliknij Zapisz.', click: false },
+		{ element: 'save_new_order', page: null, text: 'Zapisuję szkic.', click: true }
+	]);
+	assert.equal(tour.MAX_STEPS, 12);
 });

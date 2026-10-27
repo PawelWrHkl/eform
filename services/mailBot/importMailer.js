@@ -13,6 +13,9 @@
 const nodemailer = require('nodemailer');
 const { log } = require('../../utils/logging');
 
+// Dodatkowa kopia (CC) tylko przy błędzie importu lub wysyłki.
+const ERROR_CC = 'krzysztof.krawczyk@hkl.eu';
+
 const transporter = nodemailer.createTransport({
   host: 'serwer2560216.home.pl',
   port: 587,
@@ -120,6 +123,7 @@ async function sendImportSummary(results) {
   }
 
   const failed = results.filter((r) => !r.ok).length;
+  const hasError = failed > 0 || results.some((r) => r.sendError);
   const subject = failed === 0
     ? `[Import] ✅ ${results.length}/${results.length} OK — ${new Date().toLocaleDateString('pl-PL')}`
     : `[Import] ❌ BŁĄD — ${failed} z ${results.length} plików — ${new Date().toLocaleDateString('pl-PL')}`;
@@ -130,6 +134,7 @@ async function sendImportSummary(results) {
     await transporter.sendMail({
       from: `"${process.env.MAILBOT_ALIAS || 'e-orders import'}" <${process.env.MAILBOT_USER}>`,
       to,
+      cc: hasError ? ERROR_CC : undefined,
       subject,
       html,
     });

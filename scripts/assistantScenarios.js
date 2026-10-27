@@ -63,7 +63,7 @@ const SCREEN_ELEMENTS = {
 // expect: status (string albo lista), tour { min, includes:[…], last:[…] }, refs [typy], refPages [klucze],
 //         tools [nazwy, którekolwiek], highlight, says [regex], never [regex]
 const S = [];
-const add = (area, id, q, expect, opts = {}) => S.push({ area, id, q, expect, lang: opts.lang || 'pl', page: opts.page || '/', account: opts.account || 'client' });
+const add = (area, id, q, expect, opts = {}) => S.push({ area, id, q, expect, lang: opts.lang || 'pl', page: opts.page || '/', account: opts.account || 'client', followup: opts.followup || null });
 
 // A. Pokazy palcem
 add('tour', 'tour-new-order', 'Pokaż mi, jak złożyć nowe zamówienie.', { status: 'answered', tour: { min: 3, includes: ['commission_input'] } });
@@ -109,6 +109,17 @@ add('do', 'do-pdf-810', 'Pobierz mi PDF zamówienia 810.', { status: 'answered',
 add('do', 'do-logout', 'Wyloguj mnie.', { status: 'answered', tour: { min: 1, includes: ['logout_btn'] }, clicks: ['logout_btn'] });
 add('do', 'do-send-here', 'Wyślij to zamówienie.', { status: 'answered', tour: { min: 1, includes: ['send_order'] }, clicks: ['send_order'] }, { page: '/orders/order/1' });
 add('do', 'do-emp-send', 'Wyślij moją ofertę 807.', { status: ['answered', 'handoff'], noOrderAction: 'send', tourNever: ['send_order'] }, { account: 'employee' });
+
+// A4. Nowe zlecenie od początku do końca (zgłoszenie 26.10: pokaz kończył się na formularzu nazwy)
+add('do', 'new-order-howto', 'Jak utworzyć zlecenie?', { status: 'answered', tour: { min: 7, includes: ['save_position'] }, steps: ['nav_new_order', 'commission_input', 'save_new_order', 'add_position', 'department_select', 'save_position', 'send_order'], fills: ['commission_input'] });
+add('do', 'new-order-cosiflor', 'Utwórz mi zlecenie dla klienta Mustermann na plisy Cosiflor.', { status: 'answered', steps: ['nav_new_order', 'commission_input', 'save_new_order', 'add_position', 'department_select', 'product_group_select', 'save_position', 'send_order'], fillValues: { commission_input: /mustermann/i, department_select: /plis/i, product_group_select: /cosiflor/i } });
+add('do', 'new-order-de', 'Wie erstelle ich einen neuen Auftrag?', { status: 'answered', steps: ['nav_new_order', 'commission_input', 'save_new_order', 'add_position', 'save_position'], fills: ['commission_input'] }, { lang: 'de' });
+
+// A5. Konfiguracja produktu: dopytanie o system (przyciski), potem Eforek sam otwiera konfigurator
+add('cfg', 'cfg-plise-ask', 'Hej, pokaż mi jak skonfigurować plisę.', { status: 'answered', tools: ['list_products'], choicesInclude: ['EOS', 'COSIFLOR', 'BASIC'], noTour: true });
+add('cfg', 'cfg-plise-then-cosiflor', 'Hej, pokaż mi jak skonfigurować plisę.', { status: 'answered', steps: ['department_select', 'product_group_select', 'save_position'], fillValues: { department_select: /^PLISY$/, product_group_select: /^COSIFLOR$/ } }, { followup: 'COSIFLOR' });
+add('cfg', 'cfg-cosiflor-in-offer', 'Pokaż, jak skonfigurować plisę Cosiflor.', { status: 'answered', tools: ['list_products'], steps: ['add_position', 'department_select', 'product_group_select', 'save_position'], fillValues: { department_select: /^PLISY$/, product_group_select: /^COSIFLOR$/ } }, { page: '/orders/order/1' });
+add('cfg', 'cfg-unknown', 'Pokaż, jak skonfigurować markizę tarasową.', { status: ['answered', 'handoff'], tools: ['list_products'], noTour: true, minChoices: 1 });
 
 // B. Proste „jak / gdzie"
 add('howto', 'send-btn', 'Gdzie jest przycisk wysyłki zamówienia?', { status: 'answered', highlightOrTour: 'send_order' }, { page: '/orders/order/1' });
@@ -211,6 +222,23 @@ function check(sc, r, logged) {
 	if (e.orderAction && !steps.some((s) => s.order === e.orderAction[0] && s.action === e.orderAction[1])) why.push(`brak akcji ${e.orderAction[1]} na zamówieniu ${e.orderAction[0]} (kroki: ${steps.map((s) => (s.order ? `${s.order}:${s.action || (s.click ? 'otwórz' : '-')}` : s.element || s.page)).join(', ') || '-'})`);
 	if (e.noOrderAction && steps.some((s) => s.action === e.noOrderAction)) why.push(`akcja ${e.noOrderAction}, której nie powinno być`);
 	if (e.clicks && !e.clicks.some((k) => steps.some((s) => s.element === k && s.click))) why.push(`brak kliknięcia w: ${e.clicks.join('|')} (kroki: ${steps.map((s) => (s.element || s.order || s.page) + (s.click ? '*' : '')).join(', ') || '-'})`);
+	if (e.steps) {
+		const missing = e.steps.filter((k) => !stepKeys.includes(k));
+		if (missing.length) why.push(`pokaz bez kroków: ${missing.join(', ')} (są: ${stepKeys.join(', ')})`);
+	}
+	for (const k of e.fills || []) if (!steps.some((s) => s.element === k && s.value)) why.push(`${k}: Eforek nic nie wpisuje (brak value)`);
+	for (const [k, re] of Object.entries(e.fillValues || {})) {
+		const st = steps.find((s) => s.element === k);
+		if (!st || !re.test(st.value || '')) why.push(`${k}: value „${st && st.value}” ≠ ${re}`);
+	}
+	if (steps.some((s) => s.element === 'save_position' && s.click)) why.push('Eforek klika zapis pozycji (ma tylko wskazać)');
+	if (e.choicesInclude) {
+		const ch = (r.choices || []).map((c) => c.toUpperCase());
+		const miss = e.choicesInclude.filter((c) => !ch.includes(c));
+		if (miss.length) why.push(`brak propozycji: ${miss.join(', ')} (są: ${(r.choices || []).join(', ') || '-'})`);
+	}
+	if (e.minChoices && (r.choices || []).length < e.minChoices) why.push('brak propozycji do kliknięcia');
+	if (e.noTour && steps.length) why.push(`pokaz zamiast dopytania (${stepKeys.join(', ')})`);
 	if (e.noOrderStep && steps.some((s) => s.order)) why.push(`krok z zamówieniem, którego nie powinno być: ${steps.filter((s) => s.order).map((s) => s.order).join(',')}`);
 	// Klik dozwolony: element z `click` w katalogu albo wiersz zlecenia konta (otwarcie zlecenia).
 	const unsafe = steps.filter((s) => s.click && !s.order && !(BY_KEY.get(s.element) || {}).click);
@@ -231,15 +259,21 @@ function check(sc, r, logged) {
 async function runOne(sc, cfg) {
 	const started = Date.now();
 	let logged = null;
-	const r = await assistant.ask({}, {
-		question: sc.q,
+	const session = {};
+	const base = {
 		lang: sc.lang,
 		account: ACCOUNTS[sc.account].account,
 		orgIdent: 'HKL',
 		userKey: `scen-${sc.id}`,
 		scope: await scopeFor(sc.account, sc.lang),
 		page: { path: sc.page, title: 'eForm', elements: SCREEN_ELEMENTS[sc.page] || NAV }
-	}, { config: cfg, getContactText: async () => null, logEntry: (e) => { logged = e; }, takeQuota: () => true });
+	};
+	if (sc.followup) {
+		// Pierwsza wypowiedź tej samej rozmowy (np. pytanie, na które Eforek dopytuje), potem odpowiedź.
+		await assistant.ask(session, { ...base, question: sc.q }, { config: cfg, getContactText: async () => null, logEntry: () => {}, takeQuota: () => true });
+	}
+	const r = await assistant.ask(session, { ...base, question: sc.followup || sc.q },
+		{ config: cfg, getContactText: async () => null, logEntry: (e) => { logged = e; }, takeQuota: () => true });
 	return { sc, r, logged, ms: Date.now() - started, why: check(sc, r, logged) };
 }
 
@@ -272,7 +306,7 @@ async function main() {
 		console.log(`\n✖ ${x.sc.id} (${x.sc.account}, ${x.sc.lang}, ${x.sc.page}): ${x.sc.q}`);
 		x.why.forEach((w) => console.log(`   - ${w}`));
 		console.log(`   > ${x.r.answer.replace(/\n/g, '\n     ')}`);
-		(x.r.tour || []).forEach((s, i) => console.log(`     ${i + 1}. ${s.order ? `zamówienie:${s.order} (${s.page}, nr ${s.number}${s.action ? `, akcja ${s.action}` : ''})` : s.element || 'strona:' + s.page}${s.click ? ' [klik]' : ''} — ${s.text}`));
+		(x.r.tour || []).forEach((s, i) => console.log(`     ${i + 1}. ${s.order ? `zamówienie:${s.order} (${s.page}, nr ${s.number}${s.action ? `, akcja ${s.action}` : ''})` : s.element || 'strona:' + s.page}${s.click ? ' [klik]' : ''}${s.value ? ` [wpisz: ${s.value}]` : ''} — ${s.text}`));
 	}
 	console.log('\n── podsumowanie ──');
 	const byArea = {};
@@ -285,7 +319,7 @@ async function main() {
 	const ok = results.filter((x) => !x.why.length).length;
 	console.log(`RAZEM     ${ok}/${results.length}`);
 	if (jsonPath) {
-		fs.writeFileSync(jsonPath, JSON.stringify(results.map((x) => ({ id: x.sc.id, area: x.sc.area, account: x.sc.account, lang: x.sc.lang, page: x.sc.page, q: x.sc.q, status: x.r.status, reason: x.r.reason || null, answer: x.r.answer, tour: x.r.tour || [], highlight: x.r.highlight, refs: x.r.refs || {}, tools: ((x.logged && x.logged.tools) || []).map((t) => t.name), why: x.why })), null, 1));
+		fs.writeFileSync(jsonPath, JSON.stringify(results.map((x) => ({ id: x.sc.id, area: x.sc.area, account: x.sc.account, lang: x.sc.lang, page: x.sc.page, q: x.sc.q, status: x.r.status, reason: x.r.reason || null, answer: x.r.answer, choices: x.r.choices || [], tour: x.r.tour || [], highlight: x.r.highlight, refs: x.r.refs || {}, tools: ((x.logged && x.logged.tools) || []).map((t) => t.name), why: x.why })), null, 1));
 		console.log(`raport: ${jsonPath}`);
 	}
 	const core = require('../db/core');

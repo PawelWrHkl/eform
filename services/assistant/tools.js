@@ -164,6 +164,10 @@ const DEFINITIONS = {
 		description: 'Konto grupy (centrala): zamówienia sklepów czekające na zatwierdzenie — numer, nazwa, sklep, data utworzenia i znacznik [[order:ID]].',
 		parameters: { type: 'object', properties: {}, required: [], additionalProperties: false }
 	},
+	list_products: {
+		description: 'Asortyment konfiguratora dla tego konta: działy (np. PLISY, ROLETY) i ich grupy / systemy (np. EOS, COSIFLOR, BASIC) — dokładnie to, co klient widzi w listach „Wybierz dział” i „Wybierz grupę”. Użyj przed pokazem konfiguracji produktu.',
+		parameters: { type: 'object', properties: {}, required: [], additionalProperties: false }
+	},
 	get_import_log: {
 		description: 'Ostatnie automatyczne importy zamówień z plików (strona „Moje Importy”): plik, wynik (ok/błąd), utworzone zlecenie [[order:ID]], liczba pozycji, data i treść błędu.',
 		parameters: {
@@ -360,6 +364,11 @@ async function pendingApprovals(args, scope, d) {
 	};
 }
 
+async function listProducts(args, scope, d) {
+	const ident = scope.pin ? await d.ownerIdent(scope.pin) : null;
+	return { departments: d.assortment(scope.lang, ident) };
+}
+
 async function importLog(args, scope, d) {
 	if (!scope.ident) return { imports: [] };
 	const rows = (await d.select(
@@ -389,7 +398,8 @@ const RUNNERS = {
 	list_employees: listEmployees,
 	list_catalogs: listCatalogs,
 	get_pending_approvals: pendingApprovals,
-	get_import_log: importLog
+	get_import_log: importLog,
+	list_products: listProducts
 };
 
 function defaultDeps(deps = {}) {
@@ -398,6 +408,12 @@ function defaultDeps(deps = {}) {
 		attachCancelDeadlines: deps.attachCancelDeadlines || ((orders, ctx) => orderCancellation.attachCancelDeadlines(orders, ctx).catch(() => orders)),
 		cancellationInfo: deps.cancellationInfo || ((id, ctx) => orderCancellation.getCancellationInfo(id, ctx).catch(() => null)),
 		deliveryTimes: deps.deliveryTimes || ((pin) => require('../../db/others').getDeliveryTimes(pin)),
+		// Asortyment konfiguratora (działy i grupy) dla identu klienta — services/assistant/assortment.js.
+		assortment: deps.assortment || ((lang, ident) => require('./assortment').forUser(lang, ident)),
+		ownerIdent: deps.ownerIdent || (async (pin) => {
+			const owner = await require('../../db/users').getOwner(pin);
+			return owner && owner.userIdent;
+		}),
 		// Katalogi marki (ten sam katalog plików co zakładka „Katalogi” panelu).
 		catalogs: deps.catalogs || (async (pin) => {
 			const owner = await require('../../db/users').getOwner(pin);

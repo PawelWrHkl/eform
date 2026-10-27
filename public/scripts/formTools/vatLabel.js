@@ -19,3 +19,17 @@ export function formatVatRateLabel(vatRate) {
     const reasonKey = reasonKeys[window.vatReason];
     return reasonKey ? `0% (${t(reasonKey)})` : '0%';
 }
+
+/**
+ * Który tor VAT-u (decyzja właściciela 2026-10-26):
+ *  • false — klient HKL (org id 3, `window.isHklOrg`): VAT od zwykłego
+ *    `SUMA_BRUTTO`, pola widoczne;
+ *  • true — każda inna organizacja albo grupa: konto podrzędne
+ *    (`window.isGroupShop`) i grupa-matka (`window.isGroup`, od 2026-10-27 —
+ *    grupy siedzą w organizacji HKL, ale ceną ich klienta jest `SUB___`):
+ *    VAT od `SUB___WARTOSC_KONCOWA`, a wszystkie pola VAT ukryte tak jak
+ *    parametry z `=HASLO()`.
+ */
+export function vatUsesClientPrice() {
+    return !window.isHklOrg || !!window.isGroupShop || !!window.isGroup;
+}
