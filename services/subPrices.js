@@ -368,6 +368,49 @@ function computeVatTotals(net, vatRate) {
 }
 
 /**
+ * Grupa NIGDY nie widzi VAT-u cen klienta `SUB___` — ani grupa-matka
+ * (`role = group`), ani jej konto podrzędne (`group_user`); ani na ekranie po
+ * kłódce, ani w PDF/mailu (decyzje właściciela 2026-10-27). Zdejmuje stawkę
+ * i kwoty z `attachSubVatTotals`, zanim trafią do szablonów i do
+ * `buildPdfSendDataTotals` (`vatRate`). Wołać zaraz po nim. VAT cen zwykłych
+ * matki (`attachRegularVatTotals`, przy „HKL Razem”) to osobny tor — zostaje.
+ *
+ * @param {object} totalPrice
+ * @param {boolean} isGroupRole  `res.locals.isGroup || res.locals.isGroupShop`
+ */
+function dropSubVatForGroups(totalPrice, isGroupRole) {
+  if (!totalPrice || !isGroupRole) return totalPrice;
+  delete totalPrice.vatRate;
+  delete totalPrice.subVat;
+  delete totalPrice.subGross;
+  return totalPrice;
+}
+
+/**
+ * VAT CEN ZWYKŁYCH (P) — osobny tor, niezależny od VAT-u cen klienta `SUB___`
+ * (`attachSubVatTotals` zostaje bez zmian). Decyzja właściciela 2026-10-27:
+ * podstawą jest `SUMA_BRUTTO` — mimo nazwy to NETTO — czyli suma „HKL Razem”
+ * (`totalPrice.visible` = SUM(`order_item.unit_price`), zapisywane z tego
+ * parametru; pozycje grup bez `SUMA_BRUTTO` mają tam swoją cenę zwykłą).
+ * Stopka: „HKL Razem: … netto”, „VAT x%: …”, „Kwota brutto z VAT x%: …”
+ * (`partials/order_regular_vat_totals.njk`).
+ *
+ * @returns {Promise<object>} `totalPrice` z `regularVatRate`, `regularVat`, `regularGross`
+ */
+async function attachRegularVatTotals(totalPrice, orderId) {
+  if (!totalPrice) return totalPrice;
+  const { resolveRegularVatRateForOrder } = require('./vatCalculator');
+  const { vatRate } = await resolveRegularVatRateForOrder(orderId);
+  const totals = computeVatTotals(totalPrice.visible, vatRate);
+  if (totals) {
+    totalPrice.regularVatRate = vatRate;
+    totalPrice.regularVat = totals.vat;
+    totalPrice.regularGross = totals.gross;
+  }
+  return totalPrice;
+}
+
+/**
  * Dokłada do `totalPrice` stawkę i kwoty VAT ukrytej sumy klienta
  * (`vatRate`, `subVat`, `subGross` — patrz `computeVatTotals`). Stawka jak
  * w formularzu pozycji, ale dla WŁAŚCICIELA zlecenia
@@ -381,10 +424,17 @@ function computeVatTotals(net, vatRate) {
 async function attachSubVatTotals(totalPrice, orderId) {
   if (!totalPrice) return totalPrice;
   const { resolveVatRateForOrder } = require('./vatCalculator');
-  const { vatRate } = await resolveVatRateForOrder(orderId);
+  const { vatRate, isGroup } = await resolveVatRateForOrder(orderId);
   if (typeof vatRate !== 'number') return totalPrice;
   totalPrice.vatRate = vatRate;
-  const sub = computeVatTotals(totalPrice.subLocked, vatRate);
+  // Zlecenie grupy (matka i konto podrzędne): VAT od sumy ZWYKŁEJ (P) — `hidden`
+  // = SUM(order_item.total_price), a nie od ceny klienta (N, `subLocked`).
+  // Decyzja właściciela 2026-10-27: dotyczy tylko sumy, nie parametrów.
+  const vatBase = isGroup ? parseFloat(totalPrice.hidden) : totalPrice.subLocked;
+  totalPrice.vatBase = vatBase;
+  // Kolumna stopki (P/N) dla VAT-u w PDF-ie — `buildPdfSendDataTotals`.
+  totalPrice.vatBaseIsRegular = !!isGroup;
+  const sub = computeVatTotals(vatBase, vatRate);
   if (sub) {
     totalPrice.subVat = sub.vat;
     totalPrice.subGross = sub.gross;
@@ -393,37 +443,62 @@ async function attachSubVatTotals(totalPrice, orderId) {
 }
 
 /**
- * Złoty (trzeci) wiersz pozycji w podglądzie zlecenia GRUPY — grupy-matki
- * i jej konta podrzędnego, odsłaniany kłódką „Pokaż cenę po rabacie”.
- * Decyzja właściciela 2026-10-27: jak trzeci wiersz klienta organizacji spoza
- * HKL — rabat ustalony przez matkę, cena i wartość po rabacie. VAT per pozycja
- * NIE jest pokazywany (2026-10-27) — VAT jest tylko w sumie na dole zlecenia.
+ * Złoty wiersz pozycji w podglądzie zlecenia GRUPY (matka i konto podrzędne),
+ * odsłaniany kłódką „Pokaż cenę po rabacie”. Decyzja właściciela 2026-10-27:
+ * przed kłódką ceny cennikowe (`SUB___`, przed rabatem), po kłódce tylko
+ * procent rabatu nadany przez matkę i wartość netto po rabacie.
  *
- * Dopisuje `item.groupGoldValues` (`{key, display, value, locked}`, jak
- * `subParamValues`):
- *  • rabat: `SUB___RABAT_KLIENTA` (rabat matki — ZASTĘPUJE rabat cennikowy,
- *    pricesCalculator.js `applyClientDiscount`), a bez niego
- *    `SUB___CENA_RABAT`; nigdy oba, bo pokazywałyby dwa różne „rabaty”;
- *  • pozostałe zablokowane wiersze `SUB___` w kolejności zapisu.
+ * Dopisuje `item.groupGoldValues` (`{key, display, value, locked}`) — schemat
+ * właściciela z 2026-10-27 (rozbicie liczy `pricesCalculator.js
+ * clientDiscountBreakdown`, tu tylko kolejność i etykiety):
+ *  • `SUB___RABAT_KLIENTA` — procent rabatu matki: zapisany na pozycji, a gdy go
+ *    nie ma (pozycje sprzed wpisu rabatu) — bieżący rabat konta `clientPct`;
+ *    NIE cennikowy `SUB___CENA_RABAT` (to nie jest rabat matki);
+ *  • `SUB___CENA_PO_RABACIE` — cena katalogowa po rabacie klienta, za sztukę;
+ *  • `SUB___RABAT_DOPLATY` — rabat na dopłatę z konfiguratora (tylko z dopłatą);
+ *  • `SUB___DOPLATA_EL_RABAT` — RABAT EL z cennika, pod własną nazwą (gdy > 0);
+ *  • `SUB___DOPLATA_PO_RABACIE` — dopłata po rabacie, za sztukę (tylko z dopłatą);
+ *  • `SUB___CENA_KONCOWA` — wartość 1 szt. po rabacie (cena + dopłata po rabacie);
+ *  • `SUB___WARTOSC_KONCOWA` — wartość 1 szt. × ilość — NETTO (właściciel
+ *    2026-10-27; etykieta `order.gross_after_discount_label` mimo nazwy klucza
+ *    brzmi „Wartość netto po rabacie”).
+ * Pozycje zapisane przed 2026-10-27 nie mają trzech wierszy rozbicia — do
+ * ponownego zapisu/przeliczenia pokazują sam procent, wartość sztuki i wartość.
+ * Wiersze VAT pozycji są pomijane — VAT jest tylko w sumie zlecenia.
+ *
+ * @param {Array} cleanOrderItems wynik `orderService.jsonTextBackToMap`
+ * @param {{clientPct?: number, labels?: {percent?: string, unit?: string, surchargePercent?: string, surcharge?: string, unitValue?: string, gross?: string}}} [opts]
  */
-const SUB_VAT_KEYS = new Set(['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']);
-
-function attachGroupGoldValues(cleanOrderItems) {
+function attachGroupGoldValues(cleanOrderItems, { clientPct = 0, labels = {} } = {}) {
   for (const table of cleanOrderItems || []) {
     for (const rowObj of table?.rows || []) {
       const item = rowObj?.item;
       if (!item) continue;
-      const entries = (item.subParamValues || [])
-        .filter((e) => e && e.value !== undefined && e.value !== null && e.value !== '' && e.value !== '-');
-      const byKey = new Map(entries.map((e) => [e.key, e]));
-      const discount = byKey.get('SUB___RABAT_KLIENTA') || byKey.get('SUB___CENA_RABAT');
+      const byKey = new Map((item.subParamValues || [])
+        .filter((e) => e && e.value !== undefined && e.value !== null && e.value !== '' && e.value !== '-')
+        .map((e) => [e.key, e]));
 
-      const gold = discount ? [{ ...discount, locked: true }] : [];
-      for (const entry of entries) {
-        if (!entry.locked || entry === discount) continue;
-        if (entry.key === 'SUB___CENA_RABAT' || entry.key === 'SUB___RABAT_KLIENTA') continue;
-        if (SUB_VAT_KEYS.has(entry.key)) continue;
-        gold.push(entry);
+      const gold = [];
+      const stored = byKey.get('SUB___RABAT_KLIENTA');
+      if (stored) {
+        gold.push({ ...stored, display: labels.percent || stored.display, locked: true });
+      } else if (clientPct > 0) {
+        gold.push({ key: 'SUB___RABAT_KLIENTA', display: labels.percent || '', value: `${clientPct}%`, locked: true });
+      }
+      const rows = [
+        ['SUB___CENA_PO_RABACIE', labels.unit],
+        ['SUB___RABAT_DOPLATY', labels.surchargePercent],
+        // RABAT EL — parametr cennika (rabat na dopłatę elektryczną), z własną
+        // nazwą z param.txt; tylko gdy coś obniża (właściciel 2026-10-27:
+        // „rabat EL group usera nie wyświetla się, nawet jeżeli istnieje”).
+        ['SUB___DOPLATA_EL_RABAT', null, (entry) => parseFloat(String(entry.value).replace(',', '.')) > 0],
+        ['SUB___DOPLATA_PO_RABACIE', labels.surcharge],
+        ['SUB___CENA_KONCOWA', labels.unitValue],
+        ['SUB___WARTOSC_KONCOWA', labels.gross]
+      ];
+      for (const [key, label, shown = () => true] of rows) {
+        const entry = byKey.get(key);
+        if (entry && shown(entry)) gold.push({ ...entry, display: label || entry.display, locked: true });
       }
       item.groupGoldValues = gold;
     }
@@ -456,13 +531,18 @@ function buildPdfSendDataTotals({
 }) {
   const __ = translate || ((key) => key);
   const kwota = (value) => formatAmount(value, currency);
-  // Wiersze VAT pod ukrytą sumą klienta — tylko gdy ta suma jest w dokumencie.
-  const vatRows = (subLocked) => {
-    const totals = computeVatTotals(subLocked, vatRate);
+  // Baza VAT sumy: `vatBase` z `attachSubVatTotals` (zlecenie grupy = suma zwykła),
+  // a bez niego — ukryta suma klienta jak dawniej.
+  const vatBase = totalPrice?.vatBase ?? calcSubTotals(orderItems).subLocked;
+  const vatRows = () => {
+    const totals = computeVatTotals(vatBase, vatRate);
     if (!totals) return {};
     return {
+      // Stopka PDF w dwóch kolumnach (2026-10-27): VAT grupy liczony od cen
+      // zwykłych idzie do kolumny P, reszta — do kolumny cen klienta N.
+      total_vat_is_regular: !!totalPrice?.vatBaseIsRegular,
       total_vat: `${__('order.total_vat')} ${vatRate}%: ${kwota(totals.vat)}`,
-      total_gross: `${__('order.total_gross_incl_vat')}: ${kwota(totals.gross)}`
+      total_gross: `${__('order.total_gross_incl_vat')}${vatRate}%: ${kwota(totals.gross)}`
     };
   };
 
@@ -473,9 +553,10 @@ function buildPdfSendDataTotals({
       total: subTotals.subVisible && subTotals.subVisible !== 0
         ? `${__('order.total_list_gross')}: ${kwota(subTotals.subVisible)}` : null,
       total_is_sub: true,
+      total_hidden_is_sub: true,
       total_hidden: hasHidden
         ? `${__('order.total_hidden')}: ${kwota(subTotals.subLocked)} netto` : null,
-      ...(hasHidden ? vatRows(subTotals.subLocked) : {})
+      ...vatRows()
     };
   }
 
@@ -485,9 +566,10 @@ function buildPdfSendDataTotals({
     const result = {
       total: totalPrice?.visible && Number(totalPrice.visible) !== 0
         ? `${__('order.total')}: ${kwota(totalPrice.visible)}` : null,
+      total_hidden_is_sub: true,
       total_hidden: hasHidden
         ? `${__('order.total_hidden')}: ${kwota(subTotals.subLocked)} netto` : null,
-      ...(hasHidden ? vatRows(subTotals.subLocked) : {})
+      ...vatRows()
     };
     if (withSubTotal && subTotals.subVisible && subTotals.subVisible !== 0) {
       result.total_sub = `${__('order.total_list_gross')}: ${kwota(subTotals.subVisible)}`;
@@ -522,5 +604,7 @@ module.exports = {
   buildPdfSendDataTotals,
   computeVatTotals,
   attachSubVatTotals,
+  attachRegularVatTotals,
+  dropSubVatForGroups,
   attachGroupGoldValues
 };

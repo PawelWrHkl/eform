@@ -17,6 +17,18 @@
     <button id="lockBtn" class="btn">
       <img src="/img/open-padlock.png" alt="padlock icon" class='icon'></button>
     {% endif %}
+    {# Specyfikacja ceny — ten blok podmienia pasek przycisków z order.njk
+       (komputer), więc przycisk musi być i tutaj; bez niego po kłódce znikał. #}
+    {% if priceSpecUi and not hidePrices and orderDetails and orderDetails.id %}
+      <button type="button" class="btn has-tooltip" data-price-spec-open data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.button }}" aria-label="{{ priceSpecUi.button }}" aria-haspopup="dialog">
+        <img src="/img/price-spec.svg" alt="" class='icon'></button>
+      {# Specyfikacja zaawansowana — tylko po kłódce (cen albo rabatu grupy); serwer też odmawia bez niej. #}
+      {% if prices or discountPricesUnlocked %}
+      <button type="button" class="btn has-tooltip" data-price-spec-open data-price-spec-mode="advanced" data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.advancedButton }}" aria-label="{{ priceSpecUi.advancedButton }}" aria-haspopup="dialog">
+        <img src="/img/price-spec-advanced.svg" alt="" class='icon'></button>
+      {% endif %}
+      <script type="module" src="/scripts/priceSpec.js?v={{ assetVersion }}"></script>
+    {% endif %}
       <button class="btn has-tooltip" data-lock='true' data-tooltip="{{ __('base.generate_short_pdf_tooltip') }}" id='short-print-button'>
         <img src="/img/pdf-short.png" alt="pdf icon" class='icon'></button>
         {% if admin and availableLanguages %}
@@ -494,12 +506,51 @@
                             </div>
                           {% endfor %}
                           {% if totalPrice %}
-                            <div id='total-container' data-sub-total="{{ totalPrice.subVisible or 0 }}" data-prices-unlocked="true">
+                            <div id='total-container' class="totals-split" data-sub-total="{{ totalPrice.subVisible or 0 }}" data-prices-unlocked="true">
+                              {# Stopka w dwóch kolumnach jak w order.njk (2026-10-27): lewa = ceny zwykłe (P),
+                              prawa = ceny klienta `SUB___` (N); jedna kolumna → przy prawej krawędzi. #}
+                              {% set totalsRegular %}
+                              {% if isClient and hasSubPrices %}
+                              {% elif hasSubPriceToggle and hasSubPrices %}
+                                {% if showCatalogPrices %}
+                                <div class="total-price d-flex justify-content-end align-items-center col-12">
+                                  <span class='total price-label col-3 text-center'>
+                                    {% if totalPrice.visible != '0.00' %}
+                                      HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}{% if totalPrice.regularVat %} netto{% endif %}</span>
+                                    {% else %}
+                                      {{ __('order.according_to_price') }}</span>
+                                    {% endif %}
+                                </div>
+                                {% set regularVatFactor = priceFactor %}{% set regularVatRowClass = 'col-12' %}
+                                {% include 'partials/order_regular_vat_totals.njk' %}
+                                {% endif %}
+                              {% else %}
+                              <div class="total-price d-flex justify-content-end align-items-center col-12">
+                                <span class='total price-label col-3 text-center'>
+                                  {% if totalPrice.visible != '0.00' %}
+                                    {% if not (isClient or hasSubPriceToggle or canViewSubPrices or viewAsOrganization) %}HKL {% endif %}{{ __('order.total') }}: {{ totalPrice.visible | applyFactor(1) }}{{ currencySuffix | default('€') }}{% if totalPrice.regularVat %} netto{% endif %}</span>
+                                {% else %}
+                                  {{ __('order.according_to_price') }}</span>
+                              {% endif %}
+                            </div>
+                            {% set regularVatFactor = 1 %}{% set regularVatRowClass = 'col-12' %}
+                            {% include 'partials/order_regular_vat_totals.njk' %}
+                            <div class="total-price d-flex justify-content-end align-items-center col-12">
+                              <span class='total gold price-label col-3  text-center'>
+                                {% if totalPrice.hidden != '0.00' %}
+                                  {{ __('order.total_hidden') }}: {{ totalPrice.hidden | applyFactor(1) }}{{ currencySuffix | default('€') }} netto</span>
+                              {% else %}
+                                {{ __('order.according_to_price') }}</span>
+                            {% endif %}
+                              </div>
+                              {% endif %}
+                              {% endset %}
+                              {% set totalsSub %}
                               {% if isClient and hasSubPrices %}
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total price-label sub-total col-3 text-center p-price'>
                                     {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                                    {{ __('order.total_list_gross') }}: {{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
+                                    {{ __('order.total_list_gross') }}: {{ totalPrice.subVisible | applyFactor(1) }}{{ currencySuffix | default('€') }}</span>
                                     {% else %}
                                       {{ __('order.according_to_price') }}</span>
                                     {% endif %}
@@ -507,22 +558,12 @@
                                 {% if totalPrice.subLocked and totalPrice.subLocked != 0 %}
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total gold price-label col-3 text-center'>
-                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked }}{{ currencySuffix | default('€') }} netto</span>
+                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(1) }}{{ currencySuffix | default('€') }} netto</span>
                                 </div>
                                 {% set vatTotalsApplyFactor = false %}
                                 {% include 'partials/order_vat_totals.njk' %}
                                 {% endif %}
                               {% elif hasSubPriceToggle and hasSubPrices %}
-                                {% if showCatalogPrices %}
-                                <div class="total-price d-flex justify-content-end align-items-center col-12">
-                                  <span class='total price-label col-3 text-center'>
-                                    {% if totalPrice.visible != '0.00' %}
-                                      HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}</span>
-                                    {% else %}
-                                      {{ __('order.according_to_price') }}</span>
-                                    {% endif %}
-                                </div>
-                                {% endif %}
                                 {# Owner/admin: wiersz SUB___ jest w tabeli zawsze, więc suma SUB___ też (0 → „Według cennika”, jak suma zwykła). #}
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total price-label sub-total col-3 text-center'>
@@ -540,25 +581,12 @@
                                 {% set vatTotalsApplyFactor = true %}
                                 {% include 'partials/order_vat_totals.njk' %}
                                 {% endif %}
-                              {% else %}
-                              <div class="total-price d-flex justify-content-end align-items-center col-12">
-                                <span class='total price-label col-3 text-center'>
-                                  {% if totalPrice.visible != '0.00' %}
-                                    {% if not (isClient or hasSubPriceToggle or canViewSubPrices or viewAsOrganization) %}HKL{% endif %}{{ __('order.total') }}: {{ totalPrice.visible }}{{ currencySuffix | default('€') }}</span>
-                                {% else %}
-                                  {{ __('order.according_to_price') }}</span>
                               {% endif %}
-                            </div>
-                            <div class="total-price d-flex justify-content-end align-items-center col-12">
-                              <span class='total gold price-label col-3  text-center'>
-                                {% if totalPrice.hidden != '0.00' %}
-                                  {{ __('order.total_hidden') }}: {{ totalPrice.hidden }}{{ currencySuffix | default('€') }} netto</span>
-                              {% else %}
-                                {{ __('order.according_to_price') }}</span>
-                            {% endif %}
-                              {% endif %}
+                              {% endset %}
+                              {% if totalsRegular | trim %}<div class="totals-col totals-col--regular">{{ totalsRegular | safe }}</div>{% endif %}
+                              {% if totalsSub | trim %}<div class="totals-col totals-col--sub">{{ totalsSub | safe }}</div>{% endif %}
+                              </div>
                           {% endif %}
-                        </div>
                       </div>
                     {% endblock %}
                     {% block print_template %}

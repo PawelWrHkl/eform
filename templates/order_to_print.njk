@@ -114,6 +114,33 @@
             margin-top: 20px;
             padding: 10px 10% 10px 10px;
         }
+        /* Stopka sum w dwóch kolumnach (2026-10-27): lewa = ceny zwykłe (P),
+           prawa = ceny klienta SUB___ (N); jedna kolumna → przy prawej krawędzi. */
+        .print-totals-split {
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-start;
+            gap: 0 24px;
+            padding-right: 10%;
+        }
+        .print-totals-split > .totals-col {
+            display: flex;
+            flex-direction: column;
+            min-width: 260px;
+        }
+        .print-totals-split .total-price {
+            display: flex;
+            justify-content: flex-end;
+            width: 100%;
+            max-width: none;
+            padding: 0;
+        }
+        .print-totals-split .total-price > .total {
+            flex: 1 1 auto;
+            width: 100%;
+            max-width: none;
+            text-align: right;
+        }
         .print-total-items {
             font-size: 14px;
             font-weight: bold;
@@ -347,120 +374,150 @@
 {# Ceny zwykłe i SUB___ w druku (`showBoth`) → obie sumy, jak stopka zlecenia
    (2026-10-09): „HKL Razem” = zwykłe, „Razem” = SUB___. Grupy bez zmian. #}
 {% set printSubTotal = showBoth and not clientView and not isGroupShop and not isGroup and totalPrice and totalPrice.subVisible and totalPrice.subVisible != 0 %}
+{% set afterDiscountTotal = ((totalPrice.afterClientDiscount or totalPrice.subLocked) if isGroupClientType else (totalPrice.afterClientDiscount if totalPrice.afterClientDiscount != totalPrice.subLocked else null)) if totalPrice else null %}
+                {# Stopka w dwóch kolumnach jak w order.njk (2026-10-27): lewa = ceny zwykłe (P),
+                prawa = ceny klienta `SUB___` (N) z ich VAT-em i rabatem klienta; jedna kolumna
+                → przy prawej krawędzi (`.print-totals-split` niżej w <style>). `sendData` z
+                `buildPdfSendDataTotals` mówi, do której kolumny należy suma ukryta
+                (`total_hidden_is_sub`) i VAT (`total_vat_is_regular` — VAT grupy od cen zwykłych). #}
+                {% set printTotalsRegular %}
 {% if prices and sendData and sendData.total and not isGroupShop %}
-                <div id='total-container' style='padding-right: 10%;'>
+                {% if not sendData.total_is_sub %}
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
                             {{ sendData.total | replace(__('order.total') + ': ', '') | replace(__('order.total_list_gross') + ': ', '') }}
                         </span>
                     </div>
-                </div>
+                {% endif %}
             {% elif totalPrice and not clientView and not isGroupShop %}
-                <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center'>
                             {% if totalPrice.visible != '0.00' %}
-                                {% if printSubTotal %}HKL {% endif %}{{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.visible }}{{ currencySuffix | default('€') }}</span>
+                                {% if printSubTotal %}HKL {% endif %}{{ __('order.total') }}: <span class="pdf-val">{{ totalPrice.visible | applyFactor(1) }}{{ currencySuffix | default('€') }}</span>
                             {% else %}
                                 Według cennika
                             {% endif %}
                         </span>
                     </div>
-                </div>
-            {% elif isGroupShop and totalPrice and totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                {# Konto podrzędne dostaje w druku tę samą sumę, którą widzi na ekranie
-                   przed kłódką: sumę „WARTOŚĆ BR.[€]" swoich pozycji. Wartość po rabacie
-                   zostaje pod kłódką na ekranie i nie idzie do wydruku. #}
-                <div id='total-container' style='padding-right: 10%;'>
-                    <div class="total-price d-flex justify-content-end align-items-center col-12">
-                        <span class='total price-label col-3 text-center'>
-                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
-                        </span>
-                    </div>
-                </div>
-            {% elif totalPrice and clientView and totalPrice.subVisible and totalPrice.subVisible != 0 %}
-                <div id='total-container' style='padding-right: 10%;'>
-                    <div class="total-price d-flex justify-content-end align-items-center col-12">
-                        <span class='total price-label col-3 text-center'>
-                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
-                        </span>
-                    </div>
-                </div>
-            {% endif %}
-                {% if printSubTotal %}
-                <div id='total-container' style='padding-right: 10%;'>
-                    <div class="total-price d-flex justify-content-end align-items-center col-12">
-                        <span class='total price-label col-3 text-center'>
-                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible }}{{ currencySuffix | default('€') }}</span>
-                        </span>
-                    </div>
-                </div>
                 {% endif %}
             {% if prices and sendData and sendData.total_hidden and not isGroupShop %}
-                <div id='total-container' style='padding-right: 10%;'>
+                {% if not sendData.total_hidden_is_sub %}
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>
                             {{ sendData.total_hidden | replace(__('order.total_hidden') + ': ', '') }}
                         </span>
                     </div>
-                </div>
-                {# Wiersze VAT pod sumą klienta (`services/subPrices.js buildPdfSendDataTotals`, 2026-10-26). #}
+                {% endif %}
+                {% if sendData.total_vat_is_regular %}
                 {% if sendData.total_vat %}
-                <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>{{ sendData.total_vat }}</span>
                     </div>
-                </div>
                 {% endif %}
                 {% if sendData.total_gross %}
-                <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>{{ sendData.total_gross }}</span>
                     </div>
-                </div>
+                {% endif %}
                 {% endif %}
             {% elif prices and not clientView and totalPrice %}
-                <div id='total-container' style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>
                             {% if totalPrice.hidden != '0.00' %}
-                                {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.hidden }}{{ currencySuffix | default('€') }} netto</span>
+                                {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.hidden | applyFactor(1) }}{{ currencySuffix | default('€') }} netto</span>
                             {% else %}
                                 Według cennika
                             {% endif %}
                         </span>
                     </div>
-                </div>
-            {% elif prices and clientView and totalPrice and totalPrice.subLocked and totalPrice.subLocked != 0 %}
-                <div id='total-container' style='padding-right: 10%;'>
+                {% endif %}
+                {% endset %}
+                {% set printTotalsSub %}
+{% if prices and sendData and sendData.total and not isGroupShop %}
+                {% if sendData.total_is_sub %}
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
-                        <span class='total gold price-label col-3 text-center'>
-                            {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.subLocked }}{{ currencySuffix | default('€') }} netto</span>
+                        <span class='total price-label col-3 text-center'>
+                            {{ sendData.total | replace(__('order.total') + ': ', '') | replace(__('order.total_list_gross') + ': ', '') }}
                         </span>
                     </div>
-                </div>
+                {% endif %}
+            {% elif totalPrice and not clientView and not isGroupShop %}
+            {% elif isGroupShop and totalPrice and totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                {# Konto podrzędne dostaje w druku tę samą sumę, którą widzi na ekranie
+                   przed kłódką: sumę „WARTOŚĆ BR.[€]" swoich pozycji. Wartość po rabacie
+                   zostaje pod kłódką na ekranie i nie idzie do wydruku. #}
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total price-label col-3 text-center'>
+                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible | applyFactor(1) }}{{ currencySuffix | default('€') }}</span>
+                        </span>
+                    </div>
+            {% elif totalPrice and clientView and totalPrice.subVisible and totalPrice.subVisible != 0 %}
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total price-label col-3 text-center'>
+                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible | applyFactor(1) }}{{ currencySuffix | default('€') }}</span>
+                        </span>
+                    </div>
+                {% endif %}
+                {% if printSubTotal %}
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total price-label col-3 text-center'>
+                            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ totalPrice.subVisible | applyFactor(1) }}{{ currencySuffix | default('€') }}</span>
+                        </span>
+                    </div>
+                {% endif %}
+            {% if prices and sendData and sendData.total_hidden and not isGroupShop %}
+                {% if sendData.total_hidden_is_sub %}
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total gold price-label col-3 text-center'>
+                            {{ sendData.total_hidden | replace(__('order.total_hidden') + ': ', '') }}
+                        </span>
+                    </div>
+                {% endif %}
+                {# Wiersze VAT pod sumą klienta (`services/subPrices.js buildPdfSendDataTotals`, 2026-10-26). #}
+                {% if not sendData.total_vat_is_regular %}
+                {% if sendData.total_vat %}
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total gold price-label col-3 text-center'>{{ sendData.total_vat }}</span>
+                    </div>
+                {% endif %}
+                {% if sendData.total_gross %}
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total gold price-label col-3 text-center'>{{ sendData.total_gross }}</span>
+                    </div>
+                {% endif %}
+                {% endif %}
+            {% elif prices and not clientView and totalPrice %}
+            {% elif prices and clientView and totalPrice and totalPrice.subLocked and totalPrice.subLocked != 0 %}
+                    <div class="total-price d-flex justify-content-end align-items-center col-12">
+                        <span class='total gold price-label col-3 text-center'>
+                            {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.subLocked | applyFactor(1) }}{{ currencySuffix | default('€') }} netto</span>
+                        </span>
+                    </div>
                 {# VAT i brutto pod sumą klienta — jak `partials/order_vat_totals.njk` na ekranie. #}
-                {% if totalPrice.subVat and not (isGroupShop or (isGroup and isGroupClientType)) %}
-                <div id='total-container' style='padding-right: 10%;'>
+                {% if totalPrice.subVat and not (isGroupShop or isGroup) %}
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
-                        <span class='total gold price-label col-3 text-center'>{{ __('order.total_vat') }} {{ totalPrice.vatRate }}%: <span class="pdf-val">{{ totalPrice.subVat }}{{ currencySuffix | default('€') }}</span></span>
+                        <span class='total gold price-label col-3 text-center'>{{ __('order.total_vat') }} {{ totalPrice.vatRate }}%: <span class="pdf-val">{{ totalPrice.subVat | applyFactor(1) }}{{ currencySuffix | default('€') }}</span></span>
                     </div>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
-                        <span class='total gold price-label col-3 text-center'>{{ __('order.total_gross_incl_vat') }}: <span class="pdf-val">{{ totalPrice.subGross }}{{ currencySuffix | default('€') }}</span></span>
+                        <span class='total gold price-label col-3 text-center'>{{ __('order.total_gross_incl_vat') }} {{ totalPrice.vatRate }}%: <span class="pdf-val">{{ totalPrice.subGross | applyFactor(1) }}{{ currencySuffix | default('€') }}</span></span>
                     </div>
-                </div>
                 {% endif %}
             {% endif %}
             {# Ta sama zasada co w order.njk — bez dublowania kwoty z podsumowania. #}
-{% set afterDiscountTotal = ((totalPrice.afterClientDiscount or totalPrice.subLocked) if isGroupClientType else (totalPrice.afterClientDiscount if totalPrice.afterClientDiscount != totalPrice.subLocked else null)) if totalPrice else null %}{% if showClientDiscount and afterDiscountTotal and afterDiscountTotal != 0 %}
-                <div id='total-container' style='padding-right: 10%;'>
+                {% if showClientDiscount and afterDiscountTotal and afterDiscountTotal != 0 %}
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label print-discount-price col-3 text-center'>
                             {{ __('form.value_after_discount_label') }}: <span class="pdf-val">{{ afterDiscountTotal }}{{ currencySuffix | default('€') }}</span>
                         </span>
                     </div>
-                </div>
             {% endif %}
+                {% endset %}
+                {% if (printTotalsRegular | trim) or (printTotalsSub | trim) %}
+                <div id='total-container' class='print-totals-split'>
+                {% if printTotalsRegular | trim %}<div class="totals-col totals-col--regular">{{ printTotalsRegular | safe }}</div>{% endif %}
+                {% if printTotalsSub | trim %}<div class="totals-col totals-col--sub">{{ printTotalsSub | safe }}</div>{% endif %}
+                </div>
+                {% endif %}
             {% if not prices and discountInfo and discountInfo.type != 'none' %}
                 <div style='padding-right: 10%;'>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
@@ -470,7 +527,7 @@
                     </div>
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total price-label col-3 text-center' style="background: rgba(235,232,75,0.8); color: #333; font-weight: bold;">
-                            {{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result }} {{ currencySymbol | default('€') }}</span>
+                            {{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result | applyFactor(1) }} {{ currencySymbol | default('€') }}</span>
                         </span>
                     </div>
                 </div>

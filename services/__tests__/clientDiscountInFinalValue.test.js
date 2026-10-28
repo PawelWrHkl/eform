@@ -57,7 +57,7 @@ function buildBundle() {
   const result = esbuild.buildSync({
     stdin: {
       contents: `
-        export { applyClientDiscount, applyVatToGrossValue } from ${JSON.stringify(PRICES)};
+        export { applyClientDiscount, applyVatToGrossValue, clientDiscountBreakdown } from ${JSON.stringify(PRICES)};
         export { getTotal, buildVatFields } from ${JSON.stringify(FORM)};
       `,
       resolveDir: ROOT,
@@ -469,11 +469,12 @@ test('group_user z ceną SUB___ — VAT od SUB___WARTOSC_KONCOWA i ukryty, takż
   for (const key of SUB_VAT_KEYS) assert.equal(dv.get(key).locked, true, `${key} locked`);
 });
 
-test('pola VAT w formularzu: poza HKL i dla group_user powstają, ale są ukryte; HKL widzi je jak dotąd', () => {
+test('pola VAT w formularzu: powstają, ale są ukryte dla wszystkich — także klienta HKL (VAT tylko w sumie zlecenia)', () => {
+  // Właściciel 2026-10-27: klient HKL też nie widzi VAT-u pozycji — „ma być ukryte jak w reszcie”.
   const cases = [
     [{ isHklOrg: false }, 'none'],
     [{ isHklOrg: true, isGroupShop: true }, 'none'],
-    [{ isHklOrg: true }, '']
+    [{ isHklOrg: true }, 'none']
   ];
   for (const [ctx, display] of cases) {
     const window = makeWindow();
@@ -489,6 +490,21 @@ test('pola VAT w formularzu: poza HKL i dla group_user powstają, ale są ukryte
       assert.equal(input.parentNode.style.display, display, `${id} ${JSON.stringify(ctx)}`);
     }
   }
+});
+
+test('przed kłódką widoczne ceny SUB___ zostają CENNIKOWE (przed rabatem matki), rabat tylko w ukrytych wierszach', () => {
+  // Decyzja właściciela 2026-10-27: klient grupy widzi przed kłódką ceny przed
+  // rabatem; procent i cena po rabacie dopiero po kłódce.
+  const window = makeWindow({ clientDiscountPercent: 60 });
+  const values = valuesFixture(100, 1, 100);
+  const dv = displayValuesFixture(window, 100);
+  dv.set('SUB___SUMA_BRUTTO', { param_description: 'WARTOŚĆ BR.', option_value: '100', locked: false, sub: true, listsum: true, row: '2' });
+
+  window.__discountTest.applyClientDiscount(values, dv);
+
+  assert.equal(dv.get('SUB___SUMA_BRUTTO').option_value, '100', 'widoczna suma cennikowa');
+  assert.equal(values.SUB___WARTOSC_KONCOWA, 40, 'cena po rabacie liczy się dalej, w ukrytym wierszu');
+  assert.equal(dv.get('SUB___RABAT_KLIENTA').locked, true, 'procent matki ukryty');
 });
 
 test('rabat cennikowy zostaje NIETKNIĘTY (60%), a bonus stoi zaraz za nim', () => {
@@ -525,4 +541,101 @@ test('wiersz bonusu zostaje w parametrach UKRYTYCH także przy zerowym rabacie',
 
   assert.ok(window.lockedParams.includes('SUB___RABAT_KLIENTA'));
   assert.ok(window.subParams.includes('SUB___RABAT_KLIENTA'));
+});
+
+// ─── Dopłaty: rabat klienta tylko na cenie katalogowej, dopłata ze swoim rabatem
+// z konfiguratora (właściciel 2026-10-27, schemat wierszy pod kłódką group usera)
+
+const BREAKDOWN_KEYS = ['SUB___RABAT_KLIENTA', 'SUB___CENA_PO_RABACIE', 'SUB___RABAT_DOPLATY', 'SUB___DOPLATA_PO_RABACIE'];
+
+test('dopłata z osobnym rabatem z konfiguratora (grupa 71, poz. 8974): cena 50% + dopłata 30%, wartość 1 szt. × ilość', () => {
+  const window = makeWindow({ clientDiscountPercent: 50 });
+  const values = {
+    ILOSC: 2, SUB___CENA: 283.2, SUB___DOPLATA: 86.74, SUB___DOPLATA_EL: 0, SUB___CENA_SUMA: 369.94,
+    SUB___CENA_RABAT: 0, SUB___DOPLATA_RABAT: 0.3, SUB___DOPLATA_EL_RABAT: 0,
+    SUB___CENA_KONCOWA: 343.92, SUB___WARTOSC_KONCOWA: 687.84
+  };
+  const dv = displayValuesFixture(window, 343.92, 2, '0%');
+
+  window.__discountTest.applyClientDiscount(values, dv);
+
+  // Do 2026-10-27: 50% od całego 369.94 = 184.97 za sztukę — rabat na dopłatę pominięty
+  assert.equal(dv.get('SUB___CENA_PO_RABACIE').option_value, '141.6', 'cena katalogowa 283.20 × 50%');
+  assert.equal(dv.get('SUB___RABAT_DOPLATY').option_value, '30%', 'rabat na dopłatę z konfiguratora');
+  assert.equal(dv.get('SUB___DOPLATA_PO_RABACIE').option_value, '60.72', 'dopłata 86.74 × 70%');
+  assert.equal(values.SUB___CENA_KONCOWA, 202.32, 'wartość 1 szt. = 141.60 + 60.72');
+  assert.equal(values.SUB___WARTOSC_KONCOWA, 404.64, 'wartość 1 szt. × ILOSC 2');
+  assert.equal(dv.get('SUB___CENA_KONCOWA').option_value, '202.32');
+  assert.equal(dv.get('SUB___WARTOSC_KONCOWA').option_value, '404.64');
+  for (const key of BREAKDOWN_KEYS) {
+    assert.equal(dv.get(key).locked, true, `${key} ukryty pod kłódką`);
+    assert.equal(dv.get(key).sub, true, `${key} to cena klienta`);
+    assert.ok(window.lockedParams.includes(key) && window.subParams.includes(key), `${key} zarejestrowany`);
+  }
+  const keys = [...dv.keys()];
+  assert.deepEqual(keys.slice(keys.indexOf('SUB___RABAT_KLIENTA'), keys.indexOf('SUB___RABAT_KLIENTA') + 4), BREAKDOWN_KEYS, 'kolejność wierszy');
+});
+
+test('grupa bez osobnego rabatu na dopłatę (np. 43): dopłata idzie z rabatem z cennika, jak we wzorze (CENA+DOPLATA)*(1-CENA_RABAT)', () => {
+  const window = makeWindow({ clientDiscountPercent: 45 });
+  const values = {
+    ILOSC: 1, SUB___CENA: 391, SUB___DOPLATA: 3.5, SUB___DOPLATA_EL: 0, SUB___CENA_SUMA: 394.5,
+    SUB___CENA_RABAT: 0.6, SUB___DOPLATA_EL_RABAT: 0, SUB___CENA_KONCOWA: 157.8, SUB___WARTOSC_KONCOWA: 157.8
+  };
+  const dv = displayValuesFixture(window, 157.8, 1);
+
+  window.__discountTest.applyClientDiscount(values, dv);
+
+  assert.equal(dv.get('SUB___CENA_PO_RABACIE').option_value, '215.05', '391 × 55% (rabat matki 45%)');
+  assert.equal(dv.get('SUB___RABAT_DOPLATY').option_value, '60%');
+  assert.equal(dv.get('SUB___DOPLATA_PO_RABACIE').option_value, '1.4', '3.50 × 40%');
+  assert.equal(values.SUB___CENA_KONCOWA, 216.45);
+});
+
+test('clientDiscountBreakdown: dopłata elektryczna ze swoim rabatem (RABAT EL osobno, nie w „rabacie na dopłatę”)', () => {
+  const window = makeWindow();
+  const { clientDiscountBreakdown } = window.__discountTest;
+  const el = clientDiscountBreakdown({
+    SUB___CENA: 1095, SUB___DOPLATA: 0, SUB___DOPLATA_EL: 178, SUB___CENA_SUMA: 1273,
+    SUB___CENA_RABAT: 0.55, SUB___DOPLATA_EL_RABAT: 0.4
+  }, 50);
+  assert.deepEqual([el.priceAfter, el.surchargeAfter, el.unitAfterClientDiscount, el.surchargeRatePct], [547.5, 106.8, 654.3, null],
+    'sama dopłata EL — „rabat na dopłatę” nie dotyczy, pod kłódką stoi parametr RABAT EL');
+  const both = clientDiscountBreakdown({
+    SUB___CENA: 100, SUB___DOPLATA: 10, SUB___DOPLATA_EL: 20, SUB___CENA_SUMA: 130,
+    SUB___CENA_RABAT: 0.55, SUB___DOPLATA_EL_RABAT: 0.4
+  }, 50);
+  assert.deepEqual([both.catalogPrice, both.priceAfter, both.surchargeAfter, both.surchargeRatePct], [100, 50, 16.5, 55]);
+  assert.equal(clientDiscountBreakdown({ SUB___CENA_KONCOWA: 10 }, 50), null, 'bez ceny katalogowej — brak rozbicia');
+});
+
+test('bez dopłaty: cena po rabacie jest, wierszy dopłaty nie ma; sam ekstra rabat — bez rozbicia', () => {
+  const noSurcharge = makeWindow({ clientDiscountPercent: 60 });
+  const dv = displayValuesFixture(noSurcharge, 100, 1);
+  noSurcharge.__discountTest.applyClientDiscount(valuesFixture(100, 1, 250), dv);
+  assert.equal(dv.get('SUB___CENA_PO_RABACIE').option_value, '100', '250 × 40%');
+  assert.equal(dv.has('SUB___RABAT_DOPLATY'), false);
+  assert.equal(dv.has('SUB___DOPLATA_PO_RABACIE'), false);
+
+  const bonusOnly = makeWindow({ clientDiscountPercent: 1, portalUsageDiscountPercent: 1 });
+  const dv2 = displayValuesFixture(bonusOnly, 100, 1);
+  bonusOnly.__discountTest.applyClientDiscount(valuesFixture(100, 1, 250), dv2);
+  for (const key of ['SUB___CENA_PO_RABACIE', 'SUB___RABAT_DOPLATY', 'SUB___DOPLATA_PO_RABACIE']) {
+    assert.equal(dv2.has(key), false, `${key}: sam ekstra rabat nie ma rozbicia`);
+  }
+});
+
+test('sama dopłata EL u konta podrzędnego: bez wiersza „rabat na dopłatę”, dopłata po rabacie zaraz za ceną po rabacie', () => {
+  const window = makeWindow({ clientDiscountPercent: 50 });
+  const values = {
+    ILOSC: 1, SUB___CENA: 1095, SUB___DOPLATA: 0, SUB___DOPLATA_EL: 178, SUB___CENA_SUMA: 1273,
+    SUB___CENA_RABAT: 0.55, SUB___DOPLATA_EL_RABAT: 0.4, SUB___CENA_KONCOWA: 599.55, SUB___WARTOSC_KONCOWA: 599.55
+  };
+  const dv = displayValuesFixture(window, 599.55, 1);
+  window.__discountTest.applyClientDiscount(values, dv);
+  assert.equal(dv.has('SUB___RABAT_DOPLATY'), false);
+  assert.equal(dv.get('SUB___DOPLATA_PO_RABACIE').option_value, '106.8', '178 × (1 − RABAT EL 40%)');
+  const keys = [...dv.keys()];
+  assert.equal(keys[keys.indexOf('SUB___CENA_PO_RABACIE') + 1], 'SUB___DOPLATA_PO_RABACIE');
+  assert.equal(values.SUB___CENA_KONCOWA, 654.3);
 });

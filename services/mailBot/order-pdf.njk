@@ -177,44 +177,73 @@
          suma SUB___ (`total_sub`) — jak stopka zlecenia (2026-10-09).
          Suma cen klienta (`total_sub`, a w `total` przy `total_is_sub`) ma od
          2026-10-26 etykietę `order.total_list_gross` („GESAMTBETRAG LISTENPREIS BRUTTO”). #}
-      {% if sendData.total %}
-        {% set totalLabel = __('order.total_list_gross') if sendData.total_is_sub else __('order.total') %}
-        <div id='total-container'>
+      {# Stopka w dwóch kolumnach (właściciel 2026-10-27): lewa = sumy cen zwykłych (P),
+         prawa = sumy cen klienta `SUB___` (N); gdy jest tylko jedna — przy prawej
+         krawędzi. Do której kolumny należy suma ukryta i VAT, mówi `sendData`
+         (`total_is_sub`, `total_hidden_is_sub`, `total_vat_is_regular` — VAT grupy
+         liczony od cen zwykłych; services/subPrices.js buildPdfSendDataTotals).
+         Dokument bez cen (`withoutPrices`) nie dostaje też wierszy VAT. #}
+      {% set totalLabel = __('order.total_list_gross') if sendData.total_is_sub else __('order.total') %}
+      {% set pdfTotalsRegular %}
+        {% if sendData.total and not sendData.total_is_sub %}
           <div class="total-price">
             {% if sendData.total_sub %}HKL {% endif %}{{ totalLabel }}: <span class="pdf-val">{{ sendData.total | replace(totalLabel + ': ', '') | replace(__('order.total') + ': ', '') }}</span>
           </div>
-        </div>
-      {% endif %}
-      {% if sendData.total_sub %}
-        <div id='total-container'>
-          <div class="total-price">
-            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ sendData.total_sub | replace(__('order.total_list_gross') + ': ', '') | replace(__('order.total') + ': ', '') }}</span>
-          </div>
-        </div>
-      {% endif %}
-      {% if sendData.total_hidden %}
-        <div id='total-container'>
+        {% endif %}
+        {% if sendData.total_hidden and not sendData.total_hidden_is_sub %}
           <div class="total-price">
             {{ __('order.total_hidden') }}: <span class="pdf-val">{{ sendData.total_hidden | replace(__('order.total_hidden') + ': ', '') }}</span>
           </div>
-        </div>
-      {% endif %}
-      {# VAT i brutto pod sumą klienta (`services/subPrices.js buildPdfSendDataTotals`,
-         decyzja właściciela 2026-10-26) — gotowe napisy „VAT 19%: …” / „Brutto Betrag inkl. MwSt: …”. #}
-      {% for vatLine in [sendData.total_vat, sendData.total_gross] %}
-        {% if vatLine %}
-        <div id='total-container'>
+        {% endif %}
+        {% if sendData.total_vat_is_regular %}
+        {% if not withoutPrices %}
+        {% for vatLine in [sendData.total_vat, sendData.total_gross] %}
+          {% if vatLine %}
           <div class="total-price">
             {{ vatLine.split(': ')[0] }}: <span class="pdf-val">{{ vatLine.split(': ').slice(1).join(': ') }}</span>
           </div>
-        </div>
+          {% endif %}
+        {% endfor %}
         {% endif %}
-      {% endfor %}
-      {% if sendData.total_client_discount %}
-        <div id='total-container'>
+        {% endif %}
+      {% endset %}
+      {% set pdfTotalsSub %}
+        {% if sendData.total and sendData.total_is_sub %}
+          <div class="total-price">
+            {% if sendData.total_sub %}HKL {% endif %}{{ totalLabel }}: <span class="pdf-val">{{ sendData.total | replace(totalLabel + ': ', '') | replace(__('order.total') + ': ', '') }}</span>
+          </div>
+        {% endif %}
+        {% if sendData.total_sub %}
+          <div class="total-price">
+            {{ __('order.total_list_gross') }}: <span class="pdf-val">{{ sendData.total_sub | replace(__('order.total_list_gross') + ': ', '') | replace(__('order.total') + ': ', '') }}</span>
+          </div>
+        {% endif %}
+        {% if sendData.total_hidden and sendData.total_hidden_is_sub %}
+          <div class="total-price">
+            {{ __('order.total_hidden') }}: <span class="pdf-val">{{ sendData.total_hidden | replace(__('order.total_hidden') + ': ', '') }}</span>
+          </div>
+        {% endif %}
+        {% if not sendData.total_vat_is_regular %}
+        {% if not withoutPrices %}
+        {% for vatLine in [sendData.total_vat, sendData.total_gross] %}
+          {% if vatLine %}
+          <div class="total-price">
+            {{ vatLine.split(': ')[0] }}: <span class="pdf-val">{{ vatLine.split(': ').slice(1).join(': ') }}</span>
+          </div>
+          {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% if sendData.total_client_discount %}
           <div class="total-price discount">
             {{ sendData.total_client_discount }}
           </div>
+        {% endif %}
+      {% endset %}
+      {% if (pdfTotalsRegular | trim) or (pdfTotalsSub | trim) %}
+        <div id='total-container' class='pdf-totals-split'>
+          {% if pdfTotalsRegular | trim %}<div class="totals-col totals-col--regular">{{ pdfTotalsRegular | safe }}</div>{% endif %}
+          {% if pdfTotalsSub | trim %}<div class="totals-col totals-col--sub">{{ pdfTotalsSub | safe }}</div>{% endif %}
         </div>
       {% endif %}
       {% if not prices and discountInfo and discountInfo.type != 'none' %}
@@ -222,7 +251,7 @@
           <span style="background: rgba(235, 232, 75, 0.8); color: #333; padding: 1px 6px;">{{ __('order.discount') }}: <span class="pdf-val">{{ discountInfo.discountValue }}{% if discountInfo.type == 'percentage' %}%{% else %} {{ currencySymbol | default('€') }}{% endif %}</span></span>
         </div>
         <div class="print-total-items">
-          <span style="background: rgba(235, 232, 75, 0.8); color: #333; padding: 1px 6px;">{{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result }} {{ currencySymbol | default('€') }}</span></span>
+          <span style="background: rgba(235, 232, 75, 0.8); color: #333; padding: 1px 6px;">{{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result | applyFactor(1) }} {{ currencySymbol | default('€') }}</span></span>
         </div>
       {% endif %}
     </div>

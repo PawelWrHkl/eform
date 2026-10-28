@@ -56,8 +56,8 @@ test('client page context + PDF use the same SUB totals', async () => {
   assert.equal(res.locals.isClient, true);
   assert.equal(view.isClientView, true);
   assert.equal(totalPrice.subVisible, SUB_SUMA_VISIBLE);
-  assert.equal(pdfTotals.total, `order.total_list_gross: ${totalPrice.subVisible}€`);
-  assert.equal(pdfTotals.total_hidden, `order.total_hidden: ${totalPrice.subLocked}€ netto`);
+  assert.equal(pdfTotals.total, `order.total_list_gross: ${Number(totalPrice.subVisible).toFixed(2)}€`);
+  assert.equal(pdfTotals.total_hidden, `order.total_hidden: ${Number(totalPrice.subLocked).toFixed(2)}€ netto`);
 
   const html = renderOrderPdfHtml({
     orderDetails: {},
@@ -123,5 +123,5 @@ test('org owner with keychain: page showSub + PDF showBoth stay aligned', async 
     translate: (key) => key
   });
   assert.equal(pdfTotals.total, `order.total: ${REGULAR_SUMA}€`);
-  assert.equal(pdfTotals.total_hidden, `order.total_hidden: ${SUB_SUMA_LOCKED}€ netto`);
+  assert.equal(pdfTotals.total_hidden, `order.total_hidden: ${Number(SUB_SUMA_LOCKED).toFixed(2)}€ netto`);
 });

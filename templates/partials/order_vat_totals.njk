@@ -2,17 +2,19 @@
    właściciela 2026-10-26): „VAT 19%: <kwota VAT>” i „Brutto Betrag inkl.
    MwSt: <suma z VAT-em>”. Kwoty liczy serwer od `totalPrice.subLocked`
    (`services/subPrices.js attachSubVatTotals`) — przy wyłączonym VAT-cie ich
-   nie ma i wiersze się nie pokazują. Od 2026-10-27 widzą je też grupa-matka
-   i jej konto podrzędne (stopka grupy w `order.njk`, po kłódce).
+   nie ma i wiersze się nie pokazują. Grupa (matka i konto podrzędne) ich
+   nie widzi nigdy (właściciel 2026-10-27).
    Włączane `{% include %}` zaraz za złotą sumą — dziedziczy jej kontekst:
    `vatTotalsApplyFactor` mówi, czy ta suma szła przez `applyFactor`. #}
-{% if totalPrice and totalPrice.subVat %}
+{# Grupa (matka i konto podrzędne) VAT-u cen klienta nie widzi NIGDY, także po
+   kłódce (właściciel 2026-10-27) — serwer i tak zdejmuje kwoty (`dropSubVatForGroups`). #}
+{% if totalPrice and totalPrice.subVat and not (isGroup or isGroupShop) %}
 <div class="total-price d-flex justify-content-end align-items-center col-12">
     <span class='total gold price-label col-3 text-center'>
-        {{ __('order.total_vat') }} {{ totalPrice.vatRate }}%: {{ (totalPrice.subVat | applyFactor(priceFactor)) if vatTotalsApplyFactor else totalPrice.subVat }}{{ currencySuffix | default('€') }}</span>
+        {{ __('order.total_vat') }} {{ totalPrice.vatRate }}%: {{ (totalPrice.subVat | applyFactor(priceFactor)) if vatTotalsApplyFactor else (totalPrice.subVat | applyFactor(1)) }}{{ currencySuffix | default('€') }}</span>
 </div>
 <div class="total-price d-flex justify-content-end align-items-center col-12">
     <span class='total gold price-label col-3 text-center'>
-        {{ __('order.total_gross_incl_vat') }}: {{ (totalPrice.subGross | applyFactor(priceFactor)) if vatTotalsApplyFactor else totalPrice.subGross }}{{ currencySuffix | default('€') }}</span>
+        {{ __('order.total_gross_incl_vat') }} {{ totalPrice.vatRate }}%: {{ (totalPrice.subGross | applyFactor(priceFactor)) if vatTotalsApplyFactor else (totalPrice.subGross | applyFactor(1)) }}{{ currencySuffix | default('€') }}</span>
 </div>
 {% endif %}

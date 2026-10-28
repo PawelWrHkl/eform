@@ -10,10 +10,11 @@ const orderCorrectionService = require('../../services/admin/orderCorrectionServ
 const { recalcAndSaveMaxProdDays, buildItemProductionDays, getOrderDeliveryDelay } = require('../../services/productionDays');
 const { getPriceAfterDiscount } = require('../../services/getDiscount.js');
 const { getProductionSendSkipClient } = require('../../utils/productionSendGuard');
-const { orderHasSubPrices, calcSubTotals, resolveSubPricePdfView, attachSubVatTotals } = require('../../services/subPrices');
+const { orderHasSubPrices, calcSubTotals, resolveSubPricePdfView, attachSubVatTotals, attachRegularVatTotals } = require('../../services/subPrices');
 const { availabeLanguages } = require('../../config');
 const { log } = require('../../utils/logging');
 const { currencyLocalsForOrder } = require('../../services/currency');
+const { resolveFormPricingForOrder } = require('../../services/portalUsageDiscount');
 
 function isJsonRequest(req) {
     if (req.method !== 'GET') return true;
@@ -154,6 +155,7 @@ router.get('/:orderId', requireCorrectionOrder, loadEmployeePermissions, filterP
         totalPrice.subLocked = subTotals.subLocked;
         // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
         await attachSubVatTotals(totalPrice, orderDetails.id);
+        await attachRegularVatTotals(totalPrice, orderDetails.id);
         const { isClientView, showBoth: showBothInPdf } = resolveSubPricePdfView(req, hasSubPrices);
 
         res.render('admin/order_corrections/workspace.njk', {
@@ -209,8 +211,10 @@ router.get('/:orderId/positions-data', requireCorrectionOrder, async (req, res) 
         // Waluta klienta zamówienia — jak w routes/orders.js (positions-data);
         // recalculateOrder.js ustawia z niej `window.priceCurrency`.
         const { priceCurrency } = await currencyLocalsForOrder(req.params.orderId);
+        // Rabat klienta grupy / narzut — jak w routes/orders.js (positions-data).
+        const pricing = await resolveFormPricingForOrder(req.params.orderId);
 
-        return res.json({ success: true, positions, priceCurrency });
+        return res.json({ success: true, positions, priceCurrency, pricing });
     } catch (err) {
         log('Error fetching correction positions:', err);
         return res.status(500).json({ success: false, message: 'Błąd serwera' });

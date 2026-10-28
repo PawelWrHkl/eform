@@ -380,6 +380,15 @@ async function fetchPositions(orderId) {
     // Waluta klienta zamówienia (services/currency.js) — bez niej przeliczenie
     // nie poprawia znacznika waluty w opisach pozycji (formTools/currencyLabel.js).
     if (typeof data.priceCurrency === 'string') window.priceCurrency = data.priceCurrency;
+    // Rabat klienta grupy / narzut (services/portalUsageDiscount.js
+    // resolveFormPricingForOrder) — form.njk wstrzykuje je przy ręcznej edycji,
+    // a strona zlecenia ich nie ma. Bez nich applyClientDiscount() liczył
+    // pozycje grupy bez rabatu klienta.
+    const pricing = data.pricing || {};
+    window.clientDiscountPercent = Number(pricing.clientDiscountPercent) || 0;
+    window.portalUsageDiscountPercent = Number(pricing.portalUsageDiscountPercent) || 0;
+    window.clientPriceMode = pricing.clientPriceMode || 'discount';
+    window.clientMarkupPercent = Number(pricing.clientMarkupPercent) || 0;
     return data.positions || [];
 }
 

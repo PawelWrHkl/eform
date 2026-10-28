@@ -38,7 +38,7 @@ import { stopSpin, startSpin } from "./components/hourglass.js";
 import { fillLocalPositionObject } from "./formTools/localStorageManager.js";
 import { getUid } from './formTools/getUid.js';
 import { generateShortJson } from './formTools/shortJsonGen.js';
-import { formatVatRateLabel, vatUsesClientPrice } from './formTools/vatLabel.js';
+import { formatVatRateLabel } from './formTools/vatLabel.js';
 import { applyCurrencyToParams, refreshSavedCurrencyLabels, withCurrencyLabel } from './formTools/currencyLabel.js';
 
 // Czy na tej stronie stoi już formularz zbudowany wcześniej — wtedy
@@ -783,8 +783,9 @@ function appendDeferredAttachmentAreaDivs(destinationNode) {
  * window.vatRate) + VAT-amount field (read-only, the VAT rate applied in
  * euros) + gross-value field (read-only) — all three filled by
  * pricesCalculator.js' applyVatToGrossValue() on every recalculation (HKL:
- * SUMA_BRUTTO, visible; any other org or group_user: SUB___WARTOSC_KONCOWA,
- * hidden like =HASLO() params — vatLabel.js vatUsesClientPrice()). None is a param.txt-driven field — same pattern as
+ * SUMA_BRUTTO; any other org or group: SUB___WARTOSC_KONCOWA — vatLabel.js
+ * vatUsesClientPrice()). All three are HIDDEN for everyone (VAT only in the
+ * order total). None is a param.txt-driven field — same pattern as
  * buildCommentSpace().
  *
  * Always built, even at vatRate === 0 (cross-border/export sale — a real,
@@ -850,14 +851,13 @@ export function buildVatFields(destinationNode) {
     value: '0'
   }, bruttoDiv);
 
-  // ⚠️ Poza HKL (i zawsze dla `group_user`) VAT liczy się od ceny klienta
-  // `SUB___WARTOSC_KONCOWA` i ma być ukryty tak jak parametry z `=HASLO()`
-  // (decyzja właściciela 2026-10-26). Pola MUSZĄ jednak powstać —
-  // `applyVatToGrossValue` bez `#WARTOSC_BRUTTO` nic nie liczy — więc tylko
-  // ich nie pokazujemy (ten sam `display: none` co `hideLockedParamRows`).
-  if (vatUsesClientPrice()) {
-    for (const div of [vatDiv, vatValueDiv, bruttoDiv]) div.style.display = 'none';
-  }
+  // ⚠️ Pola VAT pozycji są ukryte dla WSZYSTKICH: poza HKL i w grupach od
+  // 2026-10-26 (VAT od `SUB___WARTOSC_KONCOWA`, jak `=HASLO()`), u klienta HKL
+  // od 2026-10-27 (właściciel: „ma być ukryte jak w reszcie — tylko w total
+  // widoczne”). Pola MUSZĄ jednak powstać — `applyVatToGrossValue` bez
+  // `#WARTOSC_BRUTTO` nic nie liczy — więc tylko ich nie pokazujemy (ten sam
+  // `display: none` co `hideLockedParamRows`).
+  for (const div of [vatDiv, vatValueDiv, bruttoDiv]) div.style.display = 'none';
 
   appendDeferredAttachmentAreaDivs(destinationNode);
 

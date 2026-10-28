@@ -680,8 +680,8 @@ async function syncTotalPriceIfMissing(orderId, computedTotal, totalLabel, total
     const needUpdateHidden = isEmpty(dbHidden) && hiddenNum !== 0;
 
     if (needUpdateVisible || needUpdateHidden) {
-        const newVisible = needUpdateVisible ? `${totalLabel}: ${computedTotal.visible}${currencySuffix}` : dbVisible;
-        const newHidden = needUpdateHidden ? `${totalHiddenLabel}: ${computedTotal.hidden}${currencySuffix}` : dbHidden;
+        const newVisible = needUpdateVisible ? `${totalLabel}: ${Number(computedTotal.visible).toFixed(2)}${currencySuffix}` : dbVisible;
+        const newHidden = needUpdateHidden ? `${totalHiddenLabel}: ${Number(computedTotal.hidden).toFixed(2)}${currencySuffix}` : dbHidden;
         const updateQ = `UPDATE \`order\` SET total_price = ?, total_price_hidden = ? WHERE id = ?`;
         try {
             await updateQuery(updateQ, [newVisible, newHidden, orderId]);

@@ -2,7 +2,7 @@
 # Poziomy papier firmowy HKL dla faktur (img/invoice-background/HKL_POZIOM.pdf), 2026-10-23;
 # nagłówek o połowę niższy od 2026-10-26 (uwaga KK: góra faktury zajmowała 1/3 strony).
 # Wszystkie faktury mają być poziome, a jedyna pionowa formatka to HKL.pdf — ta jest
-# składana z jej wycinków, więc dane firmy, wyróżnienia i rachunki zostają 1:1.
+# składana z jej wycinków, więc dane firmy i rachunki zostają 1:1 (bez wyróżnień od 2026-10-27).
 #
 # Wymaga PyMuPDF (nie jest zależnością aplikacji — plik PDF generuje się raz):
 #   python3 -m venv /tmp/venv-pdf && /tmp/venv-pdf/bin/pip install pymupdf
@@ -29,18 +29,12 @@ def place(clip, x, y, scale):
 # --- Nagłówek
 logo = fitz.Rect(50, 40, 233, 108)
 dane = fitz.Rect(388, 40, 757, 108)
-odznaki = fitz.Rect(52, 955, 762, 1040)      # bez linii stopki oryginału
 s_head = 0.4
 top = 10
 head_h = logo.height * s_head
 place(logo, M, top, s_head)
-r_dane = place(dane, W - M - dane.width * s_head, top, s_head)
-# wyróżnienia na środku wolnego miejsca między logo a danymi
-x_l = M + logo.width * s_head
-x_r = r_dane.x0
-s_badge = min((x_r - x_l - 24) / odznaki.width, head_h / odznaki.height)
-bw = odznaki.width * s_badge
-place(odznaki, x_l + (x_r - x_l - bw) / 2, top + (head_h - odznaki.height * s_badge) / 2, s_badge)
+place(dane, W - M - dane.width * s_head, top, s_head)
+# Bez wyróżnień (Gepard Biznesu itd.): po zmniejszeniu ich podpisy miały 2,6 pt — nieczytelne (KK 2026-10-27)
 y_line_head = top + head_h + 5
 page.draw_line((M, y_line_head), (W - M, y_line_head), color=GREY, width=0.9)
 
@@ -56,4 +50,4 @@ place(banki, M, y_bank, s_bank)
 out.save(out_path, garbage=4, deflate=True)
 mm = lambda pt: round(pt * 25.4 / 72, 1)
 print(f'linia nagłówka {mm(y_line_head)} mm od góry, linia stopki {mm(H - y_line_foot)} mm od dołu, '
-      f'skala rachunków {s_bank:.2f}, wyróżnień {s_badge:.2f}')
+      f'skala rachunków {s_bank:.2f}')

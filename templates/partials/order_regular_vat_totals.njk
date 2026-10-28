@@ -1,0 +1,19 @@
+{# VAT CEN ZWYKŁYCH pod sumą „HKL Razem … netto” (decyzja właściciela
+   2026-10-27): „VAT x%: <kwota VAT>” i „Kwota brutto z VAT x%: <suma z VAT-em>”.
+   Osobny tor od VAT-u cen klienta `SUB___` (`partials/order_vat_totals.njk`,
+   złoty) — kwoty liczy serwer od `totalPrice.visible` = SUMA_BRUTTO pozycji
+   (mimo nazwy netto; `services/subPrices.js attachRegularVatTotals`). Przy
+   wyłączonym VAT-cie ich nie ma i wiersze się nie pokazują.
+   Włączane `{% include %}` zaraz za sumą „HKL Razem” — dziedziczy jej kontekst:
+   `regularVatFactor` to mnożnik, którym szła ta suma (`priceFactor` albo 1),
+   `regularVatRowClass` — dodatkowa klasa wiersza (`col-12` w `order_prices.njk`). #}
+{% if totalPrice and totalPrice.regularVat %}
+<div class="total-price d-flex justify-content-end align-items-center {{ regularVatRowClass }}">
+    <span class='total price-label col-3 text-center'>
+        {{ __('order.total_vat') }} {{ totalPrice.regularVatRate }}%: {{ totalPrice.regularVat | applyFactor(regularVatFactor) }}{{ currencySuffix | default('€') }}</span>
+</div>
+<div class="total-price d-flex justify-content-end align-items-center {{ regularVatRowClass }}">
+    <span class='total price-label col-3 text-center'>
+        {{ __('order.total_gross_incl_vat') }} {{ totalPrice.regularVatRate }}%: {{ totalPrice.regularGross | applyFactor(regularVatFactor) }}{{ currencySuffix | default('€') }}</span>
+</div>
+{% endif %}

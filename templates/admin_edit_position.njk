@@ -108,6 +108,14 @@
                   {% endblock content %}
                   {% block scripts %}
                     {# VAT block gated by features.vat (config.js) — see form.njk. #}
+                    {# Rabat klienta grupy / narzut — jak w edit_position.njk. Bez tego
+                       przeliczenie admina zapisywało pozycję grupy bez rabatu klienta. #}
+                    <script>
+                      window.clientDiscountPercent = {{ clientDiscountPercent | default(0) | dump | safe }};
+                      window.portalUsageDiscountPercent = {{ portalUsageDiscountPercent | default(0) | dump | safe }};
+                      window.clientPriceMode = {{ clientPriceMode | default('discount') | dump | safe }};
+                      window.clientMarkupPercent = {{ clientMarkupPercent | default(0) | dump | safe }};
+                    </script>
                     {% if vatEnabled %}
                     <script>
                       window.vatEnabled = true;

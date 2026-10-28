@@ -34,12 +34,9 @@ module.exports = {
       // Filtr do mnożenia cen przez faktor (wizualny, tylko dla pracownika)
       env.addFilter('pdfValueParts', pdfValueParts);
 
-      env.addFilter('applyFactor', function (value, factor) {
-        if (!factor || factor === 1 || !value) return value;
-        const num = parseFloat(value);
-        if (isNaN(num)) return value;
-        return (num * factor).toFixed(2);
-      });
+      env.addFilter('applyFactor', require('./services/currency').applyFactor);
+      // Kwota zawsze z dwoma miejscami po przecinku (60.2 -> 60.20).
+      env.addFilter('money', require('./services/currency').toMoney);
 
     }
     return env;

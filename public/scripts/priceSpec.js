@@ -2,7 +2,9 @@
  * Okno „Specyfikacja ceny" w podglądzie zlecenia (przycisk `[data-price-spec-open]`
  * w templates/order.njk). Treść liczy i renderuje serwer
  * (`GET /orders/order/:id/price-spec`, services/priceSpec) — tu tylko okno,
- * drukowanie i PDF (`/orders/order/:id/price-spec.pdf`).
+ * drukowanie i PDF (`/orders/order/:id/price-spec.pdf`). Drugi przycisk
+ * (`data-price-spec-mode="advanced"`) otwiera to samo okno ze specyfikacją
+ * zaawansowaną — `?mode=advanced` w obu adresach.
  *
  * Natywny `<dialog>`: Esc, blokada tła i powrót fokusu na przycisk po
  * zamknięciu bez własnej obsługi.
@@ -102,19 +104,21 @@ async function openPriceSpec(button) {
     const orderId = button.dataset.orderId;
     if (!orderId) return;
     const ui = readUi(button);
+    const advanced = button.dataset.priceSpecMode === 'advanced';
+    const query = advanced ? '?mode=advanced' : '';
     ensureStyles();
     if (!dialog) dialog = buildDialog(ui);
     const { node, body, title, pdfLink, printBtn } = dialog;
 
-    title.textContent = ui.title || '';
-    pdfLink.href = `/orders/order/${encodeURIComponent(orderId)}/price-spec.pdf`;
+    title.textContent = (advanced ? ui.advancedTitle : ui.title) || '';
+    pdfLink.href = `/orders/order/${encodeURIComponent(orderId)}/price-spec.pdf${query}`;
     pdfLink.hidden = true;
     printBtn.hidden = true;
     showLoading(body, ui);
     if (!node.open) node.showModal();
 
     try {
-        const response = await fetch(`/orders/order/${encodeURIComponent(orderId)}/price-spec`, {
+        const response = await fetch(`/orders/order/${encodeURIComponent(orderId)}/price-spec${query}`, {
             headers: { Accept: 'text/html' },
             credentials: 'same-origin'
         });

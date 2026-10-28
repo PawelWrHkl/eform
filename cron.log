@@ -4456,3 +4456,41 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-27 10:35:01 - Start ===
 === 2026-10-27 10:35:01 - Dodawanie zmian do commita ===
+[main 40d0cb8] Automatic commit 2026-10-27 10:35
+ 79 files changed, 14371 insertions(+), 812 deletions(-)
+ rewrite configtest/nightly.out (65%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 docs/EXTRAFUNC.md
+ create mode 100644 middleware/contextTrace.js
+ create mode 100755 public/img/order_again.png
+ create mode 100644 public/scripts/formTools/extraFunctions/extraValue.js
+ create mode 100644 public/scripts/formTools/extraFunctions/index.js
+ create mode 100644 public/scripts/formTools/extraFunctions/parseExtraFunc.js
+ create mode 100644 public/scripts/formTools/extraFunctions/popupInput/integerValue.js
+ create mode 100644 public/scripts/formTools/extraFunctions/popupInput/popupInput.js
+ create mode 100644 public/scripts/formTools/extraFunctions/popupInput/popupInputDialog.js
+ create mode 100644 public/scripts/formTools/extraFunctions/registry.js
+ create mode 100644 public/scripts/headerMenu.js
+ create mode 100644 public/styles/extra-functions.css
+ create mode 100644 services/__tests__/extraFunctions.test.js
+ create mode 100644 services/__tests__/groupVatRate.test.js
+ create mode 100644 services/assistant/__tests__/assortment.test.js
+ create mode 100644 services/assistant/assortment.js
+ create mode 100644 templates/partials/order_vat_totals.njk
+=== 2026-10-27 10:35:03 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 65.25 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 111 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 68 high, 34 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   15ad5bb..40d0cb8  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-27 10:35:11 - Koniec ===
+=== 2026-10-27 12:00:01 - Start ===
+=== 2026-10-27 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-28 10:35:01 - Start ===
+=== 2026-10-28 10:35:01 - Dodawanie zmian do commita ===

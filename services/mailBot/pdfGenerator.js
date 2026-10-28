@@ -10,9 +10,14 @@ const { log } = require('../../utils/logging');
 const { translateToPolish } = require('./commentTranslator');
 const { isProductionVersion, shouldForceProductionSend } = require('../../utils/productionSendGuard');
 const { pdfValueParts } = require('../../utils/pdfValueParts');
+const { applyFactor, toMoney } = require('../currency');
 
 function registerPdfNunjucksFilters(env) {
   env.addFilter('pdfValueParts', pdfValueParts);
+  // Sumy w `order-pdf.njk` idą przez `applyFactor`/`money` — bez rejestracji
+  // render pada na „filter not found” (te same filtry co nunjucks-setup.js).
+  env.addFilter('applyFactor', applyFactor);
+  env.addFilter('money', toMoney);
 }
 
 async function generateExcel(orderData) {
@@ -216,7 +221,7 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
   if (withoutPrices && renderContext.sendData) {
     // Sumy idą do szablonu przez `sendData` — czyścimy je tutaj, żeby żaden
     // wariant wołającego (mail, korekta, import) nie przemycił kwoty w stopce.
-    renderContext.sendData = { ...renderContext.sendData, total: null, total_hidden: null, total_sub: null, total_client_discount: null };
+    renderContext.sendData = { ...renderContext.sendData, total: null, total_hidden: null, total_sub: null, total_client_discount: null, total_vat: null, total_gross: null };
   }
 
   const html = env.render('order-pdf.njk', renderContext);
@@ -317,7 +322,7 @@ function renderOrderPdfHtml({
     orderDetails,
     cleanOrderItems,
     logoPath: 'data:image/png;base64,test',
-    sendData: withoutPrices && sendData ? { ...sendData, total: null, total_hidden: null, total_sub: null, total_client_discount: null } : sendData,
+    sendData: withoutPrices && sendData ? { ...sendData, total: null, total_hidden: null, total_sub: null, total_client_discount: null, total_vat: null, total_gross: null } : sendData,
     orderNr,
     prices,
     maxProdDays,

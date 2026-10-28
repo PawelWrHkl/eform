@@ -38,6 +38,7 @@ const { selectQuery } = require('../db/core');
 const { log } = require('../utils/logging');
 const { resolveClientDiscountForOrder, resolveClientDiscountForPosition } = require('./groupDiscount');
 const { isEnabled: isDiscountSwitchEnabled } = require('./portalUsageDiscountSwitch');
+const { resolveClientPricingForOrder } = require('./groupPriceMode');
 
 /** Kolumna niosąca wysokość rabatu (punkty procentowe). */
 const EXTRA_DISCOUNT_COLUMN = 'extra_rabat';
@@ -186,6 +187,27 @@ async function resolveCombinedDiscountForPosition(positionId, deps = {}) {
     return { total: base + portalBonus, base, portalBonus };
 }
 
+/**
+ * Globale ceny klienta dla formularza pozycji (`window.clientDiscountPercent`,
+ * `portalUsageDiscountPercent`, `clientPriceMode`, `clientMarkupPercent`) —
+ * te same, które form.njk / edit_position.njk wstrzykują przy ręcznej edycji.
+ *
+ * ⚠️ „Przelicz wszystkie pozycje” (public/scripts/recalculateOrder.js) działa
+ * na stronie zlecenia, gdzie tych globali nie ma — do 2026-10-27 przeliczał
+ * pozycje grupy BEZ rabatu klienta (zostawał rabat cennikowy). Dlatego
+ * `positions-data` oddaje je razem z pozycjami.
+ */
+async function resolveFormPricingForOrder(orderId) {
+    const { total, portalBonus } = await resolveCombinedDiscountForOrder(orderId);
+    const { mode, markupPercent } = await resolveClientPricingForOrder(orderId);
+    return {
+        clientDiscountPercent: total,
+        portalUsageDiscountPercent: portalBonus,
+        clientPriceMode: mode,
+        clientMarkupPercent: markupPercent
+    };
+}
+
 module.exports = {
     getUserExtraDiscount,
     normalizeExtraDiscount,
@@ -194,6 +216,7 @@ module.exports = {
     resolvePortalDiscountForPosition,
     resolveCombinedDiscountForOrder,
     resolveCombinedDiscountForPosition,
+    resolveFormPricingForOrder,
     EXTRA_DISCOUNT_COLUMN,
     MAX_EXTRA_DISCOUNT_PERCENT
 };

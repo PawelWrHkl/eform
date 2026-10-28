@@ -76,7 +76,7 @@
                 {{ __('order.discount') }}: <span class="pdf-val">{{ discountInfo.discountValue }}{% if discountInfo.type == 'percentage' %}%{% else %} €{% endif %}</span>
               </div>
               <div style="margin-top: 5px; font-weight: bold; background: rgba(235, 232, 75, 0.8); color: #333; padding: 6px 14px; border-radius: 6px; display: inline-block;">
-                {{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result }} €</span>
+                {{ __('order.total_after_discount') }}: <span class="pdf-val">{{ discountInfo.result | applyFactor(1) }} €</span>
               </div>
             {% endif %}
             {% block scripts %}

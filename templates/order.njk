@@ -56,7 +56,7 @@
                                                    dla grupy-matki (`isGroup`); konto podrzędne (`isGroupShop`) nadal go nie ma.
                                                    Od 2026-10-27 grupy go nie mają: ceny wg cennika widzą zawsze, a kłódka
                                                    odsłania złoty wiersz (rabat, po rabacie, VAT, brutto). #}
-                                                {% if (isGroup or isGroupShop) and not hidePrices %}
+                                                {% if (isGroup or isGroupShop) and not hidePrices and groupDiscountLock %}
                                                     <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
                                                         <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
                                                     </button>
@@ -75,6 +75,11 @@
                                                     {% if priceSpecUi and not hidePrices and orderDetails and orderDetails.id %}
                                                         <button type="button" class="btn has-tooltip" data-price-spec-open data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.button }}" aria-label="{{ priceSpecUi.button }}" aria-haspopup="dialog">
                                                             <img src="/img/price-spec.svg" alt="" class='icon'></button>
+                                                        {# Specyfikacja zaawansowana — tylko po kłódce (cen albo rabatu grupy); serwer też odmawia bez niej. #}
+                                                        {% if prices or discountPricesUnlocked %}
+                                                        <button type="button" class="btn has-tooltip" data-price-spec-open data-price-spec-mode="advanced" data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.advancedButton }}" aria-label="{{ priceSpecUi.advancedButton }}" aria-haspopup="dialog">
+                                                            <img src="/img/price-spec-advanced.svg" alt="" class='icon'></button>
+                                                        {% endif %}
                                                         <script type="module" src="/scripts/priceSpec.js?v={{ assetVersion }}"></script>
                                                     {% endif %}
                                                     <button class="btn has-tooltip" data-tooltip="{{ __('base.generate_pdf_tooltip') }}" id='print-button'>
@@ -142,7 +147,7 @@
                                                    dla grupy-matki (`isGroup`); konto podrzędne (`isGroupShop`) nadal go nie ma.
                                                    Od 2026-10-27 grupy go nie mają: ceny wg cennika widzą zawsze, a kłódka
                                                    odsłania złoty wiersz (rabat, po rabacie, VAT, brutto). #}
-                                                                    {% if (isGroup or isGroupShop) and not hidePrices %}
+                                                                    {% if (isGroup or isGroupShop) and not hidePrices and groupDiscountLock %}
                                                                         <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
                                                                             <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
                                                                         </button>
@@ -158,6 +163,11 @@
                                                                         {% if priceSpecUi and not hidePrices and orderDetails and orderDetails.id %}
                                                                             <button type="button" class="btn has-tooltip" data-price-spec-open data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.button }}" aria-label="{{ priceSpecUi.button }}" aria-haspopup="dialog">
                                                                                 <img src="/img/price-spec.svg" alt="" class='icon'></button>
+                                                                            {# Specyfikacja zaawansowana — tylko po kłódce (cen albo rabatu grupy); serwer też odmawia bez niej. #}
+                                                                            {% if prices or discountPricesUnlocked %}
+                                                                            <button type="button" class="btn has-tooltip" data-price-spec-open data-price-spec-mode="advanced" data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.advancedButton }}" aria-label="{{ priceSpecUi.advancedButton }}" aria-haspopup="dialog">
+                                                                                <img src="/img/price-spec-advanced.svg" alt="" class='icon'></button>
+                                                                            {% endif %}
                                                                             <script type="module" src="/scripts/priceSpec.js?v={{ assetVersion }}"></script>
                                                                         {% endif %}
                                                                         <button class="btn has-tooltip" data-tooltip="{{ __('base.generate_short_pdf_tooltip') }}" id='short-print-button'>
@@ -622,28 +632,61 @@
                                                                                                         </div>
                                                                                                     {% endfor %}
                                                                                                     {% if totalPrice and not hidePrices %}
-                                                                                                        <div id='total-container' data-sub-total="{{ totalPrice.subVisible or 0 }}" data-prices-unlocked="{{ 'true' if prices else 'false' }}">
+                                                                                                        <div id='total-container' class="totals-split" data-sub-total="{{ totalPrice.subVisible or 0 }}" data-prices-unlocked="{{ 'true' if prices else 'false' }}">
+                                                                                                        {# Stopka w DWÓCH KOLUMNACH (właściciel 2026-10-27): lewa = sumy cen zwykłych (P),
+                                                                                                        prawa = sumy cen klienta `SUB___` (N) z ich złotymi wierszami i VAT-em; gdy widać
+                                                                                                        tylko jeden zestaw, jego kolumna stoi przy prawej krawędzi (CSS `.totals-split`).
+                                                                                                        Kolejność w DOM bez zmian (najpierw P, potem N) — `order.js getPrices()` i
+                                                                                                        `setDiscount.js getTotal()` czytają `.total` po kolei. #}
                                                                                                             {# Grupa-matka i jej konto podrzędne (każdego typu) — stopka jak u klienta
                                                                                                                organizacji spoza HKL (decyzja właściciela 2026-10-27):
                                                                                                                1. „HKL Razem” — ceny zakupu, tylko matka (konto podrzędne NIE MOŻE ich widzieć),
                                                                                                                2. „Razem wg cennika brutto” — suma `SUB___` (`totalPrice.subVisible`),
                                                                                                                a pod kłódką „Pokaż cenę po rabacie” złote, jak ceny ukryte:
                                                                                                                3. „Razem po rabacie … netto” — suma `SUB___WARTOSC_KONCOWA` (`subLocked`),
-                                                                                                               4. „VAT x%” i 5. brutto — `partials/order_vat_totals.njk`.
+                                                                                                               VAT-u cen klienta grupa (matka i konto podrzędne) NIE widzi nigdy (właściciel
+                                                                                                               2026-10-27, `dropSubVatForGroups`); VAT cen zwykłych matki — przy „HKL Razem”.
                                                                                                                Dawna suma „Wartość po rabacie” (`afterClientDiscount`) odpadła: dla pozycji
                                                                                                                z tym starym wierszem `calcSubTotals` i tak bierze go do `subLocked`. #}
-                                                                                                            {% if isGroup or isGroupShop %}
+                                                                                                            {# Stopka = to, co widać w tabeli (zgłoszenie 2026-10-09): ceny zwykłe
+                                                                                                               i SUB___ → OBIE sumy („HKL Razem” = ceny zwykłe, „Razem” = ceny klienta
+                                                                                                               SUB___), same SUB___ → tylko suma SUB___, same zwykłe → tylko zwykła.
+                                                                                                               Warunki 1:1 z wierszami tabeli wyżej (wiersz cen zwykłych i `sub-params-row`). #}
+                                                                                                        {% if not (isGroup or isGroupShop) %}
+                                                                                                            {% set showRegularTotal = not isGroupShop and not (isClient and hasSubPrices) and not (hasSubPriceToggle and hasSubPrices and not showCatalogPrices) %}
+                                                                                                            {% set showSubTotal = isGroupShop or (hasSubPrices and (isClient or hasSubPriceToggle)) %}
+                                                                                                        {% endif %}
+                                                                                                        {% set totalsRegular %}
+                                                                                                        {% if isGroup or isGroupShop %}
                                                                                                                 {% if not isGroupShop %}
                                                                                                                 <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                     <span class='total price-label col-3 text-center'>
                                                                                                                         {% if totalPrice.visible and totalPrice.visible != '0.00' %}
-                                                                                                                            HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
+                                                                                                                            HKL {{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}{% if totalPrice.regularVat %} netto{% endif %}
                                                                                                                         {% else %}
                                                                                                                             {{ __('order.according_to_price') }}
                                                                                                                         {% endif %}
                                                                                                                     </span>
                                                                                                                 </div>
+                                                                                                                {% set regularVatFactor = priceFactor %}{% set regularVatRowClass = '' %}
+                                                                                                                {% include 'partials/order_regular_vat_totals.njk' %}
                                                                                                                 {% endif %}
+                                                                                                        {% elif showRegularTotal %}
+                                                                                                            <div class="total-price d-flex justify-content-end align-items-center">
+                                                                                                                <span class='total price-label col-3 text-center'>
+                                                                                                                    {% if totalPrice.visible != '0.00' %}
+                                                                                                                    {% if showSubTotal or not (isClient or hasSubPriceToggle or canViewSubPrices or viewAsOrganization) %}HKL {% endif %}{{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}{% if totalPrice.regularVat %} netto{% endif %}
+                                                                                                                    {% else %}
+                                                                                                                        {{ __('order.according_to_price') }}
+                                                                                                                    {% endif %}
+                                                                                                                </span>
+                                                                                                            </div>
+                                                                                                            {% set regularVatFactor = priceFactor %}{% set regularVatRowClass = '' %}
+                                                                                                            {% include 'partials/order_regular_vat_totals.njk' %}
+                                                                                                        {% endif %}
+                                                                                                        {% endset %}
+                                                                                                        {% set totalsSub %}
+                                                                                                        {% if isGroup or isGroupShop %}
                                                                                                                 {% if hasSubPrices or isGroupShop %}
                                                                                                                 <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                     <span class='total price-label sub-total col-3 text-center'>
@@ -664,25 +707,7 @@
                                                                                                                 {% set vatTotalsApplyFactor = true %}
                                                                                                                 {% include 'partials/order_vat_totals.njk' %}
                                                                                                                 {% endif %}
-                                                                                                            {% else %}
-                                                                                                            {# Stopka = to, co widać w tabeli (zgłoszenie 2026-10-09): ceny zwykłe
-                                                                                                               i SUB___ → OBIE sumy („HKL Razem” = ceny zwykłe, „Razem” = ceny klienta
-                                                                                                               SUB___), same SUB___ → tylko suma SUB___, same zwykłe → tylko zwykła.
-                                                                                                               Warunki 1:1 z wierszami tabeli wyżej (wiersz cen zwykłych i `sub-params-row`). #}
-                                                                                                            {% set showRegularTotal = not isGroupShop and not (isClient and hasSubPrices) and not (hasSubPriceToggle and hasSubPrices and not showCatalogPrices) %}
-                                                                                                            {% set showSubTotal = isGroupShop or (hasSubPrices and (isClient or hasSubPriceToggle)) %}
-                                                                                                            {% if showRegularTotal %}
-                                                                                                            <div class="total-price d-flex justify-content-end align-items-center">
-                                                                                                                <span class='total price-label col-3 text-center'>
-                                                                                                                    {% if totalPrice.visible != '0.00' %}
-                                                                                                                    {% if showSubTotal or not (isClient or hasSubPriceToggle or canViewSubPrices or viewAsOrganization) %}HKL {% endif %}{{ __('order.total') }}: {{ totalPrice.visible | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }}
-                                                                                                                    {% else %}
-                                                                                                                        {{ __('order.according_to_price') }}
-                                                                                                                    {% endif %}
-                                                                                                                </span>
-                                                                                                            </div>
-                                                                                                            {% endif %}
-                                                                                                            {% if showSubTotal %}
+                                                                                                        {% elif showSubTotal %}
                                                                                                             <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                 <span class='total price-label sub-total col-3 text-center'>
                                                                                                                     {% if totalPrice.subVisible and totalPrice.subVisible != 0 %}
@@ -692,8 +717,7 @@
                                                                                                                     {% endif %}
                                                                                                                 </span>
                                                                                                             </div>
-                                                                                                            {% endif %}
-                                                                                                            {% endif %}
+                                                                                                        {% endif %}
                                                                                                             {% if hasSubPriceToggle and hasSubPrices and totalPrice.subLocked and totalPrice.subLocked != 0 and prices %}
                                                                                                                 <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                     <span class='total gold price-label col-3 text-center'>
@@ -703,6 +727,9 @@
                                                                                                                 {% set vatTotalsApplyFactor = true %}
                                                                                                                 {% include 'partials/order_vat_totals.njk' %}
                                                                                                             {% endif %}
+                                                                                                        {% endset %}
+                                                                                                        {% if totalsRegular | trim %}<div class="totals-col totals-col--regular">{{ totalsRegular | safe }}</div>{% endif %}
+                                                                                                        {% if totalsSub | trim %}<div class="totals-col totals-col--sub">{{ totalsSub | safe }}</div>{% endif %}
                                                                                                             </div>
                                                                                                         </div>
                                                                                                     {% endif %}

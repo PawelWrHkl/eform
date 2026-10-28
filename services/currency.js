@@ -93,7 +93,7 @@ function currencySuffix(code) {
  * Liczba przechodzi bez zmian (bez zaokrąglania) — formatuje ją wołający.
  */
 function formatAmount(amount, code) {
-    return `${amount}${currencySuffix(code)}`;
+    return `${toMoney(amount)}${currencySuffix(code)}`;
 }
 
 // ─── Etykiety ───────────────────────────────────────────────────────────────
@@ -319,7 +319,29 @@ async function setUserCurrency(userId, raw, deps = {}) {
     return { ok: true, value };
 }
 
+/** Kwota zawsze z dwoma miejscami po przecinku (60.2 → 60.20); nie-liczby zostają bez zmian. */
+function toMoney(value) {
+    if (value === null || value === undefined || value === '') return value;
+    const num = typeof value === 'number' ? value : (/^-?\d+(\.\d+)?$/.test(String(value).trim()) ? parseFloat(value) : NaN);
+    return Number.isFinite(num) ? num.toFixed(2) : value;
+}
+
+/**
+ * Filtr szablonów `applyFactor`: kwota × mnożnik pracownika, zawsze z dwoma
+ * miejscami. Wspólny dla `nunjucks-setup.js` i osobnych środowisk PDF
+ * (`mailBot/pdfGenerator.js`, krótki PDF w `routes/orders.js`) — szablony
+ * `order_to_print.njk`/`order-pdf.njk` renderują się w każdym z nich.
+ */
+function applyFactor(value, factor) {
+    if (!value) return value;
+    const num = parseFloat(value);
+    if (isNaN(num)) return value;
+    return (num * (factor || 1)).toFixed(2);
+}
+
 module.exports = {
+    toMoney,
+    applyFactor,
     DEFAULT_CURRENCY,
     CURRENCIES,
     normalizeCurrency,

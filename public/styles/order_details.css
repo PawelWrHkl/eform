@@ -854,6 +854,43 @@ html.nav-collapsed #order-nav {
     box-shadow: 0 3px 5px var(--brand-primary-glow);
 }
 
+/* Stopka sum w DWÓCH KOLUMNACH (właściciel 2026-10-27; order.njk, order_prices.njk):
+   lewa = sumy cen zwykłych (P), prawa = sumy cen klienta SUB___ (N) z ich
+   złotymi wierszami i VAT-em. Gdy widać tylko jeden zestaw, jego kolumna stoi
+   przy prawej krawędzi. Wiersze w kolumnie mają jedną szerokość (dawne `col-3`). */
+#total-container.totals-split {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: flex-start;
+}
+
+#total-container.totals-split > .totals-col {
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 calc(25% + 48px);
+    min-width: 300px;
+}
+
+#total-container.totals-split > .totals-col > .total-price > .total {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
+}
+
+/* Rabat zamówienia (`setDiscount.js`) dokleja swój wiersz na końcu kontenera —
+   pod kolumnami, na całą szerokość. */
+#total-container.totals-split > #discount-space {
+    flex-basis: 100%;
+}
+
+@media (max-width: 576px) {
+    #total-container.totals-split > .totals-col {
+        flex-basis: 100%;
+        min-width: 0;
+    }
+}
+
 /* Suma "Wartość po rabacie" — ten sam bursztynowy akcent co wiersz rabatu
    klienta przy pozycji (.client-discount-row), żeby kolor był spójny między
    stopką a wierszem, z którego ta suma się liczy. */

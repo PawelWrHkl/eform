@@ -108,12 +108,15 @@ module.exports = {
     priceSpec: envSwitch(process.env.PRICE_SPEC_ENABLED),
 
     // Okno „Specyfikacja ceny" w podglądzie zlecenia (services/priceSpec) —
-    // rozpisanie ceny pozycji na cenę bazową i dopłaty, z PDF-em. Admin widzi
-    // je zawsze; `PRICE_SPEC_CLIENTS_ENABLED=true` włącza przycisk WSZYSTKIM
-    // (klienci, ownerzy, grupy) — decyzja szefa: „jak będzie porządnie
-    // działało, to włączymy klientowi". Niezależne od `priceSpec` wyżej
-    // (stare wiersze „-spec"). Brak zmiennej = tylko admin.
-    priceSpecClients: envSwitch(process.env.PRICE_SPEC_CLIENTS_ENABLED),
+    // rozpisanie ceny pozycji na cenę bazową i dopłaty, z PDF-em. Od 2026-10-27
+    // widzi ją KAŻDY (klienci, ownerzy, grupy, konta podrzędne) — polecenie
+    // właściciela: „każdy klient powinien widzieć specyfikację, nie tylko
+    // admin". Brak zmiennej = włączone; `PRICE_SPEC_CLIENTS_ENABLED=false`
+    // (off/0) to wyłącznik awaryjny — wtedy tylko admin. Niezależne od
+    // `priceSpec` wyżej (stare wiersze „-spec").
+    priceSpecClients: String(process.env.PRICE_SPEC_CLIENTS_ENABLED ?? '').trim() === ''
+      ? true
+      : envSwitch(process.env.PRICE_SPEC_CLIENTS_ENABLED),
   },
 
   // ── Eksport klientów do systemu zewnętrznego ───────────────────────────

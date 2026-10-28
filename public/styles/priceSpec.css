@@ -360,3 +360,46 @@ dialog.price-spec-modal[open] { display: flex; flex-direction: column; }
 @media print {
     body.price-spec-printing .price-spec-modal__body .price-spec h1.price-spec__title { display: block; }
 }
+
+/* Rabaty: kwoty na minusie w kolorze akcentu, sekcja oddzielona jak dopłaty. */
+.price-spec__line--discount td { color: var(--ps-accent); }
+
+/* ── Specyfikacja zaawansowana: składnik | wartość | rabat | wartość po rabacie ── */
+.price-spec__scroll { overflow-x: auto; }
+
+.price-spec__table--advanced thead th {
+    padding: 2px 0 6px 16px;
+    border-bottom: 1px solid var(--ps-border);
+    color: var(--ps-faint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: right;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.price-spec__table--advanced thead th:first-child { padding-left: 0; text-align: left; }
+
+.price-spec__table--advanced .price-spec__section:first-of-type .price-spec__section-row th,
+.price-spec__table--advanced .price-spec__section:first-of-type .price-spec__section-row td { border-top: 0; }
+
+.price-spec__adv-disc .price-spec__adv-rate { color: var(--ps-accent); font-weight: 600; }
+.price-spec__adv-disc .price-spec__adv-amount { color: var(--ps-accent); }
+.price-spec__line .price-spec__adv-disc .price-spec__adv-rate { font-weight: 400; }
+
+.price-spec__adv-after { color: var(--ps-text); }
+.price-spec__line .price-spec__adv-after { color: var(--ps-muted); }
+.price-spec__total-row .price-spec__adv-after { color: var(--ps-accent); }
+
+.price-spec__adv-note {
+    margin: 0 0 8px;
+    color: var(--ps-faint);
+    font-size: 12px;
+}
+
+.price-spec__adv-note b { color: var(--ps-muted); font-weight: 600; }
+
+@media (max-width: 720px) {
+    .price-spec__table--advanced { min-width: 560px; }
+}

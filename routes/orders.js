@@ -9,9 +9,9 @@ const orderService = require('../services/orderService.js');
 const ownerService = require('../services/owner.js');
 const { getActiveGroupShopId } = require('../services/groupContext');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
-const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
+const { resolveCombinedDiscountForOrder, resolveFormPricingForOrder } = require('../services/portalUsageDiscount');
 const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
-const { currencyLocalsForOrder, formatAmount } = require('../services/currency');
+const { currencyLocalsForOrder, formatAmount, withCurrencyLabel } = require('../services/currency');
 const { notifyFirstOrderIfApplicable } = require('../services/firstOrderMailer');
 const mailBot = require('../services/mailBot/mailBot');
 const path = require('path');
@@ -143,17 +143,35 @@ const {
     resolveGroupClientPdfPriceView,
     buildPdfSendDataTotals,
     attachSubVatTotals,
+    attachRegularVatTotals,
+    dropSubVatForGroups,
     attachGroupGoldValues
 } = require('../services/subPrices');
 
 /**
- * Złoty wiersz pozycji grupy (rabat matki, po rabacie —
+ * Złoty wiersz pozycji grupy (rabat matki, cena i dopłata po rabacie, wartość 1 szt. i × ilość, NETTO —
  * `services/subPrices.js attachGroupGoldValues`) w podglądzie zlecenia grupy-
- * -matki i jej konta podrzędnego. Bez VAT-u pozycji (od 27.10).
+ * -matki i jej konta podrzędnego. Bieżący rabat konta (`clientPct`) służy tylko,
+ * gdy pozycja nie ma zapisanego rabatu.
  */
-function attachGroupGoldRows(res, cleanOrderItems) {
+async function attachGroupGoldRows(req, res, cleanOrderItems, priceCurrency) {
     if (!(res.locals.isGroup || res.locals.isGroupShop)) return;
-    attachGroupGoldValues(cleanOrderItems);
+    const clientPct = await resolveClientDiscountForOrder(req.params.orderId);
+    // Kłódka „Pokaż cenę po rabacie” tylko gdy zlecenie ma rabat konta podrzędnego
+    // (`group_user.discount_percent` > 0). Zamówienie złożone wprost przez grupę
+    // (bez konta podrzędnego) albo konto bez rabatu — bez kłódki (templates/order.njk).
+    res.locals.groupDiscountLock = clientPct > 0;
+    attachGroupGoldValues(cleanOrderItems, {
+        clientPct,
+        labels: {
+            percent: req.__('form.client_discount_label'),
+            unit: withCurrencyLabel(req.__('order.unit_after_discount_label'), priceCurrency),
+            surchargePercent: req.__('order.surcharge_discount_label'),
+            surcharge: withCurrencyLabel(req.__('order.surcharge_after_discount_label'), priceCurrency),
+            unitValue: withCurrencyLabel(req.__('order.unit_value_after_discount_label'), priceCurrency),
+            gross: withCurrencyLabel(req.__('order.gross_after_discount_label'), priceCurrency)
+        }
+    });
 }
 
 
@@ -171,7 +189,8 @@ router.use(async (req, res, next) => {
         const t = priceSpecTranslator(req.getLocale ? req.getLocale() : 'pl');
         res.locals.priceSpecUi = {
             button: t('button'), title: t('title'), print: t('print'), pdf: t('pdf'),
-            close: t('close'), loading: t('loading'), error: t('error')
+            close: t('close'), loading: t('loading'), error: t('error'),
+            advancedButton: t('advanced_button'), advancedTitle: t('advanced_title')
         };
     }
     if (req.session?.user?.isOwner) {
@@ -674,7 +693,9 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         totalPrice.subLocked = subTotals.subLocked;
         // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
         await attachSubVatTotals(totalPrice, orderDetails.id);
-        attachGroupGoldRows(res, cleanOrderItems);
+        await attachRegularVatTotals(totalPrice, orderDetails.id);
+        dropSubVatForGroups(totalPrice, !!(res.locals.isGroup || res.locals.isGroupShop));
+        await attachGroupGoldRows(req, res, cleanOrderItems, currencyLocals.priceCurrency);
         // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
         // które widać przy pozycjach (services/subPrices.js).
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
@@ -808,7 +829,9 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         totalPrice.subLocked = subTotals.subLocked;
         // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
         await attachSubVatTotals(totalPrice, orderDetails.id);
-        attachGroupGoldRows(res, cleanOrderItems);
+        await attachRegularVatTotals(totalPrice, orderDetails.id);
+        dropSubVatForGroups(totalPrice, !!(res.locals.isGroup || res.locals.isGroupShop));
+        await attachGroupGoldRows(req, res, cleanOrderItems, currencyLocals.priceCurrency);
         // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
         // które widać przy pozycjach (services/subPrices.js).
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
@@ -930,6 +953,8 @@ async function loadPriceSpec(req, res) {
         discountPricesUnlocked: remembered ? remembered.discountUnlocked : !!req.session.user?.showDiscountPrices,
         priceFactor: l.priceFactor
     };
+    // Specyfikacja zaawansowana (rabat przy każdym składniku) — tylko po kłódce, tak jak jej przycisk.
+    if (req.query.mode === 'advanced' && !view.prices && !view.discountPricesUnlocked) return { status: 403 };
 
     const scriptsByGroup = await resolveScriptsByGroup({ orderId, groups: items.map((i) => i.asortment_group_number) });
     const spec = buildOrderPriceSpec({
@@ -940,7 +965,9 @@ async function loadPriceSpec(req, res) {
         currency: priceCurrency,
         scriptsByGroup,
         // Kody cennika (`TruFit`, `U25PG4`) tylko dla HKL — klientowi nic nie mówią.
-        showCodes: !!req.session.user?.isAdmin
+        showCodes: !!req.session.user?.isAdmin,
+        // Specyfikacja zaawansowana (drugi przycisk): przy każdym składniku rabat i wartość po rabacie.
+        advanced: req.query.mode === 'advanced'
     });
     return { status: 200, spec };
 }
@@ -1113,6 +1140,8 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         totalPrice.subLocked = subTotals.subLocked;
         // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
         await attachSubVatTotals(totalPrice, order.orderDetails.id);
+        await attachRegularVatTotals(totalPrice, order.orderDetails.id);
+        dropSubVatForGroups(totalPrice, !!(res.locals.isGroup || res.locals.isGroupShop));
         // Suma „wartości po rabacie klienta" — sumujemy dokładnie te liczby,
         // które widać przy pozycjach (services/subPrices.js).
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
@@ -1176,7 +1205,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
                 translate: __,
                 currency: priceCurrency,
                 withSubTotal: !isGroupPdf,
-                vatRate: hideClientVat ? null : totalPrice.vatRate
+                vatRate: totalPrice.vatRate
             }));
         } else {
             // Visible total mirrors page behaviour — always shown; hidden/gold prices excluded
@@ -1256,6 +1285,11 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
             env.addGlobal('__', __);
             const { pdfValueParts } = require('../utils/pdfValueParts');
             env.addFilter('pdfValueParts', pdfValueParts);
+            // `order_to_print.njk` formatuje sumy przez `applyFactor` — bez tego
+            // krótki PDF padał na „filter not found”.
+            const { applyFactor, toMoney } = require('../services/currency');
+            env.addFilter('applyFactor', applyFactor);
+            env.addFilter('money', toMoney);
 
             const html = env.render('order_to_print_short.njk', {
                 orderDetails,
@@ -1402,8 +1436,11 @@ router.get('/order/:orderId/positions-data', requireLogin, checkOrderOwnership, 
         // Waluta klienta — przeliczenie poprawia nią znacznik waluty w opisach
         // pozycji (recalculateOrder.js → formTools/currencyLabel.js).
         const { priceCurrency } = await currencyLocalsForOrder(req.params.orderId);
+        // Rabat klienta grupy / narzut — bez nich przeliczenie gubi rabat klienta
+        // (services/portalUsageDiscount.js resolveFormPricingForOrder).
+        const pricing = await resolveFormPricingForOrder(req.params.orderId);
 
-        return res.json({ success: true, positions, priceCurrency });
+        return res.json({ success: true, positions, priceCurrency, pricing });
     } catch (err) {
         log('Error fetching positions for recalculate:', err);
         return res.status(500).json({ success: false, message: 'Błąd serwera' });
@@ -1609,6 +1646,8 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         // Stawka VAT właściciela zlecenia — wiersze VAT pod sumą klienta w PDF.
         // `subLocked` liczy tu sam `buildPdfSendDataTotals`, potrzebna jest stawka.
         await attachSubVatTotals(totalPrice, id);
+        await attachRegularVatTotals(totalPrice, id);
+        dropSubVatForGroups(totalPrice, !!(res.locals.isGroup || res.locals.isGroupShop));
 
         // JĘZYK POTWIERDZENIA (AB): `user.ab_lang` wymusza język dokumentu.
         // ⚠️ Dotyczy CAŁEJ treści dokumentu, nie tylko etykiet — jeśli język
@@ -1642,7 +1681,7 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             withSubTotal: !(res.locals.isGroup || res.locals.isGroupShop),
             // Konto podrzędne grupy i grupa-matka typu `client` VAT-u nie widzą
             // (jak `hideClientVat` w trasie /orderpdf).
-            vatRate: (res.locals.isGroupShop || (res.locals.isGroup && res.locals.isGroupClientType)) ? null : totalPrice.vatRate
+            vatRate: totalPrice.vatRate
         }));
 
         // Klient z `ab_type = without_price` dostaje potwierdzenie BEZ ŻADNYCH cen

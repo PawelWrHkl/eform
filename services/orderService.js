@@ -5,9 +5,54 @@ const { withCurrencyLabel, isMonetaryParamName } = require('./currency');
 /** VAT ceny klienta zapisany przy pozycji (pricesCalculator.js) — nie pokazujemy go per pozycja. */
 const SUB_VAT_KEYS = new Set(['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']);
 
+/**
+ * VAT cen ZWYKŁYCH zapisany przy pozycji klienta HKL (pricesCalculator.js
+ * `applyVatToGrossValue`, tor `SUMA_BRUTTO`). Też nie per pozycja — VAT jest
+ * tylko w sumie zlecenia (właściciel 2026-10-27: „ma być ukryte jak w reszcie,
+ * tylko w total widoczne”). Żaden `param.txt` nie ma parametrów o tych nazwach
+ * (sprawdzone na datatest) — dopisuje je wyłącznie kalkulator VAT.
+ */
+const REGULAR_VAT_KEYS = new Set(['VAT', 'WARTOSC_VAT', 'WARTOSC_BRUTTO']);
+
+/** Wszystkie klucze VAT pozycji — także dla strony wysłanej pozycji (routes/positions.js). */
+const POSITION_VAT_KEYS = new Set([...SUB_VAT_KEYS, ...REGULAR_VAT_KEYS]);
+
 // Rabat klienta grupy zapisany przed zmianą nazw kluczy — patrz niżej.
 const LEGACY_CLIENT_DISCOUNT_KEYS = new Set(['RABAT_KLIENTA', 'WARTOSC_PO_RABACIE']);
 const CLIENT_DISCOUNT_KEYS = new Set(['SUB___RABAT_KLIENTA', 'SUB___WARTOSC_PO_RABACIE']);
+
+/**
+ * Parametr WYŁĄCZONY w tej konfiguracji (warunek ENABLE z param.txt niespełniony):
+ * w `json_parameters` ma pustą wartość, a do opisu pozycji i tak trafia jego
+ * DEFAULT „0”. Np. `SZEROKOSC_DACH`/`WYSOKOSC_DACH` żaluzji 16/25 (tylko modele
+ * dachowe U16DF/U25DF, LISTROW 2) wychodziły przy każdej innej żaluzji w wierszu
+ * cen zwykłych jako „SZEROKOSC [MM]: 0 / WYSOKOSC [MM]: 0” (zgłoszenie właściciela
+ * 2026-10-27: „niepotrzebne”). Tylko parametry niekwotowe (wymiary, ilości,
+ * powierzchnie) — kwoty i rabaty mają własne reguły pokazywania. Zapis pozycji
+ * bez zmian; to filtr wyświetlania, więc działa też na pozycjach zapisanych wcześniej.
+ * W tabeli zlecenia komórka dostaje „-” (klucz zostaje — inaczej pozycje z modelem
+ * dachowym i bez niego trafiałyby do osobnych tabel), a kolumna pusta we wszystkich
+ * wierszach znika w `removeEmptyColumns`.
+ *
+ * @param {string} key
+ * @param {object} param  wiersz `json_parameters_desc`
+ * @param {object|string} values  `json_parameters` pozycji
+ */
+function isDisabledDefaultRow(key, param, values) {
+  if (!param || typeof param !== 'object' || String(param.option_value) !== '0') return false;
+  if (String(key).startsWith('SUB___') || isMonetaryParamName(key) || isRabatParamName(key)) return false;
+  const engine = parseValues(values);
+  return !!engine && engine[key] === '';
+}
+
+/** `json_parameters` bywa podwójnie zakodowanym JSON-em (jak opis pozycji). */
+function parseValues(values) {
+  let v = values;
+  for (let i = 0; i < 2 && typeof v === 'string'; i++) {
+    try { v = JSON.parse(v); } catch (_e) { return null; }
+  }
+  return v && typeof v === 'object' ? v : null;
+}
 
 function isRabatParamName(key) {
   return !!key && String(key).includes('RABAT');
@@ -95,6 +140,7 @@ async function jsonTextBackToMap(orderItems, options = {}) {
 
     const jsonParameters = new Map(parsed);
     if (!features.priceSpec) dropPriceSpecRows(jsonParameters);
+    const engineValues = parseValues(item.json_parameters);
     let currentHeaderKeys1 = [];
     let currentDisplayHeaders1 = [];
     let currentHeaderKeys2 = [];
@@ -180,6 +226,7 @@ async function jsonTextBackToMap(orderItems, options = {}) {
         // scalar itself as the option value to avoid `in`-operator crashes.
         value = String(param);
       }
+      if (engineValues && isDisabledDefaultRow(key, param, engineValues)) value = '-';
 
       // ⚠️ Rabat klienta grupy (`LEGACY_CLIENT_DISCOUNT_KEYS`/`SUB___` poniżej)
       // MUSI być sprawdzony PRZED `rowStr === '0'` — te pola nie idą do żadnej
@@ -207,6 +254,10 @@ async function jsonTextBackToMap(orderItems, options = {}) {
         }
         continue;
       }
+
+      // VAT cen zwykłych pozycji (klient HKL) — ani w tabeli parametrów, ani w
+      // wierszu cen; na zleceniu zostaje tylko suma VAT w stopce.
+      if (REGULAR_VAT_KEYS.has(key)) continue;
 
       // SUB___ params: store in subParamValues, skip main table entirely
       if (key.startsWith('SUB___')) {
@@ -478,4 +529,4 @@ function removeEmptyColumns(table) {
   };
 }
 
-module.exports = { jsonTextBackToMap, dropPriceSpecRows };
+module.exports = { jsonTextBackToMap, dropPriceSpecRows, isDisabledDefaultRow, POSITION_VAT_KEYS };

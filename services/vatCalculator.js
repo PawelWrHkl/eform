@@ -11,6 +11,9 @@
 const db = require('../db/db_helper.js');
 const { features } = require('../config');
 
+/** HKL — organizacja „domowa”, sprzedawca cen zwykłych (P). */
+const HKL_ORG_ID = 3;
+
 /** THE switch for the whole feature — see `features.vat` in config.js.
  *  Off on production unless VAT_ENABLED=true. */
 const vatFeatureEnabled = !!features?.vat;
@@ -184,19 +187,54 @@ async function resolveGroupVatRateForOrder(orderId) {
  * Stawka VAT zlecenia — dla jego WŁAŚCICIELA (`order.user_id` /
  * `order.organization_id`), nie dla zalogowanego: admin czy grupa-matka
  * oglądają cudze zlecenia. Ta sama reguła co `resolveVatRateForUser`, a dla
- * zlecenia konta podrzędnego grupy — `resolveGroupVatRateForOrder`.
+ * zlecenia grupy (matka i konto podrzędne) — `resolveGroupVatRateForOrder`.
+ *
+ * `isGroup` mówi wołającemu, że to zlecenie grupy: wtedy sumę VAT liczy się od
+ * ceny zwykłej, a nie od ceny klienta (`services/subPrices.js attachSubVatTotals`).
+ *
+ * @param {number} orderId
+ * @returns {Promise<{vatRate: number|null, reason: string, isGroup: boolean}>}
+ */
+async function resolveVatRateForOrder(orderId) {
+  if (!vatFeatureEnabled) return { vatRate: null, reason: 'disabled', isGroup: false };
+  const group = await resolveGroupVatRateForOrder(orderId);
+  if (group) return { ...group, isGroup: true };
+  const rows = await db.selectQuery('SELECT user_id, organization_id FROM `order` WHERE id = ?', orderId);
+  const order = rows?.[0];
+  if (!order) return { vatRate: null, reason: 'unknown' };
+  const general = await resolveVatRateForUser(order.user_id, order.organization_id);
+  return { ...general, isGroup: false };
+}
+
+/**
+ * Stawka VAT CEN ZWYKŁYCH zlecenia (P, suma „HKL Razem”) — osobny tor od cen
+ * klienta `SUB___` (decyzja właściciela 2026-10-27: „VAT na ceny zwykłe,
+ * SUB___ zostaw jak jest”). `resolveGroupVatRateForOrder` dotyczy wyłącznie
+ * ceny klienta grupy, więc tu nie wchodzi.
+ *
+ * Kto sprzedaje po cenie zwykłej (właściciel 2026-10-27):
+ *  • klient organizacji HKL (id 3) — HKL temu klientowi: kraj konta vs kraj HKL,
+ *    po staremu (`resolveVatRateForUser`);
+ *  • klient innej organizacji (LUXANGMBH, COZY…) — cena zwykła to zakup
+ *    organizacji od HKL: kraj HKL (PL) vs kraj ORGANIZACJI, kraj klienta nie gra
+ *    roli (Luxan GmbH, DE → 0%, dostawa wewnątrzwspólnotowa).
  *
  * @param {number} orderId
  * @returns {Promise<{vatRate: number|null, reason: string}>}
  */
-async function resolveVatRateForOrder(orderId) {
+async function resolveRegularVatRateForOrder(orderId) {
   if (!vatFeatureEnabled) return { vatRate: null, reason: 'disabled' };
-  const group = await resolveGroupVatRateForOrder(orderId);
-  if (group) return group;
   const rows = await db.selectQuery('SELECT user_id, organization_id FROM `order` WHERE id = ?', orderId);
   const order = rows?.[0];
   if (!order) return { vatRate: null, reason: 'unknown' };
-  return resolveVatRateForUser(order.user_id, order.organization_id);
+  if (Number(order.organization_id) === HKL_ORG_ID) {
+    return resolveVatRateForUser(order.user_id, order.organization_id);
+  }
+  const [organizationCountry, hklCountry] = await Promise.all([
+    getOrganizationCountry(order.organization_id),
+    getOrganizationCountry(HKL_ORG_ID)
+  ]);
+  return calculateVatDetails(organizationCountry, hklCountry);
 }
 
 /**
@@ -233,6 +271,7 @@ module.exports = {
   vatFeatureEnabled,
   resolveVatLocals,
   resolveVatRateForOrder,
+  resolveRegularVatRateForOrder,
   resolveGroupVatRateForOrder,
   VAT_RATES_BY_COUNTRY,
   EU_VAT_RATES,

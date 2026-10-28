@@ -6,7 +6,7 @@ const { loadEmployeePermissions, filterPriceData } = require('../middleware/empl
 const db = require("../db/db_helper.js");
 const { getOrderMutationBlock, getClientGroupOrderBlock } = require('../utils/orderStatusGuard');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
-const { resolveCombinedDiscountForOrder } = require('../services/portalUsageDiscount');
+const { resolveCombinedDiscountForOrder, resolveFormPricingForOrder } = require('../services/portalUsageDiscount');
 const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
 const { currencyLocalsForOrder } = require('../services/currency');
 const adminDb = require("../db/admin/db_helper.js");
@@ -309,7 +309,10 @@ router.get('/:positionId/admin-redit/', requireLogin, async (req, res) => {
     // (client), not the admin's own org/country.
     const vatLocals = await resolveVatLocals(req, orderId);
     const currencyLocals = await currencyLocalsForOrder(orderId);
-    return res.render('admin_edit_position.njk', { position: result, orderId: orderId, hidePrices: false, ...vatLocals, ...currencyLocals })
+    // Rabat klienta grupy / narzut — jak w zwykłej edycji; robot importu
+    // (services/orderImport/browserRecalculator.js) też przelicza tędy.
+    const pricingLocals = await resolveFormPricingForOrder(orderId);
+    return res.render('admin_edit_position.njk', { position: result, orderId: orderId, hidePrices: false, ...vatLocals, ...currencyLocals, ...pricingLocals })
   }
   else {
     return res.status(400).json({ success: false })
@@ -450,6 +453,13 @@ router.get('/:positionId', requireLogin, async (req, res) => {
       if (!Array.isArray(parametersDesc)) {
         parametersDesc = [];
       }
+      // VAT pozycji (zwykły i SUB___) nie jest pokazywany per pozycja — tylko
+      // suma VAT na zleceniu (właściciel 2026-10-27).
+      // Parametr wyłączony w tej konfiguracji z domyślnym „0” (np. wymiary dachowe
+      // żaluzji 16/25) — też nie (orderService.isDisabledDefaultRow).
+      const { POSITION_VAT_KEYS, isDisabledDefaultRow } = require('../services/orderService');
+      parametersDesc = parametersDesc.filter((entry) => !(Array.isArray(entry) && (POSITION_VAT_KEYS.has(entry[0])
+        || isDisabledDefaultRow(entry[0], entry[1], result.json_parameters))));
     } catch (err) {
       log(`position ${req.params.positionId}: invalid json_parameters_desc - ${err.message}`);
       parametersDesc = [];

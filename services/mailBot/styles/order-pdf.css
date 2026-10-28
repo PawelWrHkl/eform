@@ -210,6 +210,26 @@ body {
     padding: 2px 10% 2px 10px !important;
 }
 
+/* Stopka sum w dwóch kolumnach (2026-10-27, order-pdf.njk): lewa = ceny zwykłe
+   (P), prawa = ceny klienta SUB___ (N); jedna kolumna → przy prawej krawędzi. */
+#total-container.pdf-totals-split {
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: flex-start !important;
+    gap: 0 32px !important;
+    padding-right: 10% !important;
+    box-sizing: border-box !important;
+}
+
+.pdf-totals-split > .totals-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.pdf-totals-split .total-price {
+    padding: 2px 0 !important;
+}
+
 /* Pasowanie co drugą POZYCJĘ (a nie co drugi wiersz): po rozbiciu tabeli na
    `tbody` per pozycja `nth-child` liczyłby wiersze od nowa w każdej pozycji,
    więc szary byłby zawsze wiersz cen. Klasę nadaje `order-pdf.njk`. */

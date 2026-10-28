@@ -5,7 +5,7 @@ import { buildValuesToDisplay } from "./updateFieldsAndValues.js";
 import { validateFormInput } from "./validateUtils.js";
 import { shouldHideRegularPriceRow } from "./createForm.js";
 import { formatVatRateLabel, vatUsesClientPrice } from "./vatLabel.js";
-import { savedLabelWithCurrency } from "./currencyLabel.js";
+import { savedLabelWithCurrency, withCurrencyLabel } from "./currencyLabel.js";
 
 /**
  * Czy tworzyć specyfikację ceny (`<PARAM>_S`) — przełącznik `PRICE_SPEC_ENABLED`
@@ -128,18 +128,75 @@ function setRowAfter(displayValues, afterKey, key, entry) {
     for (const [k, v] of rest) displayValues.set(k, v);
 }
 
-/** Klucze wierszy rabatu w `displayValues` — z prefiksem SUB___, patrz niżej. */
-const CLIENT_DISCOUNT_KEYS = ['SUB___RABAT_KLIENTA'];
+/**
+ * Klucze wierszy rabatu w `displayValues` — z prefiksem SUB___, patrz niżej.
+ * Od 2026-10-27 także rozbicie ceny po rabacie klienta grupy
+ * (`clientDiscountBreakdown`): cena po rabacie, rabat na dopłatę, dopłata po rabacie.
+ */
+const CLIENT_DISCOUNT_KEYS = ['SUB___RABAT_KLIENTA', 'SUB___CENA_PO_RABACIE', 'SUB___RABAT_DOPLATY', 'SUB___DOPLATA_PO_RABACIE'];
 
 /**
- * Kwoty `SUB___`, których `applyClientDiscount` NIE pomniejsza przy widocznych
- * cenach klienta: końcówka łańcucha (rabat już w niej siedzi) i VAT (liczony od
- * tej końcówki — rabat jest w nim już wliczony).
+ * Rabat klienta grupy rozłożony na składniki ceny (decyzja właściciela
+ * 2026-10-27 — schemat wierszy pod kłódką konta podrzędnego):
+ *   cena po rabacie    = cena katalogowa × (1 − rabat klienta),
+ *   dopłata po rabacie = dopłaty `SUB___` × (1 − rabat na dopłatę z konfiguratora),
+ *   wartość 1 szt.     = cena po rabacie + dopłata po rabacie (→ `SUB___CENA_KONCOWA`).
+ *
+ * Rabat klienta ZASTĘPUJE rabat cennikowy (`SUB___CENA_RABAT`) WYŁĄCZNIE na
+ * cenie katalogowej. Do 2026-10-27 schodził z całego `SUB___CENA_SUMA` — razem
+ * z dopłatami, z pominięciem ich rabatów z konfiguratora (pozycja 8974: 50% od
+ * 369.94 = 184.97 zamiast 141.60 + 60.72 = 202.32). Dopłaty liczą się dokładnie
+ * jak w formule `SUB___CENA_KONCOWA` grupy w `param.txt`:
+ *  • `SUB___DOPLATA` × (1 − `SUB___DOPLATA_RABAT`) tam, gdzie grupa ma osobny
+ *    rabat na dopłatę („RABAT DODATKOWY”, dziś grupa 71 — klucz jest wtedy
+ *    w `values`); w pozostałych grupach dopłata stoi w nawiasie z ceną:
+ *    `(SUB___CENA+SUB___DOPLATA)*(1-SUB___CENA_RABAT)`, więc × (1 − `SUB___CENA_RABAT`),
+ *  • `SUB___DOPLATA_EL` × (1 − `SUB___DOPLATA_EL_RABAT`) („RABAT EL”).
+ * Cena katalogowa = `SUB___CENA_SUMA` bez dopłat — w każdej grupie
+ * `SUB___CENA_SUMA` to cena bazowa (także pasek w 14, tkanina w 46) + dopłaty.
+ *
+ * Składniki zaokrąglone do groszy, a wartość sztuki to ICH suma — wiersze pod
+ * kłódką muszą się zgadzać co do grosza.
+ *
+ * @param {Record<string, any>} values
+ * @param {number} clientPct  rabat klienta grupy w procentach (bez ekstra rabatu)
+ * @returns {{ catalogPrice: number, priceAfter: number, surchargeBefore: number, surchargeAfter: number, surchargeRatePct: number|null, unitAfterClientDiscount: number }|null}
+ *   `null`, gdy pozycja nie ma ceny katalogowej `SUB___CENA_SUMA`;
+ *   `surchargeRatePct` — rabat na dopłatę `SUB___DOPLATA` w procentach (`null`
+ *   bez dopłaty). Rabat dopłaty EL nie wchodzi tutaj: pod kłódką pokazuje się
+ *   jego własny parametr `SUB___DOPLATA_EL_RABAT` („RABAT EL”).
  */
-const CLIENT_LIST_DISCOUNT_SKIP = new Set([
-    'CENA_KONCOWA', 'WARTOSC_KONCOWA', 'WARTOSC_PO_RABACIE',
-    'VAT', 'WARTOSC_VAT', 'WARTOSC_BRUTTO'
-]);
+export function clientDiscountBreakdown(values, clientPct) {
+    const listTotal = parseFloat(values['SUB___CENA_SUMA']);
+    if (!Number.isFinite(listTotal)) return null;
+    const amount = (key) => {
+        const v = parseFloat(values[key]);
+        return Number.isFinite(v) ? v : 0;
+    };
+    const round2 = (v) => parseFloat(v.toFixed(2));
+
+    const doplata = amount('SUB___DOPLATA');
+    const doplataEl = amount('SUB___DOPLATA_EL');
+    const doplataRate = 'SUB___DOPLATA_RABAT' in values ? amount('SUB___DOPLATA_RABAT') : amount('SUB___CENA_RABAT');
+    const doplataElRate = amount('SUB___DOPLATA_EL_RABAT');
+
+    const catalogPrice = Math.max(0, listTotal - doplata - doplataEl);
+    // Cena nie schodzi poniżej zera, choćby rabat przekroczył 100%.
+    const priceAfter = round2(Math.max(0, catalogPrice * (1 - clientPct / 100)));
+    const surchargeBefore = round2(doplata + doplataEl);
+    const surchargeAfter = round2(Math.max(0, doplata * (1 - doplataRate) + doplataEl * (1 - doplataElRate)));
+    const surchargeRatePct = doplata > 0 ? round2(doplataRate * 100) : null;
+
+    return {
+        catalogPrice,
+        priceAfter,
+        surchargeBefore,
+        surchargeAfter,
+        surchargeRatePct,
+        unitAfterClientDiscount: round2(priceAfter + surchargeAfter)
+    };
+}
+
 
 
 /**
@@ -306,9 +363,10 @@ export function applyClientMarkup(values, displayValues) {
  * przeliczeniu — dlatego akurat tam jest to bezpieczne.
  *
  * ⚠️ **Dwa rabaty, dwie różne podstawy** (szczegóły przy samym liczeniu):
- *  • **rabat klienta grupy** liczy się od CENY KATALOGOWEJ `SUB___CENA_SUMA`
- *    i ZASTĘPUJE rabat cennikowy (`katalog × (1 − rabat)`, decyzja
- *    z 2026-08-24),
+ *  • **rabat klienta grupy** liczy się od CENY KATALOGOWEJ (`SUB___CENA_SUMA`
+ *    bez dopłat) i ZASTĘPUJE rabat cennikowy (`katalog × (1 − rabat)`, decyzja
+ *    z 2026-08-24); dopłaty dostają swój rabat z konfiguratora (2026-10-27,
+ *    `clientDiscountBreakdown`),
  *  • **ekstra rabat** (`user.extra_rabat`) liczy się od KWOTY NETTO PO RABACIE
  *    i tylko od niej (decyzja z 2026-09-22) — czyli mnoży wynik powyższego.
  *    Do 2026-09-22 doliczał się jako punkt procentowy do `SUB___CENA_RABAT`
@@ -380,20 +438,18 @@ export function applyClientDiscount(values, displayValues) {
     const hasKoncowa = values['SUB___WARTOSC_KONCOWA'] !== undefined;
     const hasCenaKoncowa = values['SUB___CENA_KONCOWA'] !== undefined;
 
-    // Cena katalogowa — podstawa rabatu klienta grupy, który ZASTĘPUJE rabat
-    // cennikowy. Gdy jej nie ma, zostaje cena po rabacie cennikowym.
-    const rawUnitList = parseFloat(values['SUB___CENA_SUMA']);
-    const unitListPrice = Number.isFinite(rawUnitList)
-        ? rawUnitList
-        : parseFloat(values['SUB___CENA_KONCOWA']);
-
-    // Krok 1 — rabat klienta grupy ZASTĘPUJE rabat cennikowy (`katalog × (1 − rabat)`,
-    // decyzja z 2026-08-24). Bez niego zostaje cena po rabacie cennikowym, którą
-    // policzyła już formuła grupy.
-    const unitAfterClientDiscount = clientPct > 0 && Number.isFinite(unitListPrice)
-        // Cena nie schodzi poniżej zera, choćby rabat przekroczył 100%.
-        ? Math.max(0, unitListPrice * (1 - clientPct / 100))
-        : parseFloat(values['SUB___CENA_KONCOWA']);
+    // Krok 1 — rabat klienta grupy ZASTĘPUJE rabat cennikowy na CENIE KATALOGOWEJ
+    // (decyzja z 2026-08-24), a dopłaty dostają swój rabat z konfiguratora
+    // (2026-10-27) — `clientDiscountBreakdown`. Bez rabatu klienta (sam ekstra
+    // rabat) zostaje cena po rabatach cennikowych, którą policzyła już formuła
+    // grupy. Pozycja bez ceny katalogowej: rabat od ceny po rabacie cennikowym.
+    const breakdown = clientPct > 0 ? clientDiscountBreakdown(values, clientPct) : null;
+    const cenaKoncowaCennikowa = parseFloat(values['SUB___CENA_KONCOWA']);
+    const unitAfterClientDiscount = breakdown
+        ? breakdown.unitAfterClientDiscount
+        : (clientPct > 0 && Number.isFinite(cenaKoncowaCennikowa)
+            ? Math.max(0, cenaKoncowaCennikowa * (1 - clientPct / 100))
+            : cenaKoncowaCennikowa);
 
     // Krok 2 — ekstra rabat zdejmuje swój procent z KWOTY NETTO PO RABACIE.
     // ⚠️ Mnożenie, nie dodawanie punktów procentowych: rabat klienta 15% i bonus
@@ -480,6 +536,38 @@ export function applyClientDiscount(values, displayValues) {
         row: existingDiscount.row || '2'
     });
 
+    // Rozbicie ceny po rabacie (decyzja właściciela 2026-10-27) — ukryte jak sam
+    // rabat, pokazywane pod kłódką w tej kolejności (services/subPrices.js
+    // attachGroupGoldValues): cena po rabacie, rabat na dopłatę (dopłata
+    // `SUB___DOPLATA`), RABAT EL (własny parametr cennika `SUB___DOPLATA_EL_RABAT`,
+    // nie tworzony tutaj), dopłata po rabacie (obie dopłaty), potem wartość 1 szt.
+    // (`SUB___CENA_KONCOWA`) i × ilość (`SUB___WARTOSC_KONCOWA`).
+    const hiddenRow = (param_description, option_value) => ({
+        param_description, option_value, option_description: '', locked: true, sub: true, row: existingDiscount.row || '2'
+    });
+    if (breakdown) {
+        setRowAfter(displayValues, 'SUB___RABAT_KLIENTA', 'SUB___CENA_PO_RABACIE',
+            hiddenRow(withCurrencyLabel(t('order.unit_after_discount_label')), String(breakdown.priceAfter)));
+        if (breakdown.surchargeRatePct !== null) {
+            setRowAfter(displayValues, 'SUB___CENA_PO_RABACIE', 'SUB___RABAT_DOPLATY',
+                hiddenRow(t('order.surcharge_discount_label'), `${breakdown.surchargeRatePct}%`));
+        } else {
+            displayValues.delete('SUB___RABAT_DOPLATY');
+        }
+        if (breakdown.surchargeBefore > 0) {
+            const afterKey = displayValues.has('SUB___RABAT_DOPLATY') ? 'SUB___RABAT_DOPLATY' : 'SUB___CENA_PO_RABACIE';
+            setRowAfter(displayValues, afterKey, 'SUB___DOPLATA_PO_RABACIE',
+                hiddenRow(withCurrencyLabel(t('order.surcharge_after_discount_label')), String(breakdown.surchargeAfter)));
+        } else {
+            displayValues.delete('SUB___DOPLATA_PO_RABACIE');
+        }
+    } else {
+        // Sam ekstra rabat (bez rabatu klienta grupy) — rozbicia nie ma
+        displayValues.delete('SUB___CENA_PO_RABACIE');
+        displayValues.delete('SUB___RABAT_DOPLATY');
+        displayValues.delete('SUB___DOPLATA_PO_RABACIE');
+    }
+
     // Te same kwoty w wierszach pozycji, w PDF-ie i w sumie zamówienia:
     // podmieniamy WYŁĄCZNIE `option_value` istniejących wierszy.
     // ⚠️ Reszta pól (`listsum`, `locked`, `row`, opis) MUSI zostać nietknięta —
@@ -497,27 +585,11 @@ export function applyClientDiscount(values, displayValues) {
     }
 
     // Widoczne (niezablokowane) kwoty klienta — CENA DET., DOPŁATA DET., CENA
-    // ŁĄCZNA, WARTOŚĆ BR. — pokazujemy JUŻ PO rabacie klienta grupy (zgłoszenie
-    // 2026-10-21: klient z 60% rabatu widział ceny jak przy rabacie zero).
-    // Zmienia to decyzję z 2026-08-21, wg której widoczne wiersze zostawały bez
-    // rabatu.
-    // ⚠️ Wyłącznie `displayValues` i zawsze liczone od `values` (kwoty silnika
-    // sprzed rabatu): formuły czytają `values`, więc przy kolejnym przeliczeniu
-    // rabat nie nałoży się drugi raz.
-    if (clientPct > 0) {
-        const factor = 1 - Math.min(100, clientPct) / 100;
-        for (const [key, row] of displayValues) {
-            if (!key.startsWith('SUB___') || key.endsWith('_S') || !row || row.locked === true) continue;
-            if (CLIENT_LIST_DISCOUNT_SKIP.has(key.slice('SUB___'.length)) || key.includes('RABAT')) continue;
-            // Wiersz bez kwoty (parametr wyłączony w tej konfiguracji) zostaje
-            // pusty — inaczej w widoku pojawiłoby się nowe „0".
-            if (row.option_value === undefined || row.option_value === null || row.option_value === '') continue;
-            const num = parseFloat(values[key]);
-            if (!Number.isFinite(num)) continue;
-            row.option_value = formatNumberForDisplay(parseFloat((num * factor).toFixed(2)));
-            displayValues.set(key, row);
-        }
-    }
+    // ŁĄCZNA, WARTOŚĆ BR. — zostają CENNIKOWE, czyli przed rabatem (decyzja
+    // właściciela 2026-10-27). Rabat matki siedzi w ukrytych wierszach: procent
+    // w `SUB___RABAT_KLIENTA`, cena po rabacie w `SUB___WARTOSC_KONCOWA`, które
+    // pokazują się dopiero po kłódce (services/subPrices.js attachGroupGoldValues).
+    // ⚠️ Od 2026-10-21 do 2026-10-27 widoczne wiersze były tu pomniejszane o rabat.
 
     // Sprzątanie po poprzednim modelu rabatu (do 2026-09-11 rabat miał WŁASNY
     // wiersz z kwotą). Pozycja zapisana wcześniej wnosi ten wiersz ze sobą przy

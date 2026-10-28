@@ -74,6 +74,21 @@ test('rozkład: grosze metodą największej reszty, ujemny składnik, brak propo
   assert.equal(allocateToTotal([{ amount: 5 }, { amount: -5 }], 10), null);
 });
 
+test('rozkład: każdy składnik × czynnik osobno, zaokrąglony jak cennik — nie suma rozbita proporcją', () => {
+  // Poz. 8989 (zlecenie 3300): skrypt robi toFixed(0) na SUMIE → 115.44 → 115.
+  // Proporcją wychodziło 25.90 + 89.10 — kwoty, których nie ma żaden cennik.
+  const sub = parseSpecExpression('(25(SF)+86(ELMONO))*1.04').items;
+  assert.deepEqual(allocateToTotal(sub, 115), [26, 89]);
+  // Ceny w groszach (fr = -1): 3.4903 + 19.82365 → 23.31.
+  assert.deepEqual(allocateToTotal(parseSpecExpression('(3.34(SF)+18.97(ELMONO))*1.045').items, 23.31), [3.49, 19.82]);
+  assert.deepEqual(allocateToTotal(parseSpecExpression('(195(RRLKV2)+127(PG1))*1.035').items, 333.27), [201.83, 131.44]);
+  // Końcówka z zaokrąglenia sumy — w obie strony, suma zawsze = kwota widoczna.
+  assert.deepEqual(allocateToTotal([{ amount: 10.3 }, { amount: 20.4 }, { amount: 30.2 }], 61), [10, 21, 30]);
+  assert.deepEqual(allocateToTotal([{ amount: 10.6 }, { amount: 20.2 }], 30), [10, 20]);
+  const down = allocateToTotal([{ amount: 10.1 }, { amount: 20.1 }, { amount: 30.1 }], 59);
+  assert.equal(down.reduce((s, x) => s + x, 0), 59);
+});
+
 // ── widoczność 1:1 z templates/order.njk ──────────────────────────────────
 test('widoczność: klient końcowy grupy widzi tylko ceny klienta, rabat dopiero po kłódce', () => {
   const closed = resolveSetVisibility({ isGroupShop: true }, true);
@@ -91,9 +106,17 @@ test('widoczność: klient z cenami SUB___ — bez cen zakupu; klient HKL — ce
   assert.equal(sub.sub.visible, true);
   const unlocked = resolveSetVisibility({ isClient: true, prices: true }, true);
   assert.equal(unlocked.sub.locked, true, 'klient (nie widok organizacji) po kłódce widzi wiersze locked');
-  const hkl = resolveSetVisibility({ isHklClient: true }, false);
+  const hkl = resolveSetVisibility({ isHklClient: true, showCatalogPrices: true }, false);
   assert.equal(hkl.regular.visible, true);
   assert.equal(hkl.sub.visible, false);
+  const hklUnlocked = resolveSetVisibility({ isHklClient: true, showCatalogPrices: true, prices: true }, false);
+  assert.equal(hklUnlocked.regular.locked, true, 'klient HKL po kłódce widzi rabaty cen zwykłych');
+  const subClientOrder = resolveSetVisibility({ isClient: true, prices: true }, false, true);
+  // order_prices.njk: wiersz główny ukryty (isClient and hasSubPrices), ale pozycję
+  // bez cen SUB___ pokazuje osobny blok `isClient and not itemHasSubVals` — z locked.
+  assert.equal(subClientOrder.regular.visible, true);
+  assert.equal(subClientOrder.regular.locked, true);
+  assert.equal(subClientOrder.sub.visible, false);
 });
 
 test('widoczność: owner/admin z przełącznikiem SUB — ceny zakupu tylko przy „pokaż ceny katalogowe"', () => {
@@ -104,9 +127,14 @@ test('widoczność: owner/admin z przełącznikiem SUB — ceny zakupu tylko prz
   const both = resolveSetVisibility({ ...base, showCatalogPrices: true }, true);
   assert.equal(both.regular.visible, true);
   assert.equal(both.sub.visible, true);
+  // Po kłódce (order_prices.njk): ceny klienta Z rabatami, ceny zakupu bez wierszy locked.
   const unlocked = resolveSetVisibility({ ...base, showCatalogPrices: true, prices: true }, true);
-  assert.equal(unlocked.regular.locked, true);
-  assert.equal(unlocked.sub.locked, false, 'w widoku organizacji wiersze SUB locked nie odsłaniają się kłódką cen');
+  assert.equal(unlocked.regular.locked, false, 'order_prices.njk: locked zwykłe tylko bez przełącznika SUB');
+  assert.equal(unlocked.sub.visible, true);
+  assert.equal(unlocked.sub.locked, true, 'owner/admin na kliencie spoza HKL widzi po kłódce rabaty klienta');
+  const unlockedNoCatalog = resolveSetVisibility({ ...base, showCatalogPrices: false, prices: true }, true);
+  assert.equal(unlockedNoCatalog.regular.visible, false);
+  assert.equal(unlockedNoCatalog.sub.locked, true);
 });
 
 test('widoczność: grupa bez przełącznika SUB nie widzi wiersza SUB; ukryte ceny = nic', () => {
@@ -236,6 +264,7 @@ function build(view, opts = {}) {
     currency: 'EUR',
     scriptsByGroup: { 39: { DOPLATA: 'param-DOPLATA-Cmul1.1.js', SUB___DOPLATA: 'param-SUB___DOPLATA-A.js' } },
     showCodes: !!opts.showCodes,
+    advanced: !!opts.advanced,
     dataDir: opts.dataDir || makeDataDir(),
     now: new Date('2026-10-16T12:00:00Z')
   });
@@ -262,10 +291,26 @@ test('specyfikacja: klient końcowy — tylko ceny klienta, rozbicie sumuje się
   for (const leak of ['1.045', '1.1', '*', 'HKL PREIS', '72.18', 'U25PG4', 'TruFit"']) assert.ok(!text.includes(leak), `wyciek: ${leak}`);
 });
 
+test('specyfikacja: kilka dopłat z czynnikiem — każda × czynnik osobno, w pełnych euro jak cennik klienta', () => {
+  const spec = build({ isGroupShop: true }, {
+    item: item({
+      values: { SUB___DOPLATA_S: '(25(SF)+86(ELMONO))*1.04' },
+      desc: [
+        ['SUB___DOPLATA', row('AUFPREIS [EUR]', '115', { sub: true })],
+        ['SUB___CENA_SUMA', row('GES.STÜCKPREIS [EUR]', '400', { sub: true })]
+      ]
+    })
+  });
+  const [, surcharge] = spec.positions[0].sets[0].sections;
+  assert.equal(surcharge.amount, 115);
+  assert.deepEqual(surcharge.lines.map((l) => l.amount), [26, 89], '25 × 1.04 = 26, 86 × 1.04 = 89.44 → 89 (nie 25.90 + 89.10)');
+});
+
 test('specyfikacja: kłódka rabatu odsłania rabat i kwoty po rabacie', () => {
   const spec = build({ isGroupShop: true, discountPricesUnlocked: true });
   const set = spec.positions[0].sets[0];
-  assert.deepEqual(set.discount.map((d) => d.text), ['56 %']);
+  assert.deepEqual(set.discount.map((d) => [d.label, d.detail, d.amount]), [['Rabat cennikowy', '56 % od 300,70\u00a0€', 168.39]]);
+  assert.equal(set.unitPrice - set.discount[0].amount, set.unitAfter, 'rabat uzgodniony z ceną po rabacie z zlecenia');
   assert.equal(set.unitAfter, 132.31);
   assert.equal(set.totalAfter, 264.62);
   assert.equal(spec.summary[0].totalAfter, 264.62);
@@ -327,4 +372,244 @@ test('skrypty klienta: nakładka z bazy przed prod.txt, mapa parametr → plik',
   assert.deepEqual(calls, ['39', '71'], 'każda grupa raz');
   assert.deepEqual(out, { 39: { CENA: 'param-CENA-C.js', DOPLATA: 'param-DOPLATA-Cmul1.1.js' } });
   assert.deepEqual(await resolveScriptsByGroup({ orderId: 1, groups: ['39'] }, { ownerQuery: async () => null }), {});
+});
+
+// ── rabaty: każdy udzielony osobno, uzgodnione z ceną po rabacie ─────────
+function discountItem({ values = {}, desc = [] }) {
+  return item({
+    values: { SUB___DOPLATA_S: '', ...values },
+    desc: [
+      ['SUB___CENA', row('LISTENPREIS', '200', { sub: true })],
+      ['SUB___DOPLATA', row('AUFPREIS', '50', { sub: true })],
+      ['SUB___CENA_SUMA', row('GES.STÜCKPREIS', '250', { sub: true })],
+      ['SUB___SUMA_BRUTTO', row('GES.WERT', '500', { sub: true })],
+      ...desc
+    ]
+  });
+}
+
+test('rabaty: grupa 71 — cennikowy na cenę bazową, osobny na dopłaty i na elektrykę', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    item: discountItem({
+      values: { SUB___CENA_RABAT: 0.6, SUB___DOPLATA_RABAT: 0.3, SUB___DOPLATA_EL_RABAT: 0.4 },
+      desc: [
+        ['SUB___DOPLATA_EL', row('AUFPREIS EL', '100', { sub: true })],
+        ['SUB___CENA_SUMA', row('GES.STÜCKPREIS', '350', { sub: true })],
+        ['SUB___SUMA_BRUTTO', row('GES.WERT', '700', { sub: true })],
+        ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_RABAT', row('RABATT AUFPREIS', '30%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_EL_RABAT', row('RABATT EL', '40%', { sub: true, locked: true })],
+        // 200·0.4 + 50·0.7 + 100·0.6 = 80 + 35 + 60
+        ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '175', { sub: true, locked: true })],
+        ['SUB___WARTOSC_KONCOWA', row('GES.WERT N. RABATT', '350', { sub: true, locked: true })]
+      ]
+    })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [
+    ['Rabat cennikowy', 120], ['Rabat na dopłaty', 15], ['Rabat na elektrykę', 40]
+  ]);
+  assert.equal(set.discount[0].detail, '60 % od 200,00\u00a0€', 'grupa 71: cennikowy tylko od ceny bazowej');
+  assert.equal(set.unitAfter, 175);
+  assert.equal(set.totalAfter, 350);
+});
+
+test('rabaty: bez kłódki nie ma żadnego rabatu ani ceny po rabacie', () => {
+  const spec = build({ isGroupShop: true }, {
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.5 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '50%', { sub: true, locked: true })],
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '125', { sub: true, locked: true })]
+    ] })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount, []);
+  assert.equal(set.unitAfter, null);
+  assert.ok(!JSON.stringify(spec).includes('125'));
+});
+
+test('rabaty: rabat klienta grupy zastępuje cennikowy — jedna linia z rzeczywistą kwotą', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+      ['SUB___RABAT_KLIENTA', row('Rabat klienta', '15%', { sub: true, locked: true })],
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '212.5', { sub: true, locked: true })]
+    ] })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.detail, d.amount]), [['Rabat klienta', '15 % od 250,00\u00a0€', 37.5]]);
+});
+
+test('rabaty: pozycja liczona po staremu (reguła się nie spina) — jedna linia z rzeczywistą kwotą', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '200', { sub: true, locked: true })]
+    ] })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [['Rabat', 50]]);
+  assert.equal(set.unitAfter, 200);
+});
+
+// ── rabat klienta grupy od 2026-10-27: tylko cena katalogowa, dopłaty ze swoimi
+// rabatami z konfiguratora (pricesCalculator.clientDiscountBreakdown) — każdy osobno
+
+test('rabaty: konto podrzędne, grupa 71 — rabat klienta od ceny katalogowej, rabat na dopłaty i RABAT EL osobno', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    item: discountItem({
+      values: { SUB___CENA_RABAT: 0.6, SUB___DOPLATA_RABAT: 0.3, SUB___DOPLATA_EL_RABAT: 0.4 },
+      desc: [
+        ['SUB___DOPLATA_EL', row('AUFPREIS EL', '100', { sub: true })],
+        ['SUB___CENA_SUMA', row('GES.STÜCKPREIS', '350', { sub: true })],
+        ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_RABAT', row('RABATT AUFPREIS', '30%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_EL_RABAT', row('RABAT EL', '40%', { sub: true, locked: true })],
+        ['SUB___RABAT_KLIENTA', row('Rabat klienta', '50%', { sub: true, locked: true })],
+        // 200·0.5 + 50·0.7 + 100·0.6 = 100 + 35 + 60
+        ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '195', { sub: true, locked: true })]
+      ]
+    })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.detail, d.amount]), [
+    ['Rabat klienta', '50 % od 200,00 €', 100],
+    ['Rabat na dopłaty', '30 % od 50,00 €', 15],
+    ['Rabat na elektrykę', '40 % od 100,00 €', 40]
+  ]);
+  assert.equal(set.unitAfter, 195);
+});
+
+test('rabaty: konto podrzędne, grupa bez osobnego rabatu na dopłatę — dopłata z rabatem cennikowym, RABAT EL osobno', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    item: discountItem({
+      values: { SUB___CENA_RABAT: 0.6, SUB___DOPLATA_EL_RABAT: 0.4 },
+      desc: [
+        ['SUB___DOPLATA_EL', row('AUFPREIS EL', '100', { sub: true })],
+        ['SUB___CENA_SUMA', row('GES.STÜCKPREIS', '350', { sub: true })],
+        ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_EL_RABAT', row('RABAT EL', '40%', { sub: true, locked: true })],
+        ['SUB___RABAT_KLIENTA', row('Rabat klienta', '50%', { sub: true, locked: true })],
+        // 200·0.5 + 50·0.4 + 100·0.6 = 100 + 20 + 60
+        ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '180', { sub: true, locked: true })]
+      ]
+    })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [
+    ['Rabat klienta', 100], ['Rabat na dopłaty', 30], ['Rabat na elektrykę', 40]
+  ]);
+  assert.equal(set.unitAfter, 180);
+});
+
+// ── specyfikacja zaawansowana: składnik | wartość | rabat | wartość po rabacie ──
+const advRow = (a) => (a ? [a.rateText, a.discount, a.after] : null);
+
+test('zaawansowana: grupa 71 — przy każdym składniku jego rabat i wartość po rabacie, sumy = zlecenie', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    advanced: true,
+    item: discountItem({
+      values: { SUB___CENA_RABAT: 0.6, SUB___DOPLATA_RABAT: 0.3, SUB___DOPLATA_EL_RABAT: 0.4 },
+      desc: [
+        ['SUB___DOPLATA_EL', row('AUFPREIS EL', '100', { sub: true })],
+        ['SUB___CENA_SUMA', row('GES.STÜCKPREIS', '350', { sub: true })],
+        ['SUB___SUMA_BRUTTO', row('GES.WERT', '700', { sub: true })],
+        ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_RABAT', row('RABATT AUFPREIS', '30%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_EL_RABAT', row('RABATT EL', '40%', { sub: true, locked: true })],
+        ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '175', { sub: true, locked: true })],
+        ['SUB___WARTOSC_KONCOWA', row('GES.WERT N. RABATT', '350', { sub: true, locked: true })]
+      ]
+    })
+  });
+  assert.equal(spec.advanced, true);
+  assert.equal(spec.t.title, 'Specyfikacja zaawansowana');
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.sections.map((s) => [s.param, ...advRow(s.adv)]), [
+    ['CENA', '60 %', 120, 80], ['DOPLATA', '30 %', 15, 35], ['DOPLATA_EL', '40 %', 40, 60]
+  ]);
+  assert.deepEqual(advRow(set.sections[0].lines[0].adv), ['60 %', 120, 80], 'linia grupy cenowej');
+  assert.equal(set.adv.byComponent, true);
+  assert.deepEqual([set.adv.unit.discount, set.adv.unit.after], [175, 175]);
+  assert.deepEqual([set.adv.total.discount, set.adv.total.after], [350, 350]);
+  assert.deepEqual([spec.summary[0].adv.discount, spec.summary[0].adv.after], [350, 350]);
+});
+
+test('zaawansowana: kilka dopłat — każda z rabatem osobno, grosz z zaokrągleń uzgodniony z ceną po rabacie', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    advanced: true,
+    item: item({
+      values: { SUB___DOPLATA_S: '(25(SF)+86(ELMONO))*1.04', SUB___CENA_RABAT: 0.6 },
+      desc: [
+        ['SUB___DOPLATA', row('AUFPREIS [EUR]', '115', { sub: true })],
+        ['SUB___CENA_SUMA', row('GES.STÜCKPREIS [EUR]', '400', { sub: true })],
+        ['SUB___SUMA_BRUTTO', row('GES.WERT [EUR]', '800', { sub: true })],
+        ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+        ['SUB___CENA_KONCOWA', row('PREIS N. RABATT [EUR]', '160', { sub: true, locked: true })],
+        ['SUB___WARTOSC_KONCOWA', row('GES.WERT N. RABATT [EUR]', '320', { sub: true, locked: true })]
+      ]
+    })
+  });
+  const [base, surcharge] = spec.positions[0].sets[0].sections;
+  assert.deepEqual(advRow(base.adv), ['60 %', 171, 114]);
+  assert.deepEqual(surcharge.lines.map((l) => [l.amount, ...advRow(l.adv)]), [[26, '60 %', 15.6, 10.4], [89, '60 %', 53.4, 35.6]]);
+  assert.deepEqual(advRow(surcharge.adv), ['60 %', 69, 46], 'sekcja = suma swoich dopłat');
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual([set.adv.unit.discount, set.adv.unit.after, set.adv.total.after], [240, 160, 320]);
+});
+
+test('zaawansowana: rabat klienta grupy — cena katalogowa z rabatem klienta, dopłaty ze swoimi rabatami', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    advanced: true,
+    item: discountItem({
+      values: { SUB___CENA_RABAT: 0.6, SUB___DOPLATA_RABAT: 0.3, SUB___DOPLATA_EL_RABAT: 0.4 },
+      desc: [
+        ['SUB___DOPLATA_EL', row('AUFPREIS EL', '100', { sub: true })],
+        ['SUB___CENA_SUMA', row('GES.STÜCKPREIS', '350', { sub: true })],
+        ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_RABAT', row('RABATT AUFPREIS', '30%', { sub: true, locked: true })],
+        ['SUB___DOPLATA_EL_RABAT', row('RABAT EL', '40%', { sub: true, locked: true })],
+        ['SUB___RABAT_KLIENTA', row('Rabat klienta', '50%', { sub: true, locked: true })],
+        ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '195', { sub: true, locked: true })]
+      ]
+    })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.sections.map((s) => advRow(s.adv)), [['50 %', 100, 100], ['30 %', 15, 35], ['40 %', 40, 60]]);
+  assert.equal(set.adv.unit.after, 195);
+});
+
+test('zaawansowana: reguła się nie spina — składniki bez rabatu, rzeczywista kwota przy cenie jednostkowej', () => {
+  const spec = build({ isGroupShop: true, discountPricesUnlocked: true }, {
+    advanced: true,
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '200', { sub: true, locked: true })]
+    ] })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.equal(set.adv.byComponent, false);
+  assert.ok(set.sections.every((s) => s.adv === null));
+  assert.deepEqual([set.adv.unit.discount, set.adv.unit.after], [50, 200]);
+});
+
+test('zaawansowana: bez kłódki — tylko składnik i wartość, bez kolumn rabatu; szablon 4 kolumny po kłódce', () => {
+  const nunjucks = require('nunjucks');
+  const env = new nunjucks.Environment(new nunjucks.FileSystemLoader(path.join(__dirname, '..', '..', 'templates')), { autoescape: true });
+  const closed = build({ isGroupShop: true }, { advanced: true });
+  assert.equal(closed.positions[0].sets[0].adv, null);
+  assert.equal(closed.positions[0].sets[0].discountVisible, false);
+  const closedHtml = env.render('partials/price_spec_body.njk', { spec: closed });
+  assert.ok(closedHtml.includes('Rabaty i wartości po rabacie pokazują się po odblokowaniu cen'));
+  assert.ok(!closedHtml.includes('Wartość po rabacie'));
+  assert.ok(!closedHtml.includes('132,31'), 'cena po rabacie nie wychodzi bez kłódki');
+
+  const open = build({ isGroupShop: true, discountPricesUnlocked: true }, { advanced: true });
+  const html = env.render('partials/price_spec_body.njk', { spec: open });
+  for (const head of ['Składnik ceny', 'Wartość', 'Rabat', 'Wartość po rabacie']) assert.ok(html.includes(`<th scope="col">${head}</th>`), head);
+  assert.ok(html.includes('price-spec--advanced'));
+  assert.ok(html.includes('132,31'), 'wartość po rabacie z zlecenia');
+  // prosta specyfikacja bez zmian — bez kolumn
+  const simple = env.render('partials/price_spec_body.njk', { spec: build({ isGroupShop: true, discountPricesUnlocked: true }) });
+  assert.ok(!simple.includes('<th scope="col">Rabat</th>'));
+  assert.ok(!simple.includes('price-spec--advanced'));
 });

@@ -66,13 +66,13 @@ function formatSendTotals(sendData, lang, orgId, ordersDb) {
 
   return ordersDb.getTotal(sendData.orderid).then((totalPrice) => {
     if (totalPrice.visible && Number(totalPrice.visible) !== 0) {
-      sendData.total = `${__('order.total')}: ${totalPrice.visible}€`;
+      sendData.total = `${__('order.total')}: ${require("../currency").toMoney(totalPrice.visible)}€`;
     }
     if (showGoldPrices) {
       if (totalPrice.hidden && Number(totalPrice.hidden) !== 0) {
-        sendData.total_hidden = `${__('order.total_hidden')}: ${totalPrice.hidden}€`;
+        sendData.total_hidden = `${__('order.total_hidden')}: ${require("../currency").toMoney(totalPrice.hidden)}€`;
       } else if (totalPrice.visible && Number(totalPrice.visible) !== 0) {
-        sendData.total_hidden = `${__('order.total_hidden')}: ${totalPrice.visible}€`;
+        sendData.total_hidden = `${__('order.total_hidden')}: ${require("../currency").toMoney(totalPrice.visible)}€`;
       }
     }
     return sendData;

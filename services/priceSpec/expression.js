@@ -16,8 +16,9 @@
  *   `0.6(VALUE)`                             — rabat (ułamek), nie kwota
  *
  * ⚠️ Czynniki NIE są tu po to, żeby je pokazać — specyfikacja dla klienta
- * nigdy ich nie zdradza (patrz `allocateToTotal`). Parser tylko przenosi je
- * na składniki, żeby proporcje między składnikami były prawdziwe.
+ * nigdy ich nie zdradza (patrz `allocateToTotal`). Parser przenosi je na
+ * KAŻDY składnik osobno (`(25(SF)+86(ELMONO))*1.04` → 26 i 89.44), a nie na
+ * sumę rozbijaną potem proporcją.
  */
 
 const TOKEN_RE = /\s*(?:(\d+(?:\.\d+)?(?:e[+-]?\d+)?)|([A-Za-z_][A-Za-z0-9_]*)|(\S))/gy;
@@ -163,24 +164,35 @@ function parseSpecExpression(raw) {
   }
 }
 
+const isWhole = (n) => Math.abs(n - Math.round(n)) < 0.005;
+
 /**
  * Rozkłada `total` (kwotę, którą użytkownik WIDZI w zleceniu) na składniki
- * w proporcji ich kwot ze skryptu — w groszach, z sumą dokładnie równą `total`.
+ * `_S` — z sumą dokładnie równą `total`.
  *
- * ⚠️ Właśnie tu znikają wszystkie czynniki: skrypt potrafi pomnożyć cenę przez
- * czynnik z nazwy pliku (`param-DOPLATA-Cmul1.1.js` → `DOPLATA*1.1`), którego
- * w `_S` w ogóle nie ma, do tego dochodzi czynnik klienta, narzut grupy
- * (`applyClientMarkup`) i mnożnik pracownika (`priceFactor`). Skalowanie do
- * widocznej kwoty sprawia, że składniki zawsze sumują się do ceny z zlecenia,
- * a żaden mnożnik nie pojawia się w specyfikacji ani nie da się go odczytać
+ * ⚠️ KAŻDY SKŁADNIK OSOBNO × CZYNNIK (polecenie właściciela 2026-10-27).
+ * Parser już przeniósł czynnik `_S` na składniki: `(25(SF)+86(ELMONO))*1.04`
+ * → SF 26, ELMONO 89.44. Skrypt cennika kończy się `toFixed(fr)` na SUMIE
+ * (`fr = 0` — ceny klienta w pełnych euro: 115.44 → 115), więc kwota widoczna
+ * różni się od sumy składników tylko zaokrągleniem — składnik zaokrąglamy
+ * z tą samą dokładnością co cennik: SF 26 + ELMONO 89 = 115. Do 2026-10-27
+ * widoczne 115 szło proporcją (115 × 26/115.44 = 25.90 i 89.10) — fałszywe
+ * kwoty, jakich nie ma żaden cennik.
+ *
+ * Proporcja zostaje tylko dla czynników SPOZA `_S`: wariant skryptu
+ * (`param-DOPLATA-Cmul1.1.js` → `DOPLATA*1.1`, w `_S` go nie ma), narzut grupy
+ * (`applyClientMarkup`), mnożnik pracownika (`priceFactor`). Tam kwota widoczna
+ * odbiega od sumy o więcej niż zaokrąglenie i skalowanie do niej sprawia, że
+ * żaden mnożnik nie pojawia się w specyfikacji ani nie da się go odczytać
  * z różnicy „suma składników ≠ cena".
  *
- * Grosze rozdziela metoda największej reszty (Hamiltona): najpierw każdy
- * składnik w dół do grosza, brakujące grosze trafiają do składników o
- * największej odciętej części — stabilnie i bez „magicznej" poprawki na
- * ostatnim wierszu.
+ * Dokładność: pełne euro, gdy kwota jest okrągła, a suma składników nie (ślad
+ * `toFixed(0)`), inaczej grosze. Końcówkę rozdziela metoda największej reszty
+ * (Hamiltona): każdy składnik w dół do jednostki, brakujące jednostki trafiają
+ * do składników o największej odciętej części (nadmiarowe schodzą z tych
+ * o najmniejszej) — stabilnie i bez „magicznej" poprawki na ostatnim wierszu.
  *
- * @param {Array<{amount: number}>} items
+ * @param {Array<{amount: number}>} items  kwoty z czynnikiem `_S` (parser)
  * @param {number} total
  * @returns {number[]|null} kwoty w tej samej kolejności co `items`; `null`, gdy
  *   proporcji nie da się ustalić (brak składników albo ich suma ≤ 0).
@@ -189,15 +201,23 @@ function allocateToTotal(items, total) {
   if (!Array.isArray(items) || items.length === 0 || !Number.isFinite(total)) return null;
   const sum = items.reduce((s, i) => s + i.amount, 0);
   if (!(sum > 0)) return null;
-  const totalCents = Math.round(total * 100);
-  const exact = items.map((i) => (i.amount / sum) * totalCents);
-  const floors = exact.map((x) => Math.floor(x));
-  let remaining = totalCents - floors.reduce((s, x) => s + x, 0);
-  const order = exact
-    .map((x, idx) => ({ idx, frac: x - Math.floor(x) }))
-    .sort((a, b) => b.frac - a.frac || a.idx - b.idx);
-  for (let k = 0; remaining > 0 && k < order.length; k++, remaining--) floors[order[k].idx] += 1;
-  return floors.map((c) => c / 100);
+  const unitCents = isWhole(total) && !isWhole(sum) ? 100 : 1;
+  const totalUnits = Math.round(Math.round(total * 100) / unitCents);
+  const sumUnits = (sum * 100) / unitCents;
+  // Różnica w granicach zaokrąglenia → składnik × czynnik bez zmian; większa → ukryty czynnik.
+  const scale = Math.abs(totalUnits - sumUnits) <= 0.5 * items.length + 1e-6 ? 1 : totalUnits / sumUnits;
+  const exact = items.map((i) => Math.round(((i.amount * 100) / unitCents) * scale * 1e6) / 1e6);
+  const units = exact.map((x) => Math.floor(x));
+  let remaining = totalUnits - units.reduce((s, x) => s + x, 0);
+  const byFrac = exact.map((x, idx) => ({ idx, frac: x - Math.floor(x) }));
+  if (remaining > 0) {
+    byFrac.sort((a, b) => b.frac - a.frac || a.idx - b.idx);
+    for (let k = 0; remaining > 0; k = (k + 1) % byFrac.length, remaining--) units[byFrac[k].idx] += 1;
+  } else if (remaining < 0) {
+    byFrac.sort((a, b) => a.frac - b.frac || b.idx - a.idx);
+    for (let k = 0; remaining < 0; k = (k + 1) % byFrac.length, remaining++) units[byFrac[k].idx] -= 1;
+  }
+  return units.map((u) => (u * unitCents) / 100);
 }
 
 module.exports = { parseSpecExpression, allocateToTotal };
