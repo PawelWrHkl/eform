@@ -1,0 +1,16 @@
+<style>
+@font-face { font-family: "LX"; src: url("{{ assets.font_regular }}") format("truetype"); font-weight: normal; }
+@font-face { font-family: "LX"; src: url("{{ assets.font_bold }}") format("truetype"); font-weight: bold; }
+.ft { box-sizing: border-box; width: 100%; padding: 0 14mm; display: flex; justify-content: space-between;
+      align-items: flex-start; font-family: "LX", Arial, Helvetica, sans-serif; color: #111;
+      text-rendering: geometricPrecision;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.ft .page { padding-top: 2.2mm; font-size: 7.5pt; white-space: nowrap; }
+.ft .seller { width: 179mm; border-top: 0.6pt solid #3b2b22; padding-top: 1mm; text-align: right; font-size: 7pt;
+              line-height: 2.9mm; color: #2b1d17; }
+.ft .seller .l1 { font-weight: bold; }
+</style>
+<div class="ft">
+  <div class="page">{{ document.title }} {{ document.number }} &middot; Bladzijde <span class="pageNumber"></span>/<span class="totalPages"></span></div>
+  <div class="seller"><div class="l1">{{ seller.footer_line1 }}</div><div>{{ seller.footer_line2 }}</div></div>
+</div>

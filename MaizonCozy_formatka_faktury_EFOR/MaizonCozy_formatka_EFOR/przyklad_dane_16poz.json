@@ -1,0 +1,280 @@
+{
+ "_opis": "Dane przykładowe (SYNTETYCZNE) do formatki faktury MaizonCozy - wszystkie wartości jako gotowe napisy.",
+ "watermark": "VOORBEELD – geen factuur",
+ "document": {
+  "title": "Factuur",
+  "number": "26999916",
+  "place": "Zaltbommel",
+  "issue_date": "2026-10-15",
+  "due_date": "2026-11-14"
+ },
+ "buyer": {
+  "name": "Joost Wonen",
+  "street": "Hoornsewal 1",
+  "city_line": "2635 CL Den Hoorn",
+  "vat_id": "NL855923945B01",
+  "email": "info@joostwonen.example"
+ },
+ "items": [
+  {
+   "pos": "1",
+   "lines": [
+    "EO/20/1/Klant 01-keuken",
+    "PLISSÉGORDIJNEN EOS MODEL=BB24, STOF=30206-DP25, KLEUR PROFIEL=0150EOS",
+    "BREEDTE [MM]=637, HOOGTE [MM]=1153, SCHNURFUNKTIONEN=BB24LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=908, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =330,TOESLAG [€] =206,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "536,00",
+   "price": "265,90",
+   "amount": "265,90",
+   "price_group": "1"
+  },
+  {
+   "pos": "2",
+   "lines": [
+    "EO/20/2/Klant 02-slk voor",
+    "PLISSÉGORDIJNEN EOS MODEL=AL20, STOF=30233-DP25, KLEUR PROFIEL=7199CHR",
+    "BREEDTE [MM]=674, HOOGTE [MM]=1206, SCHNURFUNKTIONEN=AL20LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=961, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =322,TOESLAG [€] =134,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "456,00",
+   "price": "215,90",
+   "amount": "215,90",
+   "price_group": "1"
+  },
+  {
+   "pos": "3",
+   "lines": [
+    "EO/20/3/Klant 03-slk achter",
+    "PLISSÉGORDIJNEN EOS MODEL=BB24, STOF=30183-DP25, KLEUR PROFIEL=7199EOS",
+    "BREEDTE [MM]=711, HOOGTE [MM]=1259, SCHNURFUNKTIONEN=BB24LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1014, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =290,TOESLAG [€] =204,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "2,00",
+   "catalog_price": "494,00",
+   "price": "248,60",
+   "amount": "497,20",
+   "price_group": "1"
+  },
+  {
+   "pos": "4",
+   "lines": [
+    "EO/20/4/Klant 04-badkamer",
+    "PLISSÉGORDIJNEN EOS MODEL=AU20, STOF=30183-DP25, KLEUR PROFIEL=0150CHR",
+    "BREEDTE [MM]=748, HOOGTE [MM]=1312, SCHNURFUNKTIONEN=AU20LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1067, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =354,TOESLAG [€] =134,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "488,00",
+   "price": "228,70",
+   "amount": "228,70",
+   "price_group": "1"
+  },
+  {
+   "pos": "5",
+   "lines": [
+    "EO/21/1/Klant 05-zolder",
+    "PLISSÉGORDIJNEN EOS MODEL=BB24, STOF=30206-DP25, KLEUR PROFIEL=0150EOS",
+    "BREEDTE [MM]=785, HOOGTE [MM]=1365, SCHNURFUNKTIONEN=BB24LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1120, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =330,TOESLAG [€] =206,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "536,00",
+   "price": "265,90",
+   "amount": "265,90",
+   "price_group": "1"
+  },
+  {
+   "pos": "6",
+   "lines": [
+    "EO/21/2/Klant 06-werkkamer",
+    "PLISSÉGORDIJNEN EOS MODEL=AL20, STOF=30233-DP25, KLEUR PROFIEL=7199CHR",
+    "BREEDTE [MM]=822, HOOGTE [MM]=1418, SCHNURFUNKTIONEN=AL20LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1173, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =322,TOESLAG [€] =134,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "2,00",
+   "catalog_price": "456,00",
+   "price": "215,90",
+   "amount": "431,80",
+   "price_group": "1"
+  },
+  {
+   "pos": "7",
+   "lines": [
+    "EO/21/3/Klant 07-hal",
+    "PLISSÉGORDIJNEN EOS MODEL=BB24, STOF=30183-DP25, KLEUR PROFIEL=7199EOS",
+    "BREEDTE [MM]=859, HOOGTE [MM]=1471, SCHNURFUNKTIONEN=BB24LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1226, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =290,TOESLAG [€] =204,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "494,00",
+   "price": "248,60",
+   "amount": "248,60",
+   "price_group": "1"
+  },
+  {
+   "pos": "8",
+   "lines": [
+    "EO/21/4/Klant 08-woonkamer",
+    "PLISSÉGORDIJNEN EOS MODEL=AU20, STOF=30183-DP25, KLEUR PROFIEL=0150CHR",
+    "BREEDTE [MM]=896, HOOGTE [MM]=1524, SCHNURFUNKTIONEN=AU20LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1279, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =354,TOESLAG [€] =134,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "488,00",
+   "price": "228,70",
+   "amount": "228,70",
+   "price_group": "1"
+  },
+  {
+   "pos": "9",
+   "lines": [
+    "EO/22/1/Klant 09-keuken",
+    "PLISSÉGORDIJNEN EOS MODEL=BB24, STOF=30206-DP25, KLEUR PROFIEL=0150EOS",
+    "BREEDTE [MM]=933, HOOGTE [MM]=1577, SCHNURFUNKTIONEN=BB24LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1332, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =330,TOESLAG [€] =206,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "2,00",
+   "catalog_price": "536,00",
+   "price": "265,90",
+   "amount": "531,80",
+   "price_group": "1"
+  },
+  {
+   "pos": "10",
+   "lines": [
+    "EO/22/2/Klant 10-slk voor",
+    "PLISSÉGORDIJNEN EOS MODEL=AL20, STOF=30233-DP25, KLEUR PROFIEL=7199CHR",
+    "BREEDTE [MM]=970, HOOGTE [MM]=1630, SCHNURFUNKTIONEN=AL20LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1385, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =322,TOESLAG [€] =134,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "456,00",
+   "price": "215,90",
+   "amount": "215,90",
+   "price_group": "1"
+  },
+  {
+   "pos": "11",
+   "lines": [
+    "EO/22/3/Klant 11-slk achter",
+    "PLISSÉGORDIJNEN EOS MODEL=BB24, STOF=30183-DP25, KLEUR PROFIEL=7199EOS",
+    "BREEDTE [MM]=1007, HOOGTE [MM]=1683, SCHNURFUNKTIONEN=BB24LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1438, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =290,TOESLAG [€] =204,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "494,00",
+   "price": "248,60",
+   "amount": "248,60",
+   "price_group": "1"
+  },
+  {
+   "pos": "12",
+   "lines": [
+    "EO/22/4/Klant 12-badkamer",
+    "PLISSÉGORDIJNEN EOS MODEL=AU20, STOF=30183-DP25, KLEUR PROFIEL=0150CHR",
+    "BREEDTE [MM]=1044, HOOGTE [MM]=1736, SCHNURFUNKTIONEN=AU20LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1491, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =354,TOESLAG [€] =134,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "2,00",
+   "catalog_price": "488,00",
+   "price": "228,70",
+   "amount": "457,40",
+   "price_group": "1"
+  },
+  {
+   "pos": "13",
+   "lines": [
+    "EO/23/1/Klant 13-zolder",
+    "PLISSÉGORDIJNEN EOS MODEL=BB24, STOF=30206-DP25, KLEUR PROFIEL=0150EOS",
+    "BREEDTE [MM]=1081, HOOGTE [MM]=1789, SCHNURFUNKTIONEN=BB24LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1544, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =330,TOESLAG [€] =206,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "536,00",
+   "price": "265,90",
+   "amount": "265,90",
+   "price_group": "1"
+  },
+  {
+   "pos": "14",
+   "lines": [
+    "EO/23/2/Klant 14-werkkamer",
+    "PLISSÉGORDIJNEN EOS MODEL=AL20, STOF=30233-DP25, KLEUR PROFIEL=7199CHR",
+    "BREEDTE [MM]=1118, HOOGTE [MM]=1842, SCHNURFUNKTIONEN=AL20LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1597, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =322,TOESLAG [€] =134,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "456,00",
+   "price": "215,90",
+   "amount": "215,90",
+   "price_group": "1"
+  },
+  {
+   "pos": "15",
+   "lines": [
+    "EO/23/3/Klant 15-hal",
+    "PLISSÉGORDIJNEN EOS MODEL=BB24, STOF=30183-DP25, KLEUR PROFIEL=7199EOS",
+    "BREEDTE [MM]=1155, HOOGTE [MM]=1895, SCHNURFUNKTIONEN=BB24LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1650, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =290,TOESLAG [€] =204,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "2,00",
+   "catalog_price": "494,00",
+   "price": "248,60",
+   "amount": "497,20",
+   "price_group": "1"
+  },
+  {
+   "pos": "16",
+   "lines": [
+    "EO/23/4/Klant 16-woonkamer",
+    "PLISSÉGORDIJNEN EOS MODEL=AU20, STOF=30183-DP25, KLEUR PROFIEL=0150CHR",
+    "BREEDTE [MM]=1192, HOOGTE [MM]=1948, SCHNURFUNKTIONEN=AU20LR, CHILD SAFE=CS_NO",
+    "BEDRIJFSLENGTE [MM]=1703, MONTAGE=297944, BEDIENING=2977410155",
+    "CATALOGUSPRIJS [€] =354,TOESLAG [€] =134,CATALOGUSPRIJS KORTING=60.00%,EXTRA KORTING=35.00%"
+   ],
+   "qty": "1,00",
+   "catalog_price": "488,00",
+   "price": "228,70",
+   "amount": "228,70",
+   "price_group": "1"
+  }
+ ],
+ "notes": [
+  "Wij verzoeken u het betreffende bedrag over te maken op onderstaande rekening.",
+  "Op de goederen rust een verlengd eigendomsvoorbehoud.",
+  "Factuurdatum komt overeen met leverdatum (verzenddatum)"
+ ],
+ "totals": {
+  "net": "5.044,10 EUR",
+  "vat": [
+   {
+    "label": "21% BTW",
+    "amount": "1.059,28 EUR"
+   }
+  ],
+  "gross_label": "Totaal",
+  "gross": "6.103,38 EUR"
+ },
+ "seller": {
+  "footer_line1": "MaizonCozy B.V., IBAN NL41INGB0108648206, BIC INGBNL2A, BTW NL866455139B01, KvK 93574797",
+  "footer_line2": "Mezenlaan 5, 5301NW Zaltbommel, Nederland, tel.: +31 6 17631197, https://www.maizoncozy.eu, e-mail: info@maizoncozy.eu"
+ }
+}

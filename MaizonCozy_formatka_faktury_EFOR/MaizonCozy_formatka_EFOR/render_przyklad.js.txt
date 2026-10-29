@@ -1,0 +1,69 @@
+// Formatka faktury MaizonCozy -> PDF, tak jak może to zrobić EFOR (Node + Playwright, 23.10.2026).
+//   npm install nunjucks playwright-core          (EFOR ma już Playwright; nunjucks tylko jeśli szablony mają zostać .njk)
+//   node render_przyklad.js przyklad_dane_8poz.json przyklady/MaizonCozy_Factuur_VOORBEELD_8poz.pdf
+// Zmienne: CHROME_CHANNEL=chrome (Chrome z systemu) albo CHROME_PATH=/ścieżka/do/chromium; domyślnie Chromium Playwrighta
+// (od 1.49 headless shell). Wymagany Playwright 1.49+ (Chromium 131+: pasek i numer w marginesie @page na stronach 2+).
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const nunjucks = require('nunjucks');
+const { chromium } = require('playwright-core');
+
+const DIR = __dirname;
+const asset = (file, mime) =>
+  `data:${mime};base64,${fs.readFileSync(path.join(DIR, 'zasoby', file)).toString('base64')}`;
+// Logo, pasek i czcionki jako data URI: setContent() nie ma adresu bazowego, a stopka (footerTemplate)
+// nie widzi zasobów strony - tylko to, co ma wpisane w siebie.
+const assets = {
+  logo: asset('maizoncozy_logo.png', 'image/png'),
+  strip: asset('maizoncozy_pasek.svg', 'image/svg+xml'),
+  font_regular: asset('LiberationSans-Regular.ttf', 'font/ttf'),
+  font_bold: asset('LiberationSans-Bold.ttf', 'font/ttf'),
+};
+// Własne środowisko (nie globalne nunjucks.configure); brak wymaganego pola = błąd, nie pusta faktura.
+// Opcjonalne są tylko pola w {% if %}: watermark, document.due_date, buyer.vat_id, buyer.email.
+const env = new nunjucks.Environment(new nunjucks.FileSystemLoader(DIR), { autoescape: true, throwOnUndefined: true });
+
+// Układ wyznacza @page w faktura_maizoncozy.njk (13 / 0 / 13 / 0 mm; strona 1: góra 0). Chromium bierze marginesy z @page,
+// a te poniżej są tylko dla porządku (takie same). Stopka rysuje się 5,1 mm nad krawędzią, stąd dół 13 mm.
+const PDF_OPTIONS = {
+  format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true,
+  displayHeaderFooter: true, headerTemplate: '<span></span>',
+  margin: { top: '13mm', right: '0mm', bottom: '13mm', left: '0mm' },
+};
+
+async function renderPdf(data, outPdf, browser) {
+  const ctx = { ...data, assets };
+  const page = await browser.newPage();
+  try {
+    await page.setContent(env.render('faktura_maizoncozy.njk', ctx), { waitUntil: 'load' });
+    await page.evaluate(() => document.fonts.ready);
+    await page.pdf({ ...PDF_OPTIONS, path: outPdf, footerTemplate: env.render('stopka.njk', ctx) });
+  } finally {
+    await page.close();
+  }
+}
+
+async function main() {
+  const [dataFile, outPdf] = process.argv.slice(2);
+  if (!dataFile || !outPdf) {
+    console.error('użycie: node render_przyklad.js dane.json wynik.pdf');
+    process.exit(2);
+  }
+  const data = JSON.parse(fs.readFileSync(path.resolve(dataFile), 'utf8'));
+  const browser = await chromium.launch({
+    channel: process.env.CHROME_CHANNEL || undefined,
+    executablePath: process.env.CHROME_PATH || undefined,
+  });
+  try {
+    await renderPdf(data, path.resolve(outPdf), browser);
+    console.log(`${outPdf}: ${data.document.title} ${data.document.number}, pozycji ${data.items.length} (Chromium ${browser.version()})`);
+  } finally {
+    await browser.close();
+  }
+}
+
+if (require.main === module) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}
+module.exports = { renderPdf, assets, PDF_OPTIONS };

@@ -22,3 +22,5 @@ logs/prodstatus-cron.log
 # Filmy wysyłane linkiem (/film/<nazwa>, routes/film.js) — pliki po 200 MB;
 # GitHub odrzuca pliki > 100 MB, więc auto-commit z pushem by się wywrócił
 movies/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

@@ -1,0 +1,20 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Liberation Fonts
+Source: https://github.com/liberationfonts
+
+Files: *
+Copyright:
+ Digitized data copyright (c) 2010 Google Corporation with Reserved Font Arimo, Tinos and Cousine.
+ Copyright (c) 2012 Red Hat, Inc. with Reserved Font Name Liberation.
+License: SIL-OFL-1.1
+ This Font Software is licensed under the SIL Open Font License,
+ Version 1.1.
+ .
+ This license is copied below, and is also available with a FAQ at:
+ http://scripts.sil.org/OFL
+ .
+ SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+ .
+ PREAMBLE The goals of the Open Font License (OFL) are to stimulate
+ worldwide development of collaborative font projects, to support the font
+ creation efforts of academic and linguistic communities, and to provide
