@@ -32,6 +32,94 @@
             </div>
         </div>
     {% endif %}
+    {# ── Wariant B: pulpit startowy ──────────────────────────────────────────
+       Te same dane co niżej (`user`, `orders`, `ordersSent` z routes/index.js,
+       z tymi samymi ograniczeniami konta), ułożone jak pulpit: tytuł = nazwa
+       firmy, akcja „Nowa oferta”, ostatnie oferty, ostatnio wysłane, dane
+       firmy. W wariancie A niewidoczny (`.efor-v2-only`); w B chowa klasyczny
+       widok (theme-efor-v2.css, sekcja 24). Wysyłka i edycja zostają w ofercie
+       i na liście — pulpit tylko prowadzi. #}
+    {% if user %}
+        {% import "partials/efor-v2-strings.njk" as eforStrings %}
+        {% set eforT = eforStrings.dict[locale] or eforStrings.dict["en"] %}
+        <section class="efor-dash efor-v2-only content" aria-labelledby="efor-dash-title">
+            <header class="efor-dash__head">
+                <h1 class="efor-dash__title" id="efor-dash-title">{{ user.client_name }}</h1>
+                <a href="/orders/add-order" class="btn btn-primary efor-dash__new">
+                    <svg aria-hidden="true"><use href="#efor-i-file-plus"/></svg>
+                    <span>{{ __('base.new_order') }}</span>
+                </a>
+            </header>
+
+            <div class="efor-dash__grid">
+                <section class="efor-card efor-dash__panel efor-dash__offers" aria-labelledby="efor-dash-offers">
+                    <h2 class="efor-card__head" id="efor-dash-offers">
+                        <span>{{ __('base.last_orders') }}</span>
+                        <a href="/orders" class="efor-dash__all">{{ eforT.dashAll }}</a>
+                    </h2>
+                    {% if orders %}
+                        <ul class="efor-dash__list">
+                            {% for order in orders %}
+                                <li>
+                                    <a href="/orders/order/{{ order.id }}" class="efor-dash__row">
+                                        <span class="efor-dash__no">#{{ order.order_idx }}</span>
+                                        <span class="efor-dash__name">{{ order.commision or '—' }}</span>
+                                        {% if order.status == 'pending_approval' %}
+                                            <span class="efor-pill">{{ __('group.status_submitted_for_approval') }}</span>
+                                        {% endif %}
+                                        <span class="efor-dash__date">{{ order.created_date }}</span>
+                                        <svg class="efor-dash__chevron" aria-hidden="true"><use href="#efor-i-chevron-right"/></svg>
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="efor-dash__empty">{{ eforT.dashEmptyOffers }}</p>
+                    {% endif %}
+                </section>
+
+                <section class="efor-card efor-dash__panel efor-dash__sent" aria-labelledby="efor-dash-sent">
+                    <h2 class="efor-card__head" id="efor-dash-sent">
+                        <span>{{ __('base.last_sent_orders') }}</span>
+                        <a href="/orders/history" class="efor-dash__all">{{ eforT.dashAll }}</a>
+                    </h2>
+                    {% if ordersSent %}
+                        <ul class="efor-dash__list">
+                            {% for order in ordersSent %}
+                                <li>
+                                    <a href="/orders/history/order/{{ order.id }}" class="efor-dash__row">
+                                        <span class="efor-dash__no">#{{ order.order_idx }}</span>
+                                        <span class="efor-dash__name">{{ order.commision or '—' }}</span>
+                                        <span class="efor-pill{% if order.prod_status == '!sent!' %} efor-pill--sent{% endif %}">{{ __(order.prod_status) if order.prod_status else __('order.status_order_sent') }}</span>
+                                        <span class="efor-dash__date">{{ order.sent_date or order.created_date }}</span>
+                                        <svg class="efor-dash__chevron" aria-hidden="true"><use href="#efor-i-chevron-right"/></svg>
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="efor-dash__empty">{{ eforT.dashEmptySent }}</p>
+                    {% endif %}
+                </section>
+
+                <section class="efor-card efor-dash__panel efor-dash__company" aria-labelledby="efor-dash-company">
+                    <h2 class="efor-card__head" id="efor-dash-company"><span>{{ eforT.companyData }}</span></h2>
+                    <div class="efor-dash__body">
+                        <dl class="efor-dash__facts">
+                            <div><dt>{{ __('base.nip') | replace(':', '') }}</dt><dd>{{ user.tax_id or '—' }}</dd></div>
+                            <div><dt>{{ __('base.street') | replace(':', '') }}</dt><dd>{{ user.street or '—' }}</dd></div>
+                            <div><dt>{{ __('base.zip') | replace(':', '') }}</dt><dd>{{ user.zip or '—' }}</dd></div>
+                            <div><dt>{{ __('base.city_country') | replace(':', '') }}</dt><dd>{{ user.city }}{% if user.country %}, {{ user.country }}{% endif %}</dd></div>
+                            <div><dt>E-mail</dt><dd>{% if user.email %}{{ user.email | escape | replace('@', '@<wbr>') | safe }}{% else %}—{% endif %}</dd></div>
+                        </dl>
+                        {% if not isGroupShop %}
+                            <a class="btn btn-outline-secondary efor-dash__edit" href="/user/edit-user">{{ __('base.edit_user_data') }}</a>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+        </section>
+    {% endif %}
     <div id='main-content' class="content">
         <div class="container mb-5 col-12 w-100 mobile-rm-card">
             {% if user %}

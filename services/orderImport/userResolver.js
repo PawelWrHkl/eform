@@ -21,7 +21,9 @@ const USER_QUERY = `
          -- Zasady potwierdzenia (AB) muszą jechać razem z klientem: bez tych
          -- kolumn wysyłka po imporcie nie miala z czego odczytac regul i szla
          -- z cenami, w domyslnym jezyku i na adres organizacji.
-         u.ab_type, u.ab_lang, u.client_ab, u.delivery_delay
+         u.ab_type, u.ab_lang, u.client_ab, u.delivery_delay,
+         -- 1 = wysyłka na produkcję zaraz po imporcie, 0 = zamówienie zostaje ofertą
+         u.autoimport
   FROM \`user\` u
   LEFT JOIN organization o ON o.id = u.organization_id
   WHERE u.ident = ?

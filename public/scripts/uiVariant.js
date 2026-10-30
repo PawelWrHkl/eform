@@ -98,6 +98,7 @@
         if (/^\/position\/\d+$/.test(p)) return 'position';
         if (p === '/panel') return 'panel';
         if (/^\/user\/(login|auth)/.test(p)) return 'login';
+        if (/^\/admin(\/|$)/.test(p)) return 'admin';
         return 'other';
     }
 

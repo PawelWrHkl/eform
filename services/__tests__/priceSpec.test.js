@@ -613,3 +613,16 @@ test('zaawansowana: bez kłódki — tylko składnik i wartość, bez kolumn rab
   assert.ok(!simple.includes('<th scope="col">Rabat</th>'));
   assert.ok(!simple.includes('price-spec--advanced'));
 });
+
+// PDF specyfikacji (29.10): pozycja zajmuje zwykle 50–110% strony A4, a Chromium
+// przenosi blok z `break-inside: avoid` w całości na następną stronę — pierwsza
+// strona zostawała z samym nagłówkiem dokumentu. Pozycja płynie, łamie się
+// tylko między sekcjami.
+test('arkusz: pozycja specyfikacji nie jest nierozdzielna, sekcje są', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'styles', 'priceSpec.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].split(',').map((s) => s.trim()), body: m[2] }));
+  const avoids = (sel) => rules.some((r) => r.sel.includes(sel) && /break-inside:\s*avoid/.test(r.body));
+  assert.equal(avoids('.price-spec__position'), false);
+  for (const sel of ['.price-spec__section', '.price-spec__totals', '.price-spec__table tr']) assert.ok(avoids(sel), sel);
+});

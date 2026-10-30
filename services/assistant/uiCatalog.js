@@ -86,7 +86,7 @@ const CATALOG = [
 	{ key: 'nav_employee_panel', selectors: ['#employee-panel-nav-btn'], labelKey: 'base.employee_panel', description: 'menu: panel pracowników', screens: ['any'], click: true, navTo: 'employees' },
 	{ key: 'nav_invoices', selectors: ['#invoices-nav-btn'], labelKey: null, description: 'menu: moduł „Faktury" (tylko gdy moduł jest włączony)', screens: ['any'], click: true, navTo: 'invoices' },
 	{ key: 'user_panel_btn', selectors: ['#user-panel-header-btn'], labelKey: 'panel.nav_link', description: 'nagłówek → menu konta (awatar ze strzałką): panel użytkownika (dane konta, hasło, katalogi)', screens: ['any'], click: true, navTo: 'account' },
-	{ key: 'mobile_menu', selectors: ['.navbar-toggler'], labelKey: null, description: 'telefon: przycisk menu (trzy kreski)', screens: ['any'], click: true },
+	{ key: 'mobile_menu', selectors: ['.navbar-toggler', '.m-bottomnav [data-m-nav="more"]'], labelKey: null, description: 'telefon: menu (trzy kreski w nagłówku albo „Więcej” w dolnym pasku — w nowym wyglądzie arkusz od dołu)', screens: ['any'], click: true },
 	{ key: 'tour_button', selectors: ['#intro-tour-header-btn'], labelKey: null, description: 'nagłówek → menu konta (awatar ze strzałką): „Przewodnik po portalu” (ikona kompasu)', screens: ['any'] },
 	{ key: 'language_switcher', selectors: ['.language-switcher', '.efor-lang'], labelKey: null, description: 'nagłówek: wybór języka (flagi)', screens: ['any'] },
 	...['pl', 'en', 'de', 'nl', 'fr'].map((l) => ({

@@ -1,6 +1,7 @@
 const _ = require("n_");
 const { features } = require('../config');
 const { withCurrencyLabel, isMonetaryParamName } = require('./currency');
+const { HKL_ORG_ID } = require('./subPrices');
 
 /** VAT ceny klienta zapisany przy pozycji (pricesCalculator.js) — nie pokazujemy go per pozycja. */
 const SUB_VAT_KEYS = new Set(['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']);
@@ -360,7 +361,51 @@ async function jsonTextBackToMap(orderItems, options = {}) {
   if (anyNonNumeric) {
     total.visible = 'according_to_price';
   }
+  dropZeroOnlySubPrices(cleanOrderItems, await hklOrderIdsWithZeroSub(cleanOrderItems));
   return { cleanOrderItems, total };
+}
+
+/** Pozycja ma wpisy SUB___, ale żadnej ceny — same zera albo puste wartości. */
+function hasOnlyZeroSubPrices(item) {
+  const entries = item && item.subParamValues;
+  return Array.isArray(entries) && entries.length > 0 && entries.every((e) => {
+    const value = String(e.value ?? '').trim();
+    return value === '' || parseFloat(value.split(' - ')[0].replace(',', '.')) === 0;
+  });
+}
+
+/**
+ * Klienci organizacji HKL nie mają cen SUB___, a ich pozycje (np. z importu)
+ * bywają zapisane z samymi zerami — taka pozycja „nie ma cen SUB” i żaden widok,
+ * stopka, PDF ani specyfikacja ich nie pokazuje. Tylko zlecenia HKL: u klienta
+ * innej organizacji „ma ceny SUB” chowa ceny zakupu HKL, więc zero tam zostaje.
+ *
+ * @param {Array} cleanOrderItems  wynik pętli `jsonTextBackToMap` (mutowany)
+ * @param {Set<number>} hklOrderIds  zlecenia organizacji HKL
+ */
+function dropZeroOnlySubPrices(cleanOrderItems, hklOrderIds) {
+  for (const table of cleanOrderItems) {
+    for (const { item } of table.rows) {
+      if (hklOrderIds.has(Number(item.order_id)) && hasOnlyZeroSubPrices(item)) {
+        item.subParamValues = [];
+        item.clientDiscountValues = [];
+      }
+    }
+  }
+}
+
+/** Baza tylko gdy jest co sprawdzać; błąd zapytania = zera zostają (jak dotąd). */
+async function hklOrderIdsWithZeroSub(cleanOrderItems) {
+  const ids = new Set();
+  for (const table of cleanOrderItems) {
+    for (const { item } of table.rows) {
+      if (item.order_id != null && hasOnlyZeroSubPrices(item)) ids.add(Number(item.order_id));
+    }
+  }
+  if (!ids.size) return ids;
+  const { selectQuery } = require('../db/core');
+  const rows = await selectQuery('SELECT id FROM `order` WHERE organization_id = ? AND id IN (?)', [HKL_ORG_ID, [...ids]]);
+  return new Set((rows || []).map((r) => Number(r.id)));
 }
 
 function areArraysEqual(arrA, arrB) {
@@ -529,4 +574,4 @@ function removeEmptyColumns(table) {
   };
 }
 
-module.exports = { jsonTextBackToMap, dropPriceSpecRows, isDisabledDefaultRow, POSITION_VAT_KEYS };
+module.exports = { jsonTextBackToMap, dropPriceSpecRows, isDisabledDefaultRow, POSITION_VAT_KEYS, dropZeroOnlySubPrices };

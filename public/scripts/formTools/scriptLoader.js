@@ -120,7 +120,10 @@ function roundPrices(pricesObject) {
         if (!isNaN(value) && value !== null && value !== '') {
 
             const floatValue = parseFloat(value);
-            rounded[key] = Math.round(floatValue * 100) / 100;
+            // Rabaty (`*RABAT*`) to ułamki z 4 miejscami — filie JC mają 0.7535;
+            // przy 2 miejscach cena liczyła się od 0.75. Kwoty zostają na groszach.
+            const factor = key.includes('RABAT') ? 10000 : 100;
+            rounded[key] = Math.round(floatValue * factor) / factor;
         } else {
 
             rounded[key] = value;

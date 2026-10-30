@@ -43,9 +43,11 @@ function buildHtml(results) {
   for (const r of ok) {
     const sendStatus = r.sent
       ? '<span style="color:#1a7a1a;">✅ wysłane</span>'
-      : (r.sendError
-        ? `<span style="color:#c0392b;">⚠ ${escHtml(r.sendError)}</span>`
-        : '<span style="color:#888;">—</span>');
+      : r.offer
+        ? '<span style="color:#888;">📝 oferta — klient bez autoimportu</span>'
+        : (r.sendError
+          ? `<span style="color:#c0392b;">⚠ ${escHtml(r.sendError)}</span>`
+          : '<span style="color:#888;">—</span>');
     const warnings = Array.isArray(r.warnings) && r.warnings.length > 0
       ? `<span style="color:#c0392b;">⚠ ${r.warnings.map(escHtml).join('<br>')}</span>`
       : '—';

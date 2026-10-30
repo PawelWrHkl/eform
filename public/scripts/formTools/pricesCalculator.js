@@ -40,7 +40,7 @@ function formatNumberForDisplay(value) {
  *        → "(60.5 + 77 + 54.21), (KUHGMBS150 + KUHGMBSG250 + PROWADNICAUS2)"
  *      "0.6(VALUE)" → "0.6, (VALUE)"
  */
-function formatSpecDisplay(raw) {
+function formatSpecDisplay(raw, digits = 2) {
     let s = String(raw).trim();
 
     // Detect outer multiplier: ...)*number at the end
@@ -62,7 +62,7 @@ function formatSpecDisplay(raw) {
 
     if (tokens.length === 0) return s;
 
-    const fmt = v => parseFloat(v.toFixed(2)).toString();
+    const fmt = v => parseFloat(v.toFixed(digits)).toString();
 
     // Numeric part: each number × multiplier
     const numStrs = tokens.map((t, i) => {
@@ -826,10 +826,12 @@ export function calculateFromScript(param, values, inputs, displayValues, groupN
                             let strVal;
                             if (param.FORMAT == 'n%' && !isNewSuffix) {
                                 const numericValue = parseFloat(scriptValue);
-                                strVal = `${parseInt(numericValue * 100)}%`;
+                                // Do 2 miejsc procentu: 0.7535 → „75.35%” (parseInt dawał „75%”, a 0.565 → „56%”).
+                                strVal = `${parseFloat((numericValue * 100).toFixed(2))}%`;
                                 inputs[scriptParamName].value = numericValue;
                             } else if (isNewSuffix) {
-                                strVal = formatSpecDisplay(scriptValue);
+                                // Specyfikacja rabatu („0.7535(VALUE)”) — 4 miejsca jak sam rabat (scriptLoader.roundPrices).
+                                strVal = formatSpecDisplay(scriptValue, scriptParamName.includes('RABAT') ? 4 : 2);
                                 inputs[scriptParamName].value = scriptValue;
                             } else {
                                 strVal = String(scriptValue);

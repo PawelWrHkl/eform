@@ -53,3 +53,27 @@ test('jsonTextBackToMap legacy order has empty subParamValues', async () => {
   const subValues = cleanOrderItems[0].rows[0].item.subParamValues;
   assert.deepEqual(subValues, []);
 });
+
+test('dropZeroOnlySubPrices: zlecenie HKL z samymi zerami w SUB___ nie ma cen SUB', () => {
+  const zeroItem = {
+    order_id: 3315,
+    subParamValues: [
+      { key: 'SUB___CENA_SUMA', value: '0' },
+      { key: 'SUB___SUMA_BRUTTO', value: '0.00' },
+      { key: 'SUB___WARTOSC_KONCOWA', value: '', locked: true }
+    ],
+    clientDiscountValues: [{ key: 'SUB___RABAT_KLIENTA', value: '0' }]
+  };
+  const pricedItem = { order_id: 3315, subParamValues: [{ key: 'SUB___CENA_SUMA', value: '0' }, { key: 'SUB___CENA', value: '12.50' }] };
+  const otherOrgItem = { order_id: 4000, subParamValues: [{ key: 'SUB___CENA_SUMA', value: '0' }] };
+  const table = { rows: [{ item: zeroItem }, { item: pricedItem }, { item: otherOrgItem }] };
+
+  orderService.dropZeroOnlySubPrices([table], new Set([3315]));
+
+  assert.deepEqual(zeroItem.subParamValues, []);
+  assert.deepEqual(zeroItem.clientDiscountValues, []);
+  // Choć jedna prawdziwa cena — pozycja zostaje z cenami SUB (zera też).
+  assert.equal(pricedItem.subParamValues.length, 2);
+  // Spoza HKL zero zostaje: „ma ceny SUB” chowa tam ceny zakupu HKL.
+  assert.equal(otherOrgItem.subParamValues.length, 1);
+});

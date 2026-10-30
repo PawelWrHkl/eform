@@ -52,6 +52,7 @@ Sukces: klient samodzielnie, bez telefonu do biura, składa poprawne zlecenie z 
 - Nazwa platformy: **eForm** (stopka „eforM”; wariant B nazywany „Efor 2.0”).
 - Logo w nagłówku zależy od organizacji zalogowanego konta (`/user/logo`); strona logowania używa grafiki HKL (`public/img/hkl-login-image*`).
 - Maskotka asystenta: **mały biały piesek „Eforek”** (imię w interfejsie i w rozmowie) — świadomie nie kopia cudzej maskotki.
+- **Wariant B trzyma paletę z makiet szefa** (`wizualizacja efor/`): turkusowe nagłówki kart, bursztynowe akcje, kremowe sumy, ciepłe jasne tło, Inter. Nowy świat wizualny B (grafit, pomarańcz, zieleń, Archivo) został odrzucony przez właściciela 2026-10-29 — zmiany w B to dopracowanie w tej palecie, nie nowy wygląd.
 - Dokumenty sprzedażowe (faktury) mają formatki per wystawca z logo marki.
 
 ## Evidence on Hand

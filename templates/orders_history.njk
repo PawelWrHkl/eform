@@ -89,7 +89,10 @@
                                 {% endif %}
                             </div>
                         {% endblock %}
-                        {% block action_th %}{% if isAdmin %}<th scope="col"></th>{% endif %}{% endblock %}
+                        {# Kolumna „Zamów ponownie” jest w każdym wierszu, a nagłówek tylko u admina —
+                           w B pasek nagłówka kończył się przed ostatnią kolumną. Pusta komórka tylko
+                           w B (`.efor-v2-only`), w A tabela zostaje bez zmian. #}
+                        {% block action_th %}{% if isAdmin %}<th scope="col"></th>{% else %}<th scope="col" class="efor-v2-only"></th>{% endif %}{% endblock %}
                             {% block extra_rows %}
                                 <td>{{ order.sent_date }}</td>
                                 <th scope="row" data-prod-status="{{ order.prod_status or '' }}">{{ __(order.prod_status) if order.prod_status else __('order.status_order_sent') }}</th>

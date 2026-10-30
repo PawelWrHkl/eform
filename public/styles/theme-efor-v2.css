@@ -44,8 +44,13 @@
      17. Strona: dane oferty (nowa / edycja)
      18. Strona: szczegóły pozycji
      19. Strony: listy, start, panel
-     20. Mobile (< 768 px)
+     20. Telefon (< 768 px) — natywnie jak iOS (zachowanie: uiVariantMobile.js)
+     19b. Pasek admina (desktop), 20b. Logowanie
      21. Przejście między wariantami, ograniczony ruch
+     22. Wybór wariantu w panelu użytkownika
+     24. Pulpit startowy (home.njk)
+     25. Strony admina i pasek admina
+     26. Poprawki po przeglądzie (2026-10-29)
    ============================================================================= */
 
 
@@ -4711,12 +4716,24 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
 
 
 /* =============================================================================
-   20. MOBILE (< 768 px) — ten sam, dopracowany układ mobilny w palecie B
+   20. TELEFON (< 768 px) — natywnie jak iOS, w palecie B
    =============================================================================
-   Warstwa mobilna (public/styles/mobile/*) jest oparta na tokenach `--m-*`
-   (mobile/tokens.css) — wariant B podmienia tokeny, a do tego karty
-   pozycji dostają turkusowy nagłówek jak na desktopie. Kafelki wyboru
-   produktu i panel ceny są tylko od 768 / 992 px (patrz sekcje 15–16). */
+   Ten sam świat co na desktopie (ciepłe tło, turkus, bursztyn, krem), ułożony
+   jak aplikacja na iPhone'a:
+     • pasek nawigacji z materiałem (półprzezroczysta biel z rozmyciem):
+       „‹ Wstecz” po lewej, tytuł pośrodku pojawia się dopiero, gdy duży tytuł
+       strony zjedzie pod pasek; linia pod paskiem tylko przy przewiniętej
+       treści (klasy z uiVariantMobile.js),
+     • duże tytuły na stronach głównych, wyrównane do lewej,
+     • listy jako zgrupowane sekcje z wierszami 44+ px i liniami od wcięcia,
+     • pasek kart z materiałem; aktywna karta w turkusie (kolor akcji iOS),
+     • „Więcej” = arkusz od dołu z uchwytem, kontem, językiem, trybem
+       ciemnym, skrótami admina i linkami prawnymi; hamburger znika,
+     • akcja główna oferty (wyślij / do zatwierdzenia) w dolnym pasku przy
+       kciuku, nad paskiem kart.
+   Warstwa mobilna (public/styles/mobile/*) jest oparta na tokenach `--m-*` —
+   wariant B je podmienia; to, czego tokeny nie obejmują, nadpisuje niżej.
+   Kafelki wyboru produktu i panel ceny są tylko od 768 / 992 px (sekcje 15–16). */
 @media (max-width: 767.98px) {
     .theme-efor-v2 {
         --m-accent: #f7b417;
@@ -4734,8 +4751,25 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         --m-border-strong: #cdd1d8;
         --m-focus: rgba(247, 180, 23, .5);
         --m-ink: #265b63;
-        --m-shadow-card: 0 1px 2px rgba(16, 24, 40, .05);
-        --m-shadow-header: 0 1px 0 #e8e6e0;
+        --m-shadow-card: none;
+        --m-shadow-header: none;
+        --m-header-h: 44px;
+        --m-bottomnav-h: 50px;
+        --m-gutter: 16px;
+
+        /* iOS: materiał pasków, linie, wypełnienia, kolor akcji */
+        --ios-bar: rgba(247, 245, 241, .82);
+        --ios-tabbar: rgba(252, 251, 249, .86);
+        --ios-sep: rgba(11, 19, 36, .14);
+        --ios-sep-inset: rgba(11, 19, 36, .1);
+        --ios-fill: rgba(118, 112, 98, .12);
+        --ios-fill-press: rgba(118, 112, 98, .2);
+        --ios-tint: #265b63;
+        --ios-gray: #8a8f98;
+        --ios-group: #ffffff;
+        --ios-row-press: #efece6;
+        --ios-radius: 12px;
+        --ios-ease: cubic-bezier(.32, .72, 0, 1);
     }
 
     .theme-efor-v2[data-theme="dark"] {
@@ -4752,8 +4786,22 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         --m-border: rgba(255, 255, 255, .08);
         --m-border-strong: rgba(255, 255, 255, .18);
         --m-ink: #8cc3cb;
-        --m-shadow-card: 0 1px 2px rgba(0, 0, 0, .35);
-        --m-shadow-header: 0 1px 0 rgba(255, 255, 255, .06);
+
+        --ios-bar: rgba(15, 22, 25, .8);
+        --ios-tabbar: rgba(19, 28, 32, .86);
+        --ios-sep: rgba(255, 255, 255, .14);
+        --ios-sep-inset: rgba(255, 255, 255, .09);
+        --ios-fill: rgba(180, 193, 197, .14);
+        --ios-fill-press: rgba(180, 193, 197, .22);
+        --ios-tint: #8cc3cb;
+        --ios-gray: #7d8f95;
+        --ios-group: #182227;
+        --ios-row-press: #22313a;
+    }
+
+    .theme-efor-v2 body {
+        font-size: 16px;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .theme-efor-v2 h1,
@@ -4762,24 +4810,1123 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         letter-spacing: -.025em;
     }
 
-    /* aktywna pozycja dolnego paska — bursztynowa pigułka pod ikoną */
-    .theme-efor-v2 .m-bottomnav__item[aria-current="page"],
-    .theme-efor-v2 .m-bottomnav__item.is-active {
-        color: var(--m-text);
+    /* ── pasek nawigacji ─────────────────────────────────────────────────── */
+    /* ⚠️ Materiał jest na ::before, nie na samym pasku: `backdrop-filter`
+       na `.mobile-nav` uczyniłby z niego blok zawierający dla elementów
+       `position: fixed` — arkusz „Więcej” (dziecko paska) skurczyłby się
+       wtedy do 44 px wysokości paska zamiast leżeć na ekranie. */
+    /* theme.css w trybie ciemnym daje pasekowi `backdrop-filter` z !important
+       ([data-theme="dark"] .mobile-nav) — stąd druga, mocniejsza linia */
+    .theme-efor-v2 .navbar.mobile-nav,
+    .theme-efor-v2 .mobile-nav,
+    .theme-efor-v2[data-theme="dark"] .mobile-nav {
+        background: transparent !important;
+        border-bottom: .5px solid transparent !important;
+        box-shadow: none !important;
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+        transition: border-color .2s ease;
     }
 
-    /* karty pozycji oferty: turkusowy pasek z numerem i nazwą grupy */
+    .theme-efor-v2 .mobile-nav::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: var(--ios-bar);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        backdrop-filter: saturate(180%) blur(20px);
+        pointer-events: none;
+    }
+
+    /* Otwarty arkusz (i jego tło) musi przykryć pasek kart, który leży
+       w DOM-ie później z tym samym z-indexem */
+    .theme-efor-v2.efor-sheet-open .mobile-nav {
+        z-index: 1060 !important;
+    }
+
+    .theme-efor-v2.efor-scrolled .mobile-nav {
+        border-bottom-color: var(--ios-sep) !important;
+    }
+
+    .theme-efor-v2 .mobile-nav > .container-fluid {
+        position: relative;
+        flex-wrap: nowrap !important;
+        min-height: var(--m-header-h) !important;
+        padding: 0 8px !important;
+        gap: 4px !important;
+    }
+
+    /* Hamburger znika — całe menu jest pod „Więcej” w pasku kart */
+    .theme-efor-v2 .mobile-nav .navbar-toggler {
+        display: none !important;
+    }
+
+    /* Logo tylko na Starcie, po lewej, małe — dalej mówi tytuł strony */
+    .theme-efor-v2 .mobile-nav .navbar-brand {
+        flex: 0 1 auto;
+        padding-left: 8px !important;
+    }
+
+    .theme-efor-v2 .mobile-nav .logo {
+        max-height: 28px !important;
+        max-width: 46vw !important;
+    }
+
+    .theme-efor-v2:not([data-efor-page="home"]) .mobile-nav .navbar-brand {
+        display: none !important;
+    }
+
+    [data-theme="dark"].theme-efor-v2 .mobile-nav .logo {
+        padding: 3px 6px;
+        border-radius: 6px;
+        background: #ffffff;
+    }
+
+    /* „‹ Wstecz” — tekst w kolorze akcji, bez ramki */
+    .theme-efor-v2 #mobile-back-btn.mobile-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        width: auto;
+        height: 44px;
+        flex: 0 0 auto;
+        max-width: 38vw;
+        margin: 0 !important;
+        padding: 0 8px 0 6px !important;
+        border: 0 !important;
+        border-radius: 8px;
+        background: transparent !important;
+        color: var(--ios-tint);
+    }
+
+    .theme-efor-v2 #mobile-back-btn.mobile-back-btn.d-none {
+        display: none !important;
+    }
+
+    .theme-efor-v2 #mobile-back-btn.mobile-back-btn:active {
+        background: transparent !important;
+        transform: none;
+        opacity: .5;
+    }
+
+    .theme-efor-v2 #mobile-back-btn .mobile-back-icon {
+        display: none;
+    }
+
+    .theme-efor-v2 .efor-back-chevron {
+        width: 12px;
+        height: 20px;
+        flex: 0 0 12px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .theme-efor-v2 .efor-back-label {
+        overflow: hidden;
+        font-size: 17px;
+        font-weight: 400;
+        letter-spacing: -.01em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Strony główne (karty) nie mają powrotu — jak w aplikacji */
+    .theme-efor-v2[data-efor-page="orders"] #mobile-back-btn,
+    .theme-efor-v2[data-efor-page="history"] #mobile-back-btn,
+    .theme-efor-v2[data-efor-page="home"] #mobile-back-btn {
+        display: none !important;
+    }
+
+    /* Tytuł w pasku: pojawia się, gdy duży tytuł zjedzie pod pasek */
+    .theme-efor-v2 .efor-navbar-title {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        max-width: 64%;
+        height: var(--m-header-h);
+        overflow: hidden;
+        transform: translateX(-50%);
+        color: var(--m-text);
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -.01em;
+        line-height: var(--m-header-h);
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .18s ease;
+    }
+
+    .theme-efor-v2.efor-title-docked .efor-navbar-title {
+        opacity: 1;
+    }
+
+    /* Treść pod paskiem nawigacji i nad paskiem kart */
+    .theme-efor-v2 main {
+        padding-top: calc(var(--m-header-h) + env(safe-area-inset-top, 0px) + 4px) !important;
+        padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 28px) !important;
+    }
+
+    /* Stopka: linki przechodzą do arkusza „Więcej” */
+    .theme-efor-v2 .site-footer {
+        display: none !important;
+    }
+
+    /* ── duże tytuły ─────────────────────────────────────────────────────── */
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-center h2,
+    .theme-efor-v2[data-efor-page="panel"] .panel-title,
+    .theme-efor-v2 .efor-dash__title,
+    .theme-efor-v2[data-efor-group="order"] #order-title-mobile {
+        margin: 6px 0 2px !important;
+        padding: 0 !important;
+        color: var(--m-text) !important;
+        font-size: 32px !important;
+        font-weight: 800 !important;
+        line-height: 1.12 !important;
+        letter-spacing: -.025em !important;
+        text-align: left !important;
+    }
+
+    /* ── pasek kart ──────────────────────────────────────────────────────── */
+    .theme-efor-v2 .m-bottomnav {
+        height: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px)) !important;
+        padding: 0 4px env(safe-area-inset-bottom, 0px) !important;
+        border-top: .5px solid var(--ios-sep) !important;
+        background: var(--ios-tabbar) !important;
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        backdrop-filter: saturate(180%) blur(20px);
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2 .m-bottomnav__item {
+        justify-content: flex-start;
+        gap: 3px;
+        min-height: var(--m-bottomnav-h);
+        padding: 6px 0 0 !important;
+        color: var(--ios-gray) !important;
+        background: transparent !important;
+    }
+
+    .theme-efor-v2 .m-bottomnav__item::before,
+    .theme-efor-v2 .m-bottomnav__item::after {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .m-bottomnav__icon {
+        width: 25px !important;
+        height: 25px !important;
+        stroke-width: 1.8 !important;
+    }
+
+    .theme-efor-v2 .m-bottomnav__label {
+        font-size: 10.5px !important;
+        font-weight: 600 !important;
+        letter-spacing: .01em;
+    }
+
+    .theme-efor-v2 .m-bottomnav__item[aria-current="page"],
+    .theme-efor-v2 .m-bottomnav__item.is-active,
+    .theme-efor-v2 .m-bottomnav__item[aria-expanded="true"] {
+        color: var(--ios-tint) !important;
+    }
+
+    .theme-efor-v2 .m-bottomnav__item.is-active .m-bottomnav__icon {
+        stroke-width: 2.2 !important;
+    }
+
+    .theme-efor-v2 .m-bottomnav__item:active {
+        opacity: .55;
+    }
+
+    /* ── arkusz „Więcej” (`#mobileNav`) ──────────────────────────────────── */
+    /* Otwiera go uiVariantMobile.js (klasa na <html>), nie collapse
+       Bootstrapa; `display: block !important` przebija jego
+       `.collapse:not(.show) { display: none }`. Selektor stanu zamkniętego
+       celowo bez `.collapse:not(.show)` — miałby wyższą specyficzność niż
+       stan otwarty i arkusz zostawałby pod ekranem. */
+    .theme-efor-v2 #mobileNav {
+        position: fixed !important;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        z-index: 1062;
+        display: block !important;
+        height: auto !important;
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 40px) !important;
+        margin: 0 !important;
+        padding: 0 0 calc(env(safe-area-inset-bottom, 0px) + 24px) !important;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        border: 0 !important;
+        border-radius: 14px 14px 0 0;
+        background: var(--m-bg) !important;
+        box-shadow: 0 -10px 40px -12px rgba(11, 19, 36, .35);
+        transform: translateY(102%);
+        visibility: hidden;
+        transition: transform .42s var(--ios-ease), visibility 0s linear .42s;
+    }
+
+    .theme-efor-v2 #mobileNav.collapsing {
+        height: auto !important;
+        transition: transform .42s var(--ios-ease), visibility 0s linear .42s !important;
+    }
+
+    .theme-efor-v2.efor-sheet-open #mobileNav {
+        transform: translateY(0);
+        visibility: visible;
+        transition: transform .42s var(--ios-ease), visibility 0s;
+    }
+
+    .theme-efor-v2 .efor-sheet-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1061;
+        background: rgba(11, 19, 36, .32);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .3s ease;
+    }
+
+    .theme-efor-v2.efor-sheet-open .efor-sheet-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* nagłówek arkusza: uchwyt, tytuł, „Zamknij” */
+    .theme-efor-v2 .efor-sheet-head {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        height: 56px;
+        padding: 6px 8px 0;
+        background: var(--m-bg);
+    }
+
+    .theme-efor-v2 .efor-sheet-grabber {
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        width: 36px;
+        height: 5px;
+        margin-left: -18px;
+        border-radius: 3px;
+        background: var(--m-border-strong);
+    }
+
+    .theme-efor-v2 .efor-sheet-title {
+        grid-column: 2;
+        color: var(--m-text);
+        font-size: 17px;
+        font-weight: 600;
+    }
+
+    .theme-efor-v2 .efor-sheet-close {
+        grid-column: 3;
+        justify-self: end;
+        min-height: 44px;
+        padding: 0 10px !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--ios-tint) !important;
+        font-size: 17px;
+        font-weight: 600;
+    }
+
+    /* wiersz konta (jak „Apple ID” w Ustawieniach) */
+    .theme-efor-v2 .efor-sheet-account {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 68px;
+        margin: 6px var(--m-gutter) 22px;
+        padding: 10px 14px 10px 12px;
+        border-radius: var(--ios-radius);
+        background: var(--ios-group);
+        color: var(--m-text) !important;
+        text-decoration: none !important;
+    }
+
+    .theme-efor-v2 .efor-sheet-account:active {
+        background: var(--ios-row-press);
+    }
+
+    .theme-efor-v2 .efor-sheet-account__avatar {
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 46px;
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: var(--efor-bronze);
+        color: #ffffff;
+        font-size: 17px;
+        font-weight: 600;
+    }
+
+    .theme-efor-v2 .efor-sheet-account__avatar svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .theme-efor-v2 .efor-sheet-account__who {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .theme-efor-v2 .efor-sheet-account__name {
+        overflow: hidden;
+        font-size: 17px;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-sheet-account__mail {
+        overflow: hidden;
+        color: var(--m-text-muted);
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-sheet-chevron {
+        flex: 0 0 16px;
+        width: 16px;
+        height: 16px;
+        margin-left: auto;
+        color: var(--m-border-strong);
+    }
+
+    /* lista nawigacji = zgrupowana sekcja */
+    .theme-efor-v2 #mobileNav > .nav {
+        gap: 0 !important;
+        margin: 0 var(--m-gutter) 22px !important;
+        overflow: hidden;
+        border-radius: var(--ios-radius);
+        background: var(--ios-group);
+    }
+
+    .theme-efor-v2 #mobileNav > .nav > .nav-item {
+        position: relative;
+    }
+
+    .theme-efor-v2 #mobileNav > .nav > .nav-item + .nav-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 54px;
+        right: 0;
+        height: .5px;
+        background: var(--ios-sep-inset);
+    }
+
+    .theme-efor-v2 #mobileNav > .nav > .nav-item.d-none + .nav-item::before {
+        display: none;
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link,
+    .theme-efor-v2 #mobileNav .nav-logout-btn,
+    .theme-efor-v2 #mobileNav .ui-variant-toggle--menu {
+        position: relative;
+        display: flex !important;
+        align-items: center;
+        gap: 12px;
+        min-height: 46px !important;
+        margin: 0 !important;
+        padding: 10px 14px 10px 54px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: var(--m-text) !important;
+        font-size: 17px !important;
+        font-weight: 400 !important;
+        letter-spacing: -.01em;
+        text-decoration: none !important;
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link:active,
+    .theme-efor-v2 #mobileNav .nav-logout-btn:active,
+    .theme-efor-v2 #mobileNav .ui-variant-toggle--menu:active {
+        background: var(--ios-row-press) !important;
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link.fw-bold {
+        font-weight: 600 !important;
+    }
+
+    /* Ikony wierszy — kafelki jak w Ustawieniach iOS: turkus z białym znakiem,
+       „Nowa oferta” w bursztynie (akcja główna), wylogowanie bez kafelka */
+    .theme-efor-v2 #mobileNav .nav-link::before,
+    .theme-efor-v2 #mobileNav .ui-variant-toggle--menu::before {
+        content: '';
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        width: 29px;
+        height: 29px;
+        margin-top: -14.5px;
+        border-radius: 7px;
+        background-color: var(--efor-teal);
+        background-image: var(--efor-row-icon, none);
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 18px 18px;
+    }
+
+    /* bez kafelka: wylogowanie (przycisk bez href) i etykiety list wyboru */
+    .theme-efor-v2 #mobileNav .nav-link:not([href]):not(.ui-variant-toggle--menu)::before,
+    .theme-efor-v2 #mobileNav .nav-item label.nav-link::before {
+        display: none;
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/orders/add-order"] {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231b1403' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/orders/add-order"]::before {
+        background-color: var(--efor-amber);
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/orders"] {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h8l4 4v14H6z'/%3E%3Cpath d='M14 3v4h4M9 12h6M9 16h6'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/orders/history"] {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h11v10H3zM14 9h4l3 3v4h-7'/%3E%3Ccircle cx='7' cy='17.5' r='1.8'/%3E%3Ccircle cx='17' cy='17.5' r='1.8'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/panel"] {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2 #mobileNav #mobile-employee-panel-link,
+    .theme-efor-v2 #mobileNav .nav-link[href="/org/customers"] {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='9' cy='8' r='3.5'/%3E%3Cpath d='M2.5 20c1-3.5 3.6-5.2 6.5-5.2s5.5 1.7 6.5 5.2M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.8.6 3 2.3 3.5 5.2'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/invoices"] {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z'/%3E%3Cpath d='M9 8h6M9 12h6'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/group/panel"] {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18M9 20v-6h6v6'/%3E%3C/svg%3E");
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/orders/clear-context"] {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M12 3v8M6.3 7.3a8 8 0 1 0 11.4 0'/%3E%3C/svg%3E");
+        color: var(--efor-danger-ink) !important;
+    }
+
+    .theme-efor-v2 #mobileNav .nav-link[href="/orders/clear-context"]::before {
+        background-color: var(--efor-danger);
+    }
+
+    .theme-efor-v2 #mobileNav .ui-variant-toggle--menu {
+        --efor-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='8' cy='10' r='1.2' fill='%23fff'/%3E%3Ccircle cx='12' cy='7.5' r='1.2' fill='%23fff'/%3E%3Ccircle cx='16' cy='10' r='1.2' fill='%23fff'/%3E%3C/svg%3E");
+        font-size: 17px !important;
+    }
+
+    .theme-efor-v2 #mobileNav .ui-variant-toggle--menu .ui-variant-toggle__icon {
+        display: none;
+    }
+
+    .theme-efor-v2 #mobileNav .ui-variant-toggle--menu .ui-variant-toggle__label {
+        flex: 1 1 auto;
+        font-weight: 400;
+    }
+
+    .theme-efor-v2 #mobileNav .nav-logout-btn {
+        justify-content: center;
+        padding-left: 14px !important;
+        color: var(--efor-danger) !important;
+    }
+
+    /* listy wyboru w arkuszu (kontekst grupy / ownera) */
+    .theme-efor-v2 #mobileNav .nav-item label.nav-link {
+        min-height: 0 !important;
+        padding: 12px 14px 4px !important;
+        color: var(--m-text-muted) !important;
+        font-size: 13px !important;
+    }
+
+    .theme-efor-v2 #mobileNav .nav-item .px-3 {
+        padding: 0 14px 12px !important;
+    }
+
+    .theme-efor-v2 #mobileNav .dropdown-input {
+        min-height: 40px;
+        border: 0 !important;
+        border-radius: 10px !important;
+        background: var(--ios-fill) !important;
+        font-size: 16px;
+    }
+
+    /* dodatki: język, wygląd, admin, linki prawne */
+    .theme-efor-v2 .efor-sheet-label {
+        margin: 0 var(--m-gutter) 6px;
+        padding: 0 14px;
+        color: var(--m-text-muted);
+        font-size: 13px;
+        font-weight: 400;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .theme-efor-v2 .efor-sheet-langs {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 2px;
+        margin: 0 var(--m-gutter) 22px;
+        padding: 2px;
+        border-radius: 9px;
+        background: var(--ios-fill);
+    }
+
+    .theme-efor-v2 .efor-sheet-langs a {
+        display: grid;
+        place-items: center;
+        min-height: 34px;
+        border-radius: 7px;
+        color: var(--m-text) !important;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none !important;
+    }
+
+    .theme-efor-v2 .efor-sheet-langs a[aria-current="true"] {
+        background: var(--ios-group);
+        box-shadow: 0 2px 6px rgba(11, 19, 36, .12), 0 0 0 .5px rgba(11, 19, 36, .04);
+        font-weight: 600;
+    }
+
+    .theme-efor-v2 .efor-sheet-group {
+        margin: 0 var(--m-gutter) 22px;
+        overflow: hidden;
+        border-radius: var(--ios-radius);
+        background: var(--ios-group);
+    }
+
+    .theme-efor-v2 .efor-sheet-row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        min-height: 46px;
+        margin: 0;
+        padding: 8px 14px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--m-text) !important;
+        font-size: 17px;
+        font-weight: 400;
+        text-align: left;
+        text-decoration: none !important;
+    }
+
+    .theme-efor-v2 .efor-sheet-row + .efor-sheet-row::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 54px;
+        right: 0;
+        height: .5px;
+        background: var(--ios-sep-inset);
+    }
+
+    .theme-efor-v2 .efor-sheet-row:active {
+        background: var(--ios-row-press) !important;
+    }
+
+    .theme-efor-v2 .efor-sheet-row__icon {
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 29px;
+        width: 29px;
+        height: 29px;
+        border-radius: 7px;
+        background: var(--efor-teal);
+        color: #ffffff;
+    }
+
+    .theme-efor-v2 .efor-sheet-row__icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .theme-efor-v2 .efor-sheet-row__label {
+        flex: 1 1 auto;
+    }
+
+    /* przełącznik iOS (51×31) — stan z `data-theme` na <html> */
+    .theme-efor-v2 .efor-sheet-switch {
+        position: relative;
+        flex: 0 0 51px;
+        width: 51px;
+        height: 31px;
+        border-radius: 16px;
+        background: var(--ios-fill-press);
+        transition: background-color .25s ease;
+    }
+
+    .theme-efor-v2 .efor-sheet-switch::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 27px;
+        height: 27px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 1px 1px rgba(0, 0, 0, .16);
+        transition: transform .25s var(--ios-ease);
+    }
+
+    .theme-efor-v2[data-theme="dark"] .efor-sheet-switch {
+        background: var(--ios-tint);
+    }
+
+    .theme-efor-v2[data-theme="dark"] .efor-sheet-switch::after {
+        transform: translateX(20px);
+    }
+
+    .theme-efor-v2 .efor-sheet-legal {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px 18px;
+        margin: 4px var(--m-gutter) 0;
+        font-size: 13px;
+    }
+
+    .theme-efor-v2 .efor-sheet-legal a {
+        color: var(--m-text-muted) !important;
+        text-decoration: none !important;
+    }
+
+    /* ── listy ofert i zamówień: zgrupowane wiersze ──────────────────────── */
+    .theme-efor-v2[data-efor-group="lists"] .content > .container,
+    .theme-efor-v2[data-efor-group="lists"] .mobile-rm-card {
+        margin-top: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px;
+        margin: 0 0 10px !important;
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-left:empty {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-center {
+        order: 0;
+        flex: 1 1 auto;
+        min-width: 0;
+        width: auto !important;
+        text-align: left !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-right {
+        order: 1;
+        display: flex !important;
+        gap: 6px;
+        width: auto !important;
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-right .btn {
+        display: grid !important;
+        place-items: center;
+        width: 38px !important;
+        min-width: 38px !important;
+        height: 38px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 50% !important;
+        background: var(--ios-fill) !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-right .btn .icon {
+        width: 20px !important;
+        height: 20px !important;
+    }
+
+    [data-theme="dark"].theme-efor-v2[data-efor-group="lists"] .orders-topbar-right .btn .icon {
+        filter: invert(1) grayscale(1);
+    }
+
+    /* wyszukiwarka iOS i daty w jednym rzędzie */
+    .theme-efor-v2[data-efor-group="lists"] .orders-filters-bar {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 10px !important;
+        margin: 0 0 18px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-filters-bar > .filter-group:first-child {
+        grid-column: 1 / -1;
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-filters-bar > .filter-group:first-child > label {
+        position: absolute !important;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-search-mount,
+    .theme-efor-v2[data-efor-group="lists"] .orders-search {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-search {
+        display: flex !important;
+        align-items: center;
+        min-height: 40px !important;
+        padding: 0 10px !important;
+        border: 0 !important;
+        border-radius: 10px !important;
+        background: var(--ios-fill) !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-search input {
+        flex: 1 1 auto;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 40px !important;
+        padding: 0 4px !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font-size: 17px !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-date-filter,
+    .theme-efor-v2[data-efor-group="lists"] .orders-status-filter {
+        display: contents !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-date-filter .filter-group,
+    .theme-efor-v2[data-efor-group="lists"] .orders-status-filter {
+        display: flex !important;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+        margin: 0 !important;
+        text-align: left !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-status-filter.filter-group {
+        grid-column: 1 / -1;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-filters-bar .filter-group > label {
+        margin: 0 0 0 4px !important;
+        color: var(--m-text-muted) !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        letter-spacing: 0 !important;
+        text-transform: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-filters-bar input[type="date"],
+    .theme-efor-v2[data-efor-group="lists"] .orders-filters-bar select {
+        width: 100% !important;
+        min-height: 40px !important;
+        padding: 6px 10px !important;
+        border: 0 !important;
+        border-radius: 10px !important;
+        background-color: var(--ios-fill) !important;
+        box-shadow: none !important;
+        color: var(--m-text) !important;
+        font-size: 16px !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .filters-separator {
+        display: none !important;
+    }
+
+    /* sama lista: jedna zgrupowana sekcja, wiersze z linią od wcięcia */
+    .theme-efor-v2 .mobile-orders-list {
+        overflow: hidden;
+        border-radius: var(--ios-radius);
+        background: var(--ios-group);
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-card {
+        position: relative;
+        margin: 0 !important;
+        padding: 12px 16px 12px 16px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        transform: none !important;
+        animation: none !important;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-card + .mobile-order-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 16px;
+        right: 0;
+        height: .5px;
+        background: var(--ios-sep-inset);
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-card:active {
+        background: var(--ios-row-press) !important;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-header {
+        display: flex !important;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 0 0 2px !important;
+        padding: 0 22px 0 0 !important;
+        border: 0 !important;
+    }
+
+    /* chevron „›” przy dacie — wiersz otwiera zlecenie */
+    .theme-efor-v2 .mobile-orders-list .mobile-order-header::after {
+        content: '';
+        position: absolute;
+        top: 17px;
+        right: 16px;
+        width: 8px;
+        height: 8px;
+        border-top: 2px solid var(--m-border-strong);
+        border-right: 2px solid var(--m-border-strong);
+        transform: rotate(45deg);
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-number {
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: var(--m-text) !important;
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-date {
+        color: var(--m-text-soft) !important;
+        font-size: 15px !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-commission {
+        overflow: hidden;
+        margin: 0 22px 0 0 !important;
+        color: var(--m-text-muted) !important;
+        font-size: 15px !important;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-commission:empty {
+        display: none;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions {
+        display: flex !important;
+        flex-wrap: wrap;
+        gap: 8px !important;
+        margin: 10px 0 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions .action-btn,
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions .btn {
+        display: inline-flex !important;
+        align-items: center;
+        gap: 6px;
+        width: auto !important;
+        min-width: 0 !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        margin: 0 !important;
+        padding: 0 12px !important;
+        border: 0 !important;
+        border-radius: 16px !important;
+        background: var(--ios-fill) !important;
+        box-shadow: none !important;
+        color: var(--ios-tint) !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        flex: 0 0 auto;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions .action-btn-delete {
+        color: var(--efor-danger) !important;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions .action-btn-send {
+        background: var(--efor-amber) !important;
+        color: var(--efor-amber-ink) !important;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions .action-btn:active,
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions .btn:active {
+        opacity: .6;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions svg,
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions img {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* stronicowanie pod listą */
+    .theme-efor-v2[data-efor-group="lists"] .pagination {
+        margin-top: 18px;
+    }
+
+    /* ── oferta: nagłówek, pasek narzędzi, karty pozycji, akcja przy kciuku ─ */
+    .theme-efor-v2[data-efor-group="order"] #order-nav {
+        position: static !important;
+        margin: 0 0 6px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .floating-order.mobile {
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #order-title-mobile {
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #order-title-mobile br {
+        display: none;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] #commission-name-mobile {
+        margin: 2px 0 0 !important;
+        color: var(--m-text-muted) !important;
+        font-size: 17px !important;
+        font-weight: 400 !important;
+        letter-spacing: 0 !important;
+    }
+
+    /* pasek narzędzi oferty: okrągłe przyciski jak w aplikacji */
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row {
+        margin: 0 0 12px !important;
+        padding: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row,
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row #order-buttons,
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row #generate-container-mobile {
+        display: flex !important;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row .btn,
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row .action-btn {
+        display: grid !important;
+        place-items: center;
+        width: 42px !important;
+        min-width: 42px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 50% !important;
+        background: var(--ios-group) !important;
+        box-shadow: 0 0 0 .5px var(--ios-sep-inset) !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row .action-btn-send {
+        background: var(--efor-amber) !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row .btn:active,
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row .action-btn:active {
+        opacity: .6;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row img.icon,
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row img.ico {
+        width: 20px !important;
+        height: 20px !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row .has-tooltip::after,
+    .theme-efor-v2[data-efor-group="order"] .mobile-top-row .has-tooltip::before {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .content > .container {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* karty pozycji: turkusowy pasek z numerem i nazwą grupy (makieta) */
     .theme-efor-v2[data-efor-group="order"] .mobile-item-card {
         overflow: hidden;
-        border-color: var(--m-border) !important;
+        padding-top: 0 !important;
+        border: 0 !important;
+        border-radius: var(--ios-radius) !important;
+        background: var(--ios-group) !important;
+        box-shadow: none !important;
     }
 
     /* karta mobilna ma `padding: 12px 14px` (mobile/order-view.css) —
        ujemny margines rozciąga pasek od krawędzi do krawędzi */
-    .theme-efor-v2[data-efor-group="order"] .mobile-item-card {
-        padding-top: 0 !important;
-    }
-
     .theme-efor-v2[data-efor-group="order"] .mobile-item-header {
         margin: 0 -14px 12px !important;
         padding: 12px 14px !important;
@@ -4800,6 +5947,220 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         color: #fff !important;
     }
 
+    /* przyciski pozycji (strzałki, duplikuj, edytuj, usuń) — pigułki */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .btn,
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .action-btn {
+        min-height: 34px !important;
+        border: 0 !important;
+        border-radius: 17px !important;
+        background: var(--ios-fill) !important;
+        box-shadow: none !important;
+        color: var(--ios-tint) !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-actions .action-btn-delete {
+        color: var(--efor-danger) !important;
+    }
+
+    /* sumy: kremowa karta jak w makiecie, kwoty cyframi tabelarycznymi */
+    .theme-efor-v2[data-efor-group="order"] #total-container {
+        margin: 6px 0 12px !important;
+        padding: 12px 16px !important;
+        border: 0 !important;
+        border-radius: var(--ios-radius) !important;
+        background: var(--efor-amber-100) !important;
+        box-shadow: none !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    [data-theme="dark"].theme-efor-v2[data-efor-group="order"] #total-container {
+        background: rgba(247, 180, 23, .12) !important;
+    }
+
+    /* akcja główna w dolnym pasku, nad paskiem kart, z materiałem */
+    .theme-efor-v2[data-efor-group="order"] .send-order-actions:has(.custom-order-btn) {
+        position: fixed !important;
+        left: 0;
+        right: 0;
+        bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px));
+        z-index: 1020;
+        display: flex !important;
+        flex-wrap: wrap;
+        justify-content: center !important;
+        gap: 8px;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 10px var(--m-gutter) !important;
+        border-top: .5px solid var(--ios-sep);
+        background: var(--ios-tabbar) !important;
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        backdrop-filter: saturate(180%) blur(20px);
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .send-order-actions .custom-order-btn {
+        flex: 1 1 0;
+        min-height: 50px !important;
+        margin: 0 !important;
+        border-radius: 12px !important;
+        font-size: 17px !important;
+        font-weight: 700 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .send-order-actions .custom-order-btn p {
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] main:has(.send-order-actions .custom-order-btn) {
+        padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 96px) !important;
+    }
+
+    /* asystent nad dolnym paskiem akcji */
+    .theme-efor-v2[data-efor-group="order"]:has(.send-order-actions .custom-order-btn) #eform-assistant {
+        --ea-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 84px);
+    }
+
+    /* ── konfigurator: zapis w dolnym pasku przy kciuku ──────────────────── */
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        margin: 16px calc(-1 * var(--m-gutter)) calc(-1 * env(safe-area-inset-bottom, 0px)) !important;
+        padding: 10px var(--m-gutter) calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+        border-top: .5px solid var(--ios-sep);
+        background: var(--ios-tabbar) !important;
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        backdrop-filter: saturate(180%) blur(20px);
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #buttons-space #show-button {
+        width: 100% !important;
+        min-height: 50px !important;
+        border-radius: 12px !important;
+        font-size: 17px !important;
+    }
+
+    /* ── kontekst admina (organizacja / klient) na górze treści ──────────── */
+    .theme-efor-v2 .admin-section {
+        position: static !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-auto-flow: row dense;
+        gap: 8px;
+        width: auto !important;
+        height: auto !important;
+        max-height: none !important;
+        margin: 0 0 14px !important;
+        padding: 10px !important;
+        border: 0 !important;
+        border-radius: var(--ios-radius) !important;
+        background: var(--ios-group) !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .theme-efor-v2 .admin-section > * {
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2 .admin-section #org-dropdown-container {
+        grid-column: 1;
+        grid-row: 1;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .theme-efor-v2 .admin-section #last-user-btn {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .theme-efor-v2 .admin-section #userSelectContainer {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        width: 100%;
+    }
+
+    .theme-efor-v2 .admin-section #userSelectContainer .dropdown-container {
+        position: relative;
+        width: 100%;
+    }
+
+    .theme-efor-v2 .admin-section #admin-nav-btn,
+    .theme-efor-v2 .admin-section #pwd-admin-btn {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .admin-section .admin-btn,
+    .theme-efor-v2 .admin-section .admin-input {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 100% !important;
+        min-height: 40px !important;
+        height: 40px !important;
+        margin: 0 !important;
+        padding: 0 12px !important;
+        border: 0 !important;
+        border-radius: 10px !important;
+        background: var(--ios-fill) !important;
+        box-shadow: none !important;
+        color: var(--m-text) !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        transform: none !important;
+    }
+
+    .theme-efor-v2 .admin-section #organizationDropdown {
+        justify-content: flex-start;
+        color: var(--ios-tint) !important;
+    }
+
+    .theme-efor-v2 .admin-section .admin-input {
+        justify-content: flex-start;
+        font-weight: 400 !important;
+        text-align: left;
+    }
+
+    .theme-efor-v2 .admin-section #last-user-btn {
+        width: auto !important;
+        color: var(--ios-tint) !important;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .admin-section .has-tooltip::after,
+    .theme-efor-v2 .admin-section .has-tooltip::before {
+        display: none !important;
+    }
+
+    .theme-efor-v2 .admin-section .dropdown-menu,
+    .theme-efor-v2 .admin-section .custom-dropdown {
+        max-height: 50vh;
+        overflow-y: auto;
+        border-radius: 12px !important;
+    }
+
+    .theme-efor-v2 .mobile-pwd-fab {
+        display: none !important;
+    }
+
+    /* FAB z hasłami jest schowany (hasła są w arkuszu) — asystent nie musi
+       nad nim stawać */
+    .theme-efor-v2 #eform-assistant.ea-stacked {
+        --ea-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 12px);
+    }
+
+    /* Eforek nie zasłania treści: mniejszy dymek, piesek przy krawędzi */
+    .theme-efor-v2 #eform-assistant .ea-bubble {
+        max-width: 160px;
+        font-size: 12px;
+    }
+
+    .theme-efor-v2.efor-sheet-open #eform-assistant {
+        visibility: hidden;
+    }
+
     .theme-efor-v2 .ui-variant-toggle--menu {
         color: var(--m-text) !important;
     }
@@ -4810,6 +6171,28 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
     .theme-efor-v2 .efor-add-position,
     .theme-efor-v2 .efor-order-status {
         display: none !important;
+    }
+}
+
+/* Arkusz poza telefonem nie istnieje — dodatki B w menu chowamy na desktopie */
+@media (min-width: 768px) {
+    .theme-efor-v2 .efor-sheet-head,
+    .theme-efor-v2 .efor-sheet-account,
+    .theme-efor-v2 .efor-sheet-extra,
+    .theme-efor-v2 #mobileNav > .efor-sheet-label,
+    .theme-efor-v2 .efor-sheet-admin-slot,
+    .theme-efor-v2 .efor-sheet-group--admin,
+    .theme-efor-v2 .efor-navbar-title {
+        display: none !important;
+    }
+}
+
+@media (max-width: 767.98px) and (prefers-reduced-motion: reduce) {
+    .theme-efor-v2 #mobileNav,
+    .theme-efor-v2.efor-sheet-open #mobileNav,
+    .theme-efor-v2 .efor-sheet-backdrop,
+    .theme-efor-v2 .efor-navbar-title {
+        transition: none !important;
     }
 }
 
@@ -5124,3 +6507,1120 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
 .ui-variant-option__preview--efor .uvp-bar { background: transparent; box-shadow: 0 1px 0 #dfe1e5; border-radius: 0 !important; }
 .ui-variant-option__preview--efor .uvp-card { background: #ffffff; box-shadow: inset 0 14px 0 #265b63; }
 .ui-variant-option__preview--efor .uvp-btn { background: #f7b417; }
+
+
+/* =============================================================================
+   24. PULPIT STARTOWY (home.njk, `.efor-dash`)
+   =============================================================================
+   Te same dane co klasyczny start (dane firmy, 4 ostatnie oferty, 4 ostatnio
+   wysłane) ułożone jak pulpit: tytuł = nazwa firmy, bursztynowa akcja „Nowa
+   oferta”, karty z turkusowym nagłówkiem jak w makietach. Klasyczny widok
+   startu (karta z danymi + przełącznik „Pokaż ostatnie oferty”) w B znika. */
+.theme-efor-v2[data-efor-page="home"] #main-content,
+.theme-efor-v2[data-efor-page="home"] .orders-toggle-container,
+.theme-efor-v2[data-efor-page="home"] #last-orders-section {
+    display: none !important;
+}
+
+.theme-efor-v2 .efor-dash__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px 24px;
+    flex-wrap: wrap;
+    margin: 0 0 22px;
+}
+
+.theme-efor-v2 .efor-dash__title {
+    min-width: 0;
+    margin: 0 !important;
+    color: var(--efor-ink) !important;
+    font-size: clamp(30px, 1.6vw + 16px, 44px);
+    font-weight: 800 !important;
+    line-height: 1.08;
+    letter-spacing: -.03em;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.theme-efor-v2 .efor-dash__new {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 10px;
+    height: 48px;
+    padding: 0 22px !important;
+    font-size: 16px;
+    text-decoration: none;
+}
+
+.theme-efor-v2 .efor-dash__new svg {
+    width: 20px;
+    height: 20px;
+}
+
+.theme-efor-v2 .efor-dash__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 340px);
+    grid-template-areas: "offers sent company";
+    align-items: start;
+    gap: 20px;
+}
+
+.theme-efor-v2 .efor-dash__offers { grid-area: offers; }
+.theme-efor-v2 .efor-dash__sent { grid-area: sent; }
+.theme-efor-v2 .efor-dash__company { grid-area: company; }
+
+.theme-efor-v2 .efor-dash__panel {
+    margin: 0;
+}
+
+.theme-efor-v2 .efor-dash__panel > .efor-card__head {
+    justify-content: space-between;
+    font-size: 19px;
+}
+
+.theme-efor-v2 .efor-dash__all {
+    padding: 4px 10px;
+    border-radius: 8px;
+    color: #fff !important;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    opacity: .85;
+}
+
+.theme-efor-v2 .efor-dash__all:hover {
+    background: rgba(255, 255, 255, .14);
+    opacity: 1;
+}
+
+.theme-efor-v2 .efor-dash__list {
+    margin: 0;
+    padding: 6px 0;
+    list-style: none;
+}
+
+.theme-efor-v2 .efor-dash__list li + li .efor-dash__row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 22px;
+    right: 0;
+    height: 1px;
+    background: var(--efor-line);
+}
+
+.theme-efor-v2 .efor-dash__row {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "no name date chevron"
+        "no pill pill chevron";
+    align-items: center;
+    column-gap: 14px;
+    min-height: 60px;
+    padding: 10px 14px 10px 22px;
+    color: var(--efor-text) !important;
+    text-decoration: none !important;
+    transition: background-color .15s ease;
+}
+
+.theme-efor-v2 .efor-dash__row:hover {
+    background: var(--efor-hover);
+}
+
+.theme-efor-v2 .efor-dash__no {
+    grid-area: no;
+    color: var(--efor-ink);
+    font-size: 17px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.theme-efor-v2 .efor-dash__name {
+    grid-area: name;
+    overflow: hidden;
+    color: var(--efor-text-2);
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.theme-efor-v2 .efor-dash__row .efor-pill {
+    grid-area: pill;
+    justify-self: start;
+    margin-top: 4px;
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
+.theme-efor-v2 .efor-dash__date {
+    grid-area: date;
+    color: var(--efor-muted);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.theme-efor-v2 .efor-dash__chevron {
+    grid-area: chevron;
+    width: 18px;
+    height: 18px;
+    color: var(--efor-soft);
+}
+
+.theme-efor-v2 .efor-dash__empty {
+    margin: 0;
+    padding: 26px 22px;
+    color: var(--efor-muted);
+    font-size: 15px;
+}
+
+.theme-efor-v2 .efor-dash__facts {
+    margin: 0;
+    padding: 8px 22px 4px;
+}
+
+.theme-efor-v2 .efor-dash__facts > div {
+    display: grid;
+    grid-template-columns: minmax(90px, 40%) minmax(0, 1fr);
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--efor-line);
+}
+
+.theme-efor-v2 .efor-dash__facts > div:last-child {
+    border-bottom: 0;
+}
+
+.theme-efor-v2 .efor-dash__facts dt {
+    color: var(--efor-muted);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.theme-efor-v2 .efor-dash__facts dd {
+    margin: 0;
+    color: var(--efor-ink);
+    font-size: 15px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.theme-efor-v2 .efor-dash__edit {
+    display: block;
+    margin: 6px 22px 22px;
+    text-align: center;
+}
+
+/* Węższy desktop: dane firmy pod listami */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .theme-efor-v2 .efor-dash__grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+            "offers sent"
+            "company company";
+    }
+}
+
+@media (min-width: 768px) {
+    .theme-efor-v2 .efor-dash {
+        margin-top: 24px !important;
+    }
+}
+
+/* Telefon: zgrupowane sekcje jak w Ustawieniach iOS — nagłówek sekcji jako
+   mały napis nad grupą, wiersze z linią od wcięcia, „›” na końcu */
+@media (max-width: 767.98px) {
+    .theme-efor-v2 .efor-dash {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .theme-efor-v2 .efor-dash__head {
+        display: block;
+        margin: 2px 0 20px;
+    }
+
+    .theme-efor-v2 .efor-dash__title {
+        margin: 0 0 14px !important;
+        font-size: 32px;
+    }
+
+    .theme-efor-v2 .efor-dash__new {
+        display: flex !important;
+        justify-content: center;
+        width: 100%;
+        height: 50px;
+        border-radius: 12px !important;
+        font-size: 17px !important;
+    }
+
+    .theme-efor-v2 .efor-dash__grid {
+        display: block;
+    }
+
+    .theme-efor-v2 .efor-dash__panel {
+        margin: 0 0 26px !important;
+        overflow: visible !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2 .efor-dash__panel > .efor-card__head {
+        display: flex;
+        align-items: baseline;
+        min-height: 0;
+        margin: 0 0 6px;
+        padding: 0 16px !important;
+        background: transparent !important;
+        color: var(--m-text-muted) !important;
+        font-size: 13px !important;
+        font-weight: 400 !important;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .theme-efor-v2 .efor-dash__all {
+        padding: 0;
+        color: var(--ios-tint) !important;
+        font-size: 15px;
+        text-transform: none;
+        opacity: 1;
+    }
+
+    .theme-efor-v2 .efor-dash__list,
+    .theme-efor-v2 .efor-dash__facts,
+    .theme-efor-v2 .efor-dash__empty {
+        overflow: hidden;
+        margin: 0;
+        border-radius: var(--ios-radius);
+        background: var(--ios-group);
+    }
+
+    .theme-efor-v2 .efor-dash__list {
+        padding: 0;
+    }
+
+    .theme-efor-v2 .efor-dash__list li + li .efor-dash__row::before {
+        left: 16px;
+        height: .5px;
+        background: var(--ios-sep-inset);
+    }
+
+    .theme-efor-v2 .efor-dash__row {
+        min-height: 56px;
+        padding: 10px 14px 10px 16px;
+        column-gap: 10px;
+    }
+
+    .theme-efor-v2 .efor-dash__row:active {
+        background: var(--ios-row-press);
+    }
+
+    .theme-efor-v2 .efor-dash__no {
+        font-size: 17px;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2 .efor-dash__chevron {
+        width: 15px;
+        height: 15px;
+        color: var(--m-border-strong);
+    }
+
+    .theme-efor-v2 .efor-dash__empty {
+        padding: 16px;
+        font-size: 16px;
+    }
+
+    .theme-efor-v2 .efor-dash__facts {
+        padding: 0 16px;
+    }
+
+    .theme-efor-v2 .efor-dash__facts > div {
+        min-height: 46px;
+        align-items: center;
+        border-bottom: .5px solid var(--ios-sep-inset);
+    }
+
+    .theme-efor-v2 .efor-dash__facts dt {
+        color: var(--m-text);
+        font-size: 16px;
+        font-weight: 400;
+    }
+
+    .theme-efor-v2 .efor-dash__facts dd {
+        color: var(--m-text-muted);
+        font-size: 16px;
+        font-weight: 400;
+        text-align: right;
+    }
+
+    .theme-efor-v2 .efor-dash__edit {
+        margin: 10px 0 0;
+        border: 0 !important;
+        border-radius: var(--ios-radius) !important;
+        background: var(--ios-group) !important;
+        color: var(--ios-tint) !important;
+        font-size: 17px;
+        font-weight: 400 !important;
+        min-height: 46px;
+        line-height: 30px;
+    }
+
+    /* ── poprawki po pierwszym przeglądzie zrzutów ──────────────────────── */
+
+    /* `.content` i `.container` mają animację wejścia `fadeInUp` (theme.css,
+       fill-mode `both`). Chromium traktuje element z aktywną animacją
+       `transform` jak przekształcony — nawet gdy wartość jest nadpisana —
+       więc był blokiem zawierającym dla `position: fixed` i dolny pasek akcji
+       lądował w środku treści (sprawdzone: ten sam `fixed; bottom: 0` w body
+       = 834 px, w `.content` = 626 px). Na telefonie ekrany i tak nie
+       wjeżdżają — jak w aplikacji treść jest od razu. */
+    .theme-efor-v2 main .content,
+    .theme-efor-v2 main .container {
+        animation: none !important;
+        transform: none !important;
+    }
+
+    /* listy: tytuł po lewej, przyciski w tym samym rzędzie po prawej */
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar {
+        flex-direction: row !important;
+        align-items: center !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-center {
+        width: auto !important;
+        min-width: 0;
+    }
+
+    /* pusty lewy blok (filtr klientów ownera) zjadał połowę rzędu tytułu —
+       `:empty` nie łapie, bo w środku są białe znaki z szablonu */
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-left:not(:has(*)) {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar:has(.orders-topbar-left > *) {
+        flex-wrap: wrap !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-left:has(*) {
+        order: 2;
+        flex: 1 1 100%;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-right {
+        flex: 0 0 auto;
+        justify-content: flex-end !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-topbar-center h2 {
+        display: block;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-filters-bar > .filter-group:first-child,
+    .theme-efor-v2[data-efor-group="lists"] .orders-search-mount,
+    .theme-efor-v2[data-efor-group="lists"] .orders-search {
+        width: 100% !important;
+        max-width: none !important;
+        flex: 1 1 auto;
+    }
+
+    /* wiersze listy: wszystko od lewej krawędzi, jak w aplikacji */
+    .theme-efor-v2 .mobile-orders-list .mobile-order-card,
+    .theme-efor-v2 .mobile-orders-list .mobile-order-card > * {
+        text-align: left !important;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions {
+        justify-content: flex-start !important;
+    }
+
+    /* ikony paska kart w kolorze karty (mobile/bottomnav.css daje im bursztyn
+       i kreskę nad aktywną — w iOS stan niesie sam kolor) */
+    .theme-efor-v2 .m-bottomnav__icon {
+        stroke: currentColor !important;
+    }
+
+    /* dymek Eforka na telefonie zasłaniał wiersze list i sumy — zostaje
+       sam piesek w rogu (otwiera czat jak dotąd) */
+    .theme-efor-v2 #eform-assistant .ea-bubble-wrap {
+        display: none !important;
+    }
+}
+
+
+/* =============================================================================
+   25. STRONY ADMINA (`/admin…`, `data-efor-page="admin"`) i PASEK ADMINA
+   =============================================================================
+   Strony admina mają własne style w szablonach (Bootstrap + <style>). W B
+   dostają ten sam język co reszta: duży tytuł po lewej, białe karty z cienką
+   linią, turkusowe nagłówki tabel, bursztyn tylko na akcji głównej; bez
+   karty w karcie (zewnętrzny `.container` jest przezroczysty). */
+@media (min-width: 851px) {
+    /* pasek admina: etykieta „Administracja”, wyszukiwarka klienta z lupą,
+       „Admin panel” i hasła dosunięte do prawej */
+    .theme-efor-v2 .admin-section::before {
+        content: var(--efor-t-adminBar);
+        flex: 0 0 auto;
+        margin-right: 4px;
+        padding-right: 14px;
+        border-right: 1px solid var(--efor-line-2);
+        color: var(--efor-muted);
+        font-size: 12.5px;
+        font-weight: 600;
+        letter-spacing: .12em;
+        line-height: 26px;
+        text-transform: uppercase;
+    }
+
+    .theme-efor-v2 .admin-section > * {
+        margin: 0 !important;
+    }
+
+    .theme-efor-v2 .admin-section #organizationDropdown {
+        min-width: 180px;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 14px !important;
+        border-color: var(--efor-amber-line) !important;
+        background: var(--efor-amber-50) !important;
+    }
+
+    .theme-efor-v2 .admin-section #organizationDropdown::after {
+        content: '' !important;
+        display: block !important;
+        position: static !important;
+        width: 7px !important;
+        height: 7px !important;
+        border: 0 !important;
+        border-right: 2px solid currentColor !important;
+        border-bottom: 2px solid currentColor !important;
+        background: none !important;
+        transform: translateY(-2px) rotate(45deg) !important;
+        opacity: .7 !important;
+    }
+
+    .theme-efor-v2 .admin-section #userSelectContainer {
+        flex: 0 1 300px;
+        min-width: 200px;
+    }
+
+    .theme-efor-v2 .admin-section #userSelectContainer .dropdown-container {
+        position: relative;
+    }
+
+    .theme-efor-v2 .admin-section #userSelect.admin-input {
+        width: 100% !important;
+        height: 38px !important;
+        padding-left: 38px !important;
+        border: 1px solid var(--efor-line-2) !important;
+        border-radius: var(--efor-radius-ctl) !important;
+        background: var(--efor-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234a5361' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 12px center / 16px 16px !important;
+        color: var(--efor-ink) !important;
+        font-size: 14.5px !important;
+        font-weight: 500 !important;
+    }
+
+    .theme-efor-v2 .admin-section #userSelect.admin-input:focus {
+        border-color: var(--efor-teal) !important;
+        box-shadow: 0 0 0 3px var(--efor-focus-ring-teal) !important;
+    }
+
+    .theme-efor-v2 .admin-section #userDropdown,
+    .theme-efor-v2 .admin-section #org-dropdown-container .dropdown-menu {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .theme-efor-v2 .admin-section #admin-nav-btn {
+        margin-left: auto !important;
+    }
+
+    .theme-efor-v2 .admin-section #pwd-admin-btn {
+        width: 38px !important;
+        padding: 0 !important;
+        justify-content: center;
+    }
+
+    .theme-efor-v2 .admin-section .has-tooltip::after,
+    .theme-efor-v2 .admin-section .has-tooltip::before {
+        display: none !important;
+    }
+}
+
+/* ── strony admina: wspólne ── */
+.theme-efor-v2[data-efor-page="admin"] .content > .container,
+.theme-efor-v2[data-efor-page="admin"] .content > .container-fluid {
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .content h2 {
+    display: block;
+    margin: 0 0 20px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    color: var(--efor-ink) !important;
+    font-size: clamp(28px, 1.2vw + 16px, 38px) !important;
+    font-weight: 800 !important;
+    line-height: 1.1;
+    letter-spacing: -.03em;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .content h2 .bi {
+    color: var(--efor-teal);
+}
+
+.theme-efor-v2[data-efor-page="admin"] .card,
+.theme-efor-v2[data-efor-page="admin"] .search-box,
+.theme-efor-v2[data-efor-page="admin"] .import-table {
+    border: 1px solid var(--efor-line) !important;
+    border-radius: var(--efor-radius-card) !important;
+    background: var(--efor-card) !important;
+    box-shadow: var(--efor-shadow-card) !important;
+}
+
+/* panel administracyjny: siatka narzędzi zamiast jednej kolumny */
+.theme-efor-v2[data-efor-page="admin"] .col-lg-4:has(.admin-card) {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .d-flex.flex-column:has(> .admin-card) {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 18px !important;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .admin-card {
+    height: 100%;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .admin-card:hover {
+    transform: none;
+    border-color: var(--efor-teal-100) !important;
+    box-shadow: var(--efor-shadow-raise) !important;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .admin-card .card-body {
+    gap: 10px;
+    padding: 20px 22px 22px;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .admin-card .card-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    color: var(--efor-ink);
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .admin-card .card-title i {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    margin: 0 !important;
+    border-radius: 10px;
+    background: var(--efor-teal-50);
+    color: var(--efor-teal);
+    font-size: 19px;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .admin-card .card-text {
+    margin: 0 0 6px;
+    color: var(--efor-text-2);
+    font-size: 14.5px;
+    line-height: 1.5;
+}
+
+/* w spisie narzędzi żadne nie jest „główne” — jednakowe przyciski z obrysem */
+.theme-efor-v2[data-efor-page="admin"] .admin-card .btn {
+    align-self: flex-start;
+    min-width: 0;
+    height: 42px;
+    padding: 0 18px !important;
+    border: 1px solid var(--efor-line-strong) !important;
+    background: var(--efor-card) !important;
+    color: var(--efor-ink) !important;
+    font-weight: 600 !important;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .admin-card .btn:hover {
+    border-color: var(--efor-amber) !important;
+    background: var(--efor-cream) !important;
+}
+
+/* log importów: status jako plakietki w palecie B, bez kolorowych krawędzi */
+.theme-efor-v2[data-efor-page="admin"] .row-success,
+.theme-efor-v2[data-efor-page="admin"] .row-error,
+.theme-efor-v2[data-efor-page="admin"] .row-partial {
+    border-left: 0 !important;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .status-success,
+.theme-efor-v2[data-efor-page="admin"] .status-error,
+.theme-efor-v2[data-efor-page="admin"] .status-partial {
+    border-radius: 9999px;
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .status-success {
+    background: var(--efor-teal-50);
+    color: var(--efor-teal);
+}
+
+.theme-efor-v2[data-efor-page="admin"] .status-error {
+    background: var(--efor-danger-50);
+    color: var(--efor-danger-ink);
+}
+
+.theme-efor-v2[data-efor-page="admin"] .status-partial {
+    background: var(--efor-amber-50);
+    color: #6f4f09;
+}
+
+.theme-efor-v2[data-efor-page="admin"] .file-name {
+    background: var(--efor-sunken);
+    color: var(--efor-text);
+}
+
+.theme-efor-v2[data-efor-page="admin"] .table th .sort-icon {
+    color: inherit;
+}
+
+/* ── strony admina na telefonie ── */
+@media (max-width: 767.98px) {
+    .theme-efor-v2[data-efor-page="admin"] .content h2 {
+        margin: 6px 0 16px !important;
+        font-size: 30px !important;
+        text-align: left !important;
+    }
+
+    .theme-efor-v2[data-efor-page="admin"] .content,
+    .theme-efor-v2[data-efor-page="admin"] .content > .container,
+    .theme-efor-v2[data-efor-page="admin"] .content > .container-fluid {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .theme-efor-v2[data-efor-page="admin"] .card,
+    .theme-efor-v2[data-efor-page="admin"] .search-box,
+    .theme-efor-v2[data-efor-page="admin"] .import-table {
+        border: 0 !important;
+        border-radius: var(--ios-radius) !important;
+        background: var(--ios-group) !important;
+        box-shadow: none !important;
+    }
+
+    .theme-efor-v2[data-efor-page="admin"] .d-flex.flex-column:has(> .admin-card) {
+        grid-template-columns: 1fr;
+        gap: 12px !important;
+    }
+
+    .theme-efor-v2[data-efor-page="admin"] .admin-card .btn {
+        align-self: stretch;
+        border: 0 !important;
+        background: var(--ios-fill) !important;
+        color: var(--ios-tint) !important;
+    }
+
+    /* szerokie tabele przewijają się w poziomie w swojej karcie */
+    .theme-efor-v2[data-efor-page="admin"] table.table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        white-space: nowrap;
+    }
+
+    /* „← Panel admina” / „Powrót do panelu” — powrót jest już w pasku nawigacji */
+    .theme-efor-v2[data-efor-page="admin"] a.btn[href="/admin"] {
+        display: none !important;
+    }
+}
+
+
+/* Dymki przycisków w ostatniej kolumnie list: zakotwiczone do prawej krawędzi
+   przycisku, nie do jego środka — inaczej dymek „Wyślij” (niewidoczny, ale
+   z wymiarami) wystawał poza okno i strona miała 9 px poziomego przewijania. */
+@media (min-width: 768px) {
+    .theme-efor-v2[data-efor-group="lists"] .table td:last-child .has-tooltip:nth-last-child(-n + 2)::after {
+        left: auto;
+        right: 0;
+        transform: translate(0, 6px);
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .table td:last-child .has-tooltip:nth-last-child(-n + 2):hover::after,
+    .theme-efor-v2[data-efor-group="lists"] .table td:last-child .has-tooltip:nth-last-child(-n + 2):focus::after {
+        transform: translate(0, 0);
+    }
+}
+
+
+/* =============================================================================
+   26. POPRAWKI PO PRZEGLĄDZIE (2026-10-29)
+   ============================================================================= */
+
+/* Bursztyn ma zawsze ciemny tekst — także w trybie ciemnym: theme.css koloruje
+   każde `span`/`p` w trybie ciemnym (`[data-theme="dark"] span…`), więc etykieta
+   w środku bursztynowego przycisku wychodziła jasna (~1.7:1). */
+.theme-efor-v2[data-theme="dark"] :is(.btn-primary, .btn-success, .btn-outline-success, .action-btn-send, #show-button, .efor-btn--primary, .efor-dash__new, .m-empty-cta, .connection-lost-refresh, .custom-order-btn) :is(span, p, li, strong) {
+    color: inherit !important;
+}
+
+.theme-efor-v2 .efor-dash__new svg {
+    color: inherit;
+}
+
+/* Przyciski kart admina: etykieta na środku (było `height` + `padding: 0`
+   bez wyśrodkowania — tekst siedział u góry) */
+.theme-efor-v2[data-efor-page="admin"] .admin-card .btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    line-height: 1;
+}
+
+/* Pulpit (desktop): tytuł w tym samym stopniu co „Twoje oferty”, bez pustki nad
+   nim; nagłówki kart równej wysokości; numer, nazwa i data na jednej linii */
+.theme-efor-v2 .efor-dash__title {
+    font-size: clamp(30px, 1.6vw + 16px, 44px) !important;
+    font-weight: 800 !important;
+    line-height: 1.08 !important;
+}
+
+@media (min-width: 768px) {
+    .theme-efor-v2 .efor-dash {
+        margin-top: 4px !important;
+    }
+
+    .theme-efor-v2 .efor-dash__panel > .efor-card__head {
+        min-height: 66px;
+    }
+}
+
+.theme-efor-v2 .efor-dash__row {
+    grid-template-areas:
+        "no name date chevron"
+        ". pill pill chevron";
+    align-items: baseline;
+}
+
+.theme-efor-v2 .efor-dash__chevron {
+    align-self: center;
+}
+
+.theme-efor-v2 .efor-dash__facts dd {
+    overflow-wrap: break-word;
+}
+
+@media (max-width: 767.98px) {
+    /* materiał pasków gęstszy — treść pod tytułem w pasku nie jest czytelna */
+    .theme-efor-v2 {
+        --ios-bar: rgba(247, 245, 241, .9);
+        --ios-tabbar: rgba(252, 251, 249, .92);
+    }
+
+    .theme-efor-v2[data-theme="dark"] {
+        --ios-bar: rgba(15, 22, 25, .9);
+        --ios-tabbar: rgba(19, 28, 32, .92);
+    }
+
+    .theme-efor-v2 .mobile-nav::before,
+    .theme-efor-v2 .m-bottomnav {
+        -webkit-backdrop-filter: saturate(190%) blur(28px) !important;
+        backdrop-filter: saturate(190%) blur(28px) !important;
+    }
+
+    /* kontekst admina przeniesiony do arkusza „Więcej” */
+    .theme-efor-v2 .efor-sheet-admin-slot:empty {
+        display: none;
+    }
+
+    .theme-efor-v2 .efor-sheet-admin-slot .admin-section {
+        margin: 0 var(--m-gutter) 12px !important;
+        padding: 12px !important;
+    }
+
+    .theme-efor-v2 .efor-sheet-admin-slot .admin-section #userSelectContainer,
+    .theme-efor-v2 .efor-sheet-admin-slot .admin-section #userSelectContainer .dropdown-container,
+    .theme-efor-v2 .efor-sheet-admin-slot .admin-section #userSelect {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .theme-efor-v2 .efor-sheet-admin-slot .admin-section .dropdown-menu,
+    .theme-efor-v2 .efor-sheet-admin-slot .admin-section .custom-dropdown {
+        width: 100%;
+        max-height: 40vh;
+    }
+
+    /* oferty: akcje wiersza w siatce, cele dotyku 44 px, „Wyślij” na całą
+       szerokość — akcja główna wiersza w zasięgu kciuka */
+    .theme-efor-v2[data-efor-page="orders"] .mobile-orders-list .mobile-order-actions {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px !important;
+    }
+
+    .theme-efor-v2[data-efor-page="orders"] .mobile-orders-list .mobile-order-actions .action-btn {
+        white-space: nowrap;
+        font-size: 14px !important;
+    }
+
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions .action-btn,
+    .theme-efor-v2 .mobile-orders-list .mobile-order-actions .btn {
+        justify-content: center;
+        min-height: 44px !important;
+        height: auto !important;
+        border-radius: 12px !important;
+        font-size: 15px !important;
+    }
+
+    .theme-efor-v2[data-efor-page="orders"] .mobile-orders-list .mobile-order-actions .action-btn-send,
+    .theme-efor-v2[data-efor-page="orders"] .mobile-orders-list .mobile-order-actions .badge {
+        grid-column: 1 / -1;
+        justify-content: center;
+    }
+
+    /* filtry list za wierszem „Filtry” (uiVariantMobile.js) */
+    .theme-efor-v2 .efor-filters-toggle {
+        grid-column: 1 / -1;
+        display: flex !important;
+        align-items: center;
+        justify-content: flex-start !important;
+        width: 100%;
+        gap: 8px;
+        min-height: 44px;
+        margin: 0;
+        padding: 0 4px !important;
+        border: 0 !important;
+        border-bottom: .5px solid var(--ios-sep) !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--ios-tint) !important;
+        font-size: 17px;
+        font-weight: 600;
+        text-align: left;
+    }
+
+    /* ikona filtra (suwaki) przed etykietą */
+    .theme-efor-v2 .efor-filters-toggle::before {
+        content: '';
+        flex: 0 0 20px;
+        width: 20px;
+        height: 20px;
+        background: currentColor;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0'/%3E%3Ccircle cx='16' cy='6' r='2'/%3E%3Ccircle cx='10' cy='12' r='2'/%3E%3Ccircle cx='18' cy='18' r='2'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0'/%3E%3Ccircle cx='16' cy='6' r='2'/%3E%3Ccircle cx='10' cy='12' r='2'/%3E%3Ccircle cx='18' cy='18' r='2'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    /* Strzałka jako osobny element — `::after` przycisków zajmuje stary
+       „błysk” z theme.css (przezroczysty, poza przyciskiem) */
+    .theme-efor-v2 .efor-filters-toggle__chevron {
+        flex: 0 0 9px;
+        width: 9px;
+        height: 15px;
+        margin-left: auto;
+        background: var(--m-text-soft);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 15' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1.5 1.5 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 15' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1.5 1.5 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+        transition: transform .2s ease;
+    }
+
+    .theme-efor-v2.efor-filters-open .efor-filters-toggle__chevron {
+        transform: rotate(90deg);
+    }
+
+    .theme-efor-v2 .efor-filters-toggle__count:not(:empty) {
+        display: inline-grid;
+        place-items: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 6px;
+        border-radius: 11px;
+        background: var(--efor-amber);
+        color: var(--efor-amber-ink);
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .theme-efor-v2:not(.efor-filters-open)[data-efor-group="lists"] .orders-filters-bar:has(.efor-filters-toggle) > :not(.filter-group:first-child):not(.efor-filters-toggle) {
+        display: none !important;
+    }
+
+    .theme-efor-v2[data-efor-group="lists"] .orders-filters-bar .filter-group > label {
+        align-self: flex-start;
+        text-align: left !important;
+    }
+
+    /* konfigurator: „Ostatni wybór” wypadał poza ekran (x = −8 px) */
+    .theme-efor-v2[data-efor-group="configurator"] #check-form.form-check {
+        display: flex !important;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        margin: 4px 0 0 !important;
+        padding: 0 4px !important;
+    }
+
+    .theme-efor-v2[data-efor-group="configurator"] #check-form #last-group-checkbox {
+        float: none !important;
+        flex: 0 0 auto;
+        margin: 0 !important;
+    }
+
+    /* karta pozycji: strzałka rozwinięcia jako rysunek, nie znak „▼”, z miejscem
+       na numer pozycji */
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-header {
+        padding-right: 42px !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-number {
+        margin-right: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-header::after {
+        content: '' !important;
+        right: 16px !important;
+        width: 14px;
+        height: 14px;
+        background: currentColor;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+        font-size: 0 !important;
+    }
+
+    .theme-efor-v2[data-efor-group="order"] .mobile-item-card.expanded .mobile-item-header::after {
+        content: '' !important;
+        transform: translateY(-50%) rotate(180deg) !important;
+    }
+
+    /* Eforek mniejszy i przy krawędzi — mniej zasłania strzałki i daty wierszy */
+    .theme-efor-v2 .ea-pet .ea-launcher.ea-has-avatar,
+    .theme-efor-v2 .ea-avatar-launcher {
+        width: 54px !important;
+        height: 54px !important;
+    }
+
+    .theme-efor-v2 .ea-pet {
+        right: 2px !important;
+    }
+}
+
+@media (max-width: 767.98px) {
+    /* wiersz kontekstu admina pod dużym tytułem (uiVariantMobile.js) */
+    .theme-efor-v2 .efor-admin-context {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 100%;
+        min-height: 36px;
+        margin: 6px 0 12px;
+        padding: 0 14px 0 10px !important;
+        border: 0 !important;
+        border-radius: 18px !important;
+        background: var(--efor-amber-50) !important;
+        box-shadow: inset 0 0 0 1px var(--efor-amber-line) !important;
+        color: var(--m-text) !important;
+        font-size: 15px;
+        font-weight: 600;
+        text-align: left;
+    }
+
+    .theme-efor-v2 .efor-admin-context::before {
+        content: '';
+        flex: 0 0 18px;
+        width: 18px;
+        height: 18px;
+        background: var(--ios-tint);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18M9 20v-6h6v6'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18M9 20v-6h6v6'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+
+    .theme-efor-v2 .efor-admin-context__text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .theme-efor-v2 .efor-admin-context:active {
+        opacity: .6;
+    }
+
+    [data-theme="dark"].theme-efor-v2 .efor-admin-context {
+        background: rgba(247, 180, 23, .12) !important;
+    }
+}
+
+/* Pulpit: wspólne wiersze siatki dla nagłówków kart (podsiatka) — nagłówki
+   mają jedną wysokość przy każdej szerokości, bez ucinania tekstu, a karty
+   w jednym rzędzie kończą się na tej samej linii. */
+@media (min-width: 768px) {
+    /* wiersze: nagłówek / treść / reszta — nadmiar wysokości zbiera się na
+       dole karty, nie nad listą i nie między polami a przyciskiem */
+    .theme-efor-v2 .efor-dash__grid {
+        grid-template-areas: none;
+        grid-template-rows: auto 1fr;
+        row-gap: 0;
+    }
+
+    /* ⚠️ pełne `grid-area` (wiersz / kolumna / koniec wiersza / koniec kolumny):
+       samo `grid-area: auto` z sekcji 24 zerowało `span 3` i podsiatka miała
+       jeden wiersz */
+    .theme-efor-v2 .efor-dash__panel {
+        display: grid;
+        grid-template-rows: subgrid;
+        align-content: start;
+    }
+
+    .theme-efor-v2 .efor-dash__offers { grid-area: 1 / 1 / span 2 / span 1; }
+    .theme-efor-v2 .efor-dash__sent { grid-area: 1 / 2 / span 2 / span 1; }
+    .theme-efor-v2 .efor-dash__company { grid-area: 1 / 3 / span 2 / span 1; }
+
+    .theme-efor-v2 .efor-dash__panel > .efor-card__head {
+        min-height: 0;
+        align-self: stretch;
+    }
+
+    .theme-efor-v2 .efor-dash__panel > :nth-child(n + 2) {
+        align-self: start;
+    }
+
+    .theme-efor-v2 .efor-dash__body > .efor-dash__edit {
+        margin-top: 12px;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .theme-efor-v2 .efor-dash__grid {
+        grid-template-rows: auto 1fr auto auto;
+    }
+
+    .theme-efor-v2 .efor-dash__company {
+        grid-area: 3 / 1 / span 2 / -1;
+        margin-top: 20px;
+    }
+}

@@ -87,6 +87,7 @@ async function processOneFile(fileName) {
     orderId: null,
     orderIdx: null,
     sent: false,
+    offer: false,
     sendError: null,
     warnings: [],
     error: null
@@ -236,24 +237,32 @@ async function processOneFile(fileName) {
         log(`WARN: import OK but recalculate error for order ${importResult.orderId}: ${recalcErr.message}`);
       }
 
-      try {
-        const { sendImportedOrder } = require('./sendAfterImport');
-        const sendResult = await sendImportedOrder({
-          orderId: importResult.orderId,
-          user: resolved.user,
-          lang: resolved.lang
-        });
-        result.sent = !!sendResult.sent;
-        if (sendResult.skipped) {
-          result.sendError = `skipped: ${sendResult.skipped}`;
-          log(`WARN: import OK but send skipped for order ${importResult.orderId}: ${sendResult.skipped}`);
-        } else if (sendResult.error) {
-          result.sendError = sendResult.error;
-          log(`WARN: import OK but send failed for order ${importResult.orderId}: ${sendResult.error}`);
+      // `user.autoimport = 0`: the order stays an unsent offer (status 'active')
+      // in the client's account; it goes out by the normal "Wyślij" or the
+      // admin's send-to-production, never from here.
+      if (!resolved.user.autoimport) {
+        result.offer = true;
+        log(`Import: order ${importResult.orderId} left as an offer — client ${resolved.user.ident} has autoimport off`);
+      } else {
+        try {
+          const { sendImportedOrder } = require('./sendAfterImport');
+          const sendResult = await sendImportedOrder({
+            orderId: importResult.orderId,
+            user: resolved.user,
+            lang: resolved.lang
+          });
+          result.sent = !!sendResult.sent;
+          if (sendResult.skipped) {
+            result.sendError = `skipped: ${sendResult.skipped}`;
+            log(`WARN: import OK but send skipped for order ${importResult.orderId}: ${sendResult.skipped}`);
+          } else if (sendResult.error) {
+            result.sendError = sendResult.error;
+            log(`WARN: import OK but send failed for order ${importResult.orderId}: ${sendResult.error}`);
+          }
+        } catch (sendErr) {
+          result.sendError = sendErr.message;
+          log(`WARN: import OK but send error for order ${importResult.orderId}: ${sendErr.message}`);
         }
-      } catch (sendErr) {
-        result.sendError = sendErr.message;
-        log(`WARN: import OK but send error for order ${importResult.orderId}: ${sendErr.message}`);
       }
 
 

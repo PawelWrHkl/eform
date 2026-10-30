@@ -4523,3 +4523,55 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-29 10:35:01 - Start ===
 === 2026-10-29 10:35:02 - Dodawanie zmian do commita ===
+[main 4eeab05] Automatic commit 2026-10-29 10:35
+ 37 files changed, 12337 insertions(+), 19 deletions(-)
+ create mode 100644 .claude/skills/playwright-cli/SKILL.md
+ create mode 100644 .claude/skills/playwright-cli/references/element-attributes.md
+ create mode 100644 .claude/skills/playwright-cli/references/playwright-tests.md
+ create mode 100644 .claude/skills/playwright-cli/references/pr-attachments.md
+ create mode 100644 .claude/skills/playwright-cli/references/request-mocking.md
+ create mode 100644 .claude/skills/playwright-cli/references/running-code.md
+ create mode 100644 .claude/skills/playwright-cli/references/session-management.md
+ create mode 100644 .claude/skills/playwright-cli/references/storage-state.md
+ create mode 100644 .claude/skills/playwright-cli/references/test-generation.md
+ create mode 100644 .claude/skills/playwright-cli/references/tracing.md
+ create mode 100644 .claude/skills/playwright-cli/references/video-recording.md
+ create mode 100644 .github/hooks/impeccable.json
+ create mode 100644 .impeccable/config.json
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/OPIS.md
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/OPIS.pdf
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/faktura_maizoncozy.njk
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/przyklad_dane_16poz.json
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/przyklad_dane_8poz.json
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/przyklady/MaizonCozy_Factuur_VOORBEELD_16poz.pdf
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/przyklady/MaizonCozy_Factuur_VOORBEELD_8poz.pdf
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/przyklady/podglad_16poz-1.png
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/przyklady/podglad_16poz-2.png
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/przyklady/podglad_8poz-1.png
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/render_przyklad.js.txt
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/stopka.njk
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/zasoby/LICENSE-Liberation.txt
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/zasoby/LiberationSans-Bold.ttf
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/zasoby/LiberationSans-Regular.ttf
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/zasoby/maizoncozy_logo.png
+ create mode 100755 MaizonCozy_formatka_faktury_EFOR/MaizonCozy_formatka_EFOR/zasoby/maizoncozy_pasek.svg
+ create mode 100644 PRODUCT.md
+ rewrite configtest/nightly.out (99%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+=== 2026-10-29 10:35:04 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 66.19 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 111 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 68 high, 34 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   ae70828..4eeab05  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-29 10:35:11 - Koniec ===
+=== 2026-10-29 12:00:02 - Start ===
+=== 2026-10-29 12:00:02 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-10-30 10:35:01 - Start ===
+=== 2026-10-30 10:35:01 - Dodawanie zmian do commita ===

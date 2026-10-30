@@ -126,7 +126,12 @@
             </a>
             <button id="mobile-back-btn" type="button" class="mobile-back-btn d-none" onclick="window.history.back()" aria-label="{{ __('base.back_button') }}">
                 <img src="/img/go-back-arrow.png" class="mobile-back-icon" alt="">
+                <svg class="efor-back-chevron efor-v2-only" aria-hidden="true" viewBox="0 0 12 20"><path d="M10 2 2 10l8 8"/></svg>
+                <span class="efor-back-label efor-v2-only" aria-hidden="true">{{ __('base.back_button') }}</span>
             </button>
+            {# Wariant B na telefonie: tytuł w pasku nawigacji jak w iOS — pojawia
+               się, gdy duży tytuł strony zjedzie pod pasek (uiVariantMobile.js). #}
+            <span class="efor-navbar-title efor-v2-only" data-efor-navbar-title aria-hidden="true"></span>
             <button
                 class="navbar-toggler"
                 type="button"
@@ -138,6 +143,41 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="mobileNav">
+                {# Wariant B na telefonie: menu jest arkuszem wysuwanym od dołu
+                   („Więcej” w dolnym pasku) — uchwyt, tytuł, „Zamknij” i wiersz
+                   konta. Inicjały, nazwę i mail wpisuje headerMenu.js. #}
+                <div class="efor-sheet-head efor-v2-only">
+                    <span class="efor-sheet-grabber" aria-hidden="true"></span>
+                    <span class="efor-sheet-title">{{ eforT.more }}</span>
+                    <button type="button" class="efor-sheet-close" data-efor-sheet-close>{{ eforT.sheetClose }}</button>
+                </div>
+                <a href="/panel" class="efor-sheet-account efor-v2-only">
+                    <span class="efor-sheet-account__avatar" data-header-menu-initials aria-hidden="true"><svg><use href="#efor-i-user"/></svg></span>
+                    <span class="efor-sheet-account__who">
+                        <span class="efor-sheet-account__name" data-header-menu-name>{{ eforT.account }}</span>
+                        <span class="efor-sheet-account__mail" data-header-menu-mail></span>
+                    </span>
+                    <svg class="efor-sheet-chevron" aria-hidden="true"><use href="#efor-i-chevron-right"/></svg>
+                </a>
+                {% if admin %}
+                    <p class="efor-sheet-label efor-v2-only" id="efor-sheet-admin">{{ eforT.adminBar }}</p>
+                    {# Tu uiVariantMobile.js przenosi na telefonie `.admin-section`
+                       (organizacja, klient, ostatni klient) — ten sam węzeł, nie kopia,
+                       bo owner.js wiąże się po id. Przy powrocie do A wraca na miejsce. #}
+                    <div class="efor-sheet-admin-slot efor-v2-only" data-efor-admin-slot></div>
+                    <div class="efor-sheet-group efor-sheet-group--admin efor-v2-only">
+                        <a href="/admin" class="efor-sheet-row">
+                            <span class="efor-sheet-row__icon" aria-hidden="true"><svg><use href="#efor-i-store"/></svg></span>
+                            <span class="efor-sheet-row__label">Admin panel</span>
+                            <svg class="efor-sheet-chevron" aria-hidden="true"><use href="#efor-i-chevron-right"/></svg>
+                        </a>
+                        <a href="/user/org-pwd" class="efor-sheet-row">
+                            <span class="efor-sheet-row__icon" aria-hidden="true"><svg><use href="#efor-i-key"/></svg></span>
+                            <span class="efor-sheet-row__label">Hasła</span>
+                            <svg class="efor-sheet-chevron" aria-hidden="true"><use href="#efor-i-chevron-right"/></svg>
+                        </a>
+                    </div>
+                {% endif %}
                 <ul class="nav flex-column">
                     <li class="nav-item context-button d-none" id="mobile-context-item">
                         <a href="/orders/clear-context" class="nav-link">{{ __('base.turn_off_context') }}</a>
@@ -232,6 +272,36 @@
                         </form>
                     </li>
                 </ul>
+                {# Wariant B na telefonie: reszta tego, co na desktopie jest w pasku
+                   górnym i stopce — język, tryb ciemny, przewodnik, skróty admina,
+                   linki prawne. Tryb i przewodnik klikają istniejące przyciski
+                   z menu konta (`data-efor-proxy`, uiVariantMobile.js), więc
+                   themeToggle.js i intro/main.js nie wiedzą o tym arkuszu. #}
+                <div class="efor-sheet-extra efor-v2-only">
+                    <p class="efor-sheet-label">{{ eforT.language }}</p>
+                    <div class="efor-sheet-langs" role="group" aria-label="{{ eforT.language }}">
+                        {% for code in ["pl", "en", "de", "nl", "fr"] %}
+                            <a href="/change-language?lang={{ code }}" hreflang="{{ code }}" lang="{{ code }}"{% if locale == code %} aria-current="true"{% endif %}>{{ code | upper }}</a>
+                        {% endfor %}
+                    </div>
+                    <p class="efor-sheet-label">{{ eforT.appearanceTitle }}</p>
+                    <div class="efor-sheet-group">
+                        <button type="button" class="efor-sheet-row" data-efor-proxy="#theme-toggle" role="switch" aria-checked="false">
+                            <span class="efor-sheet-row__icon" aria-hidden="true"><svg><use href="#efor-i-moon"/></svg></span>
+                            <span class="efor-sheet-row__label">{{ eforT.darkMode }}</span>
+                            <span class="efor-sheet-switch" aria-hidden="true"></span>
+                        </button>
+                        <button type="button" class="efor-sheet-row" data-efor-proxy="#intro-tour-header-btn">
+                            <span class="efor-sheet-row__icon" aria-hidden="true"><svg><use href="#efor-i-compass"/></svg></span>
+                            <span class="efor-sheet-row__label">{{ eforT.tourStart }}</span>
+                        </button>
+                    </div>
+                    <p class="efor-sheet-legal">
+                        <a href="/privacy">{{ __('site.privacy') }}</a>
+                        <a href="/terms">{{ __('site.terms') }}</a>
+                        <a href="/contact">{{ __('site.contact') }}</a>
+                    </p>
+                </div>
             </div>
         </div>
     </nav>
@@ -661,6 +731,8 @@
    oferty). Czysto prezentacyjne — czytają istniejący DOM i klikają istniejące
    przyciski, nie liczą niczego same. W wariancie A śpią (brak obserwatorów). #}
 <script type="module" src="/scripts/uiVariantView.js?v={{ assetVersion }}"></script>
+{# Wariant B na telefonie: arkusz „Więcej”, tytuł w pasku nawigacji (jak iOS). #}
+<script type="module" src="/scripts/uiVariantMobile.js?v={{ assetVersion }}"></script>
 {# Menu konta w nagłówku: inicjały, nazwa i mail (oba warianty). #}
 <script type="module" src="/scripts/headerMenu.js?v={{ assetVersion }}"></script>
 {# Asystent eForm (czat AI) — tylko przy ASSISTANT_ENABLED i dozwolonej sesji,

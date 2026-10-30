@@ -74,8 +74,28 @@
     border: 1px solid var(--ps-border);
     border-radius: var(--ps-radius);
     background: var(--ps-surface);
-    break-inside: avoid;
 }
+
+/*
+ * Podział na strony (PDF — services/priceSpec/pdf.js — i druk z okna).
+ * ⚠️ Pozycja NIE ma `break-inside: avoid`: w PDF-ie zajmuje zwykle 50–110%
+ * strony, a Chromium przenosi taki blok w całości na następną stronę, nawet
+ * gdy i tam się nie mieści — pierwsza strona zostawała z samym nagłówkiem
+ * dokumentu (29.10, zlecenie 3351: strony zapełnione w 12% i 9%). Pozycja
+ * płynie, a łamie się tylko między sekcjami; jej nagłówek i konfiguracja
+ * zostają z pierwszą sekcją, nagłówek kolumn nie zostaje sam na dole strony.
+ */
+.price-spec__position-head,
+.price-spec__config,
+.price-spec__table thead { break-after: avoid; }
+
+.price-spec__section,
+.price-spec__totals,
+.price-spec__discounts,
+.price-spec__table tr { break-inside: avoid; }
+
+/* Notka końcowa nie trafia sama na ostatnią stronę — idzie z podsumowaniem. */
+.price-spec__note { break-before: avoid; }
 
 .price-spec__position-head {
     display: flex;
