@@ -2,7 +2,8 @@
 
 /**
  * Jeden cykl pracy w tle: statusy produkcji wszystkich klientów → automatyczne
- * faktury za zamówienia, które właśnie dostały `!sent!`.
+ * faktury za zamówienia, które właśnie dostały `!sent!` → maile z fakturami →
+ * PDF-y faktur na FTP.
  *
  * Kolejność ma znaczenie: automat faktur czyta `order.prod_status`, więc musi
  * widzieć statusy po synchronizacji z tego samego cyklu.
@@ -61,10 +62,11 @@ async function acquireDbLock(name) {
  * @param {boolean} [opts.full=false]    przelicz nagłówki wszystkich zamówień z pliku
  * @param {boolean} [opts.invoices=true] uruchom automat faktur po synchronizacji
  * @param {boolean} [opts.mail=true]     wyślij maile z fakturami automatu (`invoiceMailer.js`); tylko razem z `invoices`
- * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runInvoiceMailing, log }`
- * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null, invoiceMails?: object|null }>}
+ * @param {boolean} [opts.ftp=true]      wyślij PDF-y faktur automatu na FTP (`invoiceFtpExport.js`); tylko razem z `invoices`
+ * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runInvoiceMailing, runInvoiceFtpExport, log }`
+ * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null, invoiceMails?: object|null, invoiceFtp?: object|null }>}
  */
-async function runProdStatusCycle({ dryRun = false, full = false, invoices = true, mail = true, deps = {} } = {}) {
+async function runProdStatusCycle({ dryRun = false, full = false, invoices = true, mail = true, ftp = true, deps = {} } = {}) {
     const log = deps.log || defaultLog;
     const lock = await (deps.acquireLock || acquireDbLock)(lockName());
     if (!lock) {
@@ -76,6 +78,7 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
         const statuses = await (deps.syncStatuses || syncAllProdStatuses)({ dryRun, full });
         let autoInvoices = null;
         let invoiceMails = null;
+        let invoiceFtp = null;
         if (invoices) {
             // Leniwie: sama synchronizacja statusów nie potrzebuje modułu faktur
             const runAutoInvoicing = deps.runAutoInvoicing || require('./invoices/autoInvoicing').runAutoInvoicing;
@@ -94,8 +97,19 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
                     invoiceMails = { sent: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
                 }
             }
+            // FTP w tym samym przebiegu co mail, ale z własną kolejką — nie zależy
+            // od tego, czy mail wyszedł (`INVOICE_FTP_ENABLED`)
+            if (ftp) {
+                try {
+                    const runInvoiceFtpExport = deps.runInvoiceFtpExport || require('./invoices/invoiceFtpExport').runInvoiceFtpExport;
+                    invoiceFtp = await runInvoiceFtpExport({ dryRun });
+                } catch (err) {
+                    log(`[invoices:ftp] przebieg przerwany: ${err && err.message ? err.message : err}`);
+                    invoiceFtp = { uploaded: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
+                }
+            }
         }
-        return { statuses, autoInvoices, invoiceMails };
+        return { statuses, autoInvoices, invoiceMails, invoiceFtp };
     } finally {
         await lock.release();
     }

@@ -15,6 +15,7 @@ const hashUser = require('../utils/hashUser').hashUser;
 const { log } = require('../utils/logging');
 const { getActiveGroupShopId } = require('../services/groupContext');
 const { GROUP_TYPE_CLIENT } = require('../services/groupType');
+const demoMode = require('../services/demoMode');
 
 let clientsUpdateRunning = false;
 
@@ -290,6 +291,11 @@ router.get('/logo', requireLogin, async (req, res) => {
 router.post("/logout", requireLogin, async (req, res) => {
     const { clearRememberCookie } = require('../middleware/rememberMe');
     await clearRememberCookie(req, res);
+    if (req.session.user?.isDemo) {
+        // Błąd nie blokuje wylogowania — konto i tak zabierze zamiatarka.
+        await demoMode.purgeDemoUsers([req.session.user.userId])
+            .catch((err) => log('[demo] usuwanie przy wylogowaniu nie powiodło się:', err.message));
+    }
     req.session.destroy((err) => {
         if (err) return res.redirect("/");
         // ⚠️ Wcześniej dev/test/archive przekierowywały na SZTYWNY adres
@@ -409,6 +415,11 @@ router.post("/auth/check-login-password", requireLogin, async (req, res) => {
         // żeby admin mógł podejrzeć widok bez znajomości hasła klienta. Dotyczy
         // TYLKO grupy-matki (nie konta podrzędnego — `getActiveGroupShopId`
         // wskazuje wtedy wybrany sklep i tam nadal wymagamy prawdziwego hasła).
+        // Konto demo nie ma hasła, które klient by znał.
+        if (req.session.user?.isDemo) {
+            return res.json({ success: true });
+        }
+
         const contextUser = req.session.context_user;
         if (req.session.user?.isAdmin && contextUser?.isGroup
             && contextUser.groupType === GROUP_TYPE_CLIENT
@@ -438,7 +449,7 @@ router.post("/auth/check-password", async (req, res, next) => {
         const pin = currentUser.pin;
         const role = await db.getUserRole(pin);
         let isValid = await authService.checkPassword(pin, password);
-        if (role === 'admin') {
+        if (role === 'admin' || currentUser.isDemo) {
             isValid = true;
         }
         let redirectUrl;
@@ -513,6 +524,10 @@ router.get('/employee/add', requireLogin, async (req, res) => {
 
 
 router.post('/employee/add', requireLogin, async (req, res) => {
+    // Pracownik konta demo logowałby się bez znacznika demo — i wysyłał naprawdę.
+    if (req.session.user?.isDemo) {
+        return res.status(403).json({ success: false, message: res.__('demo.employees_blocked') });
+    }
     try {
         const currentUser = ownerService.getCurrentUser(req);
         const userId = currentUser.userId;

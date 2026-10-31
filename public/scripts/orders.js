@@ -3,6 +3,7 @@ import { createInfoDialog } from "./components/htmlManipulator.js";
 // import { confirmPrompt } from "./components/confirmPrompt.js";
 import { initSearchTool } from "./components/searchingTool.js";
 import { validate } from './base.js'
+import { openReorderDialog } from './orderTools/reorder.js';
 
 const otherAddrFlag = { value: false };
 const addrFlag = { value: false };
@@ -175,26 +176,8 @@ document.addEventListener('click', (e) => {
 	if (submitApprovalBtn) { e.stopPropagation(); buildAndShowDialog(submitApprovalBtn, 'submitForApproval'); return; }
 
 	const copyBtn = e.target.closest('.copy-order-btn');
-	if (copyBtn) { e.stopPropagation(); buildAndShowDialog(copyBtn, 'copyItem'); return; }
+	if (copyBtn) { e.stopPropagation(); openReorderDialog(copyBtn); return; }
 }, true);
-
-async function copyItem(btn) {
-	const orderId = btn.dataset.id;
-	try {
-		const response = await fetch(`/orders/copy/${orderId}`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' }
-		});
-		const result = await response.json();
-		if (result.redirect) {
-			showToast('success', t('orders.copied_success_label'));
-			setTimeout(() => { window.location.href = result.redirect; }, 500);
-		}
-	} catch (error) {
-		showToast('error', error.message);
-	}
-}
-
 
 function buildAndShowDialog(btn, functionName) {
 	const parent = document.getElementById('dialog-container');
@@ -202,16 +185,12 @@ function buildAndShowDialog(btn, functionName) {
 		? `${t('orders.send_order')}`
 		: functionName === 'submitForApproval'
 			? t('group.submit_for_approval_title')
-			: functionName === 'copyItem'
-				? `${t('orders.open_as_new')}`
-				: "";
+			: "";
 	const label = functionName === 'sendOrder'
 		? `${t('orders.send_word')}`
 		: functionName === 'submitForApproval'
 			? t('orders.send_word')
-			: functionName === 'copyItem'
-				? `${t('orders.accept')}`
-				: "";
+			: "";
 
 	const { buttons, dialog } = createInfoDialog({
 		title: title,
@@ -230,9 +209,6 @@ function buildAndShowDialog(btn, functionName) {
 					}
 					else if (functionName == 'submitForApproval') {
 						submitForApproval(btn)
-					}
-					else if (functionName == 'copyItem') {
-						copyItem(btn)
 					}
 				},
 				className: "btn btn-success ms-1",

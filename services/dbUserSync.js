@@ -5,6 +5,7 @@ const path = require('path');
 const csv = require('csvtojson');
 const { log } = require('../utils/logging');
 const { isLocallyManagedPassword } = require('../utils/localPassword');
+const { isDemoPin } = require('./demoMode');
 
 async function updateClients() {
   if (process.env?.PRODUCTION === 'true' || process.env?.PRODUCTION) {
@@ -283,7 +284,8 @@ async function deleteNonExistingClients(clientsToDelete) {
   for (const client of clientsToDelete) {
     const pin = (client.pin || '').toLowerCase();
 
-    if (excludedPins.has(pin)) {
+    // Konta demo nie ma w contractors.txt — sprząta je services/demoMode.js.
+    if (excludedPins.has(pin) || isDemoPin(pin)) {
       skipped++;
       continue;
     }

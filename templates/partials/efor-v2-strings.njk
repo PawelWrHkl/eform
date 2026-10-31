@@ -11,7 +11,7 @@
 
    base.njk wystawia te napisy na dwa sposoby:
      • `--efor-t-<klucz>` na :root — treść pseudo-elementów w
-       public/styles/theme-efor-v2.css (nagłówki kart, „eyebrow" nad tytułem),
+       public/styles/theme-efor-v2.css (nagłówki kart; nadtytułów nad tytułem już nie ma — klucze `eyebrow*` czyta tylko uiVariantView.js do okruszków),
        czyli zero JS-a i zero mignięcia przy ładowaniu strony,
      • `window.eforV2I18n` — dla public/scripts/uiVariantView.js.
 
@@ -369,9 +369,6 @@
 {# Klucze, które idą do CSS jako `--efor-t-<klucz>` (treść pseudo-elementów).
    Reszta słownika jest potrzebna tylko w JS. #}
 {% set cssKeys = [
-    "eyebrowOrder", "eyebrowOrderSent", "eyebrowNewPos", "eyebrowEditPos", "eyebrowPosition",
-    "eyebrowOrders", "eyebrowHistory", "eyebrowAddOrder", "eyebrowEditOrder", "eyebrowHome", "eyebrowPanel",
     "cardOrderData", "cardProduct", "cardParams", "cardPrices", "cardSpec", "cardDims",
-    "cardPriceDetails", "cardSummary", "cardPositions", "chooseProduct", "chooseSystem", "priceHint",
-    "adminBar"
+    "cardPriceDetails", "cardSummary", "cardPositions", "chooseProduct", "chooseSystem", "priceHint"
 ] %}

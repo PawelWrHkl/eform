@@ -168,7 +168,8 @@ class OrderSender {
             return;
         }
 
-        const useProductionFtp = isProductionVersion() || shouldForceProductionSend(options.forceProductionSend);
+        // localOnly: import z IMPORT_AUTO_SEND=false — nigdy FTP produkcyjny, nawet przy PRODUCTION.
+        const useProductionFtp = !options.localOnly && (isProductionVersion() || shouldForceProductionSend(options.forceProductionSend));
 
         if (!useProductionFtp) {
             const filePath = this.fullPath;

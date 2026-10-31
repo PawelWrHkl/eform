@@ -83,6 +83,7 @@ const CATALOG = [
 	{ key: 'nav_new_order', selectors: ['#new-order-nav-btn'], labelKey: 'base.new_order', description: 'menu: utworzenie nowej oferty', screens: ['any'], click: true, navTo: 'new_order' },
 	{ key: 'nav_offers', selectors: ['#orders-nav-btn', '.m-bottomnav [data-m-nav="offers"]'], labelKey: 'base.your_orders', description: 'menu: lista ofert (niewysłanych)', screens: ['any'], click: true, navTo: 'offers' },
 	{ key: 'nav_history', selectors: ['#orders-history-nav-btn', '.m-bottomnav [data-m-nav="orders"]'], labelKey: 'base.orders_history', description: 'menu: wysłane zlecenia', screens: ['any'], click: true, navTo: 'history' },
+	{ key: 'nav_canceled', selectors: ['#orders-canceled-nav-btn'], labelKey: 'cancel_order.panel_link_title', description: 'menu: zlecenia anulowane', screens: ['any'], click: true, navTo: 'canceled' },
 	{ key: 'nav_employee_panel', selectors: ['#employee-panel-nav-btn'], labelKey: 'base.employee_panel', description: 'menu: panel pracowników', screens: ['any'], click: true, navTo: 'employees' },
 	{ key: 'nav_invoices', selectors: ['#invoices-nav-btn'], labelKey: null, description: 'menu: moduł „Faktury" (tylko gdy moduł jest włączony)', screens: ['any'], click: true, navTo: 'invoices' },
 	{ key: 'user_panel_btn', selectors: ['#user-panel-header-btn'], labelKey: 'panel.nav_link', description: 'nagłówek → menu konta (awatar ze strzałką): panel użytkownika (dane konta, hasło, katalogi)', screens: ['any'], click: true, navTo: 'account' },
@@ -116,8 +117,8 @@ const CATALOG = [
 
 	// ── listy: oferty / wysłane / anulowane ──
 	{ key: 'offer_row', selectors: ['.order-row'], labelKey: null, description: 'wiersz oferty na liście — otwiera ofertę', screens: ['offers'], click: true },
-	{ key: 'sent_row', selectors: ['.order-row'], labelKey: null, description: 'wiersz wysłanego zlecenia — otwiera podgląd (pozycje, statusy, anulowanie, PDF). „Zamów ponownie" i numery przesyłek są w WIERSZU listy, w podglądzie ich nie ma', screens: ['history', 'canceled'], click: true, empty: ['.orders-canceled-empty'] },
-	{ key: 'copy_order', selectors: ['.copy-order-btn'], labelKey: 'orders.copy_offer', description: 'przycisk kopiowania w wierszu LISTY („Kopiuj ofertę" na ofertach, „Zamów ponownie" na wysłanych) — nie ma go w podglądzie zlecenia', screens: ['history', 'offers', 'canceled'] },
+	{ key: 'sent_row', selectors: ['.order-row'], labelKey: null, description: 'wiersz wysłanego zlecenia — otwiera podgląd (pozycje, statusy, anulowanie, PDF). „Zamów ponownie" i numery przesyłek są w WIERSZU listy; w podglądzie „Zamów ponownie" ma tylko zlecenie anulowane (w czerwonym banerze)', screens: ['history', 'canceled'], click: true, empty: ['.orders-canceled-empty'] },
+	{ key: 'copy_order', selectors: ['.copy-order-btn'], labelKey: 'orders.copy_offer', description: 'przycisk kopiowania w wierszu LISTY („Kopiuj ofertę" na ofertach, „Zamów ponownie" na wysłanych) — w podglądzie tylko przy zleceniu anulowanym (baner „Zlecenie anulowane")', screens: ['history', 'offers', 'canceled'] },
 	{ key: 'edit_order_name', selectors: ['#edit-order-btn'], labelKey: 'orders.edit_order_tooltip', description: 'ołówek w wierszu oferty — edycja nagłówka', screens: ['offers'] },
 	{ key: 'delete_order', selectors: ['#delete-order-btn'], labelKey: 'orders.delete_order', description: 'kosz w wierszu oferty — usunięcie oferty', screens: ['offers'] },
 	{ key: 'send_order_list', selectors: ['.send-order-btn'], labelKey: 'orders.send_order_tooltip', description: 'wysyłka oferty z listy', screens: ['offers'] },

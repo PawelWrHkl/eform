@@ -26,13 +26,13 @@
 
         /* Najdluzsze pasujace dopasowanie wygrywa: `/orders/history` musi
            podswietlic "Bestellungen", a nie "Angebote" (`/orders` jest jego
-           prefiksem). Dlatego sortujemy malejaco po dlugosci sciezki. */
+           prefiksem). Dlatego sortujemy malejaco po dlugosci sciezki.
+           `data-m-path` moze miec kilka sciezek rozdzielonych spacja. */
         let best = null;
         items
-            .slice()
-            .sort((a, b) => b.dataset.mPath.length - a.dataset.mPath.length)
-            .some(item => {
-                const target = item.dataset.mPath.replace(/\/+$/, '') || '/';
+            .flatMap(item => item.dataset.mPath.split(/\s+/).map(p => ({ item, target: p.replace(/\/+$/, '') || '/' })))
+            .sort((a, b) => b.target.length - a.target.length)
+            .some(({ item, target }) => {
                 const hit = target === '/' ? path === '/' : (path === target || path.startsWith(target + '/'));
                 if (hit) { best = item; return true; }
                 return false;

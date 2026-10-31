@@ -10,15 +10,15 @@
 }
 
 .content {
-    width: calc(100% - 280px) !important;
-    max-width: calc(100% - 280px) !important;
-    margin-left: 275px !important;
+    width: calc(100% - 280px * var(--nav-zoom, 1)) !important;
+    max-width: calc(100% - 280px * var(--nav-zoom, 1)) !important;
+    margin-left: calc(275px * var(--nav-zoom, 1)) !important;
 }
 
 html.nav-collapsed .content {
-    width: calc(100% - 70px) !important;
-    max-width: calc(100% - 70px) !important;
-    margin-left: 65px !important;
+    width: calc(100% - 70px * var(--nav-zoom, 1)) !important;
+    max-width: calc(100% - 70px * var(--nav-zoom, 1)) !important;
+    margin-left: calc(65px * var(--nav-zoom, 1)) !important;
 }
 
 #discount-amount {

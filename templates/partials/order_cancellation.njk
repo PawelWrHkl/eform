@@ -27,6 +27,11 @@
                 {% endif %}
             </p>
         </div>
+        {# Ta sama akcja co w wierszu list (public/scripts/orderTools/reorder.js). #}
+        <button type="button" class="btn order-reorder-btn copy-order-btn" data-id="{{ orderDetails.id }}">
+            {% include 'partials/reorder_icon.njk' %}
+            <span>{{ __('orders.reorder') }}</span>
+        </button>
     </div>
 {% elif cancellation and cancellation.canCancel %}
     <div class="order-cancel-notice order-cancel-notice--window {{ placementClass }}" data-cancel-window data-seconds-left="{{ cancellation.secondsLeft }}">

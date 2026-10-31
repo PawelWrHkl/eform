@@ -17,9 +17,12 @@
 
 const path = require('path');
 const fs = require('fs').promises;
+const { Readable } = require('stream');
 const { ftpImportPath } = require('../../config');
 const { log } = require('../../utils/logging');
 const { assertSafeOrderFileName, isSafeOrderFileName } = require('./fileNames');
+
+const IMPORT_STATUS_DIR = '/import-status';
 
 const FTP_ENABLED = Boolean(
   process.env.FTP_HOST && process.env.FTP_USER && process.env.FTP_PASSWORD
@@ -139,9 +142,20 @@ async function moveRemoteFile(fileName, subdir, { localFallbackDir } = {}) {
   });
 }
 
+/**
+ * Upload a text file to /import-status/<name> (root of the FTP, next to /orders-out/).
+ */
+async function uploadImportStatus(name, content) {
+  await withClient(async (client) => {
+    await client.ensureDir(IMPORT_STATUS_DIR);
+    await client.uploadFrom(Readable.from([Buffer.from(content, 'utf8')]), name);
+  });
+}
+
 module.exports = {
   FTP_ENABLED,
   listOrderFiles,
   downloadOrderFile,
-  moveRemoteFile
+  moveRemoteFile,
+  uploadImportStatus
 };

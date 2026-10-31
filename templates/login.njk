@@ -35,6 +35,40 @@
         <a href="/change-language?lang=fr" {% if locale == 'fr' %} class="active" data-tooltip="{{ __('base.french_tooltip') }}" {% endif %}><img src="/img/france.png" alt="France flag" width="30" height="28"></a>
       </div>
     </header>
+    {% if demoForm %}
+    {# Tryb demo (routes/demo.js): kilka danych klienta zamiast PIN-u i hasła. #}
+    <form action="/demo" method="POST">
+      <div class="login-box mobile-rm-card">
+        <button id="theme-toggle-login" class="theme-toggle theme-toggle-login" type="button" aria-label="Przełącz motyw"></button>
+        <h3>{{ __('demo.header') }}</h3>
+        <p class="login-demo-intro">{{ __('demo.intro') }}</p>
+        <div class="input-space">
+          <label for="demo-company">{{ __('demo.company_label') }}</label>
+          <input type="text" id="demo-company" name="company" value="{{ values.company }}" maxlength="128" autocomplete="organization" required>
+        </div>
+        <div class="input-space">
+          <label for="demo-email">{{ __('demo.email_label') }}</label>
+          <input type="email" id="demo-email" name="email" value="{{ values.email }}" maxlength="128" autocomplete="email" required>
+        </div>
+        <div class="input-space">
+          <label for="demo-country">{{ __('demo.country_label') }}</label>
+          <select id="demo-country" name="country" required>
+            <option value="">{{ __('demo.country_placeholder') }}</option>
+            {% for c in countries %}
+            <option value="{{ c.code }}" {% if c.code == values.country %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if errors and errors.length %}
+          <p class="alert alert-danger mt-4 p-2 w-100 ms-0" role="alert">
+            {% for e in errors %}{{ __(e) }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+          </p>
+        {% endif %}
+        <button class="btn btn-secondary" type="submit">{{ __('demo.start_button') }}</button>
+        <a class="login-demo-btn" href="/user/login">{{ __('demo.back_to_login') }}</a>
+      </div>
+    </form>
+    {% else %}
     <form action="/user/auth/login" method="POST">
       <div class="login-box mobile-rm-card">
         <button id="theme-toggle-login" class="theme-toggle theme-toggle-login" type="button" aria-label="Przełącz motyw"></button>
@@ -55,8 +89,12 @@
           </p>
         {% endif %}
         <button class="btn btn-secondary" type="submit">{{ __('login.login_button') }}</button>
+        {% if demoEnabled %}
+          <a class="login-demo-btn" href="/demo">{{ __('login.demo_button') }}</a>
+        {% endif %}
       </div>
     </form>
+    {% endif %}
     <div id='js-warning-container' class='d-none'>
       <div style=" position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg,
           #dc3545 0%, #c82333 100%); color: white; padding: 2rem 3rem; border-radius: 12px; box-shadow: 0 10px 40px rgba(220, 53,

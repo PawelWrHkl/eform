@@ -81,9 +81,10 @@ function fakeWorld({ state = sentOrder(), markResult = 1, statusAfter = 'cancele
         mkdir: async (dir, opts) => { calls.push(['mkdir', dir, opts]); },
         writeFile: async (file, content) => { calls.push(['writeFile', file, content]); files[file] = content; }
     };
-    const ftp = { accessed: null, uploads: [], closed: 0 };
+    const ftp = { accessed: null, dirs: [], uploads: [], closed: 0 };
     const ftpClientFactory = () => ({
         access: async (cfg) => { calls.push(['ftp.access', cfg.host]); ftp.accessed = cfg; },
+        ensureDir: async (dir) => { calls.push(['ftp.ensureDir', dir]); ftp.dirs.push(dir); },
         uploadFrom: async (local, remote) => { calls.push(['ftp.uploadFrom', local, remote]); ftp.uploads.push({ local, remote }); },
         close: () => { ftp.closed += 1; }
     });
@@ -185,7 +186,7 @@ test('anulowanie poza produkcją: pusty znacznik w outputData, potem status w ba
     assert.equal(wynik.fileName, 'HKL_ryver_242.cancel');
     assert.equal(wynik.delivery, 'local');
 
-    assert.deepStrictEqual(files, { '/mnt/eform/datatest/out/HKL_ryver_242.cancel': '' }, 'plik pusty, obok JSON-a');
+    assert.deepStrictEqual(files, { '/mnt/eform/datatest/out/orders-cancel/HKL_ryver_242.cancel': '' }, 'plik pusty, w katalogu anulowań');
     assert.equal(ftp.uploads.length, 0, 'poza produkcją bez FTP');
 
     const mark = calls.find(c => c[0] === 'markOrderCanceled');
@@ -213,20 +214,21 @@ test('sprawdzenie okna i UPDATE dostają TEN SAM początek okna', async () => {
     assert.equal(mark.windowStart, check.windowStart);
 });
 
-test('produkcja: znacznik idzie na FTP do /orders-out/ pod tą samą nazwą', async () => {
+test('produkcja: znacznik idzie na FTP do osobnego /orders-cancel/ pod tą samą nazwą', async () => {
     const { deps, ftp, files } = fakeWorld();
     deps.isProduction = () => true;
     const wynik = await cancelSentOrder(ctxKlienta(), deps);
 
     assert.equal(wynik.success, true);
     assert.equal(wynik.delivery, 'ftp');
-    assert.deepStrictEqual(ftp.uploads, [{ local: '/mnt/eform/datatest/out/HKL_ryver_242.cancel', remote: '/orders-out/HKL_ryver_242.cancel' }]);
+    assert.deepStrictEqual(ftp.dirs, ['/orders-cancel'], 'katalog zakładany, jeśli go nie ma');
+    assert.deepStrictEqual(ftp.uploads, [{ local: '/mnt/eform/datatest/out/orders-cancel/HKL_ryver_242.cancel', remote: '/orders-cancel/HKL_ryver_242.cancel' }]);
     assert.deepStrictEqual(
         { host: ftp.accessed.host, user: ftp.accessed.user, password: ftp.accessed.password, secure: ftp.accessed.secure },
         { host: 'ftp.example', user: 'u', password: 'p', secure: false }
     );
     assert.equal(ftp.closed, 1, 'połączenie zamknięte');
-    assert.equal(files['/mnt/eform/datatest/out/HKL_ryver_242.cancel'], '', 'lokalna kopia zostaje');
+    assert.equal(files['/mnt/eform/datatest/out/orders-cancel/HKL_ryver_242.cancel'], '', 'lokalna kopia zostaje');
 });
 
 // ── Awarie: nic nie może zostać „anulowane w połowie" ────────────────────────
@@ -290,6 +292,18 @@ async function assertRefused(worldOpts, ctx, expected) {
     assert.deepStrictEqual(files, {}, 'żadnego znacznika');
     assert.equal(calls.some(c => c[0] === 'markOrderCanceled'), false, 'bez zapisu statusu');
 }
+
+test('konto demo: status w bazie bez znacznika — ani lokalnie, ani na FTP (także na produkcji)', async () => {
+    const { deps, calls, files, ftp } = fakeWorld({ state: sentOrder({ user_ident: 'DEMO_0A1B2C3D', org_ident: 'LUXANGMBH' }) });
+    deps.isProduction = () => true;
+    const wynik = await cancelSentOrder(ctxKlienta(), deps);
+
+    assert.equal(wynik.code, 'canceled');
+    assert.equal(wynik.delivery, 'demo');
+    assert.deepStrictEqual(files, {});
+    assert.equal(ftp.uploads.length, 0);
+    assert.ok(calls.some(c => c[0] === 'markOrderCanceled'));
+});
 
 test('po 24 h: odmowa „minął czas"', async () => {
     await assertRefused({ state: sentOrder({ within_window: 0, seconds_left: -60 }) }, ctxKlienta(), { status: 409, code: 'window_expired' });

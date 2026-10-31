@@ -117,6 +117,12 @@ module.exports = {
     priceSpecClients: String(process.env.PRICE_SPEC_CLIENTS_ENABLED ?? '').trim() === ''
       ? true
       : envSwitch(process.env.PRICE_SPEC_CLIENTS_ENABLED),
+
+    // Tryb demo (services/demoMode.js): przycisk na stronie logowania i router
+    // `/demo`. Wymaga `DEMO_ORGANIZATION` (ident organizacji, której cennik
+    // widzi konto demo); opcjonalnie `DEMO_MAX_ACTIVE` (30) i
+    // `DEMO_MAX_PER_IP_HOUR` (5). Brak zmiennej = wyłączone.
+    demo: envSwitch(process.env.DEMO_ENABLED),
   },
 
   // ── Eksport klientów do systemu zewnętrznego ───────────────────────────

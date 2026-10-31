@@ -39,6 +39,7 @@ const { buildOrderPriceSpec } = require('../services/priceSpec');
 const { resolveScriptsByGroup } = require('../services/priceSpec/orderContext');
 const { renderPriceSpecPdf } = require('../services/priceSpec/pdf');
 const { translator: priceSpecTranslator } = require('../services/priceSpec/i18n');
+const { isDemoIdent } = require('../services/demoMode');
 
 function sentOrderPath(orderId) {
     return `/orders/history/order/${orderId}`;
@@ -1567,6 +1568,12 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             });
         }
 
+        // Zlecenie konta demo (services/demoMode.js): sama zmiana statusu — bez
+        // maili, JSON-a, FTP i produkcji, także gdy klika admin w kontekście.
+        if (isDemoIdent(await db.getOrderOwnerIdent(id))) {
+            return res.json({ status: "success", message: "Dane zapisane poprawnie", redirect: "/orders/history" });
+        }
+
         // Klient wlasnie wyslal swoje PIERWSZE zamowienie — powiadamiamy handel.
         // Idzie dla kazdego klienta, nie tylko objetego rabatem (decyzja z 22.09).
         // Serwis sam pilnuje jednorazowosci (liczy wyslane zamowienia klienta)
@@ -2154,6 +2161,9 @@ router.post('/order/:orderId/send-to-production', requireLogin, async (req, res)
         const ownerIdent = await db.getOrderOwnerIdent(orderId);
         if (!ownerIdent) {
             return res.status(404).json({ success: false, message: 'Nie znaleziono właściciela zamówienia' });
+        }
+        if (isDemoIdent(ownerIdent)) {
+            return res.status(403).json({ success: false, message: 'Zlecenie konta demo nie trafia na produkcję' });
         }
         const user = await db.getUserByIdent(ownerIdent);
         if (!user) {

@@ -1,5 +1,6 @@
 /**
- * Nazwa pliku zamówienia na FTP (`/orders-out/`) BEZ rozszerzenia:
+ * Nazwa pliku zamówienia na FTP (`/orders-out/`, znacznik anulowania
+ * w `/orders-cancel/`) BEZ rozszerzenia:
  * `<orgIdent>_<userIdent>_<orderNo><suffix>`, np. `HKL_ryver_242`.
  *
  * ⚠️ Jedno źródło prawdy dla KAŻDEGO pliku o zamówieniu: JSON-a z wysyłki

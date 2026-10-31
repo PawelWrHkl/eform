@@ -24,7 +24,7 @@
                                      (`order`, `configurator`, `order-data`,
                                      `lists`; inne = klucz podstrony),
      • `data-efor-positions`       — preferencja widoku pozycji oferty w B
-                                     (`cards` | `table`, localStorage
+                                     (`table` domyślnie | `cards`, localStorage
                                      `eform-v2-positions`, patrz PREFS).
 
    Trwałość: localStorage `eform-ui-variant` — wybór jest per przeglądarka,
@@ -97,7 +97,7 @@
         if (/^\/position\/\d+\/(edit|admin-redit)$/.test(p)) return 'edit-position';
         if (/^\/position\/\d+$/.test(p)) return 'position';
         if (p === '/panel') return 'panel';
-        if (/^\/user\/(login|auth)/.test(p)) return 'login';
+        if (/^\/user\/(login|auth)/.test(p) || p === '/demo') return 'login';
         if (/^\/admin(\/|$)/.test(p)) return 'admin';
         return 'other';
     }
@@ -213,7 +213,8 @@
      * odświeżeniu mignąłby widok domyślny. Wartość trafia na <html> jako
      * `data-efor-<nazwa>`.
      */
-    var PREFS = { positions: { key: 'eform-v2-positions', values: ['cards', 'table'], fallback: 'cards' } };
+    // Domyślnie tabela jak w wariancie A (decyzja właściciela 2026-10-30); karty na żądanie.
+    var PREFS = { positions: { key: 'eform-v2-positions', values: ['cards', 'table'], fallback: 'table' } };
 
     function readPref(name) {
         var def = PREFS[name];

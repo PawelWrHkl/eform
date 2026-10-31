@@ -445,7 +445,8 @@ async function generateProductionPdf(orderData, cleanOrderItems, logoPath, order
 }
 
 async function uploadProductionPdf(pdfBuffer, jsonFileName, options = {}) {
-  const useProductionFtp = isProductionVersion() || shouldForceProductionSend(options.forceProductionSend);
+  // localOnly: import z IMPORT_AUTO_SEND=false — PDF tylko lokalnie.
+  const useProductionFtp = !options.localOnly && (isProductionVersion() || shouldForceProductionSend(options.forceProductionSend));
 
   if (!useProductionFtp) {
     // Tryb dev/test — zapis lokalny do outputData/pdf_out

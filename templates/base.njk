@@ -19,6 +19,28 @@
         <link rel="stylesheet" href="/styles/responsive.css?v={{ assetVersion }}">
         <link rel="stylesheet" href="/styles/intro.css">
         <script src="/scripts/themeToggle.js"></script>
+        {# Szyna nawigacji (desktop, A i B) ma stały rozmiar na ekranie — nie rośnie
+           i nie maleje z powiększeniem przeglądarki (Ctrl +/−). `--nav-zoom` =
+           1/powiększenie: szyna ma `zoom: var(--nav-zoom)`, a odstępy treści od niej
+           są mnożone przez tę samą zmienną (layout.css, order_details.css, form.css,
+           responsive.css, theme-efor-v2.css). Przy 100% zmienna = 1, nic się nie zmienia.
+           shortcut: powiększenie z outerWidth/innerWidth (przeglądarki go nie udostępniają) —
+           narzędzia dewelopera zadokowane z boku je przekłamują; Firefox zwraca ~1, więc tam
+           szyna skaluje się jak dotąd. #}
+        <script>
+            (function () {
+                var LEVELS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
+                function apply() {
+                    var ratio = window.outerWidth / window.innerWidth, zoom = 1;
+                    if (ratio > 0 && isFinite(ratio)) {
+                        zoom = LEVELS.reduce(function (a, b) { return Math.abs(b - ratio) < Math.abs(a - ratio) ? b : a; });
+                    }
+                    document.documentElement.style.setProperty('--nav-zoom', String(1 / zoom));
+                }
+                apply();
+                window.addEventListener('resize', apply);
+            })();
+        </script>
         {# ── Wariant wyglądu A (klasyczny) / B („Efor 2.0”) ──────────────────
            Synchronicznie i jak najwcześniej: uiVariant.js ustawia klasę
            `theme-efor-v2` na <html> przed pierwszym malowaniem, więc po
@@ -118,6 +140,11 @@
 <link rel="stylesheet" href="/styles/theme-efor-v2.css?v={{ assetVersion }}">
 </head><body>
 {% include "partials/efor-v2-icons.njk" %}
+{% if isDemo %}
+{# Tryb demo (middleware/demoSession.js): przypomnienie, że dane są tymczasowe. #}
+<div class="demo-badge" role="status">{{ __('demo.badge') }} {{ demoExpiresLabel }}</div>
+<script>window.isDemoSession = true;</script>
+{% endif %}
 {% block nav %}
     <nav class="navbar navbar-expand-lg navbar-light bg-light mobile-nav">
         <div class="container-fluid">
@@ -190,6 +217,9 @@
                     </li>
                     <li class="nav-item">
                         <a href="/orders/history" class="nav-link">{{ __('base.orders_history') }}</a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/orders/canceled" class="nav-link">{{ __('cancel_order.panel_link_title') }}</a>
                     </li>
                     <li class="nav-item">
                         <a href="/panel" class="nav-link">{{ __('panel.nav_link') }}</a>
@@ -343,6 +373,13 @@
                     <img src="/img/orders_history.png" class='nav-icon' alt="orders-ico">
                     <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-truck"/></svg>
                     <span class="nav-text">{{ __('base.orders_history') }}</span>
+                </a>
+                {# Zlecenia anulowane — routes/orders.js GET /orders/canceled
+                   (services/orderCancellation.js). Zakres listy jak w historii. #}
+                <a href="/orders/canceled" id='orders-canceled-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="{{ __('cancel_order.panel_link_title') }}">
+                    <img src="/img/orders_canceled.svg" class='nav-icon' alt="canceled-orders-ico">
+                    <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-file-x"/></svg>
+                    <span class="nav-text">{{ __('cancel_order.panel_link_title') }}</span>
                 </a>
                 <a id='employee-panel-nav-btn' class="custom-nav-link has-tooltip d-none" data-tooltip="{{ __('base.employee_panel_tooltip') }}">
                     <img src="/img/employee.png" class='nav-icon' alt="orders-ico">
@@ -664,7 +701,7 @@
         <svg class="m-bottomnav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/></svg>
         <span class="m-bottomnav__label">{{ mNav.offers }}</span>
     </a>
-    <a href="/orders/history" class="m-bottomnav__item" data-m-nav="orders" data-m-path="/orders/history" aria-label="{{ __('base.orders_history') }}">
+    <a href="/orders/history" class="m-bottomnav__item" data-m-nav="orders" data-m-path="/orders/history /orders/canceled" aria-label="{{ __('base.orders_history') }}">
         <svg class="m-bottomnav__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="4" cy="6" r="0.6"/><circle cx="4" cy="12" r="0.6"/><circle cx="4" cy="18" r="0.6"/></svg>
         <span class="m-bottomnav__label">{{ mNav.orders }}</span>
     </a>

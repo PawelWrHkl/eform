@@ -265,6 +265,17 @@ async function processOneFile(fileName) {
         }
       }
 
+      try {
+        const { publishImportStatus } = require('./importStatus');
+        await publishImportStatus({
+          orderId: importResult.orderId,
+          orderIdx: importResult.orderIdx,
+          user: resolved.user
+        });
+      } catch (statusErr) {
+        result.warnings.push(`Nie wysłano pliku statusu importu na FTP: ${statusErr.message}`);
+        log(`WARN: import OK but import-status upload failed for order ${importResult.orderId}: ${statusErr.message}`);
+      }
 
       await cache.moveToProcessed(localPath);
       try {

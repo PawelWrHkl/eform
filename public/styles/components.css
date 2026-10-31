@@ -93,3 +93,31 @@
     justify-content: normal;
     gap: normal;
 }
+
+/* --- Tryb demo (templates/base.njk, middleware/demoSession.js) ------------
+   Języczek przy górnej krawędzi: widoczny w obu wariantach i na telefonie
+   (pasek `header.languages` jest tam ukryty). Nie łapie kliknięć. */
+.demo-badge {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    padding: 2px 12px 3px;
+    border-radius: 0 0 8px 8px;
+    background: var(--efor-amber, #f2b33d);
+    color: var(--efor-amber-ink, #3d2a00);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+@media (max-width: 767px) {
+    /* Na telefonie środek paska zajmuje logo. */
+    .demo-badge {
+        left: auto;
+        right: 8px;
+        transform: none;
+    }
+}

@@ -1,7 +1,7 @@
 @media (max-width: 1300px) {
 	.form-content {
-		margin-left: 260px;
-		max-width: calc(100% - 290px);
+		margin-left: calc(260px * var(--nav-zoom, 1));
+		max-width: calc(100% - 290px * var(--nav-zoom, 1));
 	}
 	.container {
 		padding: 10px;

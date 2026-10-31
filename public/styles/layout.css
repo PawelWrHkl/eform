@@ -142,12 +142,12 @@
 	}
 
 	html.nav-collapsed .content {
-		margin-left: 65px;
-		min-width: calc(100% - 70px) !important;
+		margin-left: calc(65px * var(--nav-zoom, 1));
+		min-width: calc(100% - 70px * var(--nav-zoom, 1)) !important;
 	}
 
 	html.nav-collapsed .modern-back-btn {
-		margin-left: 65px !important;
+		margin-left: calc(65px * var(--nav-zoom, 1)) !important;
 	}
 
 	input[type="number"]::-webkit-outer-spin-button,
@@ -170,18 +170,18 @@
 	}
 
 	.content {
-		margin-left: 275px;
-		width: calc(100% - 280px);
-		max-width: calc(100% - 280px);
+		margin-left: calc(275px * var(--nav-zoom, 1));
+		width: calc(100% - 280px * var(--nav-zoom, 1));
+		max-width: calc(100% - 280px * var(--nav-zoom, 1));
 		padding-right: 20px;
 		transition: margin-left 0.3s ease, width 0.3s ease, max-width 0.3s ease;
 	}
 
 	.desktop-nav.collapsed+.languages+main .content,
 	.desktop-nav.collapsed~main .content {
-		margin-left: 65px;
-		width: calc(100% - 70px);
-		max-width: calc(100% - 70px);
+		margin-left: calc(65px * var(--nav-zoom, 1));
+		width: calc(100% - 70px * var(--nav-zoom, 1));
+		max-width: calc(100% - 70px * var(--nav-zoom, 1));
 	}
 
 	.logo {
@@ -244,9 +244,12 @@
 		gap: 6px;
 	}
 
+	/* Szyna nie reaguje na powiększenie przeglądarki (Ctrl +/−): --nav-zoom = 1/powiększenie
+	   ustawia skrypt w base.njk; odstępy treści od szyny niżej liczą się z tej samej zmiennej. */
 	.desktop-nav {
+		zoom: var(--nav-zoom, 1);
 		width: 280px;
-		height: 100vh;
+		height: calc(100vh / var(--nav-zoom, 1));
 		position: fixed;
 		top: 0;
 		left: 0;
@@ -409,13 +412,13 @@
 		cursor: pointer !important;
 		transition: all 0.3s var(--ease-out-expo) !important;
 		outline: none !important;
-		margin-left: 280px !important;
+		margin-left: calc(280px * var(--nav-zoom, 1)) !important;
 		top: 15px !important;
 	}
 
 	.desktop-nav.collapsed~.languages~main .modern-back-btn,
 	.desktop-nav.collapsed+.languages+main .modern-back-btn {
-		margin-left: 65px !important;
+		margin-left: calc(65px * var(--nav-zoom, 1)) !important;
 	}
 	
 	.modern-back-btn:hover {
@@ -791,7 +794,7 @@
 	.site-footer {
 		position: fixed;
 		bottom: 0;
-		left: 280px;
+		left: calc(280px * var(--nav-zoom, 1));
 		right: 0;
 		background: var(--bg-surface-solid);
 		padding: 0;
@@ -805,12 +808,12 @@
 	}
 
 	html.nav-collapsed .site-footer {
-		left: 60px;
+		left: calc(60px * var(--nav-zoom, 1));
 	}
 
 	.desktop-nav.collapsed~main~footer.site-footer,
 	.desktop-nav.collapsed+.languages+main~footer.site-footer {
-		left: 60px;
+		left: calc(60px * var(--nav-zoom, 1));
 	}
 
 	.footer-inner {

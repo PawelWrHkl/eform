@@ -8,9 +8,10 @@
  * „Zamówić ponownie" jako nowe.
  *
  * Produkcja dowiaduje się o anulowaniu z PUSTEGO pliku o tej samej nazwie co
- * wysłany JSON, z rozszerzeniem `.cancel`: `HKL_ryver_242.json` →
- * `HKL_ryver_242.cancel` (nazwa z utils/orderFileName.js — tej samej funkcji,
- * której używa wysyłka).
+ * wysłany JSON, z rozszerzeniem `.cancel`, w OSOBNYM katalogu FTP
+ * `/orders-cancel/`: `/orders-out/HKL_ryver_242.json` →
+ * `/orders-cancel/HKL_ryver_242.cancel` (nazwa z utils/orderFileName.js — tej
+ * samej funkcji, której używa wysyłka). Katalog zakłada pierwsze anulowanie.
  *
  * ⚠️ KOLEJNOŚĆ: najpierw znacznik, potem status w bazie. Odwrotnie awaria FTP
  * dawałaby najgorszy możliwy stan — klient widzi „anulowane", a produkcja
@@ -25,8 +26,8 @@
  * (`PRODUCTION`) — także dla klientów z `ignore_mail_list.json`. Ich JSON mógł
  * pójść na produkcję ręcznie (checkbox „zlecenie produkcyjne"), a tego nigdzie
  * nie zapisujemy; zbędny `.cancel` dla nieznanego zlecenia jest nieszkodliwy,
- * brakujący — kosztuje wyprodukowany towar. Poza produkcją znacznik ląduje
- * lokalnie w `config.outputData`, obok JSON-a (lustro `OrderSender.saveToFile`).
+ * brakujący — kosztuje wyprodukowany towar. Lokalnie znacznik ląduje zawsze
+ * w `config.outputData/orders-cancel/` (lustro katalogu FTP).
  */
 
 'use strict';
@@ -36,6 +37,7 @@ const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { buildOrderFileName } = require('../utils/orderFileName');
+const { isDemoIdent } = require('./demoMode');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -43,7 +45,7 @@ dayjs.extend(timezone);
 const CANCELED_STATUS = 'canceled';
 const CANCELLATION_WINDOW_HOURS = 24;
 const CANCEL_MARKER_EXTENSION = '.cancel';
-const FTP_ORDERS_OUT_DIR = '/orders-out';
+const CANCEL_MARKER_DIR = 'orders-cancel';
 const TIME_ZONE = 'Europe/Warsaw';
 const DB_FORMAT = 'YYYY-MM-DD HH:mm:ss';
 
@@ -174,22 +176,25 @@ function result(status, code, extra = {}) {
 }
 
 /**
- * Zapisuje pusty znacznik `.cancel`: lokalnie zawsze (audyt + źródło wysyłki),
- * na FTP `/orders-out/` — gdy działamy jako produkcja.
+ * Zapisuje pusty znacznik `.cancel`: lokalnie zawsze (audyt + źródło wysyłki)
+ * w `outputData/orders-cancel/`, na FTP `/orders-cancel/` — gdy działamy jako
+ * produkcja.
  * ⚠️ Rzuca przy każdym błędzie. W przeciwieństwie do `OrderSender.saveToFile`
  * (który błąd FTP tylko loguje) tu błąd MUSI dojść do klienta — inaczej
  * zlecenie zostałoby „anulowane" tylko w eFormie.
  */
 async function writeCancelMarker(fileName, deps) {
-    const localPath = path.join(deps.outputData, fileName);
-    await deps.fs.mkdir(deps.outputData, { recursive: true });
+    const localDir = path.join(deps.outputData, CANCEL_MARKER_DIR);
+    const localPath = path.join(localDir, fileName);
+    await deps.fs.mkdir(localDir, { recursive: true });
     await deps.fs.writeFile(localPath, '');
 
     if (!deps.isProduction()) {
         return { target: 'local', localPath };
     }
 
-    const remotePath = `${FTP_ORDERS_OUT_DIR}/${fileName}`;
+    const remoteDir = `/${CANCEL_MARKER_DIR}`;
+    const remotePath = `${remoteDir}/${fileName}`;
     const client = deps.ftpClientFactory();
     try {
         await client.access({
@@ -198,6 +203,7 @@ async function writeCancelMarker(fileName, deps) {
             password: deps.env.FTP_PASSWORD,
             secure: false
         });
+        await client.ensureDir(remoteDir);
         await client.uploadFrom(localPath, remotePath);
     } finally {
         client.close();
@@ -242,7 +248,8 @@ async function cancelSentOrder(ctx, deps) {
 
     let delivery;
     try {
-        delivery = await writeCancelMarker(fileName, d);
+        // Zlecenie konta demo nie poszło na produkcję — znacznika nie ma po co pisać.
+        delivery = isDemoIdent(state.user_ident) ? { target: 'demo' } : await writeCancelMarker(fileName, d);
     } catch (err) {
         d.log(`[orderCancellation] zlecenie ${orderId}: nie udało się zapisać znacznika ${fileName} — status bez zmian:`, err?.message || err);
         return result(502, 'marker_failed');

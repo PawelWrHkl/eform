@@ -10,6 +10,7 @@ const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../conf
 const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { buildItemProductionDays, recalcAndSaveProdDays } = require('../productionDays');
+const { isDemoIdent } = require('../demoMode');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../../utils/productionSendGuard');
 const {
     orderHasSubPrices,
@@ -72,6 +73,11 @@ async function submitCorrection(req, orderId, prices) {
         await db.updateOrderPriceOnSend(orderId, normalizePrices(prices));
     } catch (err) {
         log(`Korekta ${orderId}: status ustawiony na 'sent', ale nie udało się zapisać cen:`, err);
+    }
+
+    // Zlecenie konta demo nigdy nie trafia na produkcję (services/demoMode.js).
+    if (isDemoIdent(orderDetails.user_ident)) {
+        return { success: true, message: 'Korekta zapisana (konto demo — bez wysyłki).', redirect: '/admin/order-corrections' };
     }
 
     // Termin produkcji per pozycja liczony w chwili wysyłki i podawany do

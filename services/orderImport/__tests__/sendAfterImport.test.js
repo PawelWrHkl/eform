@@ -30,20 +30,65 @@ test('isImportAutoSendEnabled: unset = on, explicit true = on, anything else = o
   }
 });
 
-test('sendImportedOrder skips without touching the DB when IMPORT_AUTO_SEND=false', async () => {
+test('sendImportedOrder with IMPORT_AUTO_SEND=false: status sent, mail only to dev boxes, no production FTP', async () => {
   const prev = process.env.IMPORT_AUTO_SEND;
   process.env.IMPORT_AUTO_SEND = 'false';
+  const calls = { status: null, saveOptions: null, pdfOptions: null, mailTo: null, mailBcc: null };
   try {
+    class FakeSender {
+      constructor(_req, orderDetails) { this.data = { orderid: orderDetails.id }; }
+      async init() { this.fileName = 'ORG_U1_42'; return this.data; }
+      async saveToFile(options) { calls.saveOptions = options; }
+    }
     const ordersDb = {
-      async getOrderDataToSend() { throw new Error('nie powinno dotykać bazy'); }
+      async getOrderDataToSend(orderId) {
+        return {
+          orderDetails: { id: orderId, commision: 'CM-1', contact_info_id: null },
+          orderItems: [{ id: 10, json_parameters: {}, parameters_short: { data: {}, order: [] }, json_parameters_desc: '[]' }]
+        };
+      },
+      async changeOrderStatus(orderId, status) { calls.status = { orderId, status }; return true; },
+      async getUserLogo() { return 'hkl.png'; },
+      async getGroupDeliveryTimes() { return {}; },
+      async getUserMail() { return { organization_email: 'org@test', user_email: 'user@test' }; },
+      async getUserOrderId() { return 42; },
+      async getTotal() { return { visible: 100, hidden: 80 }; },
+      async getOrgInfo() { return {}; }
     };
     const r = await sendImportedOrder({
-      orderId: 1,
-      user: { id: 1, pin: 'P1', ident: 'U1', client_name: 'Acme', organization_id: 3, org_ident: 'ORG' },
+      orderId: 99,
+      // klient z client_ab — w trybie testowym NIE może dostać maila
+      user: { id: 1, pin: 'P1', ident: 'U1', client_name: 'Acme', organization_id: 3, org_ident: 'ORG', client_ab: 1 },
       lang: 'pl',
-      deps: { orders: ordersDb }
+      deps: {
+        orders: ordersDb,
+        log: () => {},
+        OrderSender: { OrderSender: FakeSender },
+        orderService: { async jsonTextBackToMap(items) { return { cleanOrderItems: items }; } },
+        getExtraAttachments: async () => [],
+        recalcAndSaveProdDays: async () => ({ maxProdDays: 0, itemProdDays: {} }),
+        generateOrderDocuments: async () => ({ pdf: Buffer.from('pdf'), html: null }),
+        generateProductionPdf: async () => Buffer.from('prod'),
+        uploadProductionPdf: async (_pdf, _name, options) => { calls.pdfOptions = options; },
+        buildItemProductionDays: () => ({ maxProdDays: 0 }),
+        getProductionSendSkipClient: () => null,
+        resolveOrderAbPolicy: async () => ({ withoutPrices: false, abLang: null, clientAb: true, deliveryDelay: 0 }),
+        resolveConfirmationRecipients: (arg) => {
+          // Sprawdzamy, że w trybie testowym funkcja dostaje env 'test' i nie dostaje adresu klienta
+          if (arg.env === 'test') return { mainRecipient: 'pawel.woroniecki@hkl.eu', bcc: ['krzysztof.krawczyk@hkl.eu'] };
+          return { mainRecipient: arg.confirmationEmail, bcc: [arg.organizationEmail] };
+        },
+        formatSendTotals: async (data) => data,
+        sendMailAsync: async (to, _lang, _pdf, _att, _vars, bcc) => { calls.mailTo = to; calls.mailBcc = bcc; }
+      }
     });
-    assert.deepEqual(r, { sent: false, skipped: 'IMPORT_AUTO_SEND=false' });
+    assert.equal(r.sent, true);
+    assert.deepEqual(calls.status, { orderId: 99, status: 'sent' });
+    assert.equal(calls.saveOptions.localOnly, true);
+    assert.equal(calls.saveOptions.forceProductionSend, false);
+    assert.equal(calls.pdfOptions.localOnly, true);
+    assert.equal(calls.mailTo, 'pawel.woroniecki@hkl.eu');
+    assert.deepEqual(calls.mailBcc, ['krzysztof.krawczyk@hkl.eu']);
   } finally {
     if (prev === undefined) delete process.env.IMPORT_AUTO_SEND;
     else process.env.IMPORT_AUTO_SEND = prev;

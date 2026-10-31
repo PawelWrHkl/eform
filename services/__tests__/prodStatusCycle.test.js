@@ -17,7 +17,9 @@ function fakeLock() {
   return lock;
 }
 
-test('cykl: najpierw statusy, potem faktury, potem maile z fakturami, blokada zwolniona', async () => {
+const EMPTY_FTP = () => ({ uploaded: [], failed: [], planned: [] });
+
+test('cykl: najpierw statusy, potem faktury, maile z fakturami i FTP, blokada zwolniona', async () => {
   const order = [];
   const lock = fakeLock();
   const result = await runProdStatusCycle({
@@ -26,17 +28,20 @@ test('cykl: najpierw statusy, potem faktury, potem maile z fakturami, blokada zw
       acquireLock: async () => lock,
       syncStatuses: async () => { order.push('statuses'); return { inserted: 1 }; },
       runAutoInvoicing: async () => { order.push('invoices'); return { created: [] }; },
-      runInvoiceMailing: async ({ dryRun }) => { order.push(`mail:${dryRun}`); return { sent: [], failed: [], planned: [] }; }
+      runInvoiceMailing: async ({ dryRun }) => { order.push(`mail:${dryRun}`); return { sent: [], failed: [], planned: [] }; },
+      runInvoiceFtpExport: async ({ dryRun }) => { order.push(`ftp:${dryRun}`); return EMPTY_FTP(); }
     }
   });
-  assert.deepEqual(order, ['statuses', 'invoices', 'mail:false']);
+  assert.deepEqual(order, ['statuses', 'invoices', 'mail:false', 'ftp:false']);
   assert.equal(result.statuses.inserted, 1);
   assert.deepEqual(result.invoiceMails, { sent: [], failed: [], planned: [] });
+  assert.deepEqual(result.invoiceFtp, EMPTY_FTP());
   assert.equal(lock.released, 1);
 });
 
-test('cykl: dry-run dociera do maili jako dry-run (nic nie wysyła)', async () => {
+test('cykl: dry-run dociera do maili i FTP jako dry-run (nic nie wysyła)', async () => {
   let mailDry = null;
+  let ftpDry = null;
   await runProdStatusCycle({
     dryRun: true,
     deps: {
@@ -44,14 +49,17 @@ test('cykl: dry-run dociera do maili jako dry-run (nic nie wysyła)', async () =
       acquireLock: async () => fakeLock(),
       syncStatuses: async () => ({}),
       runAutoInvoicing: async () => ({ created: [] }),
-      runInvoiceMailing: async ({ dryRun }) => { mailDry = dryRun; return { sent: [], failed: [], planned: [] }; }
+      runInvoiceMailing: async ({ dryRun }) => { mailDry = dryRun; return { sent: [], failed: [], planned: [] }; },
+      runInvoiceFtpExport: async ({ dryRun }) => { ftpDry = dryRun; return EMPTY_FTP(); }
     }
   });
   assert.equal(mailDry, true);
+  assert.equal(ftpDry, true);
 });
 
-test('cykl: --no-mail — faktury tak, maili nie', async () => {
+test('cykl: --no-mail — faktury i FTP tak, maili nie', async () => {
   let mailed = false;
+  let ftp = false;
   const result = await runProdStatusCycle({
     mail: false,
     deps: {
@@ -59,24 +67,46 @@ test('cykl: --no-mail — faktury tak, maili nie', async () => {
       acquireLock: async () => fakeLock(),
       syncStatuses: async () => ({}),
       runAutoInvoicing: async () => ({ created: [] }),
-      runInvoiceMailing: async () => { mailed = true; }
+      runInvoiceMailing: async () => { mailed = true; },
+      runInvoiceFtpExport: async () => { ftp = true; return EMPTY_FTP(); }
     }
   });
   assert.equal(mailed, false);
+  assert.equal(ftp, true);
   assert.equal(result.invoiceMails, null);
   assert.deepEqual(result.autoInvoices, { created: [] });
 });
 
-test('cykl: awaria poczty nie przerywa cyklu — zapisana jako nieudana wysyłka, blokada zwolniona', async () => {
+test('cykl: --no-ftp — maile tak, FTP nie', async () => {
+  let ftp = false;
+  const result = await runProdStatusCycle({
+    ftp: false,
+    deps: {
+      log: quiet,
+      acquireLock: async () => fakeLock(),
+      syncStatuses: async () => ({}),
+      runAutoInvoicing: async () => ({ created: [] }),
+      runInvoiceMailing: async () => ({ sent: [], failed: [], planned: [] }),
+      runInvoiceFtpExport: async () => { ftp = true; }
+    }
+  });
+  assert.equal(ftp, false);
+  assert.equal(result.invoiceFtp, null);
+  assert.deepEqual(result.invoiceMails, { sent: [], failed: [], planned: [] });
+});
+
+test('cykl: awaria poczty nie przerywa cyklu — zapisana jako nieudana wysyłka, FTP rusza, blokada zwolniona', async () => {
   const lock = fakeLock();
   const logs = [];
+  let ftp = false;
   const result = await runProdStatusCycle({
     deps: {
       log: (m) => logs.push(m),
       acquireLock: async () => lock,
       syncStatuses: async () => ({ inserted: 2 }),
       runAutoInvoicing: async () => ({ created: [{ invoiceId: 1 }] }),
-      runInvoiceMailing: async () => { throw new Error('SMTP nie odpowiada'); }
+      runInvoiceMailing: async () => { throw new Error('SMTP nie odpowiada'); },
+      runInvoiceFtpExport: async () => { ftp = true; return EMPTY_FTP(); }
     }
   });
   assert.equal(result.statuses.inserted, 2);
@@ -84,6 +114,26 @@ test('cykl: awaria poczty nie przerywa cyklu — zapisana jako nieudana wysyłka
   assert.equal(result.invoiceMails.failed.length, 1);
   assert.match(result.invoiceMails.failed[0].error, /SMTP nie odpowiada/);
   assert.ok(logs.some((m) => /\[invoices:mail\] przebieg przerwany: SMTP nie odpowiada/.test(m)));
+  assert.equal(ftp, true);
+  assert.equal(lock.released, 1);
+});
+
+test('cykl: awaria FTP nie przerywa cyklu — zapisana jako nieudana wysyłka, blokada zwolniona', async () => {
+  const lock = fakeLock();
+  const logs = [];
+  const result = await runProdStatusCycle({
+    deps: {
+      log: (m) => logs.push(m),
+      acquireLock: async () => lock,
+      syncStatuses: async () => ({}),
+      runAutoInvoicing: async () => ({ created: [] }),
+      runInvoiceMailing: async () => ({ sent: [], failed: [], planned: [] }),
+      runInvoiceFtpExport: async () => { throw new Error('zapytanie padło'); }
+    }
+  });
+  assert.equal(result.invoiceFtp.failed.length, 1);
+  assert.match(result.invoiceFtp.failed[0].error, /zapytanie padło/);
+  assert.ok(logs.some((m) => /\[invoices:ftp\] przebieg przerwany: zapytanie padło/.test(m)));
   assert.equal(lock.released, 1);
 });
 
@@ -111,7 +161,7 @@ test('cykl: błąd synchronizacji zwalnia blokadę i nie uruchamia faktur', asyn
   assert.equal(invoices, false);
 });
 
-test('cykl: --no-invoices pomija automat faktur i maile', async () => {
+test('cykl: --no-invoices pomija automat faktur, maile i FTP', async () => {
   let invoices = false;
   let mailed = false;
   const result = await runProdStatusCycle({
@@ -121,13 +171,15 @@ test('cykl: --no-invoices pomija automat faktur i maile', async () => {
       acquireLock: async () => fakeLock(),
       syncStatuses: async () => ({}),
       runAutoInvoicing: async () => { invoices = true; },
-      runInvoiceMailing: async () => { mailed = true; }
+      runInvoiceMailing: async () => { mailed = true; },
+      runInvoiceFtpExport: async () => { mailed = true; }
     }
   });
   assert.equal(invoices, false);
   assert.equal(mailed, false);
   assert.equal(result.autoInvoices, null);
   assert.equal(result.invoiceMails, null);
+  assert.equal(result.invoiceFtp, null);
 });
 
 test('lockName: zawiera nazwę bazy i mieści się w limicie GET_LOCK', () => {

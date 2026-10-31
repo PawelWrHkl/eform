@@ -300,7 +300,8 @@ export class FormsManager {
                         .map(u => u.trim().toUpperCase());
                     const currentUser = user.toUpperCase();
 
-                    if (!this.productUsers.includes(currentUser) && object?.users) {
+                    // Konto demo (services/demoMode.js) widzi wszystkie produkty.
+                    if (!this.productUsers.includes(currentUser) && object?.users && !window.isDemoSession) {
                         continue
                     }
                 }

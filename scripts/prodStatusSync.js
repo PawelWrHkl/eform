@@ -2,8 +2,9 @@
 /**
  * Jednorazowy cykl tła: synchronizacja statusów produkcji WSZYSTKICH klientów
  * (`status.txt` → `position_statuses` + `order.prod_status`), automatyczne
- * faktury za zamówienia wysłane do klienta i maile z tymi fakturami
- * (`services/invoices/invoiceMailer.js`, sterowane `INVOICE_MAIL_*` w `.env`).
+ * faktury za zamówienia wysłane do klienta, maile z tymi fakturami
+ * (`services/invoices/invoiceMailer.js`, sterowane `INVOICE_MAIL_*` w `.env`)
+ * i ich PDF-y na FTP (`services/invoices/invoiceFtpExport.js`, `INVOICE_FTP_*`).
  *
  * Kto to uruchamia:
  *   - przy `PROD_STATUS_SYNC_MODE=external` — cron, niezależnie od serwera. Tak
@@ -25,10 +26,11 @@
  *   node scripts/prodStatusSync.js --full        przelicz nagłówki wszystkich zamówień z pliku
  *   node scripts/prodStatusSync.js --no-invoices sama synchronizacja statusów (bez faktur i maili)
  *   node scripts/prodStatusSync.js --no-mail     statusy + faktury, bez maili z fakturami
+ *   node scripts/prodStatusSync.js --no-ftp      bez wysyłki PDF-ów faktur na FTP
  *
  * Kody wyjścia: 0 — OK (także „inny proces trzyma blokadę" i faktury pominięte
  * z powodu zerowej wartości — nic do zafakturowania), 1 — część zapisów,
- * faktur albo maili z fakturami się nie udała, 2 — cykl padł.
+ * faktur, maili z fakturami albo plików na FTP się nie udała, 2 — cykl padł.
  */
 
 const path = require('path');
@@ -57,12 +59,14 @@ const args = new Set(process.argv.slice(2));
             dryRun: args.has('--dry-run'),
             full: args.has('--full'),
             invoices: !args.has('--no-invoices'),
-            mail: !args.has('--no-mail')
+            mail: !args.has('--no-mail'),
+            ftp: !args.has('--no-ftp')
         });
         const statusFailures = result.statuses?.failed || 0;
         const invoiceFailures = result.autoInvoices?.failed?.length || 0;
         const mailFailures = result.invoiceMails?.failed?.length || 0;
-        if (statusFailures || invoiceFailures || mailFailures) code = 1;
+        const ftpFailures = result.invoiceFtp?.failed?.length || 0;
+        if (statusFailures || invoiceFailures || mailFailures || ftpFailures) code = 1;
     } catch (err) {
         log(`[prodStatus] cykl przerwany: ${err && err.stack ? err.stack : err}`);
         code = 2;

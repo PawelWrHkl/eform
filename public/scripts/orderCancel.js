@@ -20,6 +20,7 @@
  */
 import { showToast } from "./components/toast.js";
 import { createInfoDialog } from "./components/htmlManipulator.js";
+import { openReorderDialog } from "./orderTools/reorder.js";
 
 const TICK_MS = 30 * 1000;
 const ERROR_TOAST_SECONDS = 6;
@@ -221,6 +222,14 @@ function startCountdowns() {
 }
 
 document.addEventListener('click', async (event) => {
+    // „Zamów ponownie” z banera anulowanego zlecenia — na listach obsługuje go orders.js.
+    const reorderBtn = event.target.closest('.order-cancel-notice .copy-order-btn');
+    if (reorderBtn) {
+        event.preventDefault();
+        await translationsLoaded();
+        openReorderDialog(reorderBtn);
+        return;
+    }
     const btn = event.target.closest('.cancel-order-btn');
     if (!btn) return;
     event.preventDefault();

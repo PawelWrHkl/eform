@@ -460,8 +460,8 @@ osobny plik zbiera tylko błędy uruchomienia (stderr) i kody ≠ 0 — pusty = 
 | Przebiegi | `/mnt/eform/log/datatest/log-RRRR-MM-DD.txt` | `/eform/log/data/log-RRRR-MM-DD.txt` |
 | Błędy i kody ≠ 0 | `eform/logs/prodstatus-cron.log` (w `.gitignore`) | `/eform/log/data/prodstatus-cron.log` |
 
-Kody w pliku błędów: `1` — część zapisów, faktur albo maili się nie udała (szczegóły
-w dziennym logu), `2` — cykl padł, `124` — przekroczone 30 min, `75` — poprzedni
+Kody w pliku błędów: `1` — część zapisów, faktur, maili albo plików na FTP się nie
+udała (szczegóły w dziennym logu), `2` — cykl padł, `124` — przekroczone 30 min, `75` — poprzedni
 przebieg jeszcze trwa (tylko produkcja, `flock`). Skrypt ładuje `.env.local` i `.env`
 tak jak `server.js` — z crona nie dziedziczy już środowiska po serwerze.
 
@@ -552,6 +552,53 @@ przez testerów.
 
 Ręcznie: `npm run prodstatus:dry` pokazuje też listę maili do wysłania;
 `node scripts/prodStatusSync.js --no-mail` — cykl bez maili.
+
+## Faktury na FTP (`invoiceFtpExport.js`)
+
+PDF każdej faktury automatu trafia na FTP w tym samym cyklu co mail, zaraz po nim:
+status 100 % (`!sent!`) → faktura → mail → plik na FTP. Serwer i konto to te same
+`FTP_HOST` / `FTP_USER` / `FTP_PASSWORD` co eksport zleceń (`orderbot@e-orders.eu`),
+połączenie szyfrowane (FTPS). Domyślnie WYŁĄCZONE.
+
+```
+<katalog>/hkl-organizacja/<ORGANIZACJA>/Faktura_VAT_2026_00017.pdf              poziom 1: HKL → organizacja (nabywca)
+<katalog>/organizacja-klient/<ORGANIZACJA>/<KLIENT>/Faktura_VAT_2026_00134.pdf  poziom 2: organizacja (wystawca) → klient
+```
+
+- Katalogi to identy z eForma (`organization.ident`, `user.ident`) — jak w nazwach
+  plików zleceń na tym FTP; zamieniane są tylko `/ \ : * ? " < > |`, znaki
+  sterujące i kropki/spacje na brzegach (`B&C`, `ABCMünster` zostają). Brak identu →
+  nazwa nabywcy z faktury, a gdy i jej brak — `klient-<id>` / `organizacja-<id>`.
+- Faktura sklepu grupy idzie do katalogu konta klienta (`invoice.buyer_user_id`),
+  faktura zbiorcza — jak każda inna poziomu 2.
+- Plik: `<rodzaj>_<numer>.pdf` po polsku, tylko ASCII (`Faktura_VAT_…`,
+  `Faktura_korygujaca_…`) — rodzaj w nazwie, bo rodzaje dokumentów mają osobne serie
+  numeracji.
+- Poziomy 3 i 4 (odbiorcy końcowi) nie mają katalogu — nie są wysyłane.
+- ⚠️ Test i produkcja piszą na TO SAMO konto, a numeracja w bazie testowej i
+  produkcyjnej jest osobna (ten sam numer = dwa różne dokumenty). Dlatego domyślny
+  katalog to `/invoices` przy `NODE_ENV=prod`, `/invoices-test` poza produkcją.
+
+| Zmienna `.env` | Domyślnie | Znaczenie |
+|---|---|---|
+| `INVOICE_FTP_ENABLED` | wyłączone | `true` włącza wysyłkę |
+| `INVOICE_FTP_SINCE` | — | **wymagane**, `RRRR-MM-DD`: tylko faktury utworzone od tego dnia |
+| `INVOICE_FTP_DIR` | `/invoices` (prod) / `/invoices-test` | katalog główny (litery, cyfry, `._-/`) |
+| `INVOICE_FTP_TLS` | `true` | `false` — awaryjnie bez szyfrowania |
+| `INVOICE_FTP_MAX_PER_RUN` | `50` | bezpiecznik na jeden przebieg |
+
+Kolejka jest niezależna od maila: te same faktury (automat, wystawione, od `SINCE`),
+ale własne znaczniki w `invoice_event` — `ftp_uploaded` (ścieżka, rozmiar) /
+`ftp_failed` (błąd), bez migracji. Awaria poczty nie zatrzymuje FTP i odwrotnie;
+fakturę wysłaną mailem przez inną instancję na tej samej bazie wrzuci najbliższy
+przebieg. Upload: plik `<nazwa>.part` → zmiana nazwy → kontrola rozmiaru (odbiorca
+czytający katalog nie weźmie niedokończonego PDF-a); ponowne wysłanie nadpisuje plik.
+Błąd pojedynczej faktury (PDF, upload ponowiony raz na nowym połączeniu) = `ftp_failed`,
+najwyżej 5 prób (`MAX_ATTEMPTS`). Brak połączenia z serwerem przerywa przebieg BEZ
+znaczników — awaria FTP nie zużywa prób faktur — i daje kod 1 skryptu.
+
+Ręcznie: `npm run prodstatus:dry` pokazuje docelowe ścieżki;
+`node scripts/prodStatusSync.js --no-ftp` — cykl bez FTP.
 
 ## Przegląd „wystawione / niewystawione" (panel, poziomy 1 i 2)
 

@@ -1,0 +1,683 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-30T12:22:15+00:00",
+  "title": "Design System: eForm — wariant B „Efor 2.0”",
+  "extensions": {
+    "scope": {
+      "selector": ".theme-efor-v2",
+      "darkSelector": ".theme-efor-v2[data-theme=\"dark\"]",
+      "source": "public/styles/theme-efor-v2.css",
+      "setBy": "public/scripts/uiVariant.js",
+      "phoneBehaviour": "public/scripts/uiVariantMobile.js",
+      "strings": "templates/partials/efor-v2-strings.njk",
+      "icons": "templates/partials/efor-v2-icons.njk",
+      "classicBaseline": {
+        "tokens": "public/styles/theme.css",
+        "mobileTokens": "public/styles/mobile/tokens.css",
+        "brandPrimary": "#5e6e82",
+        "brandAccent": "#6b9dad",
+        "bgBody": "#f8fafc",
+        "mobileAccent": "#d4a437",
+        "rule": "Wariant A zamrożony — identyczny piksel po pikselu."
+      }
+    },
+    "colorMeta": {
+      "teal": {
+        "role": "primary",
+        "displayName": "Turkus nagłówków",
+        "tonalRamp": [
+          "#12353a",
+          "#1b464d",
+          "#265b63",
+          "#3f7f88",
+          "#5aa3ad",
+          "#8cc3cb",
+          "#d3e7e9",
+          "#e3f1f2"
+        ]
+      },
+      "teal-deep": {
+        "role": "primary",
+        "displayName": "Turkus głęboki"
+      },
+      "teal-night": {
+        "role": "primary",
+        "displayName": "Turkus nocny"
+      },
+      "teal-mid": {
+        "role": "primary",
+        "displayName": "Turkus średni"
+      },
+      "teal-mist": {
+        "role": "primary",
+        "displayName": "Mgła turkusowa"
+      },
+      "teal-wash": {
+        "role": "primary",
+        "displayName": "Obmycie turkusowe"
+      },
+      "amber": {
+        "role": "secondary",
+        "displayName": "Bursztyn akcji",
+        "tonalRamp": [
+          "#1b1403",
+          "#6f4f09",
+          "#df9d06",
+          "#efaa0c",
+          "#f7b417",
+          "#f3cf7a",
+          "#fdebc4",
+          "#fef3dd"
+        ]
+      },
+      "amber-hover": {
+        "role": "secondary",
+        "displayName": "Bursztyn — hover"
+      },
+      "amber-press": {
+        "role": "secondary",
+        "displayName": "Bursztyn — wciśnięcie"
+      },
+      "amber-ink": {
+        "role": "secondary",
+        "displayName": "Tusz bursztynowy"
+      },
+      "amber-cream": {
+        "role": "tertiary",
+        "displayName": "Krem sumy"
+      },
+      "amber-pill": {
+        "role": "tertiary",
+        "displayName": "Krem plakietek"
+      },
+      "amber-line": {
+        "role": "tertiary",
+        "displayName": "Linia bursztynowa"
+      },
+      "cream-hover": {
+        "role": "tertiary",
+        "displayName": "Krem najechania"
+      },
+      "page-bg": {
+        "role": "neutral",
+        "displayName": "Ciepłe tło strony",
+        "tonalRamp": [
+          "#0b1324",
+          "#1f2733",
+          "#4a5361",
+          "#6b7380",
+          "#9aa1ab",
+          "#c9ced6",
+          "#e8e6e0",
+          "#f7f5f1"
+        ]
+      },
+      "sidebar": {
+        "role": "neutral",
+        "displayName": "Pasek boczny"
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Karta"
+      },
+      "sunken": {
+        "role": "neutral",
+        "displayName": "Zagłębienie"
+      },
+      "hover": {
+        "role": "neutral",
+        "displayName": "Hover wiersza"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Tusz tytułów",
+        "tonalRamp": [
+          "#0b1324",
+          "#1f2733",
+          "#4a5361",
+          "#6b7380",
+          "#9aa1ab",
+          "#c9ced6",
+          "#e8e6e0",
+          "#f7f5f1"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Tekst"
+      },
+      "text-2": {
+        "role": "neutral",
+        "displayName": "Tekst drugorzędny"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Wyciszony"
+      },
+      "soft": {
+        "role": "neutral",
+        "displayName": "Miękki"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Linia"
+      },
+      "line-2": {
+        "role": "neutral",
+        "displayName": "Linia pól"
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Linia mocna"
+      },
+      "disabled-bg": {
+        "role": "neutral",
+        "displayName": "Wyłączony — tło"
+      },
+      "disabled-ink": {
+        "role": "neutral",
+        "displayName": "Wyłączony — tekst"
+      },
+      "neutral-btn": {
+        "role": "neutral",
+        "displayName": "Przycisk neutralny"
+      },
+      "neutral-btn-hover": {
+        "role": "neutral",
+        "displayName": "Przycisk neutralny — hover"
+      },
+      "bronze": {
+        "role": "neutral",
+        "displayName": "Brąz awatara"
+      },
+      "danger": {
+        "role": "neutral",
+        "displayName": "Czerwień błędu",
+        "tonalRamp": [
+          "#a3261a",
+          "#c0392b",
+          "#d9604f",
+          "#f07b6e",
+          "#f5968b",
+          "#f3c5bf",
+          "#f9dcd8",
+          "#fdeeec"
+        ]
+      },
+      "danger-ink": {
+        "role": "neutral",
+        "displayName": "Tusz błędu"
+      },
+      "danger-wash": {
+        "role": "neutral",
+        "displayName": "Obmycie błędu"
+      },
+      "danger-line": {
+        "role": "neutral",
+        "displayName": "Linia błędu"
+      },
+      "success": {
+        "role": "neutral",
+        "displayName": "Zieleń sukcesu"
+      },
+      "success-wash": {
+        "role": "neutral",
+        "displayName": "Obmycie sukcesu"
+      },
+      "warning-ink": {
+        "role": "neutral",
+        "displayName": "Tusz ostrzeżenia"
+      },
+      "dark-bg": {
+        "role": "neutral",
+        "displayName": "Grafit tła (ciemny)",
+        "tonalRamp": [
+          "#0f1619",
+          "#131b1f",
+          "#131c20",
+          "#182227",
+          "#1d2930",
+          "#263238",
+          "#93a3a8",
+          "#eef3f4"
+        ]
+      },
+      "dark-sidebar": {
+        "role": "neutral",
+        "displayName": "sidebar (tryb ciemny)"
+      },
+      "dark-card": {
+        "role": "neutral",
+        "displayName": "card (tryb ciemny)"
+      },
+      "dark-sunken": {
+        "role": "neutral",
+        "displayName": "sunken (tryb ciemny)"
+      },
+      "dark-hover": {
+        "role": "neutral",
+        "displayName": "hover (tryb ciemny)"
+      },
+      "dark-ink": {
+        "role": "neutral",
+        "displayName": "ink (tryb ciemny)"
+      },
+      "dark-text": {
+        "role": "neutral",
+        "displayName": "text (tryb ciemny)"
+      },
+      "dark-text-2": {
+        "role": "neutral",
+        "displayName": "text-2 (tryb ciemny)"
+      },
+      "dark-muted": {
+        "role": "neutral",
+        "displayName": "muted (tryb ciemny)"
+      },
+      "dark-teal-mid": {
+        "role": "neutral",
+        "displayName": "teal-mid (tryb ciemny)"
+      },
+      "dark-danger": {
+        "role": "neutral",
+        "displayName": "danger (tryb ciemny)"
+      },
+      "dark-success": {
+        "role": "neutral",
+        "displayName": "success (tryb ciemny)"
+      },
+      "dark-warning-ink": {
+        "role": "neutral",
+        "displayName": "warning-ink (tryb ciemny)"
+      },
+      "ios-bar": {
+        "role": "neutral",
+        "displayName": "Materiał paska nawigacji"
+      },
+      "ios-tabbar": {
+        "role": "neutral",
+        "displayName": "Materiał paska kart"
+      },
+      "ios-sep": {
+        "role": "neutral",
+        "displayName": "Separator iOS"
+      },
+      "ios-sep-inset": {
+        "role": "neutral",
+        "displayName": "Separator od wcięcia"
+      },
+      "ios-fill": {
+        "role": "neutral",
+        "displayName": "Wypełnienie iOS (wyszukiwarka)"
+      },
+      "ios-fill-press": {
+        "role": "neutral",
+        "displayName": "Wypełnienie iOS — wciśnięcie"
+      },
+      "ios-gray": {
+        "role": "neutral",
+        "displayName": "Szary nieaktywnej karty"
+      },
+      "ios-row-press": {
+        "role": "neutral",
+        "displayName": "Wiersz — wciśnięcie"
+      },
+      "ios-tint-dark": {
+        "role": "neutral",
+        "displayName": "Tint iOS (ciemny)"
+      },
+      "ios-bar-dark": {
+        "role": "neutral",
+        "displayName": "Materiał paska (ciemny)"
+      },
+      "ios-tabbar-dark": {
+        "role": "neutral",
+        "displayName": "Materiał paska kart (ciemny)"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Tytuł strony",
+        "purpose": "Duży, ciężki tytuł po lewej na desktopie; nic nad nim."
+      },
+      "display-phone": {
+        "displayName": "Duży tytuł iOS",
+        "purpose": "Strony główne na telefonie; dokuje do paska nawigacji po przewinięciu."
+      },
+      "headline": {
+        "displayName": "Nagłówek karty",
+        "purpose": "Biały tekst na turkusowym pasku karty."
+      },
+      "title": {
+        "displayName": "Pozycja nawigacji",
+        "purpose": "Pasek boczny; aktywna 700."
+      },
+      "body": {
+        "displayName": "Treść",
+        "purpose": "Treść, pola, menu."
+      },
+      "body-phone": {
+        "displayName": "Treść (telefon)",
+        "purpose": "Treść i pola na telefonie (16 px — bez zoomu iOS)."
+      },
+      "label": {
+        "displayName": "Etykieta kolumny",
+        "purpose": "Nagłówki tabel, bez wersalików."
+      },
+      "label-caps": {
+        "displayName": "Etykieta grupy danych",
+        "purpose": "Podpisy sum, filtrów, wyboru klienta; nigdy nad tytułem."
+      },
+      "caption": {
+        "displayName": "Podpis",
+        "purpose": "Plakietki, błędy pól, podpowiedzi."
+      },
+      "tab-label": {
+        "displayName": "Podpis karty iOS",
+        "purpose": "Pasek kart na telefonie."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card",
+        "value": "0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .05)",
+        "purpose": "Każda karta i kontener."
+      },
+      {
+        "name": "raise",
+        "value": "0 6px 18px -6px rgba(16, 24, 40, .14), 0 2px 6px -2px rgba(16, 24, 40, .06)",
+        "purpose": "Hover klikalnej karty, podpowiedzi."
+      },
+      {
+        "name": "pop",
+        "value": "0 18px 40px -12px rgba(16, 24, 40, .24), 0 6px 14px -6px rgba(16, 24, 40, .1)",
+        "purpose": "Menu rozwijane, dialogi, toasty."
+      },
+      {
+        "name": "card-dark",
+        "value": "0 1px 2px rgba(0, 0, 0, .35)",
+        "purpose": "Karta w trybie ciemnym."
+      },
+      {
+        "name": "raise-dark",
+        "value": "0 8px 22px -8px rgba(0, 0, 0, .55)",
+        "purpose": "Uniesienie w trybie ciemnym."
+      },
+      {
+        "name": "pop-dark",
+        "value": "0 22px 48px -14px rgba(0, 0, 0, .7)",
+        "purpose": "Warstwy wyskakujące w trybie ciemnym."
+      },
+      {
+        "name": "focus-amber",
+        "value": "outline: 3px solid rgba(247, 180, 23, .5); outline-offset: 2px",
+        "purpose": "Focus klawiatury na każdym elemencie."
+      },
+      {
+        "name": "focus-teal",
+        "value": "0 0 0 3px rgba(38, 91, 99, .22)",
+        "purpose": "Focus pól i checkboxów (ciemny: rgba(90, 163, 173, .35))."
+      },
+      {
+        "name": "error-glow",
+        "value": "0 0 0 3px rgba(192, 57, 43, .16)",
+        "purpose": "Pole z błędem."
+      },
+      {
+        "name": "ios-material",
+        "value": "backdrop-filter: saturate(180%) blur(20px)",
+        "purpose": "Materiał paska nawigacji (na ::before) i paska kart."
+      },
+      {
+        "name": "dialog-backdrop",
+        "value": "background: rgba(11, 19, 36, .45); backdrop-filter: blur(2px)",
+        "purpose": "Tło pod dialogiem."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ios-ease",
+        "value": "cubic-bezier(.32, .72, 0, 1)",
+        "purpose": "Arkusz „Więcej” i ruchy powłoki iOS."
+      },
+      {
+        "name": "variant-switch",
+        "value": "view-transition .28s cubic-bezier(.2, 0, 0, 1)",
+        "purpose": "Przenikanie przy zmianie wariantu; fallback .efor-switching .3s ease."
+      },
+      {
+        "name": "state",
+        "value": ".15s ease",
+        "purpose": "Kolory, obrysy i cienie przy hover/focus."
+      },
+      {
+        "name": "price-in",
+        "value": "opacity .28s ease-in",
+        "purpose": "Wejście ceny w panelu podsumowania."
+      },
+      {
+        "name": "shimmer",
+        "value": "1.1–1.2s linear infinite",
+        "purpose": "Cena w trakcie liczenia i szkielety."
+      },
+      {
+        "name": "spinner",
+        "value": ".9s",
+        "purpose": "Spinner turkusowo-bursztynowy."
+      },
+      {
+        "name": "phone-entry",
+        "value": "none",
+        "purpose": "fadeInUp z theme.css wyłączony na telefonie (main .content/.container) — animacja transform tworzy blok zawierający dla position: fixed."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation/transition .01ms",
+        "purpose": "prefers-reduced-motion zeruje ruch w całym B."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "max-width: 767.98px"
+      },
+      {
+        "name": "desktop",
+        "value": "min-width: 768px"
+      },
+      {
+        "name": "admin-bar",
+        "value": "min-width: 851px"
+      },
+      {
+        "name": "price-panel",
+        "value": "min-width: 992px"
+      },
+      {
+        "name": "dash-3col",
+        "value": "min-width: 1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Bursztynowa akcja główna z ciemnym tuszem; jedna na ekran (zapisz, dodaj pozycję, wyślij, nowa oferta).",
+      "html": "<button class=\"ds-btn-primary\">Zapisz</button>",
+      "css": ".ds-btn-primary { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: 700; padding: 0 22px; height: 48px; border: 1px solid transparent; border-radius: 10px; background: #f7b417; color: #1b1403; cursor: pointer; transition: background-color .15s ease; } .ds-btn-primary:hover { background: #efaa0c; } .ds-btn-primary:active { background: #df9d06; transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 3px solid rgba(247, 180, 23, .5); outline-offset: 2px; } .ds-btn-primary:disabled { background: #dcdee2; color: #8a919c; cursor: not-allowed; transform: none; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Biały przycisk z obrysem: Anuluj, Wstecz, Ostatnia konfiguracja.",
+      "html": "<button class=\"ds-btn-secondary\">Anuluj</button>",
+      "css": ".ds-btn-secondary { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: 600; padding: 0 20px; height: 48px; border: 1px solid #c9ced6; border-radius: 10px; background: #ffffff; color: #0b1324; cursor: pointer; transition: background-color .15s ease, border-color .15s ease; } .ds-btn-secondary:hover { background: #f8f6f1; border-color: #4a5361; } .ds-btn-secondary:focus-visible { outline: 3px solid rgba(247, 180, 23, .5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Neutral Button",
+      "kind": "button",
+      "refersTo": "button-neutral",
+      "description": "Szare wypełnienie dla akcji pomocniczych (resetuj wartości).",
+      "html": "<button class=\"ds-btn-neutral\">Resetuj wartości</button>",
+      "css": ".ds-btn-neutral { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: 600; padding: 0 20px; height: 48px; border: 1px solid transparent; border-radius: 10px; background: #e6e9ed; color: #0b1324; cursor: pointer; } .ds-btn-neutral:hover { background: #dde1e6; } .ds-btn-neutral:focus-visible { outline: 3px solid rgba(247, 180, 23, .5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Czerwony przycisk tylko w oknie potwierdzenia usunięcia.",
+      "html": "<button class=\"ds-btn-danger\">Usuń</button>",
+      "css": ".ds-btn-danger { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: 600; padding: 0 20px; height: 48px; border: 1px solid transparent; border-radius: 10px; background: #c0392b; color: #ffffff; cursor: pointer; } .ds-btn-danger:hover { background: #a3261a; } .ds-btn-danger:focus-visible { outline: 3px solid rgba(247, 180, 23, .5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "Kafelek-ikona 40×40 w tabelach i paskach akcji; wariant usuwania w czerwieni.",
+      "html": "<button class=\"ds-btn-icon\" aria-label=\"Kopiuj\"><svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V6a2 2 0 0 1 2-2h9\"/></svg></button>",
+      "css": ".ds-btn-icon { display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px solid #dfe1e5; border-radius: 10px; background: #ffffff; color: #0b1324; cursor: pointer; } .ds-btn-icon:hover { border-color: #c9ced6; background: #f8f6f1; } .ds-btn-icon:focus-visible { outline: 3px solid rgba(247, 180, 23, .5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Pole 46 px z etykietą 600; focus turkusowy z pierścieniem.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field__label\">Szerokość [mm]</span><input class=\"ds-field__input\" type=\"text\" placeholder=\"np. 1200\"></label>",
+      "css": ".ds-field { display: grid; gap: 6px; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; } .ds-field__label { font-weight: 600; font-size: 14px; color: #1f2733; } .ds-field__input { min-height: 46px; padding: 10px 12px; font: 15px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #0b1324; background: #ffffff; border: 1px solid #dfe1e5; border-radius: 10px; outline: none; transition: border-color .15s ease, box-shadow .15s ease; } .ds-field__input::placeholder { color: #9aa1ab; } .ds-field__input:hover { border-color: #c9ced6; } .ds-field__input:focus { border-color: #265b63; box-shadow: 0 0 0 3px rgba(38, 91, 99, .22); }"
+    },
+    {
+      "name": "Card with teal head",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Biała karta z cienką linią i wypełnionym turkusowym paskiem nagłówka.",
+      "html": "<section class=\"ds-card\"><h3 class=\"ds-card__head\">Dane oferty</h3><div class=\"ds-card__body\">Klient, adres dostawy i komentarz do zlecenia.</div></section>",
+      "css": ".ds-card { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #ffffff; border: 1px solid #e8e6e0; border-radius: 14px; box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .05); overflow: hidden; max-width: 420px; } .ds-card__head { margin: 0; padding: 14px 22px; background: #265b63; color: #ffffff; font-size: 21px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; } .ds-card__body { padding: 18px 22px 22px; color: #1f2733; font-size: 15px; }"
+    },
+    {
+      "name": "Table with teal head",
+      "kind": "custom",
+      "refersTo": "table-head",
+      "description": "Tabela pozycji: turkusowa głowa, białe wiersze z linią, hover ciepły.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Nr</th><th>Produkt</th><th>Cena</th></tr></thead><tbody><tr><td>1</td><td>Roleta wolnowisząca</td><td>412,00</td></tr><tr><td>2</td><td>Plisa</td><td>298,50</td></tr></tbody></table>",
+      "css": ".ds-table { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; border-collapse: separate; border-spacing: 0; border: 1px solid #e8e6e0; border-radius: 12px; background: #ffffff; color: #1f2733; font-size: 15px; } .ds-table th { background: #265b63; color: #ffffff; padding: 14px 16px; font-size: 14px; font-weight: 600; letter-spacing: .01em; text-align: left; } .ds-table th:first-child { border-top-left-radius: 11px; } .ds-table th:last-child { border-top-right-radius: 11px; } .ds-table td { padding: 12px 16px; border-bottom: 1px solid #e8e6e0; } .ds-table tbody tr:last-child td { border-bottom: 0; } .ds-table tbody tr:hover td { background: #f8f6f1; }"
+    },
+    {
+      "name": "Summary total",
+      "kind": "custom",
+      "refersTo": "summary-total",
+      "description": "Kremowe pole sumy w panelu podsumowania oferty.",
+      "html": "<div class=\"ds-total\"><span class=\"ds-total__label\">Razem</span><strong class=\"ds-total__value\">2 140,50 PLN</strong></div>",
+      "css": ".ds-total { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid #fdebc4; border-radius: 12px; background: #fdebc4; color: #0b1324; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 340px; } .ds-total__label { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #6b7380; } .ds-total__value { font-size: 21px; font-weight: 700; }"
+    },
+    {
+      "name": "Status pill",
+      "kind": "chip",
+      "refersTo": "pill",
+      "description": "Plakietka statusu: krem z bursztynową kropką; wysłane w turkusie.",
+      "html": "<span class=\"ds-pill\"><i class=\"ds-pill__dot\"></i>Oferta</span> <span class=\"ds-pill ds-pill--sent\"><i class=\"ds-pill__dot\"></i>Wysłane</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 9999px; font: 600 13px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #fef3dd; color: #6f4f09; border: 1px solid #fdebc4; } .ds-pill__dot { width: 9px; height: 9px; border-radius: 50%; background: #f7b417; } .ds-pill--sent { background: #e3f1f2; border-color: #d3e7e9; color: #265b63; } .ds-pill--sent .ds-pill__dot { background: #3f7f88; }"
+    },
+    {
+      "name": "Sidebar navigation",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Biały pasek boczny; aktywna pozycja bursztynowa z ciemnym tuszem.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav__item is-active\" href=\"#\">Start</a><a class=\"ds-nav__item\" href=\"#\">Oferty</a><a class=\"ds-nav__item\" href=\"#\">Zamówienia</a></nav>",
+      "css": ".ds-nav { display: grid; gap: 4px; width: 248px; padding: 16px; background: #fefefd; border-right: 1px solid #e8e6e0; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; } .ds-nav__item { padding: 10px 14px; border-radius: 10px; color: #1f2733; font-size: 15.5px; font-weight: 500; text-decoration: none; } .ds-nav__item:hover { background: #f4f2ed; color: #0b1324; } .ds-nav__item.is-active { background: #f7b417; color: #1b1403; font-weight: 700; } .ds-nav__item.is-active:hover { background: #efaa0c; } .ds-nav__item:focus-visible { outline: 3px solid rgba(247, 180, 23, .5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Biała karta z obrysem 1 px; stan niesie kolorowa ikona, bez paska z boku.",
+      "html": "<div class=\"ds-toast\"><svg class=\"ds-toast__icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#1e7f55\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m8 12.5 2.6 2.6L16 9.6\"/></svg><div><strong>Zapisano</strong><br>Pozycja dodana do oferty.</div></div>",
+      "css": ".ds-toast { position: relative; width: 340px; padding: 14px 16px 14px 52px; border: 1px solid #e8e6e0; border-radius: 12px; background: #ffffff; color: #0b1324; font: 14px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 18px 40px -12px rgba(16, 24, 40, .24), 0 6px 14px -6px rgba(16, 24, 40, .1); } .ds-toast__icon { position: absolute; left: 16px; top: 50%; width: 22px; height: 22px; margin-top: -11px; } .ds-toast strong { font-weight: 700; }"
+    },
+    {
+      "name": "Phone tab bar",
+      "kind": "nav",
+      "refersTo": "phone-tabbar",
+      "description": "Półprzezroczysty pasek kart iOS; aktywna karta w turkusowym tincie.",
+      "html": "<nav class=\"ds-tabbar\"><a class=\"ds-tab is-active\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 11 12 4l9 7v9H3z\"/></svg>Start</a><a class=\"ds-tab\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"2\"/><path d=\"M9 8h6M9 12h6\"/></svg>Oferty</a><a class=\"ds-tab\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 7h18v13H3zM3 7l3-4h12l3 4\"/></svg>Zamówienia</a><a class=\"ds-tab\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\"><circle cx=\"6\" cy=\"12\" r=\"1.2\"/><circle cx=\"12\" cy=\"12\" r=\"1.2\"/><circle cx=\"18\" cy=\"12\" r=\"1.2\"/></svg>Więcej</a></nav>",
+      "css": ".ds-tabbar { display: grid; grid-template-columns: repeat(4, 1fr); width: 375px; height: 50px; padding: 0 4px; border-top: .5px solid rgba(11, 19, 36, .14); background: rgba(252, 251, 249, .86); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; } .ds-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 6px; color: #8a8f98; font-size: 10.5px; font-weight: 600; letter-spacing: .01em; text-decoration: none; } .ds-tab svg { width: 25px; height: 25px; } .ds-tab.is-active { color: #265b63; } .ds-tab:active { opacity: .55; } .ds-tab:focus-visible { outline: 3px solid rgba(247, 180, 23, .5); outline-offset: -3px; border-radius: 8px; }"
+    },
+    {
+      "name": "Phone grouped list",
+      "kind": "custom",
+      "refersTo": "phone-group",
+      "description": "Zgrupowana lista iOS: wiersze 44+ px, separatory od wcięcia, chevron.",
+      "html": "<ul class=\"ds-group\"><li class=\"ds-row\"><span>Oferta 1042 · Kowalski</span><span class=\"ds-chev\">›</span></li><li class=\"ds-row\"><span>Oferta 1041 · Salon Nowak</span><span class=\"ds-chev\">›</span></li></ul>",
+      "css": ".ds-group { list-style: none; margin: 0; padding: 0; width: 343px; background: #ffffff; border-radius: 12px; overflow: hidden; font: 16px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #0b1324; } .ds-row { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 12px 16px; cursor: pointer; } .ds-row + .ds-row::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: .5px; background: rgba(11, 19, 36, .1); } .ds-row:active { background: #efece6; } .ds-chev { color: #8a8f98; font-size: 20px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Makieta szefa, doprowadzona do końca",
+    "overview": "B to makiety z `wizualizacja efor/` przeniesione na każdy ekran portalu, łącznie z tymi, których makiety nie pokazują (stany, tryb ciemny, admin, telefon). Ciepłe jasne tło, białe karty z cienką linią, turkusowe paski nagłówków kart i tabel, bursztyn wyłącznie na akcji głównej i na aktywnej pozycji, krem w sumach i plakietkach. Gęstość jest robocza, nie marketingowa: duże pola (46 px), wyraźne etykiety 600, tabele z pełnymi danymi, jeden duży tytuł po lewej i od razu treść.\n\nNa telefonie (< 768 px) ten sam świat zachowuje się jak natywna aplikacja iOS: półprzezroczysty materiał pasków, duży tytuł dokujący w pasku nawigacji, zgrupowane listy z chevronami, pasek kart (Start / Oferty / Zamówienia / Więcej) z turkusowym tintem, arkusz „Więcej” od dołu, akcja główna przy kciuku. Odrzucone wprost: strona zmniejszona z desktopu (hamburger, pływające pola, stopka nad paskiem kart) oraz — decyzją właściciela 2026-10-29 — nowy świat wizualny B (grafit, pomarańcz, zieleń, Archivo). Zmiany w B to dopracowanie w tej palecie, nie nowy wygląd.",
+    "keyCharacteristics": [
+      "Turkus (#265b63) jako kolor struktury: paski nagłówków kart i tabel, linki, focus pól, tint iOS.",
+      "Bursztyn (#f7b417) jako kolor działania: akcja główna, aktywna pozycja nawigacji, aktywna strona paginacji — zawsze z ciemnym tekstem #1b1403.",
+      "Krem jako kolor pieniędzy i statusu: sumy (#fdebc4), plakietki (#fef3dd), zaznaczony kafelek konfiguratora (#fefaf1).",
+      "Płaskie białe karty na ciepłym tle (#f7f5f1), cień ledwie widoczny.",
+      "Inter z `cv11` + `ss01`; duży, ciężki tytuł wyrównany do lewej, bez napisu nad nim.",
+      "Telefon: materiał iOS w palecie B, tint turkusowy, akcja główna bursztynowa."
+    ],
+    "rules": [
+      {
+        "name": "The Function Colour Rule",
+        "body": "Kolor niesie funkcję: turkus = struktura i informacja, bursztyn = akcja i „jesteś tutaj”, krem = pieniądze i status, czerwień = błąd i usuwanie. Żaden z nich nie występuje jako dekoracja.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dark Ink On Amber Rule",
+        "body": "Na bursztynie zawsze tusz #1b1403, w obu trybach. W trybie ciemnym `theme.css` barwi każdy `span`/`p` na jasno, dlatego sekcja 26 wymusza `color: inherit` wewnątrz bursztynowych przycisków; nowy bursztynowy przycisk trzeba dopisać do tej listy.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Amber Action Rule",
+        "body": "Na ekranie jeden bursztynowy przycisk akcji głównej; reszta to biały z obrysem, szary neutralny albo ikona.",
+        "section": "colors"
+      },
+      {
+        "name": "The Title Speaks Alone Rule",
+        "body": "Nad tytułem strony nie ma napisu (eyebrow, kicker) — usunięty decyzją właściciela 2026-10-30; miejsce w nawigacji pokazują okruszki i menu. Wersaliki 12 px są etykietą danych, nigdy wstępem do tytułu.",
+        "section": "typography"
+      },
+      {
+        "name": "The Matte Rule",
+        "body": "Przyciski B są matowe: bez gradientu, bez błysku `::after` z theme.css, bez cienia, bez glow. Wciśnięcie to −1 px w pionie i ton ciemniej.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Material Behind The Bar Rule",
+        "body": "Na telefonie `backdrop-filter` nakłada się na `::before` paska, nigdy na `.mobile-nav` — filtr na pasku robi z niego blok zawierający dla `position: fixed` i arkusz „Więcej” kurczy się do 44 px.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** zaczynać każdą regułę B od `.theme-efor-v2` (jedyny wyjątek: sekcja 0 — sam przełącznik „Zmień wygląd”); markup tylko dla B oznaczać `.efor-v2-only`, tylko dla A `.efor-classic-only`.",
+      "**Do** brać kolory z `--efor-*` (i przepiętych na nie tokenów theme.css), a na telefonie z `--m-*`/`--ios-*` podmienionych w sekcji 20; dopisywać wartości ciemne w `[data-theme=\"dark\"]`.",
+      "**Do** dawać bursztynowi zawsze tusz #1b1403, także w trybie ciemnym, i dopisywać nowe bursztynowe przyciski do listy `color: inherit` z sekcji 26.",
+      "**Do** używać turkusowego paska nagłówka dla kart i turkusowej głowy dla tabel; sumy pieniędzy w kremie amber-cream.",
+      "**Do** stawiać tytuł strony jako duży, ciężki (800), wyrównany do lewej, bez niczego nad nim.",
+      "**Do** sygnalizować stan toastu, pola i alertu kolorem ikony i obrysem 1 px.",
+      "**Do** na telefonie kłaść materiał (`backdrop-filter`) na `::before`, a fade-in wejścia (`fadeInUp` z theme.css) wyłączać na `main .content`/`.container` — aktywna animacja `transform` w Chromium też tworzy blok zawierający dla `position: fixed`.",
+      "**Do** przypinać akcję główną nad paskiem kart przy kciuku (wyślij ofertę, zapisz pozycję).",
+      "**Do** wpisywać każdą nową etykietę B do `templates/partials/efor-v2-strings.njk` w pięciu językach (pl, de, en, nl, fr) — bez `\"` i backslashy, apostrof tylko typograficzny.",
+      "**Do** sprawdzać zmiany przy B zrzutem wariantu A piksel po pikselu."
+    ],
+    "donts": [
+      "**Don't** zmieniać wariantu A ani jego tokenów (`theme.css`, `mobile/tokens.css`) przy pracy nad B.",
+      "**Don't** przenosić ani duplikować pól konfiguratora w DOM — silnik formularza szuka ich po `id` w całym dokumencie; układ B robi CSS albo JS przenoszący wyłącznie elementy, które nie są polami.",
+      "**Don't** stawiać napisu wersalikami (eyebrow, kicker) nad tytułem strony.",
+      "**Don't** używać akcentu w postaci paska z boku (`border-left` / `inset Npx 0 0`) na kartach, toastach ani alertach.",
+      "**Don't** używać bursztynu ani turkusu jako dekoracji — kolor w B zawsze coś znaczy.",
+      "**Don't** dokładać gradientów, błysków `::after`, glow ani cieni do przycisków.",
+      "**Don't** wprowadzać nowego świata wizualnego do B (grafit, pomarańcz, zieleń, Archivo zostały odrzucone 2026-10-29); B dopracowuje się w palecie z makiet.",
+      "**Don't** zaszywać tekstów UI w szablonach ani CSS.",
+      "**Don't** pokazywać ceny pośredniej w trakcie liczenia — szkielet/shimmer zamiast wartości."
+    ]
+  }
+}

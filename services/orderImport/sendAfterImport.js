@@ -118,10 +118,6 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
   const productionSkipClient = deps.getProductionSendSkipClient || getProductionSendSkipClient;
   const saveProdDays = deps.recalcAndSaveProdDays || recalcAndSaveProdDays;
 
-  if (!isImportAutoSendEnabled()) {
-    return { sent: false, skipped: 'IMPORT_AUTO_SEND=false' };
-  }
-
   if (!orderId || !user) {
     return { sent: false, error: 'orderId and user are required' };
   }
@@ -151,7 +147,9 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
     const sender = new SenderClass(req, orderDetails, orderItems, { prodDays: itemProdDays });
     const sendData = await sender.init();
     const ignoredProductionClient = productionSkipClient(orderDetails, []);
-    const importSendOptions = { forceProductionSend: true };
+    // IMPORT_AUTO_SEND=false: status „wysłane" i pliki lokalnie, mail tylko do skrzynek testowych.
+    const autoSend = isImportAutoSendEnabled();
+    const importSendOptions = { forceProductionSend: autoSend, localOnly: !autoSend };
     await sender.saveToFile(importSendOptions);
 
     if (ignoredProductionClient) {
@@ -234,15 +232,18 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
     // Ta sama reguła co w panelu — `client_ab` kieruje potwierdzenie wprost
     // do klienta, dev/test poza tym przypadkiem trafia na skrzynkę deweloperską.
     const recipients = deps.resolveConfirmationRecipients || resolveConfirmationRecipients;
-    const { mainRecipient, bcc } = recipients({
-      clientAb: abPolicy.clientAb,
-      confirmationEmail,
-      organizationEmail: mail.organization_email,
-      organizationEmail2: mail.organization_email2,
-      extraMail,
-      extraAbMail: abPolicy.extraAbMail
-    });
-    if (abPolicy.clientAb) logger(`[client_ab] zamówienie ${orderId}: potwierdzenie dla klienta (${mainRecipient})`);
+    // Tryb testowy (IMPORT_AUTO_SEND=false): env 'test' = skrzynka dev, bez klienta i organizacji.
+    const { mainRecipient, bcc } = autoSend
+      ? recipients({
+        clientAb: abPolicy.clientAb,
+        confirmationEmail,
+        organizationEmail: mail.organization_email,
+        organizationEmail2: mail.organization_email2,
+        extraMail,
+        extraAbMail: abPolicy.extraAbMail
+      })
+      : recipients({ env: 'test' });
+    if (autoSend && abPolicy.clientAb) logger(`[client_ab] zamówienie ${orderId}: potwierdzenie dla klienta (${mainRecipient})`);
 
     const sendMailAsync = deps.sendMailAsync || mailer.sendMailAsync;
     if (!sendMailAsync) {
@@ -276,7 +277,7 @@ async function sendImportedOrder({ orderId, user, lang, deps = {} }) {
       logger(`Import send: błąd PDF produkcyjnego dla order ${orderId}: ${err.message}`);
     }
 
-    logger(`Import send OK for order ${orderId} (idx=${orderIdx})`);
+    logger(`Import send OK for order ${orderId} (idx=${orderIdx})${autoSend ? '' : ' [IMPORT_AUTO_SEND=false: tylko skrzynki testowe, bez FTP]'}`);
     return { sent: true };
   } catch (err) {
     logger(`Import send failed for order ${orderId}: ${err.message}`);

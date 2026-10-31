@@ -32,7 +32,9 @@
 }
 
 .login-box input[type="text"],
-.login-box input[type="password"] {
+.login-box input[type="password"],
+.login-box input[type="email"],
+.login-box select {
 	width: 100%;
 	padding: 14px 18px;
 	font-size: var(--text-base);
@@ -44,7 +46,9 @@
 }
 
 .login-box input[type="text"]:focus,
-.login-box input[type="password"]:focus {
+.login-box input[type="password"]:focus,
+.login-box input[type="email"]:focus,
+.login-box select:focus {
 	border-color: var(--brand-primary);
 	box-shadow: var(--border-glow), var(--shadow-sm);
 	background: var(--bg-input-focus);
@@ -152,4 +156,30 @@ label {
 	color: var(--text-secondary) !important;
 	overflow: visible !important;
 	z-index: 999 !important;
+}
+
+/* Tryb demo (routes/demo.js): wejście pod przyciskiem logowania i opis formularza */
+.login-box .login-demo-btn {
+	display: block;
+	margin-top: 12px;
+	padding: 12px;
+	border: 1.5px solid var(--border-input);
+	border-radius: var(--radius-md);
+	color: var(--text-primary);
+	font-weight: 700;
+	text-decoration: none;
+	transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.login-box .login-demo-btn:hover,
+.login-box .login-demo-btn:focus-visible {
+	border-color: var(--brand-primary);
+	color: var(--brand-primary);
+}
+
+.login-demo-intro {
+	margin: -12px 0 8px;
+	color: var(--text-secondary);
+	font-size: var(--text-sm);
+	text-align: left;
 }

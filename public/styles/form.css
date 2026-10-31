@@ -254,7 +254,7 @@ input.price-value-masked {
 	max-width: 90%;
 	float: left;
 	margin-left: 20% !important;
-	min-width: calc(100% - 280px) !important;
+	min-width: calc(100% - 280px * var(--nav-zoom, 1)) !important;
 }
 
 .buttons-space {

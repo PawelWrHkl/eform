@@ -1170,6 +1170,39 @@ async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts =
 }
 
 /**
+ * Faktury czekające na wysyłkę na FTP (`invoiceFtpExport.js`) — te same warunki
+ * co kolejka maili (`findInvoicesToMail`), własne zdarzenia, tylko podane
+ * poziomy, plus identy do ścieżki katalogu: `organization_ident` (organizacja
+ * faktury — na poziomie 1 to NABYWCA), `issuer_organization_ident` (wystawca
+ * będący organizacją) i `client_ident` (konto klienta-nabywcy).
+ *
+ * @param {{ since: string, doneEvent: string, failedEvent: string, maxAttempts?: number, createdByPin?: string, levels: number[], limit?: number }} params
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findInvoicesForFtp({ since, doneEvent, failedEvent, maxAttempts = 5, createdByPin = 'AUTO', levels, limit = 50 }) {
+  return strictQuery(
+    `SELECT i.id, i.number, i.level, i.document_type, i.organization_id, i.issuer_id,
+            i.buyer_user_id, i.buyer_name, i.created_at,
+            org.ident AS organization_ident, iss.ident AS issuer_organization_ident, u.ident AS client_ident,
+            (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) AS failures
+       FROM invoice i
+       LEFT JOIN organization org ON org.id = i.organization_id
+       LEFT JOIN organization iss ON iss.id = i.issuer_id AND i.issuer_type = 'organization'
+       LEFT JOIN \`user\` u ON u.id = i.buyer_user_id
+      WHERE i.created_by_pin = ?
+        AND i.status IN ('issued', 'paid', 'overdue')
+        AND i.number IS NOT NULL
+        AND i.level IN (?)
+        AND i.created_at >= ?
+        AND NOT EXISTS (SELECT 1 FROM invoice_event e WHERE e.invoice_id = i.id AND e.event_type = ?)
+        AND (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) < ?
+      ORDER BY i.id
+      LIMIT ?`,
+    [failedEvent, createdByPin, levels, since, doneEvent, failedEvent, maxAttempts, limit]
+  );
+}
+
+/**
  * Wpis w dzienniku dokumentu (`invoice_event`). Rzuca przy błędzie zapisu —
  * w przeciwieństwie do `db/core.insertQuery`, które błąd tylko loguje.
  *
@@ -1932,6 +1965,7 @@ module.exports = {
   findCollectiveCandidates,
   hasLevelInvoice,
   findInvoicesToMail,
+  findInvoicesForFtp,
   addInvoiceEvent,
   relationLevels,
   supportsInvoiceSchedule,

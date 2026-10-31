@@ -27,6 +27,8 @@ const assistantRoutes = require('./routes/assistant');
 const ASSET_VERSION = Date.now().toString(36);
 const groupRoutes = require('./routes/group');
 const filmRoutes = require('./routes/film');
+const demoRoutes = require('./routes/demo');
+const { demoSessionGuard } = require('./middleware/demoSession');
 const { addOrganizationsForAdmin } = require('./middleware/loginMixture.js');
 const usersDb = require('./db/users.js');
 const groupDb = require('./db/group.js');
@@ -164,6 +166,7 @@ app.use((req, res, next) => {
 	res.locals.locale = req.getLocale();
 	next();
 });
+app.use(demoSessionGuard);
 
 const { normalizeGroupType, GROUP_TYPE_CLIENT } = require('./services/groupType');
 
@@ -239,6 +242,7 @@ app.use((req, res, next) => {
 	// stary plik JS po wdrożeniu, co objawia się błędami z nieaktualnej wersji
 	// (np. panel salonu pytający o endpoint dla ownera).
 	res.locals.assetVersion = ASSET_VERSION;
+	res.locals.demoEnabled = !!features?.demo;
 	next();
 });
 
@@ -432,6 +436,13 @@ if (features?.orgCustomers) {
 
 // Asystent eForm — ta sama zasada co moduły wyżej: przy wyłączonej fladze
 // (`ASSISTANT_ENABLED` ≠ true|admins) router nie wstaje i `/assistant/*` daje 404.
+if (features?.demo) {
+	app.use('/demo', demoRoutes);
+	log(`[demo] tryb demo włączony (DEMO_ENABLED=true, organizacja ${process.env.DEMO_ORGANIZATION || '— BRAK DEMO_ORGANIZATION'})`);
+} else {
+	log('[demo] tryb demo WYŁĄCZONY — /demo nie jest montowany');
+}
+
 if (assistantConfig.mode !== 'off') {
 	app.use('/assistant', assistantRoutes);
 	const assistantClaude = assistantConfig.provider === 'anthropic';
@@ -475,6 +486,8 @@ app.listen(PORT, () => {
 	// Statusy produkcji wszystkich klientów + automatyczne faktury — co godzinę
 	// w osobnym procesie, niezależnie od tego, czy ktoś wchodzi na strony.
 	require('./services/prodStatusScheduler').startProdStatusScheduler();
+	// Zawsze, nie tylko przy DEMO_ENABLED — po wyłączeniu flagi konta też muszą zniknąć.
+	require('./services/demoMode').startDemoSweeper();
 });
 
 module.exports = {

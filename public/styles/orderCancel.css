@@ -134,6 +134,36 @@
     color: var(--color-error);
 }
 
+/* ── „Zamów ponownie” w banerze anulowanego zlecenia (kolory jak .reorder-btn z orders.css) ── */
+.btn.order-reorder-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--brand-primary) 0%, #4d5d70 100%);
+    color: var(--text-on-brand, #fff);
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.btn.order-reorder-btn:hover,
+.btn.order-reorder-btn:focus-visible {
+    background: linear-gradient(135deg, #4d5d70 0%, #3f4f60 100%);
+    color: var(--text-on-brand, #fff);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.btn.order-reorder-btn svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
 /* ── Przycisk „Anuluj zlecenie” ── */
 .btn.order-cancel-btn {
     flex: 0 0 auto;
@@ -390,7 +420,8 @@ dialog.order-cancel-dialog #status-info:empty {
         flex-basis: calc(100% - 60px);
     }
 
-    .btn.order-cancel-btn:not(.order-cancel-btn--compact) {
+    .btn.order-cancel-btn:not(.order-cancel-btn--compact),
+    .btn.order-reorder-btn {
         width: 100%;
     }
 
