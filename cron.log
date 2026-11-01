@@ -4599,3 +4599,36 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-10-31 10:35:01 - Start ===
 === 2026-10-31 10:35:01 - Dodawanie zmian do commita ===
+[main c17da0a] Automatic commit 2026-10-31 10:35
+ 60 files changed, 28941 insertions(+), 485 deletions(-)
+ create mode 100644 .impeccable/design.json
+ create mode 100644 DESIGN.md
+ rewrite configtest/nightly.out (64%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 middleware/demoSession.js
+ create mode 100644 public/img/orders_canceled.svg
+ create mode 100644 public/scripts/orderTools/reorder.js
+ create mode 100644 routes/demo.js
+ create mode 100644 services/__tests__/demoMode.test.js
+ create mode 100644 services/demoMode.js
+ create mode 100644 services/invoices/__tests__/invoiceFtpExport.test.js
+ create mode 100644 services/invoices/invoiceFtpExport.js
+ create mode 100644 services/orderImport/__tests__/importStatus.test.js
+ create mode 100644 services/orderImport/importStatus.js
+=== 2026-10-31 10:35:04 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 67.86 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 112 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 68 high, 35 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   39c6beb..c17da0a  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-10-31 10:35:10 - Koniec ===
+=== 2026-10-31 12:00:01 - Start ===
+=== 2026-10-31 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-11-01 10:35:01 - Start ===
+=== 2026-11-01 10:35:01 - Dodawanie zmian do commita ===
