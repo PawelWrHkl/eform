@@ -34,11 +34,11 @@ window.location.href='/'
                         {{ __('pwds.recent_only') or 'Tylko ostatnie 10' }}
                     </label>
                 </div>
-                <span id="pwd-count" class="text-muted ms-auto">{{ users.length }} / {{ total }}</span>
+                <span id="pwd-count" class="text-muted ms-auto">{{ pwdUsers.length }} / {{ total }}</span>
             </div>
 
             {% set recentIdents = recentIdents or [] %}
-            <div id="pwd-empty" class="alert alert-info text-center" role="alert" {% if users and users.length > 0 %}hidden{% endif %}>
+            <div id="pwd-empty" class="alert alert-info text-center" role="alert" {% if pwdUsers and pwdUsers.length > 0 %}hidden{% endif %}>
                 {{ __('pwds.no_data') or 'Brak danych do wyświetlenia.' }}
             </div>
 

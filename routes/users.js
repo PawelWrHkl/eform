@@ -93,7 +93,7 @@ router.get("/org-pwd", requireLogin, requireOwner, async (req, res, next) => {
         const orgInfo = await db.getOrgInfo(req.session.user.orgId);
         const orgIdent = orgInfo ? orgInfo.ident.toLowerCase() : 'default';
 
-        res.render("owner/pwds.njk", { users, orgIdent, recentIdents, total, page, totalPages });
+        res.render("owner/pwds.njk", { pwdUsers: users, orgIdent, recentIdents, total, page, totalPages });
     } catch (err) {
         log('Error loading passwords page:', err);
         next(err);
@@ -111,8 +111,8 @@ router.get("/org-pwd/search", requireLogin, requireOwner, async (req, res, next)
         const orgIdent = orgInfo ? orgInfo.ident.toLowerCase() : 'default';
 
         const [rowsHtml, cardsHtml, paginationHtml] = await Promise.all([
-            renderPartial(res, 'owner/_pwd_table_rows.njk', { users, orgIdent, recentIdents }),
-            renderPartial(res, 'owner/_pwd_mobile_cards.njk', { users, orgIdent, recentIdents }),
+            renderPartial(res, 'owner/_pwd_table_rows.njk', { pwdUsers: users, orgIdent, recentIdents }),
+            renderPartial(res, 'owner/_pwd_mobile_cards.njk', { pwdUsers: users, orgIdent, recentIdents }),
             renderPartial(res, 'owner/_pwd_pagination.njk', { page: pageNum, totalPages }),
         ]);
 

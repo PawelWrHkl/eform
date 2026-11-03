@@ -93,6 +93,43 @@
 		border-radius: 10px;
 	}
 
+	/* Lista klientów (base.js) - wcześniej tylko w owner/orders.css, więc na innych stronach nie działało filtrowanie (.hidden) ani strzałki (.highlighted) */
+	#userSelectContainer .dropdown-container {
+		position: relative;
+	}
+	/* bez tego lista ląduje 40px niżej niż na "Twoich ofertach" (tam kontener jest flexem) */
+	#userSelectContainer #userDropdown {
+		top: 0;
+	}
+	.custom-dropdown .dropdown-item {
+		padding: 8px 12px;
+		cursor: pointer;
+		border-bottom: 1px solid var(--border-default);
+		font-size: 12px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.custom-dropdown .dropdown-item:hover,
+	.custom-dropdown .dropdown-item.highlighted {
+		background-color: var(--bg-active);
+	}
+	.custom-dropdown .dropdown-item:last-child {
+		border-bottom: none;
+	}
+	.custom-dropdown .dropdown-item.hidden,
+	.custom-dropdown .dropdown-separator.hidden {
+		display: none;
+	}
+	.custom-dropdown .dropdown-item-recent {
+		font-weight: 600;
+	}
+	.custom-dropdown .dropdown-separator {
+		height: 1px;
+		margin: 4px 8px;
+		background-color: var(--border-default);
+	}
+
 	.sm {
 		z-index: 150 !important;
 		width: 92% !important;
