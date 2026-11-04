@@ -125,6 +125,16 @@ module.exports = {
     demo: envSwitch(process.env.DEMO_ENABLED),
   },
 
+  // Alternatywy dla niedostępnej tkaniny — plik z agentai, który cron
+  // wewnętrznego serwera (`scripts/syncFabricAlternatives.js`) kładzie tutaj,
+  // a rsync `update.sh eorders_data` zanosi na produkcję. Funkcja działa na
+  // tym serwerze, na którym plik jest (przycisk: `window.fabricAlternativesEnabled`,
+  // base.njk; trasa `/position/fabric-alternatives/:groupNr`). Nazwa z kropką,
+  // bo `express.static` (`/photos` = `<ROOT_DIR>/data`) pomija tylko pliki,
+  // których NAZWA zaczyna się kropką — plik w katalogu `.coś/` serwował publicznie.
+  fabricAlternativesFile: process.env.FABRIC_ALTERNATIVES_FILE
+    || path.join(ROOT_DIR, 'data/data/.fabric-alternatives.json'),
+
   // ── Eksport klientów do systemu zewnętrznego ───────────────────────────
   // ⚠️ `enabled` jest NIEZALEŻNE od `features.orgCustomers`: moduł ma sens sam
   // w sobie (zakładanie klientów w eForm), a integracja bywa niegotowa po

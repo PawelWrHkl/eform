@@ -10,6 +10,7 @@ const statuses = require('./core/statuses');
 const taxRules = require('./core/taxRules');
 const orderMapper = require('./core/orderMapper');
 const renderer = require('./render/renderer');
+const maizonCozy = require('./render/maizonCozy');
 const defaultRepository = require('./db/repository');
 const { toIsoDay, todayIso, addDays } = require('./core/dates');
 const { ViesClient } = require('./core/vies');
@@ -917,7 +918,20 @@ class InvoiceService {
    */
   async renderHtml(invoiceId) {
     const ctx = await this.buildRenderContext(invoiceId);
+    if (maizonCozy.appliesTo(ctx)) return maizonCozy.renderHtml(await this.maizonCozyData(ctx.invoice));
     return renderer.renderInvoiceHtml(ctx);
+  }
+
+  /**
+   * Dane wzoru MaizonCozy (faktury Cozy → klient): parametry pozycji zamówień
+   * i numer faktury korygowanej.
+   * @param {Invoice} invoice
+   */
+  async maizonCozyData(invoice) {
+    const ids = invoice.items.map((it) => it.orderItemId).filter(Boolean);
+    const orderItems = await this.repository.getOrderItemsForPrint(ids);
+    const corrected = invoice.correctedInvoiceId ? await this.repository.getInvoice(invoice.correctedInvoiceId) : null;
+    return maizonCozy.buildData(invoice, orderItems || [], corrected ? corrected.number : '');
   }
 
   /**
@@ -927,7 +941,9 @@ class InvoiceService {
    */
   async renderPdf(invoiceId) {
     const ctx = await this.buildRenderContext(invoiceId);
-    const buffer = await renderer.renderInvoicePdf(ctx);
+    const buffer = maizonCozy.appliesTo(ctx)
+      ? await maizonCozy.renderPdf(await this.maizonCozyData(ctx.invoice))
+      : await renderer.renderInvoicePdf(ctx);
     // Nazwa pliku wyłącznie ASCII — iOS Mail i część klientów poczty potyka się
     // o polskie znaki i spacje w nazwach załączników (patrz utils/sanitizeFilename.js).
     const safe = String(ctx.invoice.number || `draft-${invoiceId}`).replace(/[^\w.-]+/g, '_');

@@ -1203,6 +1203,25 @@ async function findInvoicesForFtp({ since, doneEvent, failedEvent, maxAttempts =
 }
 
 /**
+ * Pozycje zamówień pod wydruk faktury MaizonCozy (`render/maizonCozy.js`):
+ * parametry pozycji (opis, cennik SUB___, grupa cenowa) i nazwa zamówienia
+ * do referencji `EO/<nr>/<poz>/<nazwa>`.
+ *
+ * @param {number[]} orderItemIds
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function getOrderItemsForPrint(orderItemIds) {
+  if (!orderItemIds.length) return [];
+  return strictQuery(
+    `SELECT oi.id, oi.orderpos, oi.commision, oi.json_parameters, o.order_idx, o.commision AS order_commision
+       FROM order_item oi
+       JOIN \`order\` o ON o.id = oi.order_id
+      WHERE oi.id IN (?)`,
+    [orderItemIds]
+  );
+}
+
+/**
  * Wpis w dzienniku dokumentu (`invoice_event`). Rzuca przy błędzie zapisu —
  * w przeciwieństwie do `db/core.insertQuery`, które błąd tylko loguje.
  *
@@ -1966,6 +1985,7 @@ module.exports = {
   hasLevelInvoice,
   findInvoicesToMail,
   findInvoicesForFtp,
+  getOrderItemsForPrint,
   addInvoiceEvent,
   relationLevels,
   supportsInvoiceSchedule,

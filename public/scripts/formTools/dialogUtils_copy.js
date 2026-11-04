@@ -15,6 +15,7 @@ import { stopSpin, startSpin } from "../components/hourglass.js";
 import { getEnvVersion } from "../getEnv.js";
 import { getUserName } from "../base.js";
 import { chcekIfDateDeliveryCorrect } from './checkIfDateDeliveryCorrect.js';
+import { alternativesQuery, pickAvailableAlternatives, shadeKey } from './fabricAlternatives.js';
 
 
 
@@ -79,6 +80,7 @@ export class DialogManager {
 
 
     const imageMap = await this.fetchImageMap(param, options, groupNumber);
+    this.imageMap = imageMap;
 
     this.env = await getEnvVersion();
 
@@ -95,6 +97,8 @@ export class DialogManager {
 
 
     this.dialog.showModal();
+    // Bez await: okno otwiera się od razu, przyciski dochodzą po odpowiedzi.
+    this.addAlternativesButtons();
 
 
     if (this.listContainer) {
@@ -795,7 +799,7 @@ export class DialogManager {
     }
   }
 
-  createOptionElement(option, imageMap, isFav) {
+  createOptionElement(option, imageMap, isFav, onClick = null) {
     const colorBox = document.createElement('div');
     colorBox.classList.add('image-box');
     colorBox.id = option.VALUE;
@@ -902,7 +906,7 @@ export class DialogManager {
       catch (err) { 'blad' }
     }
 
-    colorBox.addEventListener('click', () => this.handleOptionClick(colorBox));
+    colorBox.addEventListener('click', () => onClick ? onClick() : this.handleOptionClick(colorBox));
 
     const filename = imageMap[option.VALUE];
 
@@ -995,6 +999,94 @@ export class DialogManager {
     }
     return colorBox;
 
+  }
+
+  // Przycisk tylko na niedostępnych kafelkach, dla których po filtrach E-Formu
+  // zostaje choć jedna alternatywa — jedno zapytanie o wszystkie naraz.
+  async addAlternativesButtons() {
+    if (!window.fabricAlternativesEnabled || !this.listContainer) return;
+    const options = this.options;
+    const aliasFile = formsManager.getAliases(this.param.NAME).file;
+    const byValue = new Map(options.map(option => [option.VALUE, option]));
+    const targets = [...this.listContainer.querySelectorAll('.image-box.unavailable, .image-box.obsolete')]
+      .map(tile => ({ tile, option: byValue.get(tile.querySelector('.image-name').dataset.value) }))
+      .filter(({ option }) => option)
+      .map(target => ({ ...target, ...alternativesQuery(target.option, aliasFile) }));
+    if (!targets.length) return;
+
+    try {
+      const response = await fetch(`/position/fabric-alternatives/${encodeURIComponent(this.groupNumber)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ items: targets.map(({ code, list }) => ({ code, list })) })
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const { results } = await response.json();
+      targets.forEach(({ tile, code }, i) => {
+        const picked = pickAvailableAlternatives(results[i]?.alternatives, options);
+        if (!picked.length) return;
+        // Na zdjęciu, bo kafelek ma sztywne max-height i pod terminem wysyłki przycisk by się uciął.
+        const top = tile.querySelector('.image-box-top');
+        (top.querySelector('.image-wrapper') ? top : tile).appendChild(this.createAlternativesButton(code, results[i].pg, picked));
+      });
+    } catch (error) {
+      // Okno działa dalej jak dotąd, tylko bez przycisków alternatyw.
+      console.error('Błąd pobierania alternatyw tkanin:', error);
+    }
+  }
+
+  createAlternativesButton(code, pg, picked) {
+    return createElement('button', {
+      type: 'button',
+      class: ['btn', 'btn-sm', 'btn-light', 'border', 'shadow-sm', 'alternatives-btn'],
+      text: t('form.alternatives_btn'),
+      onclick: (e) => {
+        e.stopPropagation();
+        this.openAlternativesDialog(code, pg, picked);
+      }
+    });
+  }
+
+  openAlternativesDialog(code, pg, picked) {
+    if (!this.alternativesDialog) {
+      this.alternativesDialog = createElement('dialog', { class: ['alternatives-dialog'] }, document.body);
+    }
+    const dialog = this.alternativesDialog;
+    dialog.replaceChildren();
+
+    const header = createElement('div', { class: ['alternatives-header'] }, dialog);
+    createElement('h4', { class: ['mb-0'], text: t('form.alternatives_title', { code }) }, header);
+    createElement('button', {
+      type: 'button',
+      class: ['btn-close'],
+      'aria-label': t('form.popup_input.close'),
+      onclick: () => dialog.close()
+    }, header);
+    createElement('p', { class: ['alternatives-hint'], text: t('form.alternatives_hint') }, dialog);
+
+    const grid = createElement('div', { class: ['alternatives-grid'] }, dialog);
+    for (const { alternative, option } of picked) {
+      // Wybór przechodzi na kafelek głównej siatki: handleOptionClick działa
+      // na nim tak samo jak przy zwykłym kliknięciu (też przy MULTI).
+      const mainTile = this.listContainer.querySelector(`.image-name[data-value="${CSS.escape(option.VALUE)}"]`)?.closest('.image-box');
+      const tile = this.createOptionElement(option, this.imageMap, this.favList.includes(option.VALUE), () => {
+        dialog.close();
+        if (mainTile) this.handleOptionClick(mainTile);
+      });
+      tile.removeAttribute('id'); // ten sam kafelek (z tym id) jest już w głównej siatce
+
+      const meta = createElement('div', { class: ['alternative-meta'] }, tile);
+      const shade = shadeKey(alternative.delta_e);
+      if (shade) {
+        createElement('span', { class: ['alternative-tag'], text: t(shade) }, meta);
+      }
+      if (pg != null && alternative.pg !== pg) {
+        createElement('span', { class: ['alternative-tag', 'is-warning'], text: t('form.alternatives_other_price_group') }, meta);
+      }
+      grid.appendChild(tile);
+    }
+
+    dialog.showModal();
   }
 
 

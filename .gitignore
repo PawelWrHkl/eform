@@ -24,3 +24,5 @@ logs/prodstatus-cron.log
 movies/
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+# Błędy synchronizacji alternatyw tkanin z crona (scripts/syncFabricAlternatives.js) — stan tej maszyny
+logs/fabric-alternatives-cron.log

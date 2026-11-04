@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>{{ document.title }} {{ document.number }}</title>
+<style>
+/* Formatka faktury MaizonCozy B.V. dla EFOR (Chromium / Playwright page.pdf), 23.10.2026.
+   Układ wg KK: własny układ z 19.10 (pasek "MaizonCozy B.V." zamiast papieru firmowego z PrintRight), tylko A4 poziomo,
+   mniejsza czcionka (7,5 pt, żeby zmieściło się więcej pozycji), logo MaizonCozy OBOK numeru faktury (nie nad nim),
+   KvK 93574797 w stopce. Stopka i "Bladzijde X/Y" = osobny szablon stopka.njk (footerTemplate w page.pdf).
+   Strona 1: pasek w treści od górnej krawędzi. Strony 2+: pasek + numer faktury w marginesie @page (jak 19.10).
+   Szerokości kolumn (mm): 9,6 | 152,5 | 15,4 | 23,7 | 23,7 | 24,0 | 20,0 = 268,9 (jak na fakturze 26000007).
+   Wiersz pozycji nigdy nie dzieli się między strony; nagłówek kolumn powtarza się na każdej stronie. */
+@font-face { font-family: "LX"; src: url("{{ assets.font_regular }}") format("truetype"); font-weight: normal; }
+@font-face { font-family: "LX"; src: url("{{ assets.font_bold }}") format("truetype"); font-weight: bold; }
+@page { size: A4 landscape; margin: 13mm 0 13mm 0;      /* dół 13 mm: Chromium rysuje stopkę (stopka.njk, 7,2 mm) zawsze
+                                                           5,1 mm nad krawędzią, więc margines >= 5,1 + 7,2 mm; boki 0 */
+  /* strony 2+: pasek w lewym górnym rogu od krawędzi + numer faktury po prawej, jak 19.10 (marginesy @page, Chromium 131+) */
+  @top-left { content: url("{{ assets.strip }}"); vertical-align: top; width: 64mm; height: 11mm; }
+  @top-right { content: "{{ document.title }} {{ document.number }}"; font-family: "LX", Arial, sans-serif; font-size: 7pt;
+               color: #555; vertical-align: middle; text-align: right; padding-right: 14mm; width: 100mm; height: 11mm;
+               text-rendering: geometricPrecision; }
+}
+@page :first { margin-top: 0; @top-left { content: none; } @top-right { content: none; } }   /* strona 1: pasek w treści */
+html { font-family: "LX", Arial, Helvetica, sans-serif; font-size: 7.5pt; color: #111;
+       text-rendering: geometricPrecision;   /* ten sam podział wierszy w Chrome, headless shell Playwrighta i na każdym fontconfig */
+       -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; }
+.pad { padding: 0 14mm; }
+
+/* wiersz 1 (tylko strona 1): pasek od lewej krawędzi strony | logo + numer faktury po prawej */
+.top { display: flex; justify-content: space-between; align-items: flex-start; height: 13mm; }
+.top .strip { display: block; height: 11mm; }
+.top .ident { display: flex; align-items: center; gap: 4mm; padding: 2mm 14mm 0 0; }   /* KK 19.10: ramka „logo?” ok. 1,6–13,2 mm od góry */
+.top .logo { display: block; height: 11mm; }   /* KK 19.10: ramka „logo?” = wysokość paska */
+.docinfo { border-collapse: collapse; }
+.docinfo td { padding: 0 0 0 3mm; line-height: 3.2mm; white-space: nowrap; }
+.docinfo td.k { text-align: right; color: #333; }
+.docinfo tr.nr td { font-size: 9.5pt; font-weight: bold; color: #111; line-height: 4.2mm; }
+
+/* wiersz 2: nabywca (lewo) | BTW-nr i e-mail nabywcy */
+.head { display: flex; align-items: flex-start; margin: 0 0 1.2mm 0; }
+.buyer { line-height: 2.95mm; width: 70mm; }
+.buyer2 { line-height: 2.95mm; padding-top: 5.7mm; }
+.lbl { font-size: 6.5pt; color: #666; line-height: 2.4mm; }
+.name { font-weight: bold; font-size: 8.5pt; line-height: 3.3mm; }
+.k { color: #666; font-size: 7pt; }
+
+/* tabela pozycji */
+table.items { width: 268.9mm; table-layout: fixed; border-collapse: collapse; }
+table.items thead { display: table-header-group; }   /* nagłówek kolumn na każdej stronie */
+table.items th { font-size: 6.3pt; font-weight: bold; text-align: left; line-height: 3.2mm; padding: 0.7mm 0.5mm;
+                 border: 0.4pt solid #222; background: #eee7dc; white-space: nowrap; overflow: hidden; }
+table.items td { padding: 0.6mm 1mm; line-height: 2.95mm; border: 0.4pt solid #222; vertical-align: middle; }  /* mniej pustego między pozycjami */
+table.items tr.item { break-inside: avoid; page-break-inside: avoid; }   /* pozycja nigdy na dwóch stronach */
+table.items .c { text-align: center; }
+table.items .r { text-align: right; white-space: nowrap; }
+table.items td.b { font-weight: bold; }
+table.items td.desc { overflow-wrap: anywhere; }
+
+/* zakończenie: uwagi | "Goederen ontvangen" | sumy - razem, bez dzielenia */
+.closing { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 2mm;
+           break-inside: avoid; page-break-inside: avoid; break-before: avoid; page-break-before: avoid; }
+/* sumy nigdy same na nowej stronie: ostatnia pozycja przechodzi razem z nimi */
+table.items tr.item:last-child { break-after: avoid; page-break-after: avoid; }
+.closing .notes { font-size: 7pt; line-height: 3.3mm; padding-right: 8mm; }
+.closing .sign { width: 52mm; margin-left: auto; margin-right: 10mm; text-align: center; font-size: 6.5pt;
+                 line-height: 2.8mm; color: #222; }
+.closing .sign .space { height: 5mm; border-bottom: 0.5pt solid #222; }
+.closing table.totals { border-collapse: collapse; width: 80mm; }
+.closing .totals td { padding: 0 1mm; line-height: 3.6mm; white-space: nowrap; }
+.closing .totals td.r { text-align: right; }
+.closing .totals tr.sum td { font-weight: bold; border-top: 0.6pt solid #222; font-size: 8pt; }
+
+/* znak wodny tylko na wydrukach próbnych (puste pole watermark = brak) */
+.wm { position: fixed; top: 62mm; left: 48mm; transform: rotate(-17deg); font-size: 46pt; font-weight: bold;
+      color: rgba(170, 20, 20, 0.22); letter-spacing: 2pt; white-space: nowrap; z-index: 10; }
+</style>
+</head>
+<body>
+{% if watermark %}<div class="wm">{{ watermark }}</div>{% endif %}
+
+<div class="top">
+  <img class="strip" src="{{ assets.strip }}" alt="MaizonCozy B.V.">
+  <div class="ident">
+    <img class="logo" src="{{ assets.logo }}" alt="MaizonCozy">
+    <table class="docinfo">
+      <tr class="nr"><td class="k">{{ document.title }}:</td><td>{{ document.number }}</td></tr>
+      <tr><td class="k">{{ document.place }}:</td><td>{{ document.issue_date }}</td></tr>
+      {% if document.due_date %}<tr><td class="k">Betalingstermijn:</td><td>{{ document.due_date }}</td></tr>{% endif %}
+    </table>
+  </div>
+</div>
+
+<div class="pad">
+<div class="head">
+  <div class="buyer">
+    <div class="lbl">Bedrijf</div>
+    <div class="name">{{ buyer.name }}</div>
+    <div>{{ buyer.street }}</div>
+    <div>{{ buyer.city_line }}</div>
+  </div>
+  <div class="buyer2">
+    {% if buyer.vat_id %}<div><span class="k">BTW-nr.</span> {{ buyer.vat_id }}</div>{% endif %}
+    {% if buyer.email %}<div><span class="k">E-mail:</span> {{ buyer.email }}</div>{% endif %}
+  </div>
+</div>
+
+<table class="items">
+  <colgroup>
+    <col style="width:9.6mm"><col style="width:152.5mm"><col style="width:15.4mm"><col style="width:23.7mm">
+    <col style="width:23.7mm"><col style="width:24mm"><col style="width:20mm">
+  </colgroup>
+  <thead><tr>
+    <th class="c">Pos</th><th>Beschrijving van goederen</th><th class="c">Aantal</th>
+    <th class="r">Catalogusprijs EURO</th><th class="r">Prijs EURO</th><th class="r">Bedrag EURO</th>
+    <th class="c">Prijsgroep</th>
+  </tr></thead>
+  <tbody>
+  {% for it in items %}
+    <tr class="item">
+      <td class="c">{{ it.pos }}</td>
+      <td class="desc">{% for t in it.lines %}{% if not loop.first %}<br>{% endif %}{{ t }}{% endfor %}</td>
+      <td class="c">{{ it.qty }}</td>
+      <td class="r">{{ it.catalog_price }}</td>
+      <td class="r b">{{ it.price }}</td>
+      <td class="r b">{{ it.amount }}</td>
+      <td class="c">{{ it.price_group }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="closing">
+  <div class="notes">{% for n in notes %}<div>{{ n }}</div>{% endfor %}</div>
+  {% if document.title != "Creditnota" %}<div class="sign"><div>Goederen ontvangen:</div><div class="space"></div><div>(Datum/Handtekening)</div></div>{% endif %}
+  <table class="totals">
+    <tr><td>Netto totaal</td><td class="r">{{ totals.net }}</td></tr>
+    {% for v in totals.vat %}<tr><td>{{ v.label }}</td><td class="r">{{ v.amount }}</td></tr>{% endfor %}
+    <tr class="sum"><td>{{ totals.gross_label }}</td><td class="r">{{ totals.gross }}</td></tr>
+  </table>
+</div>
+</div>
+</body>
+</html>

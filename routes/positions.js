@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const itemBuilder = require('../services/itemBuilder')
 const versionManager = require("../services/versionManager")
-const { photoPath, dataDir } = require('../config');
+const { photoPath, dataDir, fabricAlternativesFile } = require('../config');
 const { group } = require('console');
 const { fileExists } = require('../utils/fileManager');
 const { ensureGroupInfoFilesDir } = require('../utils/ensureInfoFilesDir');
@@ -28,6 +28,8 @@ const { recalcAndSaveMaxProdDays } = require('../services/productionDays');
 // edit (regular + admin-redit) shows/computes exactly the same VAT block —
 // and hides it just as completely while the feature is off.
 const { resolveVatLocals } = require('../services/vatCalculator');
+const { createAlternativesStore } = require('../services/fabricAlternatives');
+const fabricAlternatives = createAlternativesStore({ file: fabricAlternativesFile, log });
 
 // Zlecenie tylko do odczytu po wysyłce — także po anulowaniu (`canceled`):
 // jego pozycje oglądamy w podglądzie wysłanego zlecenia, bez formularza edycji.
@@ -541,6 +543,30 @@ router.post('/check-images', requireLogin, async (req, res) => {
   } catch (err) {
     log("Błąd sprawdzania obrazów:", err);
     return res.status(500).json({ error: "Błąd serwera" });
+  }
+});
+
+
+// Alternatywy dla niedostępnych kafelków okna wyboru (dialogUtils_copy.js
+// addAlternativesButtons) — wszystkie naraz, z pliku agentai na dysku
+// (config.fabricAlternativesFile, services/fabricAlternatives.js). Kuponowe i to, co E-Form ma już świeżo
+// na zero, odsiewa przeglądarka.
+router.post('/fabric-alternatives/:groupNr', requireLogin, async (req, res) => {
+  const items = req.body?.items;
+  // limit z zapasem: największa lista (43/HKL) ma ok. 1200 kodów
+  if (!Array.isArray(items) || items.length > 2000
+    || !items.every(item => typeof item?.code === 'string' && typeof item?.list === 'string')) {
+    return res.status(400).json({ error: 'Brak wymaganych danych' });
+  }
+  if (!fs.existsSync(fabricAlternativesFile)) {
+    return res.status(503).json({ results: [] });
+  }
+
+  try {
+    return res.json({ results: await fabricAlternatives.lookup(req.params.groupNr, items) });
+  } catch (err) {
+    log("Błąd pobierania alternatyw tkanin:", err);
+    return res.status(502).json({ results: [] });
   }
 });
 

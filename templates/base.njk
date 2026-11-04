@@ -126,6 +126,8 @@
    (`type="module"`) startują później, więc pricesCalculator.js ma wartość od
    pierwszego przeliczenia. #}
 <script>window.priceSpecEnabled = {{ priceSpecEnabled | default(false) | dump | safe }};</script>
+{# Przycisk „Pokaż alternatywy” na niedostępnej tkaninie (dialogUtils_copy.js) — gdy jest config.js `fabricAlternativesFile`. #}
+<script>window.fabricAlternativesEnabled = {{ fabricAlternativesEnabled | default(false) | dump | safe }};</script>
 {# Waluta cen klienta ZAMÓWIENIA (services/currency.js `currencyLocalsForOrder`)
    — podają ją trasy zlecenia i konfiguratora. Czytają: formTools/currencyLabel.js
    (opisy parametrów kwotowych), orderTools/setDiscount.js (rabat kwotowy),

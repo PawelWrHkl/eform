@@ -213,12 +213,14 @@ app.use((req, res, next) => {
 // ─── feature flags global middleware ────────────────────────────────────────
 // One place makes `features.vat` (config.js) visible to every template, so a
 // disabled feature leaves no trace in any rendered page.
-const { features } = require('./config');
+const { features, fabricAlternativesFile } = require('./config');
 app.use((req, res, next) => {
 	res.locals.vatEnabled = !!features?.vat;
 	// Specyfikacja ceny `_S` (`PRICE_SPEC_ENABLED`) — base.njk wystawia ją jako
 	// `window.priceSpecEnabled` dla pricesCalculator.js calculateFromScript.
 	res.locals.priceSpecEnabled = !!features?.priceSpec;
+	// Plik dociera na produkcję rsynciem — funkcja włącza się bez restartu (config.js).
+	res.locals.fabricAlternativesEnabled = require('fs').existsSync(fabricAlternativesFile);
 	// Konto podrzędne grupy (`group_user`) nie ma dostępu do fakturowania ani
 	// do kartoteki odbiorców końcowych — składa wyłącznie zamówienia. Flaga
 	// gasi zarówno wejście w menu, jak i sekcję odbiorcy w formularzu
