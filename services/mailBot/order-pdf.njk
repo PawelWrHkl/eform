@@ -4,7 +4,7 @@
   <link rel="stylesheet" href="styles/order-pdf.css">
   {% endblock head %}
   <div class="position-relative">
-    <img src="{{ logoPath }}" alt="logo" class="logo">
+    <img src="{{ logoPath }}" alt="logo" class="logo logo-{{ logoName }}">
       <div id='header-space'>
         <h2 class="header">{{ __('history_order.title') }}<span class="pdf-val">{{ orderNr }}</span>
           {% if orderDetails.commision %}

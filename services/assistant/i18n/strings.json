@@ -73,7 +73,9 @@
 		"tourActionMissing": "Tego nie da się teraz zrobić dla tego zamówienia — nie widzę takiego przycisku w jego wierszu.",
 		"tourDoneHidden": "Zrobione!",
 		"tourPickYourself": "Nie widzę na liście „{value}” — proszę wybrać właściwą pozycję samemu, a potem kliknąć „Dalej”.",
-		"tourAvailable": "Do wyboru: {list}."
+		"tourAvailable": "Do wyboru: {list}.",
+		"handoffMailSubject": "eForm — otrzymaliśmy Państwa zapytanie",
+		"handoffMailBody": "Dzień dobry,\n\notrzymaliśmy Państwa zapytanie przekazane przez Eforka, asystenta portalu eForm. Odpowie na nie konsultant HKL na ten adres e-mail.\n\nPaństwa wiadomość:\n{note}\n\nPozdrawiamy\nZespół eForm\n\nTo wiadomość automatyczna — odpowiedź na nią również trafi do naszych konsultantów."
 	},
 	"en": {
 		"title": "Eforek",
@@ -149,7 +151,9 @@
 		"tourActionMissing": "This can’t be done for this order right now — I don’t see that button in its row.",
 		"tourDoneHidden": "Done!",
 		"tourPickYourself": "I can’t find “{value}” in the list — please pick the right option yourself, then click “Next”.",
-		"tourAvailable": "Available: {list}."
+		"tourAvailable": "Available: {list}.",
+		"handoffMailSubject": "eForm — we have received your request",
+		"handoffMailBody": "Hello,\n\nwe have received your request passed on by Eforek, the eForm portal assistant. An HKL consultant will reply to this e-mail address.\n\nYour message:\n{note}\n\nKind regards\nThe eForm team\n\nThis is an automatic message — a reply to it will also reach our consultants."
 	},
 	"de": {
 		"title": "Eforek",
@@ -225,7 +229,9 @@
 		"tourActionMissing": "Das ist für diese Bestellung gerade nicht möglich — ich sehe diese Schaltfläche in ihrer Zeile nicht.",
 		"tourDoneHidden": "Erledigt!",
 		"tourPickYourself": "„{value}“ finde ich in der Liste nicht — bitte wählen Sie selbst und klicken Sie dann auf „Weiter“.",
-		"tourAvailable": "Zur Auswahl: {list}."
+		"tourAvailable": "Zur Auswahl: {list}.",
+		"handoffMailSubject": "eForm — wir haben Ihre Anfrage erhalten",
+		"handoffMailBody": "Guten Tag,\n\nwir haben Ihre Anfrage erhalten, die Eforek, der Assistent des eForm-Portals, weitergeleitet hat. Ein HKL-Berater antwortet Ihnen an diese E-Mail-Adresse.\n\nIhre Nachricht:\n{note}\n\nMit freundlichen Grüßen\nIhr eForm-Team\n\nDies ist eine automatische Nachricht — eine Antwort darauf erreicht ebenfalls unsere Berater."
 	},
 	"fr": {
 		"title": "Eforek",
@@ -301,7 +307,9 @@
 		"tourActionMissing": "Ce n’est pas possible pour cette commande pour le moment — je ne vois pas ce bouton sur sa ligne.",
 		"tourDoneHidden": "C’est fait !",
 		"tourPickYourself": "Je ne trouve pas « {value} » dans la liste — choisissez vous-même, puis cliquez sur « Suivant ».",
-		"tourAvailable": "Au choix : {list}."
+		"tourAvailable": "Au choix : {list}.",
+		"handoffMailSubject": "eForm — nous avons bien reçu votre demande",
+		"handoffMailBody": "Bonjour,\n\nnous avons bien reçu votre demande transmise par Eforek, l’assistant du portail eForm. Un conseiller HKL vous répondra à cette adresse e-mail.\n\nVotre message :\n{note}\n\nCordialement\nL’équipe eForm\n\nCeci est un message automatique — une réponse à ce message parviendra également à nos conseillers."
 	},
 	"nl": {
 		"title": "Eforek",
@@ -377,6 +385,8 @@
 		"tourActionMissing": "Dit kan nu niet voor deze bestelling — ik zie die knop niet in de regel.",
 		"tourDoneHidden": "Klaar!",
 		"tourPickYourself": "Ik vind „{value}” niet in de lijst — kies zelf de juiste optie en klik dan op „Verder”.",
-		"tourAvailable": "Beschikbaar: {list}."
+		"tourAvailable": "Beschikbaar: {list}.",
+		"handoffMailSubject": "eForm — wij hebben uw vraag ontvangen",
+		"handoffMailBody": "Goedendag,\n\nwij hebben uw vraag ontvangen die Eforek, de assistent van het eForm-portaal, heeft doorgestuurd. Een HKL-adviseur antwoordt u op dit e-mailadres.\n\nUw bericht:\n{note}\n\nMet vriendelijke groet\nHet eForm-team\n\nDit is een automatisch bericht — een antwoord hierop komt ook bij onze adviseurs terecht."
 	}
 }

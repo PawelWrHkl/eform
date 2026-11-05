@@ -3,6 +3,8 @@ const dateUtils = require("../utils/humanize_date.js");
 const e = require("express");
 const bcrypt = require('bcryptjs');
 const { log } = require('../utils/logging');
+const fs = require('fs');
+const path = require('path');
 
 
 async function getLanguage(pin) {
@@ -150,17 +152,24 @@ async function getEmployyeInfo(login) {
 }
 
 
+// Własne logo użytkownika (`user.photo`) liczy się tylko, gdy plik leży w img/.
+function existingPhoto(photo) {
+    const file = photo ? path.basename(String(photo).trim()) : '';
+    return file && fs.statSync(path.join(__dirname, '..', 'img', file), { throwIfNoEntry: false })?.isFile() ? file : null;
+}
+
+// Logo w UI, PDF-ach, mailach i Excelu: `user.photo` wygrywa z logo organizacji.
 async function getUserLogo(pin) {
-    const query = `select o.photo_path from user u join organization o on u.organization_id = o.id
+    const query = `select u.photo, o.photo_path from user u join organization o on u.organization_id = o.id
     where u.pin = ?`;
     let result = await selectQuery(query, pin)
-    return result && result.length > 0 ? result[0].photo_path : 'hkl.png';
+    return result && result.length > 0 ? existingPhoto(result[0].photo) || result[0].photo_path : 'hkl.png';
 }
 
 async function getUserPhoto(pin) {
     const query = `SELECT photo FROM \`user\` WHERE pin = ?`;
     const result = await selectQuery(query, [pin]);
-    return result && result.length > 0 ? result[0].photo : null;
+    return result && result.length > 0 ? existingPhoto(result[0].photo) : null;
 }
 
 

@@ -4695,3 +4695,38 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-11-04 10:35:01 - Start ===
 === 2026-11-04 10:35:01 - Dodawanie zmian do commita ===
+[main 3fae9f8] Automatic commit 2026-11-04 10:35
+ 30 files changed, 14107 insertions(+), 25 deletions(-)
+ create mode 100644 MaizonCozy_formatka_faktury_EFOR/Factuur_Cozy_Lipka_1_NL_podglad.pdf
+ rewrite configtest/nightly.out (100%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 public/scripts/formTools/fabricAlternatives.js
+ create mode 100644 scripts/syncFabricAlternatives.js
+ create mode 100644 services/__tests__/fabricAlternatives.test.js
+ create mode 100644 services/fabricAlternatives.js
+ create mode 100644 services/invoices/__tests__/maizonCozy.test.js
+ create mode 100644 services/invoices/render/maizonCozy.js
+ create mode 100755 services/invoices/templates/maizoncozy/assets/LICENSE-Liberation.txt
+ create mode 100755 services/invoices/templates/maizoncozy/assets/LiberationSans-Bold.ttf
+ create mode 100755 services/invoices/templates/maizoncozy/assets/LiberationSans-Regular.ttf
+ create mode 100755 services/invoices/templates/maizoncozy/assets/maizoncozy_logo.png
+ create mode 100755 services/invoices/templates/maizoncozy/assets/maizoncozy_pasek.svg
+ create mode 100755 services/invoices/templates/maizoncozy/faktura.njk
+ create mode 100755 services/invoices/templates/maizoncozy/stopka.njk
+=== 2026-11-04 10:35:04 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 70.42 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 118 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 68 high, 41 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   bbc3877..3fae9f8  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-11-04 10:35:11 - Koniec ===
+=== 2026-11-04 12:00:01 - Start ===
+=== 2026-11-04 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-11-05 10:35:01 - Start ===
+=== 2026-11-05 10:35:01 - Dodawanie zmian do commita ===

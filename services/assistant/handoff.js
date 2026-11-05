@@ -15,6 +15,7 @@ const nodemailer = require('nodemailer');
 const config = require('../../config');
 const { selectQuery } = require('../../db/core');
 const { log } = require('../../utils/logging');
+const strings = require('./strings');
 
 /** Minimalny odstęp między przekazaniami tej samej rozmowy. */
 const HANDOFF_COOLDOWN_MS = 5 * 60 * 1000;
@@ -167,6 +168,22 @@ async function sendHandoff(p, deps = {}) {
 
 	state.handoff = { at: new Date(now).toISOString(), to: to.join(','), reason: p.reason };
 	zapisz(`[assistant] rozmowa ${state.id} klienta ${client} przekazana do ${to.join(',')} (${p.reason})`);
+
+	// Potwierdzenie dla klienta w jego języku (zgłoszenie 5.11: klient nie wiedział, czy i dokąd poszło).
+	// Odpowiedź na nie trafia do konsultantów. Błąd potwierdzenia nie cofa przekazania.
+	const S = strings.forLang(p.lang);
+	const lastQuestion = [...state.messages].reverse().find((m) => m.role === 'user' && m.text);
+	try {
+		await sendMail({
+			from: env.MAILBOT_USER,
+			to: p.contactEmail,
+			replyTo: to.join(','),
+			subject: S.handoffMailSubject,
+			text: S.handoffMailBody.replace('{note}', note || clean(lastQuestion && lastQuestion.text, 2000) || '-')
+		});
+	} catch (err) {
+		zapisz('[assistant] potwierdzenie przekazania dla klienta nie wyszło:', err && err.message);
+	}
 	return { sent: true };
 }
 

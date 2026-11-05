@@ -225,6 +225,11 @@ body {
     flex-shrink: 0;
 }
 
+/* azra.png ma szeroki czarny margines — przy 80px napis był nieczytelny */
+.logo.logo-azra {
+    width: 170px;
+}
+
 .doc-title {
     flex: 1;
 }

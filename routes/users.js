@@ -268,12 +268,7 @@ router.get('/logo', requireLogin, async (req, res) => {
     const currentUser = ownerService.getCurrentUser(req);
     const pin = currentUser.pin;
 
-    let photoFilename;
-    const role = await db.getUserRole(pin);
-
-    if (role === 'group') {
-        photoFilename = await db.getUserPhoto(pin);
-    }
+    let photoFilename = await db.getUserPhoto(pin);
 
     if (!photoFilename) {
         if (req.session.user?.isAdmin) {

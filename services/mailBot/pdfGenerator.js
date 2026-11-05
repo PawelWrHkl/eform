@@ -201,6 +201,8 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     orderDetails: orderData,
     cleanOrderItems: cleanOrderItems,
     logoPath: logoDataUri,
+    // klasa `logo-<plik>` — rozmiar dopasowany do konkretnego logo w CSS PDF-a
+    logoName: path.basename(logoPath, path.extname(logoPath)),
     sendData: data,
     orderNr: orderIdx,
     prices: prices,
@@ -402,6 +404,8 @@ async function generateProductionPdf(orderData, cleanOrderItems, logoPath, order
     orderDetails: orderData,
     cleanOrderItems,
     logoPath: logoDataUri,
+    // klasa `logo-<plik>` — rozmiar dopasowany do konkretnego logo w CSS PDF-a
+    logoName: path.basename(logoPath, path.extname(logoPath)),
     orderNr: orderIdx,
     totalQuantity,
     clientName: clientName || null,

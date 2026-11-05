@@ -88,7 +88,22 @@ test('druga próba przekazania w ciągu 5 minut → too_soon; po odstępie przec
 	assert.equal((await sendHandoff({ ...base, state }, { ...d, now: () => t0 })).sent, true);
 	assert.equal((await sendHandoff({ ...base, state }, { ...d, now: () => t0 + 60_000 })).error, 'too_soon');
 	assert.equal((await sendHandoff({ ...base, state }, { ...d, now: () => t0 + HANDOFF_COOLDOWN_MS + 1 })).sent, true);
-	assert.equal(sendMail.sent.length, 2);
+	assert.equal(sendMail.sent.filter((m) => m.to === 'a@x.pl').length, 2);
+});
+
+test('po przekazaniu klient dostaje potwierdzenie w swoim języku; odpowiedź idzie do konsultantów; błąd potwierdzenia nie cofa przekazania', async () => {
+	const sendMail = fakeMailer();
+	const r = await sendHandoff({ ...base, lang: 'de', note: 'Test: warum kein VS10?', state: conversation() }, { sendMail, log: () => {}, env: { MAILBOT_USER: 'bot@x' }, fallback: 'a@x.pl,b@x.pl' });
+	assert.equal(r.sent, true);
+	const confirm = sendMail.sent[1];
+	assert.equal(confirm.to, base.contactEmail);
+	assert.equal(confirm.replyTo, 'a@x.pl,b@x.pl');
+	assert.match(confirm.subject, /Anfrage/);
+	assert.match(confirm.text, /Test: warum kein VS10\?/);
+	let calls = 0;
+	const flaky = async () => { calls += 1; if (calls === 2) throw new Error('smtp'); };
+	const r2 = await sendHandoff({ ...base, state: conversation() }, { sendMail: flaky, log: () => {}, env: {}, fallback: 'a@x.pl' });
+	assert.equal(r2.sent, true);
 });
 
 test('awaria SMTP → send_failed, rozmowa nie jest oznaczona jako przekazana', async () => {

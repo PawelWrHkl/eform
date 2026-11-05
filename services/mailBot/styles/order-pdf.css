@@ -23,6 +23,11 @@ body {
     display: block !important;
 }
 
+/* azra.png ma szeroki czarny margines — przy 70px napis był nieczytelny */
+.logo.logo-azra {
+    width: 170px !important;
+}
+
 
 .position-relative {
     width: 99% !important;
