@@ -223,6 +223,13 @@ test('ścieżka: poziom 2 → organizacja-klient/<wystawca>/<klient>', () => {
   assert.equal(luxan.dir, '/invoices/organizacja-klient/LUXANGMBH/Matthes');
 });
 
+test('ścieżka: faktura dzienna HKL → dzienne/<ten sam układ>, osobno od faktur per zlecenie', () => {
+  const l1 = buildRemoteTarget(rowFixture({ level: 1, organization_ident: 'LUXANGMBH', created_by_pin: 'AUTO-DAILY' }), '/invoices');
+  assert.equal(l1.dir, '/invoices/dzienne/hkl-organizacja/LUXANGMBH');
+  const l2 = buildRemoteTarget(rowFixture({ created_by_pin: 'AUTO-DAILY' }), '/invoices');
+  assert.equal(l2.dir, '/invoices/dzienne/organizacja-klient/HKL/TCN');
+});
+
 test('ścieżka: brak identu → nazwa nabywcy albo id, nigdy pusty katalog', () => {
   // Końcowa kropka znika — Windows nie przyjmuje takiej nazwy katalogu
   assert.equal(buildRemoteTarget(rowFixture({ client_ident: null }), '/invoices').dir, '/invoices/organizacja-klient/HKL/TCN B.V');
@@ -306,7 +313,7 @@ test('przebieg: faktury automatu → PDF → FTP po katalogach → znacznik ftp_
 
   assert.deepEqual(repo.queries[0], {
     since: '2026-10-22', doneEvent: FtpEvent.UPLOADED, failedEvent: FtpEvent.FAILED,
-    maxAttempts: MAX_ATTEMPTS, createdByPin: AUTO_ACTOR, levels: [1, 2], limit: 50
+    maxAttempts: MAX_ATTEMPTS, createdByPin: [AUTO_ACTOR, 'AUTO-DAILY'], levels: [1, 2], limit: 50
   });
   assert.deepEqual(service.rendered, [11, 12]);
   assert.deepEqual([...server.files.keys()].sort(), [

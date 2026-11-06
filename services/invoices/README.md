@@ -563,6 +563,7 @@ połączenie szyfrowane (FTPS). Domyślnie WYŁĄCZONE.
 ```
 <katalog>/hkl-organizacja/<ORGANIZACJA>/Faktura_VAT_2026_00017.pdf              poziom 1: HKL → organizacja (nabywca)
 <katalog>/organizacja-klient/<ORGANIZACJA>/<KLIENT>/Faktura_VAT_2026_00134.pdf  poziom 2: organizacja (wystawca) → klient
+<katalog>/dzienne/…                                                              faktury dzienne HKL, ten sam układ
 ```
 
 - Katalogi to identy z eForma (`organization.ident`, `user.ident`) — jak w nazwach
@@ -656,6 +657,31 @@ Ustawia to admin: `/admin/users` → konto → karta **„Fakturowanie niestanda
   niestandardowe jest po prostu nieaktywne. ⚠️ Wynik sprawdzenia kolumny jest zapamiętany
   na proces: po migracji panel (zapis w `/admin/users`, znacznik na karcie klienta) wymaga
   restartu; automat chodzi w osobnym procesie crona, więc widzi kolumnę od następnego przebiegu.
+
+## Faktury dzienne HKL (`INVOICE_DAILY_SINCE`)
+
+Decyzja właściciela 2026-11-06: dla sprzedaży **HKL** (organizacja 3) automat wystawia
+OBOK faktur per zlecenie jedną fakturę za dzień wysyłki (`order.delivery_date`):
+
+| Poziom | Nabywca | Jedna faktura na | Kolejność pozycji |
+| --- | --- | --- | --- |
+| 1 HKL → organizacja | organizacja (Luxan GmbH, Cozy…) | organizację i dzień | klienci alfabetycznie (`user.ident`), u klienta zlecenia po kolei (`order_idx`), w zleceniu pozycje |
+| 2 HKL → klient HKL | konto klienta (i sklep grupowy) | klienta i dzień | zlecenia po kolei, w zleceniu pozycje |
+
+- Dzień bez wysyłek nie daje faktury. Dzień zamyka się z tym samym zapasem co okresy
+  zbiorcze (`COLLECTIVE_GRACE_DAYS` = 1), więc za poniedziałek faktura powstaje w środę
+  po północy; spóźniony status dostaje drugą fakturę za ten dzień.
+- Dokument: `createCollective` (poziom 1 — zlecenia różnych klientów jednej organizacji,
+  przy pozycji `KLIENT · numer`), autor `created_by_pin = 'AUTO-DAILY'`
+  (`core/collective.js:DAILY_ACTOR`), seria numeracji wystawcy ta sama co faktur per zlecenie.
+- ⚠️ Faktura dzienna to dokument DODATKOWY: `linkedDocumentSql` go pomija, więc nie
+  blokuje faktury per zlecenie (ani okna zamówień w panelu), a sama ma własny warunek
+  „już jest" (`findDailyCandidates`: faktura dzienna tego poziomu z pozycją zlecenia).
+- Mail: tak, jak faktury automatu (`invoiceMailer` bierze `AUTO` i `AUTO-DAILY`; dziś REDIRECT
+  na testerów — polecenie właściciela 2026-11-06). FTP: tak, osobny katalog
+  `<katalog>/dzienne/hkl-organizacja/<ORG>/` i `<katalog>/dzienne/organizacja-klient/HKL/<KLIENT>/`.
+- `INVOICE_DAILY_SINCE=RRRR-MM-DD` — dni wysyłki od tej daty; puste = wyłączone. Działa w
+  ramach automatu (`INVOICE_AUTOGEN_ENABLED`, poziomy z `INVOICE_AUTOGEN_LEVELS`).
 
 ## Okno zamówień (widok klienta, poziom 2)
 

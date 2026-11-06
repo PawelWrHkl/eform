@@ -40,6 +40,7 @@ const nodemailer = require('nodemailer');
 const defaultRepository = require('./db/repository');
 const renderer = require('./render/renderer');
 const { AUTO_ACTOR } = require('./autoInvoicing');
+const { DAILY_ACTOR } = require('./core/collective');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 const { log: defaultLog } = require('../../utils/logging');
 
@@ -302,7 +303,8 @@ async function runInvoiceMailing({ dryRun = false, config = readInvoiceMailConfi
     doneEvent,
     failedEvent: MailEvent.FAILED,
     maxAttempts: MAX_ATTEMPTS,
-    createdByPin: AUTO_ACTOR,
+    // Faktury dzienne HKL też (2026-11-06: „maile tylko do nas" — REDIRECT jak reszta)
+    createdByPin: [AUTO_ACTOR, DAILY_ACTOR],
     limit: config.maxPerRun
   });
 

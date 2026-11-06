@@ -23,6 +23,7 @@ const { log } = require('../../../utils/logging');
 const money = require('../core/money');
 const { toIsoDay } = require('../core/dates');
 const { normalizeEndClientData } = require('../core/endClient');
+const { DAILY_ACTOR } = require('../core/collective');
 
 /** @typedef {import('../domain/types').Invoice} Invoice */
 /** @typedef {import('../domain/types').OrganizationProfile} OrganizationProfile */
@@ -967,7 +968,8 @@ async function listInvoiceOverview({ level, organizationId, since = null, hklOrg
  * `invoice.order_id` — tak rozpoznajemy FAKTURĘ ZBIORCZĄ (dotyczy wielu
  * zamówień, więc `order_id` ma pusty). Bez tego zamówienie z faktury zbiorczej
  * wyglądałoby na niezafakturowane i automat wystawiłby mu drugą fakturę.
- * Jeden placeholder `IN (?)` — lista poziomów.
+ * Jeden placeholder `IN (?)` — lista poziomów. Faktura dzienna HKL (`DAILY_ACTOR`)
+ * się nie liczy — to dokument dodatkowy, zlecenie dostaje też własną fakturę.
  *
  * @param {string} [extra] dodatkowe warunki na `il` (typ dokumentu, status)
  * @returns {string}
@@ -976,7 +978,8 @@ function linkedDocumentSql(extra = '') {
   return `EXISTS (SELECT 1 FROM order_item oi
                    JOIN invoice_item ii ON ii.order_item_id = oi.id
                    JOIN invoice il ON il.id = ii.invoice_id
-                  WHERE oi.order_id = o.id AND il.order_id IS NULL AND il.level IN (?) ${extra})`;
+                  WHERE oi.order_id = o.id AND il.order_id IS NULL AND il.level IN (?)
+                    AND COALESCE(il.created_by_pin, '') <> '${DAILY_ACTOR}' ${extra})`;
 }
 
 /** @type {Promise<boolean>|null} */
@@ -1149,7 +1152,7 @@ async function hasLevelInvoice({ orderId, level }) {
  * „Wysłane" to wpis w `invoice_event`, nie kolumna — nie trzeba migracji, a
  * historia prób (do kogo, kiedy, jaki błąd) zostaje przy dokumencie.
  *
- * @param {{ since: string, doneEvent: string, failedEvent: string, maxAttempts?: number, createdByPin?: string, limit?: number }} params
+ * @param {{ since: string, doneEvent: string, failedEvent: string, maxAttempts?: number, createdByPin?: string|string[], limit?: number }} params
  * @returns {Promise<Array<Record<string, any>>>}
  */
 async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts = 3, createdByPin = 'AUTO', limit = 50 }) {
@@ -1157,7 +1160,7 @@ async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts =
     `SELECT i.id, i.number, i.level, i.buyer_name, i.buyer_email, i.created_at,
             (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) AS failures
        FROM invoice i
-      WHERE i.created_by_pin = ?
+      WHERE i.created_by_pin IN (?)
         AND i.status IN ('issued', 'paid', 'overdue')
         AND i.number IS NOT NULL
         AND i.created_at >= ?
@@ -1165,7 +1168,7 @@ async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts =
         AND (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) < ?
       ORDER BY i.id
       LIMIT ?`,
-    [failedEvent, createdByPin, since, doneEvent, failedEvent, maxAttempts, limit]
+    [failedEvent, [].concat(createdByPin), since, doneEvent, failedEvent, maxAttempts, limit]
   );
 }
 
@@ -1174,22 +1177,23 @@ async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts =
  * co kolejka maili (`findInvoicesToMail`), własne zdarzenia, tylko podane
  * poziomy, plus identy do ścieżki katalogu: `organization_ident` (organizacja
  * faktury — na poziomie 1 to NABYWCA), `issuer_organization_ident` (wystawca
- * będący organizacją) i `client_ident` (konto klienta-nabywcy).
+ * będący organizacją) i `client_ident` (konto klienta-nabywcy). `createdByPin` —
+ * jeden autor albo lista (automat + faktury dzienne HKL).
  *
- * @param {{ since: string, doneEvent: string, failedEvent: string, maxAttempts?: number, createdByPin?: string, levels: number[], limit?: number }} params
+ * @param {{ since: string, doneEvent: string, failedEvent: string, maxAttempts?: number, createdByPin?: string|string[], levels: number[], limit?: number }} params
  * @returns {Promise<Array<Record<string, any>>>}
  */
 async function findInvoicesForFtp({ since, doneEvent, failedEvent, maxAttempts = 5, createdByPin = 'AUTO', levels, limit = 50 }) {
   return strictQuery(
     `SELECT i.id, i.number, i.level, i.document_type, i.organization_id, i.issuer_id,
-            i.buyer_user_id, i.buyer_name, i.created_at,
+            i.buyer_user_id, i.buyer_name, i.created_at, i.created_by_pin,
             org.ident AS organization_ident, iss.ident AS issuer_organization_ident, u.ident AS client_ident,
             (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) AS failures
        FROM invoice i
        LEFT JOIN organization org ON org.id = i.organization_id
        LEFT JOIN organization iss ON iss.id = i.issuer_id AND i.issuer_type = 'organization'
        LEFT JOIN \`user\` u ON u.id = i.buyer_user_id
-      WHERE i.created_by_pin = ?
+      WHERE i.created_by_pin IN (?)
         AND i.status IN ('issued', 'paid', 'overdue')
         AND i.number IS NOT NULL
         AND i.level IN (?)
@@ -1198,7 +1202,7 @@ async function findInvoicesForFtp({ since, doneEvent, failedEvent, maxAttempts =
         AND (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) < ?
       ORDER BY i.id
       LIMIT ?`,
-    [failedEvent, createdByPin, levels, since, doneEvent, failedEvent, maxAttempts, limit]
+    [failedEvent, [].concat(createdByPin), levels, since, doneEvent, failedEvent, maxAttempts, limit]
   );
 }
 
@@ -1272,6 +1276,49 @@ async function findCollectiveCandidates({ since, organizationIds = [] }) {
                  AND i.document_type IN ('invoice', 'final', 'advance'))
         AND NOT ${linkedDocumentSql("AND il.document_type IN ('invoice', 'final', 'advance')")}
       ORDER BY o.user_id, o.delivery_date, o.id`,
+    values
+  );
+}
+
+/**
+ * Zlecenia HKL czekające na FAKTURĘ DZIENNĄ (`core/collective.js:groupDailyCandidates`):
+ * poziom 1 — zlecenia innych organizacji (HKL → organizacja), poziom 2 — klientów
+ * HKL (bez własnego konta HKL). Te same warunki wysyłki co automat, ale faktury
+ * per zlecenie NIE wykluczają — wyklucza tylko istniejąca faktura dzienna tego
+ * poziomu (także anulowana: ktoś zajął się nią ręcznie).
+ *
+ * @param {{ level: 1|2, since: string, organizationIds?: number[] }} params
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findDailyCandidates({ level, since, organizationIds = [] }) {
+  const { HKL_ORG_ID } = require('../../subPrices');
+  const lvl = Number(level);
+  if (lvl !== 1 && lvl !== 2) throw new Error(`Faktura dzienna nie obsługuje poziomu ${level}`);
+  const values = [lvl, since, Number(HKL_ORG_ID)];
+  let filters = '';
+  if (organizationIds.length) { filters += ' AND o.organization_id IN (?)'; values.push(organizationIds); }
+  values.push(lvl);
+
+  return strictQuery(
+    `SELECT o.id, o.order_idx, o.user_id, o.group_user_id, o.organization_id, o.delivery_date,
+            u.ident AS user_ident, org.ident AS organization_ident, ? AS level
+       FROM \`order\` o
+       JOIN \`user\` u ON u.id = o.user_id
+       JOIN organization org ON org.id = o.organization_id
+      WHERE o.status = 'sent'
+        AND o.prod_status = '!sent!'
+        AND o.delivery_date >= ?
+        AND ${lvl === 1 ? 'o.organization_id <> ?' : `o.organization_id = ? ${AUTO_LEVEL_SQL[2]}`}${filters}
+        AND NOT EXISTS (
+              SELECT 1 FROM position_statuses ps
+               WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
+                 AND ps.status <> '!sent!')
+        AND NOT EXISTS (
+              SELECT 1 FROM order_item oi
+                JOIN invoice_item ii ON ii.order_item_id = oi.id
+                JOIN invoice il ON il.id = ii.invoice_id
+               WHERE oi.order_id = o.id AND il.level = ? AND il.created_by_pin = '${DAILY_ACTOR}')
+      ORDER BY o.delivery_date, o.id`,
     values
   );
 }
@@ -1982,6 +2029,7 @@ module.exports = {
   listInvoiceOverview,
   findAutoInvoiceCandidates,
   findCollectiveCandidates,
+  findDailyCandidates,
   hasLevelInvoice,
   findInvoicesToMail,
   findInvoicesForFtp,

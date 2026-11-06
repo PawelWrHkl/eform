@@ -1,5 +1,5 @@
 /**
- * Server-side runner for price calculation scripts.
+ * Server-side runner for price calculation scripts and configurator formulas.
  *
  * The price scripts (param-CENA-A.js, param-DOPLATA-B.js, etc.) define a
  * global function `f(jsonString)` that uses `evaluateFormula()` to compute
@@ -7,6 +7,12 @@
  * execute them directly in a VM sandbox with the formula handler available.
  *
  * This bypasses JSDOM entirely — no DOM needed, just pure JS execution.
+ *
+ * `public/scripts/formula.js` is browser code: it hangs FormulaHandler on
+ * `window` and keeps ONE module-level parser whose variables survive between
+ * calls. The sandbox is therefore its own `window`, and every evaluation starts
+ * from the parser's initial variables — otherwise a value left behind by an
+ * earlier configuration silently changes the next result.
  */
 
 'use strict';
@@ -17,18 +23,113 @@ const path = require('path');
 const { dataDir } = require('../../config');
 const { log } = require('../../utils/logging');
 
-// Load and cache the formula parser + handler
-let formulaHandlerCode = null;
+let sources = null;
 
-function getFormulaHandler() {
-  if (!formulaHandlerCode) {
-    const parserPath = path.join(__dirname, '..', '..', 'node_modules', 'hot-formula-parser', 'dist', 'formula-parser.min.js');
-    const formulaPath = path.join(__dirname, '..', '..', 'public', 'scripts', 'formula.js');
-    const parserSrc = fs.readFileSync(parserPath, 'utf8');
-    const formulaSrc = fs.readFileSync(formulaPath, 'utf8');
-    formulaHandlerCode = { parserSrc, formulaSrc };
+function getSources() {
+  if (!sources) {
+    const root = path.join(__dirname, '..', '..');
+    sources = {
+      parser: fs.readFileSync(path.join(root, 'node_modules', 'hot-formula-parser', 'dist', 'formula-parser.min.js'), 'utf8'),
+      formula: fs.readFileSync(path.join(root, 'public', 'scripts', 'formula.js'), 'utf8')
+    };
   }
-  return formulaHandlerCode;
+  return sources;
+}
+
+/**
+ * Fresh realm with the configurator's FormulaHandler.
+ *
+ * `setNow(iso|null)` replaces the clock seen by `new Date()` inside the realm —
+ * price scripts pick their per-client increase by today's date, so a threshold
+ * can be tested on any day instead of the system one.
+ */
+function createRealm() {
+  const sandbox = {
+    console: { log() {}, error() {}, warn() {} },
+    // USTAW(…,"DOM",…) writes into form inputs; there is no form here.
+    ignoreDom: true,
+    formulaContext: {},
+    constValues: {},
+    lockedParams: [],
+    skipCountParams: [],
+    __now: null
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  const context = vm.createContext(sandbox);
+  const { parser, formula } = getSources();
+  vm.runInContext(parser, context, { filename: 'formula-parser.min.js' });
+  vm.runInContext(formula, context, { filename: 'formula.js' });
+  vm.runInContext(
+    [
+      "evaluateFormula = function (e, v, m) { return FormulaHandler.evaluateFormula(e, v, m || 'formula'); };",
+      'const __initialVariables = Object.assign(Object.create(null), parser.variables);',
+      'function __resetVariables() { parser.variables = Object.assign(Object.create(null), __initialVariables); }',
+      'const __RealDate = Date;',
+      'Date = class extends __RealDate {',
+      '  constructor(...a) { if (a.length) super(...a); else super(__now === null ? __RealDate.now() : __now); }',
+      '  static now() { return __now === null ? __RealDate.now() : new __RealDate(__now).getTime(); }',
+      '};'
+    ].join('\n'),
+    context
+  );
+
+  return {
+    context,
+    sandbox,
+    setNow(iso) {
+      sandbox.__now = iso || null;
+    },
+    /** `FormulaHandler.evaluateFormula` on a clean parser. */
+    evaluate(expression, values, mode = 'formula') {
+      sandbox.__expr = expression;
+      sandbox.__values = values;
+      sandbox.__mode = mode;
+      return vm.runInContext('__resetVariables(); FormulaHandler.evaluateFormula(__expr, __values, __mode)', context);
+    },
+    /**
+     * A `<PARAM>_PROC` procedure exactly as `getProcedures` runs it for one
+     * selected option, returning what its USTAW calls stored:
+     * `{ SZEROKOSC: { MIN, MAX }, WYSOKOSC: {...}, POW: {...} }`.
+     */
+    procedure(procedure, values, paramName, optionValue) {
+      sandbox.inputsValidators = {};
+      sandbox.inputsDefaults = {};
+      sandbox.formulaContext = {};
+      sandbox.actualParam = paramName;
+      sandbox.actualValue = optionValue;
+      this.evaluate(procedure, values, 'PROCEDURE');
+      const byParam = sandbox.inputsValidators[paramName] || {};
+      return JSON.parse(JSON.stringify(byParam[optionValue] || {}));
+    }
+  };
+}
+
+// Compiling one generated script costs ~0.7 s and ~65 MB (5–6 MB of if/else),
+// so keep a few compiled realms keyed by path + mtime + size.
+const MAX_CACHED_SCRIPTS = 4;
+const scriptCache = new Map();
+
+/** Realm with one price script loaded; `run(values, { now })` calls its `f()`. */
+function loadScriptRunner(scriptPath) {
+  const stat = fs.statSync(scriptPath);
+  const key = `${scriptPath}|${stat.mtimeMs}|${stat.size}`;
+  if (scriptCache.has(key)) return scriptCache.get(key);
+
+  const realm = createRealm();
+  vm.runInContext(fs.readFileSync(scriptPath, 'utf8'), realm.context, { filename: path.basename(scriptPath) });
+  if (typeof realm.sandbox.f !== 'function') throw new Error(`${path.basename(scriptPath)} nie definiuje funkcji f()`);
+
+  const runner = {
+    run(values, { now = null } = {}) {
+      realm.setNow(now);
+      realm.sandbox.__arg = JSON.stringify(values);
+      return vm.runInContext('__resetVariables(); f(__arg)', realm.context);
+    }
+  };
+  if (scriptCache.size >= MAX_CACHED_SCRIPTS) scriptCache.delete(scriptCache.keys().next().value);
+  scriptCache.set(key, runner);
+  return runner;
 }
 
 /**
@@ -40,47 +141,7 @@ function getFormulaHandler() {
  */
 function executeScript(scriptPath, values) {
   try {
-    const scriptSrc = fs.readFileSync(scriptPath, 'utf8');
-    const { parserSrc, formulaSrc } = getFormulaHandler();
-
-    // Create a sandbox with formula handler available as global `evaluateFormula`
-    const sandbox = {
-      console: { log: () => {}, error: () => {}, warn: () => {} },
-      evaluateFormula: null,
-      FormulaHandler: null,
-      f: null,
-      module: { exports: {} },
-      exports: {},
-      require: () => ({})
-    };
-
-    // Execute formula parser (defines HotFormulaParser on globalThis)
-    const context = vm.createContext(sandbox);
-    vm.runInContext(parserSrc, context, { filename: 'formula-parser.min.js' });
-
-    // Execute formula.js (defines FormulaHandler using HotFormulaParser)
-    vm.runInContext(formulaSrc, context, { filename: 'formula.js' });
-
-    // Make evaluateFormula available globally (scripts call it directly)
-    vm.runInContext(`
-      if (typeof FormulaHandler !== 'undefined' && FormulaHandler.evaluateFormula) {
-        evaluateFormula = function(expr, vals, mode) {
-          return FormulaHandler.evaluateFormula(expr, vals, mode || 'formula');
-        };
-      }
-    `, context);
-
-    // Execute the price script (defines function f)
-    vm.runInContext(scriptSrc, context, { filename: path.basename(scriptPath) });
-
-    // Call f() with values
-    if (typeof sandbox.f === 'function') {
-      const jsonInput = JSON.stringify(values);
-      const result = vm.runInContext(`f(${JSON.stringify(jsonInput)})`, context);
-      return result;
-    }
-
-    return null;
+    return loadScriptRunner(scriptPath).run(values);
   } catch (err) {
     if (process.env.FORM_ENGINE_DEBUG) {
       log(`scriptRunner: error executing ${path.basename(scriptPath)}: ${err.message}`);
@@ -136,4 +197,4 @@ function runPriceScripts(params, values, groupNumber, version) {
   return values;
 }
 
-module.exports = { executeScript, runPriceScripts };
+module.exports = { executeScript, runPriceScripts, createRealm, loadScriptRunner };

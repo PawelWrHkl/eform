@@ -15,7 +15,7 @@ import { stopSpin, startSpin } from "../components/hourglass.js";
 import { getEnvVersion } from "../getEnv.js";
 import { getUserName } from "../base.js";
 import { chcekIfDateDeliveryCorrect } from './checkIfDateDeliveryCorrect.js';
-import { alternativesQuery, pickAvailableAlternatives, shadeKey } from './fabricAlternatives.js';
+import { alternativesQuery, isCoupon, pickAvailableAlternatives, shadeKey } from './fabricAlternatives.js';
 
 
 
@@ -1010,7 +1010,7 @@ export class DialogManager {
     const byValue = new Map(options.map(option => [option.VALUE, option]));
     const targets = [...this.listContainer.querySelectorAll('.image-box.unavailable, .image-box.obsolete')]
       .map(tile => ({ tile, option: byValue.get(tile.querySelector('.image-name').dataset.value) }))
-      .filter(({ option }) => option)
+      .filter(({ option }) => option && !isCoupon(option))
       .map(target => ({ ...target, ...alternativesQuery(target.option, aliasFile) }));
     if (!targets.length) return;
 
@@ -1069,7 +1069,10 @@ export class DialogManager {
       // Wybór przechodzi na kafelek głównej siatki: handleOptionClick działa
       // na nim tak samo jak przy zwykłym kliknięciu (też przy MULTI).
       const mainTile = this.listContainer.querySelector(`.image-name[data-value="${CSS.escape(option.VALUE)}"]`)?.closest('.image-box');
-      const tile = this.createOptionElement(option, this.imageMap, this.favList.includes(option.VALUE), () => {
+      // Bez wpisu w pliku stanów E-Formu kafelek nie miałby kropki stanu; API
+      // proponuje tylko tkaniny na stanie w PCB, więc to SAFE (kopia — opcja jest wspólna z główną siatką).
+      const tileOption = option.STAN ? option : { ...option, STAN: 'SAFE' };
+      const tile = this.createOptionElement(tileOption, this.imageMap, this.favList.includes(option.VALUE), () => {
         dialog.close();
         if (mainTile) this.handleOptionClick(mainTile);
       });

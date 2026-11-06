@@ -318,7 +318,7 @@ app.use((req, res, next) => {
 			voice: !!assistantConfig.voice.enabled,
 			// Animacje także przy „ogranicz ruch” w systemie / RDP (ASSISTANT_ANIMATE_ALWAYS).
 			animateAlways: !!assistantConfig.animateAlways,
-			// Czytanie na głos (ASSISTANT_TTS_ENABLED + klucz OpenAI) — public/scripts/assistant/speech.js.
+			// Czytanie na głos (ASSISTANT_TTS_ENABLED + klucz OpenAI w .env.local) — public/scripts/assistant/speech.js.
 			tts: !!(assistantConfig.tts.enabled && assistantConfig.apiKey),
 			// Szczekanie pieska w pokazie (ASSISTANT_BARK_SOUND) — tylko z maskotką.
 			bark: !!(assistantConfig.avatar.enabled && assistantConfig.avatar.barkSound),

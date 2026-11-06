@@ -995,6 +995,11 @@ dialog.compact-dialog #status-info:empty {
 	padding: 0.5rem;
 }
 
+/* Plakietki pod nazwą nie mieszczą się w sztywnym max-height kafelka (.image-box). */
+.alternatives-grid .image-box {
+	max-height: none !important;
+}
+
 .alternative-meta {
 	display: flex;
 	flex-wrap: wrap;

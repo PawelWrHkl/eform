@@ -203,7 +203,7 @@ module.exports = {
       maxMinutesPerDay: Number(process.env.ASSISTANT_VOICE_MAX_MINUTES_PER_DAY) || 30
     },
     // Eforek czyta na głos odpowiedzi i dymki pokazu (`ASSISTANT_TTS_ENABLED=true`) —
-    // synteza mowy OpenAI (services/assistant/tts.js), zawsze OpenAI, jak głos.
+    // synteza mowy OpenAI (services/assistant/tts.js), zawsze OpenAI, jak rozmowa głosowa.
     tts: {
       enabled: envSwitch(process.env.ASSISTANT_TTS_ENABLED),
       url: process.env.OPENAI_TTS_URL || 'https://api.openai.com/v1/audio/speech',

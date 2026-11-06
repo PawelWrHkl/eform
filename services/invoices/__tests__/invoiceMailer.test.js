@@ -291,7 +291,7 @@ test('przebieg (tryb testowy): faktury automatu → PDF → mail tylko do Pawła
     doneEvent: MailEvent.REDIRECTED,
     failedEvent: MailEvent.FAILED,
     maxAttempts: MAX_ATTEMPTS,
-    createdByPin: AUTO_ACTOR,
+    createdByPin: [AUTO_ACTOR, 'AUTO-DAILY'],
     limit: 50
   });
   assert.equal(result.sent.length, 2);

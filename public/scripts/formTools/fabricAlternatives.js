@@ -23,9 +23,15 @@ export function pickAvailableAlternatives(alternatives, options, limit = 5) {
     .map(alternative => ({ alternative, option: byCode.get(alternative.code) }))
     .filter(({ option }) => option
       && !option.OBSOLETE
-      && !/ZERO|COUPON/i.test(String(option.STAN ?? ''))
-      && !String(option.ATTR_DESC ?? '').includes('KUPON'))
+      && !/ZERO/i.test(String(option.STAN ?? ''))
+      && !isCoupon(option))
     .slice(0, limit);
+}
+
+// Kupon = tkanina z wydłużonym terminem („KUPON - 2/3 Tygodnie” w INFO pliku
+// stanów albo STAN COUPON): nie dostaje alternatyw i sama nie jest alternatywą.
+export function isCoupon(option) {
+  return /COUPON/i.test(String(option.STAN ?? '')) || String(option.ATTR_DESC ?? '').includes('KUPON');
 }
 
 // Progi ΔE z opisu API: 0-2 prawie ten sam, 2-5 bardzo bliski, 5-10 podobny.

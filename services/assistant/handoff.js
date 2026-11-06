@@ -153,9 +153,12 @@ async function sendHandoff(p, deps = {}) {
 	lines.push('', '──────── Rozmowa z asystentem ────────', '', formatTranscript(state.messages) || '(brak wiadomości)');
 
 	const sendMail = deps.sendMail || ((m) => getTransporter().sendMail(m));
+	// Nadawca z nazwą, jak pozostałe maile systemu (mailBot, importMailer) — sam adres bota bywa
+	// gorzej traktowany przez filtry poczty.
+	const sender = env.MAILBOT_USER ? `"${env.MAILBOT_ALIAS || 'e-orders'}" <${env.MAILBOT_USER}>` : undefined;
 	try {
 		await sendMail({
-			from: env.MAILBOT_USER,
+			from: sender,
 			to: to.join(','),
 			replyTo: p.contactEmail,
 			subject: `eForm – prośba o kontakt: ${client}`,
@@ -175,7 +178,7 @@ async function sendHandoff(p, deps = {}) {
 	const lastQuestion = [...state.messages].reverse().find((m) => m.role === 'user' && m.text);
 	try {
 		await sendMail({
-			from: env.MAILBOT_USER,
+			from: sender,
 			to: p.contactEmail,
 			replyTo: to.join(','),
 			subject: S.handoffMailSubject,

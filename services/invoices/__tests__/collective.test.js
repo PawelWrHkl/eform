@@ -9,7 +9,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { periodFor, isPeriodClosed, groupCollectiveCandidates, normalizeSchedule } = require('../core/collective');
+const { periodFor, isPeriodClosed, groupCollectiveCandidates, groupDailyCandidates, normalizeSchedule, DAILY_ACTOR } = require('../core/collective');
 const { runAutoInvoicing, readAutoInvoiceConfig, AUTO_ACTOR } = require('../autoInvoicing');
 const { addDays } = require('../core/dates');
 
@@ -68,6 +68,41 @@ test('groupCollectiveCandidates: klient + sklep grupowy + okres, otwarte okresy 
     [9, null, '2026-W40', [6]]
   ]);
   assert.equal(groups[1].userIdent, 'TCN');
+});
+
+test('groupDailyCandidates: poziom 1 — organizacja i dzień, klienci alfabetycznie, u klienta zlecenia po kolei', () => {
+  const l1 = (id, user_ident, order_idx, day, extra = {}) => ({ id, level: 1, organization_id: 5, organization_ident: 'LUXANGMBH', user_id: user_ident.length, user_ident, order_idx, delivery_date: day, ...extra });
+  const rows = [
+    l1(1, 'Matthes', '1210', '2026-11-03'),
+    l1(2, 'KN_Wohnen', '1215', '2026-11-03'),
+    l1(3, 'Matthes', '1190', '2026-11-03'),
+    l1(4, 'aachen', '1300', '2026-11-03'), // wielkość liter nie zmienia kolejności
+    l1(5, 'KN_Wohnen', '999', '2026-11-03'), // „po kolei" liczbowo, nie tekstowo
+    l1(6, 'Matthes', '1220', '2026-11-04'), // inny dzień = inna faktura
+    l1(7, 'Matthes', '1221', '2026-11-03', { organization_id: 1, organization_ident: 'Cozy' }),
+    l1(8, 'Matthes', '1230', '2026-11-05') // dzień jeszcze otwarty
+  ];
+  const groups = groupDailyCandidates(rows, { todayIso: '2026-11-06' });
+  assert.deepEqual(groups.map((g) => [g.level, g.userIdent, g.period.key, g.orderIds]), [
+    [1, 'Cozy', '2026-11-03', [7]],
+    [1, 'LUXANGMBH', '2026-11-03', [4, 5, 2, 3, 1]],
+    [1, 'LUXANGMBH', '2026-11-04', [6]]
+  ]);
+  assert.equal(groups[1].userId, null, 'nabywcą jest organizacja');
+});
+
+test('groupDailyCandidates: poziom 2 — klient HKL (i sklep grupowy) i dzień', () => {
+  const rows = [
+    { id: 1, level: 2, organization_id: 3, user_id: 7, user_ident: 'TCN', order_idx: '191', delivery_date: '2026-11-02' },
+    { id: 2, level: 2, organization_id: 3, user_id: 7, user_ident: 'TCN', order_idx: '190', delivery_date: '2026-11-02' },
+    { id: 3, level: 2, organization_id: 3, user_id: 7, user_ident: 'TCN', order_idx: '192', delivery_date: '2026-11-02', group_user_id: 11 },
+    { id: 4, level: 2, organization_id: 3, user_id: 8, user_ident: 'ABC', order_idx: '50', delivery_date: '2026-11-02' }
+  ];
+  assert.deepEqual(groupDailyCandidates(rows, { todayIso: '2026-11-04' }).map((g) => [g.userIdent, g.groupUserId, g.orderIds]), [
+    ['ABC', null, [4]],
+    ['TCN', null, [2, 1]],
+    ['TCN', 11, [3]]
+  ]);
 });
 
 /* ------------------------------------------------------------------ */
@@ -153,6 +188,21 @@ test('createCollective: zamówienia różnych klientów albo bez !sent! — odmo
   assert.deepEqual([...mixed.saved, ...notShipped.saved, ...otherShop.saved], []);
 });
 
+test('createCollective poziom 1: zamówienia różnych klientów jednej organizacji, ident klienta przy pozycji', async () => {
+  const org5 = (s, ident) => ({ ...s, order: { ...s.order, organization_id: 5 }, organization: { id: 5, name: 'Luxan GmbH', country: 'DE' }, user: { ...s.user, ident } });
+  const repository = fakeRepository({ 1: org5(source(1, { idx: '1190', userId: 20 }), 'KN_Wohnen'), 2: org5(source(2, { idx: '1210', userId: 21 }), 'Matthes') });
+  await service(repository).createCollective({ orderIds: [1, 2], level: 1, period: { key: '2026-11-03', start: '2026-11-03', end: '2026-11-03' }, createdByPin: DAILY_ACTOR });
+  const inv = repository.saved[0];
+  assert.equal(inv.level, 1);
+  assert.equal(inv.createdByPin, DAILY_ACTOR);
+  assert.deepEqual(inv.items.map((i) => i.orderNumber), ['KN_Wohnen · 1190', 'Matthes · 1210']);
+  assert.equal(inv.saleDate, '2026-11-03');
+
+  const mixed = fakeRepository({ 1: org5(source(1), 'A'), 2: source(2) });
+  await assert.rejects(service(mixed).createCollective({ orderIds: [1, 2], level: 1, period: SEPT }), /jednej organizacji/);
+  assert.equal(mixed.saved.length, 0);
+});
+
 test('createCollective: długa lista zamówień mieści się w order_ref (64 znaki)', async () => {
   const sources = {};
   const ids = [];
@@ -220,6 +270,36 @@ test('automat: zamówienie zafakturowane w międzyczasie ręcznie wypada z faktu
     deps: { repository: autoRepository(rows, { invoiced: [1] }), service: svc, log: quiet, now: () => new Date(2026, 9, 5) }
   });
   assert.deepEqual(calls[0].orderIds, [2]);
+});
+
+test('automat: faktury dzienne HKL obok faktur per zlecenie — poziomy 1 i 2, tylko przy INVOICE_DAILY_SINCE', async () => {
+  const calls = [];
+  const queries = [];
+  const svc = { createCollective: async (p) => { calls.push(p); return { id: calls.length, number: `2026/0030${calls.length}` }; } };
+  const repository = {
+    async findAutoInvoiceCandidates() { return []; },
+    async findCollectiveCandidates() { return []; },
+    async hasLevelInvoice() { return true; }, // faktury per zlecenie już są — dziennej to nie blokuje
+    async findDailyCandidates(p) {
+      queries.push(p);
+      return p.level === 1
+        ? [{ id: 1, level: 1, organization_id: 5, organization_ident: 'LUXANGMBH', user_id: 20, user_ident: 'Matthes', order_idx: '1210', delivery_date: '2026-11-03' }]
+        : [{ id: 2, level: 2, organization_id: 3, user_id: 7, user_ident: 'TCN', order_idx: '190', delivery_date: '2026-11-03' }];
+    }
+  };
+  const config = readAutoInvoiceConfig({ INVOICE_AUTOGEN_ENABLED: 'true', INVOICE_AUTOGEN_SINCE: '2026-01-01', INVOICE_DAILY_SINCE: '2026-11-01' }, { invoicesEnabled: true });
+  const result = await runAutoInvoicing({ config, deps: { repository, service: svc, log: quiet, now: () => new Date(2026, 10, 5, 1, 0) } });
+
+  assert.deepEqual(queries.map((q) => [q.level, q.since]), [[1, '2026-11-01'], [2, '2026-11-01']]);
+  assert.deepEqual(calls.map((c) => [c.level, c.orderIds, c.period.key, c.createdByPin]), [
+    [1, [1], '2026-11-03', DAILY_ACTOR],
+    [2, [2], '2026-11-03', DAILY_ACTOR]
+  ]);
+  assert.equal(result.created.every((c) => c.daily === true), true);
+
+  const off = await runAutoInvoicing({ config: autoConfig(), deps: { repository, service: svc, log: quiet, now: () => new Date(2026, 10, 5) } });
+  assert.equal(off.created.length, 0, 'bez INVOICE_DAILY_SINCE nic dziennego');
+  assert.match(readAutoInvoiceConfig({ INVOICE_AUTOGEN_ENABLED: 'true', INVOICE_AUTOGEN_SINCE: '2026-01-01', INVOICE_DAILY_SINCE: '6.11' }, { invoicesEnabled: true }).problems.join(), /INVOICE_DAILY_SINCE/);
 });
 
 test('automat: dry-run wypisuje faktury zbiorcze bez wystawiania', async () => {

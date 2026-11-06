@@ -14,6 +14,11 @@
  * każde zlecenie — po zamknięciu okresu automat wystawia mu JEDNĄ fakturę ze
  * wszystkich zleceń z tego okresu (`core/collective.js`, `InvoiceService.createCollective`).
  *
+ * FAKTURY DZIENNE HKL (od `INVOICE_DAILY_SINCE`): OBOK faktur per zlecenie HKL
+ * wystawia jedną fakturę za dzień wysyłki — organizacji (poziom 1, zlecenia
+ * wszystkich jej klientów) i każdemu klientowi HKL (poziom 2). Autor `DAILY_ACTOR`;
+ * nie blokują faktur per zlecenie; mail jak reszta automatu, FTP w `dzienne/`.
+ *
  * Konfiguracja (`.env`, domyślnie WYŁĄCZONE — brak zmiennej = nic się nie dzieje):
  *   INVOICE_AUTOGEN_ENABLED=true        włącznik
  *   INVOICE_AUTOGEN_SINCE=2026-10-01    WYMAGANE: tylko zamówienia wysłane od tego dnia
@@ -23,6 +28,7 @@
  *   INVOICE_AUTOGEN_ORGS=3,5            opcjonalnie: tylko te organizacje (id); puste = wszystkie
  *   INVOICE_AUTOGEN_ISSUE=true          `false` → szkice do przejrzenia zamiast faktur z numerem
  *   INVOICE_AUTOGEN_MAX_PER_RUN=100     bezpiecznik na jeden przebieg
+ *   INVOICE_DAILY_SINCE=2026-11-06      faktury dzienne HKL za dni wysyłki od tego dnia; puste = wyłączone
  *
  * ⚠️ `SINCE` jest wymagane świadomie: w bazie są setki wysłanych zamówień
  * rozliczonych poza eForm. Bez progu pierwszy przebieg wystawiłby im wszystkim
@@ -40,7 +46,7 @@ const defaultRepository = require('./db/repository');
 const { InvoiceLevel } = require('./core/hierarchy');
 const { HKL_ORG_ID } = require('./core/pricing');
 const { features } = require('../../config');
-const { groupCollectiveCandidates } = require('./core/collective');
+const { groupCollectiveCandidates, groupDailyCandidates, DAILY_ACTOR } = require('./core/collective');
 const { todayIso } = require('./core/dates');
 const { log: defaultLog } = require('../../utils/logging');
 
@@ -56,6 +62,13 @@ const SUPPORTED_LEVELS = [
 ];
 
 const DEFAULT_MAX_PER_RUN = 100;
+
+/** @returns {string|null} data RRRR-MM-DD albo `null` przy pustej/złej wartości */
+function parseIsoDay(value) {
+  const raw = String(value || '').trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00Z`) : null;
+  return date && !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === raw ? raw : null;
+}
 
 /**
  * @param {string|undefined} value
@@ -74,17 +87,16 @@ function parseIdList(value) {
  *
  * @param {Record<string, string|undefined>} [env]
  * @param {{ invoicesEnabled?: boolean }} [opts] stan flagi INVOICES_ENABLED
- * @returns {{ enabled: boolean, active: boolean, since: string|null, levels: number[], organizationIds: number[], issue: boolean, maxPerRun: number, problems: string[] }}
+ * @returns {{ enabled: boolean, active: boolean, since: string|null, dailySince: string|null, levels: number[], organizationIds: number[], issue: boolean, maxPerRun: number, problems: string[] }}
  */
 function readAutoInvoiceConfig(env = process.env, { invoicesEnabled = !!features?.invoices } = {}) {
   const enabled = String(env.INVOICE_AUTOGEN_ENABLED).toLowerCase() === 'true';
   const problems = [];
 
   const rawSince = String(env.INVOICE_AUTOGEN_SINCE || '').trim();
-  const sinceDate = /^\d{4}-\d{2}-\d{2}$/.test(rawSince) ? new Date(`${rawSince}T00:00:00Z`) : null;
-  const since = sinceDate && !Number.isNaN(sinceDate.getTime()) && sinceDate.toISOString().slice(0, 10) === rawSince
-    ? rawSince
-    : null;
+  const since = parseIsoDay(rawSince);
+  const rawDailySince = String(env.INVOICE_DAILY_SINCE || '').trim();
+  const dailySince = parseIsoDay(rawDailySince);
 
   const requestedLevels = env.INVOICE_AUTOGEN_LEVELS === undefined || String(env.INVOICE_AUTOGEN_LEVELS).trim() === ''
     ? [...SUPPORTED_LEVELS]
@@ -99,6 +111,7 @@ function readAutoInvoiceConfig(env = process.env, { invoicesEnabled = !!features
     if (!since) problems.push(`INVOICE_AUTOGEN_SINCE musi być datą RRRR-MM-DD (jest: „${rawSince}")`);
     if (ignoredLevels.length) problems.push(`INVOICE_AUTOGEN_LEVELS: automat obsługuje tylko poziomy ${SUPPORTED_LEVELS.join(', ')} (pominięto: ${ignoredLevels.join(', ')})`);
     if (!levels.length) problems.push('INVOICE_AUTOGEN_LEVELS nie zawiera żadnego obsługiwanego poziomu');
+    if (rawDailySince && !dailySince) problems.push(`INVOICE_DAILY_SINCE musi być datą RRRR-MM-DD (jest: „${rawDailySince}") — faktury dzienne wyłączone`);
   }
 
   return {
@@ -106,6 +119,7 @@ function readAutoInvoiceConfig(env = process.env, { invoicesEnabled = !!features
     // Pominięty poziom spoza zakresu to ostrzeżenie, nie blokada — reszta działa
     active: enabled && invoicesEnabled && !!since && levels.length > 0,
     since,
+    dailySince,
     levels,
     organizationIds: parseIdList(env.INVOICE_AUTOGEN_ORGS),
     issue: String(env.INVOICE_AUTOGEN_ISSUE ?? 'true').toLowerCase() !== 'false',
@@ -209,52 +223,70 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
     }
   }
 
-  // Faktury zbiorcze — poziom 2 dla klientów z harmonogramem tygodniowym/miesięcznym
+  // Faktury zbiorcze — poziom 2 dla klientów z harmonogramem tygodniowym/miesięcznym,
+  // i faktury dzienne HKL (poziomy 1 i 2) — dokument z wielu zamówień naraz
+  const groups = [];
   if (config.levels.includes(InvoiceLevel.ORGANIZATION_TO_USER) && budget > 0 && repository.findCollectiveCandidates) {
     const rows = await repository.findCollectiveCandidates({ since: config.since, organizationIds: config.organizationIds });
-    const groups = groupCollectiveCandidates(rows, { todayIso: todayIso(now()) });
-    for (const group of groups) {
-      if (budget <= 0) break;
-      budget--;
-      const label = `faktura zbiorcza ${group.period.key} (${group.schedule}) — klient ${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')}`;
+    groups.push(...groupCollectiveCandidates(rows, { todayIso: todayIso(now()) })
+      .map((g) => ({ ...g, level: InvoiceLevel.ORGANIZATION_TO_USER, actor: AUTO_ACTOR })));
+  }
+  if (config.dailySince && budget > 0 && repository.findDailyCandidates) {
+    for (const level of [InvoiceLevel.MANUFACTURER_TO_ORGANIZATION, InvoiceLevel.ORGANIZATION_TO_USER].filter((lv) => config.levels.includes(lv))) {
+      const rows = await repository.findDailyCandidates({ level, since: config.dailySince, organizationIds: config.organizationIds });
+      groups.push(...groupDailyCandidates(rows, { todayIso: todayIso(now()) }).map((g) => ({ ...g, actor: DAILY_ACTOR })));
+    }
+  }
 
-      if (dryRun) {
-        result.planned.push({ collective: true, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER });
-        log(`[invoices:auto] DRY-RUN: wystawiłbym — ${label}`);
+  for (const group of groups) {
+    if (budget <= 0) break;
+    budget--;
+    const { level } = group;
+    const daily = group.actor === DAILY_ACTOR;
+    const kind = daily ? { daily: true } : { collective: true };
+    const what = daily ? `faktura dzienna HKL ${group.period.key} (poziom ${level})` : `faktura zbiorcza ${group.period.key} (${group.schedule})`;
+    const label = `${what} — ${daily && level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? 'organizacja' : 'klient'} ${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')}`;
+    const short = `${daily ? 'dzienna' : 'zbiorcza'} ${group.period.key} (${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')})`;
+
+    if (dryRun) {
+      result.planned.push({ ...kind, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level });
+      log(`[invoices:auto] DRY-RUN: wystawiłbym — ${label}`);
+      continue;
+    }
+
+    try {
+      // Między wyszukaniem a wystawieniem ktoś mógł zafakturować zlecenie ręcznie.
+      // Dzienna jest dodatkowa — faktura per zlecenie jej nie wyklucza.
+      const orderIds = [];
+      for (const orderId of group.orderIds) {
+        if (daily || !(await repository.hasLevelInvoice({ orderId, level }))) orderIds.push(orderId);
+      }
+      if (!orderIds.length) {
+        result.skippedExisting += group.orderIds.length;
         continue;
       }
-
-      try {
-        // Między wyszukaniem a wystawieniem ktoś mógł zafakturować zlecenie ręcznie
-        const orderIds = [];
-        for (const orderId of group.orderIds) {
-          if (!(await repository.hasLevelInvoice({ orderId, level: InvoiceLevel.ORGANIZATION_TO_USER }))) orderIds.push(orderId);
-        }
-        if (!orderIds.length) {
-          result.skippedExisting += group.orderIds.length;
-          continue;
-        }
-        const created = await service.createCollective({
-          orderIds,
-          period: group.period,
-          issue: config.issue,
-          createdByPin: AUTO_ACTOR,
-          requireLetterhead: true
-        });
-        result.created.push({ collective: true, userId: group.userId, period: group.period.key, orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, invoiceId: created.id, number: created.number });
-        log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
-      } catch (err) {
-        if (err && err.code === ZERO_TOTAL_ERROR_CODE) {
-          result.skippedZero.push({ collective: true, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, label: `zbiorcza ${group.period.key} (${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')})` });
-          continue;
-        }
-        if (err && err.code === NO_LETTERHEAD_ERROR_CODE) {
-          result.skippedNoLetterhead.push({ collective: true, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, issuer: err.issuerName || '', label: `zbiorcza ${group.period.key} (${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')})` });
-          continue;
-        }
-        result.failed.push({ collective: true, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level: InvoiceLevel.ORGANIZATION_TO_USER, error: err.message });
-        log(`[invoices:auto] BŁĄD — ${label}: ${err.message}`);
+      const created = await service.createCollective({
+        orderIds,
+        period: group.period,
+        level,
+        issue: config.issue,
+        createdByPin: group.actor,
+        requireLetterhead: true
+      });
+      result.created.push({ ...kind, userId: group.userId, period: group.period.key, orderIds, level, invoiceId: created.id, number: created.number });
+      log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
+    } catch (err) {
+      const failed = { ...kind, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level };
+      if (err && err.code === ZERO_TOTAL_ERROR_CODE) {
+        result.skippedZero.push({ ...failed, label: short });
+        continue;
       }
+      if (err && err.code === NO_LETTERHEAD_ERROR_CODE) {
+        result.skippedNoLetterhead.push({ ...failed, issuer: err.issuerName || '', label: short });
+        continue;
+      }
+      result.failed.push({ ...failed, error: err.message });
+      log(`[invoices:auto] BŁĄD — ${label}: ${err.message}`);
     }
   }
 

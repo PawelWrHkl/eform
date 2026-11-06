@@ -10,6 +10,8 @@
  *
  *   <katalog>/hkl-organizacja/<ORGANIZACJA>/<plik>.pdf              poziom 1: HKL → organizacja (nabywca)
  *   <katalog>/organizacja-klient/<ORGANIZACJA>/<KLIENT>/<plik>.pdf  poziom 2: organizacja (wystawca) → klient
+ *   <katalog>/dzienne/…                                             faktury dzienne HKL (`DAILY_ACTOR`), ten sam
+ *                                                                   układ, osobno od faktur per zlecenie
  *
  * Katalogi to identy z eForma (`organization.ident`, `user.ident`) — jak w
  * nazwach plików zleceń na tym samym FTP (`HKL_TCN_190_pdf.pdf`); zamieniane są
@@ -47,6 +49,7 @@ const { Readable } = require('stream');
 const defaultRepository = require('./db/repository');
 const renderer = require('./render/renderer');
 const { AUTO_ACTOR } = require('./autoInvoicing');
+const { DAILY_ACTOR } = require('./core/collective');
 const { InvoiceLevel } = require('./core/hierarchy');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 const { log: defaultLog } = require('../../utils/logging');
@@ -157,7 +160,7 @@ function buildRemoteTarget(row, rootDir) {
   const folder = LEVEL_FOLDERS[level];
   if (!folder) throw new Error(`poziom ${row.level} nie ma katalogu na FTP`);
 
-  const segments = [rootDir, folder];
+  const segments = row.created_by_pin === DAILY_ACTOR ? [rootDir, 'dzienne', folder] : [rootDir, folder];
   if (level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) {
     // Poziom 1: `organization_id` faktury to organizacja-NABYWCA
     segments.push(pathSegment(row.organization_ident) || `organizacja-${row.organization_id}`);
@@ -241,7 +244,7 @@ async function runInvoiceFtpExport({ dryRun = false, config = readInvoiceFtpConf
     doneEvent: FtpEvent.UPLOADED,
     failedEvent: FtpEvent.FAILED,
     maxAttempts: MAX_ATTEMPTS,
-    createdByPin: AUTO_ACTOR,
+    createdByPin: [AUTO_ACTOR, DAILY_ACTOR],
     levels: SUPPORTED_LEVELS,
     limit: config.maxPerRun
   });

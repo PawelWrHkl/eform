@@ -49,7 +49,7 @@ test('mail idzie na adres marki, z Reply-To klienta, transkryptem i kontekstem',
 	const m = sendMail.sent[0];
 	assert.equal(m.to, 'de@luxan.example,de2@luxan.example');
 	assert.equal(m.replyTo, 'anna@example.com');
-	assert.equal(m.from, 'bot@x');
+	assert.equal(m.from, '"e-orders" <bot@x>', 'nadawca z nazwą, jak pozostałe maile systemu');
 	assert.match(m.subject, /prośba o kontakt: Rollo GmbH \(K100\)/);
 	assert.match(m.text, /Organizacja: Luxan GmbH \[LUXANGMBH\]/);
 	assert.match(m.text, /Pisze pracownik klienta: Anna Nowak/);

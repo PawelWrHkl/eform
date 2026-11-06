@@ -115,11 +115,70 @@ function groupCollectiveCandidates(rows, { todayIso, graceDays = COLLECTIVE_GRAC
   return [...groups.values()].sort((a, b) => (a.period.start < b.period.start ? -1 : a.period.start > b.period.start ? 1 : a.userId - b.userId));
 }
 
+/**
+ * `created_by_pin` FAKTUR DZIENNYCH HKL: dokument DODATKOWY, wystawiany obok
+ * faktur per zlecenie (decyzja właściciela 2026-11-06). Zapytania o „czy zlecenie
+ * ma już fakturę" go pomijają (`repository.linkedDocumentSql`). Mail jak faktury
+ * automatu (od 2026-11-06 też, REDIRECT), na FTP do katalogu `dzienne/`.
+ */
+const DAILY_ACTOR = 'AUTO-DAILY';
+
+const byText = (a, b) => String(a || '').localeCompare(String(b || ''), undefined, { sensitivity: 'base', numeric: true });
+
+/**
+ * Zlecenia wysłane przez HKL → faktury dzienne (wiersze `repository.findDailyCandidates`).
+ *
+ * Poziom 1 (HKL → organizacja): jedna faktura na organizację i dzień wysyłki ze
+ * zleceń WSZYSTKICH jej klientów, ułożonych klientami alfabetycznie, a u klienta
+ * zleceniami po kolei. Poziom 2 (HKL → klient HKL): jedna faktura na klienta
+ * (i sklep grupowy) i dzień. Dzień bez wysyłek nie daje faktury. Dzień zamyka
+ * się z tym samym zapasem co okresy zbiorcze (`COLLECTIVE_GRACE_DAYS`).
+ *
+ * @param {Array<{ id: number, level: number, order_idx?: string, organization_id: number, organization_ident?: string, user_id: number, user_ident?: string, group_user_id?: number|null, delivery_date: Date|string }>} rows
+ * @param {{ todayIso: string, graceDays?: number }} opts
+ * @returns {Array<{ level: number, userId: number|null, userIdent: string|null, groupUserId: number|null, schedule: 'daily', period: object, orderIds: number[] }>}
+ */
+function groupDailyCandidates(rows, { todayIso, graceDays = COLLECTIVE_GRACE_DAYS }) {
+  const groups = new Map();
+  for (const row of rows || []) {
+    const day = toIsoDay(row.delivery_date);
+    if (!day) continue;
+    const period = { schedule: 'daily', key: day, start: day, end: day };
+    if (!isPeriodClosed(period, todayIso, graceDays)) continue;
+    const level = Number(row.level);
+    const groupUserId = level === 1 || !row.group_user_id ? null : Number(row.group_user_id);
+    const key = level === 1 ? `1|${row.organization_id}|${day}` : `2|${row.user_id}|${groupUserId || ''}|${day}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        level,
+        userId: level === 1 ? null : Number(row.user_id),
+        userIdent: (level === 1 ? row.organization_ident : row.user_ident) || null,
+        groupUserId,
+        schedule: 'daily',
+        period,
+        rows: []
+      });
+    }
+    groups.get(key).rows.push(row);
+  }
+  return [...groups.values()]
+    .map(({ rows: orders, ...group }) => ({
+      ...group,
+      orderIds: orders
+        .sort((a, b) => byText(a.user_ident, b.user_ident) || a.user_id - b.user_id
+          || byText(a.order_idx, b.order_idx) || a.id - b.id)
+        .map((r) => Number(r.id))
+    }))
+    .sort((a, b) => byText(a.period.start, b.period.start) || a.level - b.level || byText(a.userIdent, b.userIdent));
+}
+
 module.exports = {
   SCHEDULES,
   COLLECTIVE_GRACE_DAYS,
+  DAILY_ACTOR,
   normalizeSchedule,
   periodFor,
   isPeriodClosed,
-  groupCollectiveCandidates
+  groupCollectiveCandidates,
+  groupDailyCandidates
 };

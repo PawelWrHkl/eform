@@ -28,6 +28,7 @@ const hierarchy = require('../core/hierarchy');
 const { resolvePriceBasis, PriceBasis, HKL_ORG_ID } = require('../core/pricing');
 const { parseSpeditionNumbers } = require('../../prodStatus');
 const { AUTO_ACTOR, readAutoInvoiceConfig } = require('../autoInvoicing');
+const { DAILY_ACTOR } = require('../core/collective');
 const { listBackgrounds } = require('../templateAssignment');
 const { parsePageMargins } = require('../core/templates');
 const { DOCUMENT_LANGUAGES } = require('../core/language');
@@ -322,7 +323,7 @@ function decorateInvoices(rows, lang) {
     dueFmt: money.format(money.toMinor(r.amount_due, r.currency), r.currency, lang),
     issueDateFmt: formatDate(r.issue_date, lang),
     dueDateFmt: formatDate(r.due_date, lang),
-    isAuto: r.created_by_pin === AUTO_ACTOR
+    isAuto: r.created_by_pin === AUTO_ACTOR || r.created_by_pin === DAILY_ACTOR
   }));
 }
 

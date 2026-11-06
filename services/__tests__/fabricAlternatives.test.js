@@ -47,6 +47,13 @@ test('lista HKL dopasowuje po VALUE, limit przycina wynik', () => {
   assert.deepEqual(mod.pickAvailableAlternatives(undefined, options), []);
 });
 
+test('kupon: STAN COUPON albo „KUPON” w INFO pliku stanów (format z !storage!)', () => {
+  assert.equal(mod.isCoupon({ STAN: 'ZERO', ATTR_DESC: '!delivery!: KUPON - 2/3 Tygodnie' }), true);
+  assert.equal(mod.isCoupon({ STAN: 'COUPON' }), true);
+  assert.equal(mod.isCoupon({ STAN: 'ZERO', ATTR_DESC: '!delivery!: 2026-11-06' }), false);
+  assert.equal(mod.isCoupon({ VALUE: '3003-P20' }), false);
+});
+
 test('progi odcienia z opisu API', () => {
   assert.equal(mod.shadeKey(0.1), 'form.alternatives_shade_same');
   assert.equal(mod.shadeKey(2), 'form.alternatives_shade_close');

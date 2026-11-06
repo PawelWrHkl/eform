@@ -219,10 +219,14 @@ class InvoiceService {
    * pozycja niesie numer swojego zamówienia, a data sprzedaży/dostawy to koniec
    * okresu (dostawy okresowe).
    *
+   * Poziom 1 (faktura dzienna HKL → organizacja, `core/collective.js:groupDailyCandidates`):
+   * nabywcą jest organizacja, więc zamówienia mogą być różnych jej klientów —
+   * przy pozycji stoi wtedy ident klienta obok numeru zamówienia.
+   *
    * @param {Object} params
-   * @param {number[]} params.orderIds   zamówienia jednego klienta (i sklepu grupowego) z jednej organizacji
+   * @param {number[]} params.orderIds   zamówienia jednego klienta (i sklepu grupowego) z jednej organizacji; poziom 1 — jednej organizacji
    * @param {{ key: string, start: string, end: string }} params.period
-   * @param {number} [params.level=2]    faktura zbiorcza dotyczy relacji organizacja → klient
+   * @param {number} [params.level=2]    2 = organizacja → klient, 1 = HKL → organizacja
    * @param {boolean} [params.issue=true]
    * @param {string} [params.lang]
    * @param {string} [params.createdByPin]
@@ -231,21 +235,24 @@ class InvoiceService {
    */
   async createCollective({ orderIds, period, level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, issue = true, lang, createdByPin, requireLetterhead = false }) {
     if (!Array.isArray(orderIds) || !orderIds.length) throw new Error('Faktura zbiorcza wymaga listy zamówień');
-    if (Number(level) !== hierarchy.InvoiceLevel.ORGANIZATION_TO_USER) {
-      throw new Error('Faktura zbiorcza dotyczy wyłącznie poziomu 2 (organizacja → klient)');
+    const toOrganization = Number(level) === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION;
+    if (!toOrganization && Number(level) !== hierarchy.InvoiceLevel.ORGANIZATION_TO_USER) {
+      throw new Error('Faktura zbiorcza dotyczy wyłącznie poziomu 1 (HKL → organizacja) i 2 (organizacja → klient)');
     }
     if (!period || !period.start || !period.end) throw new Error('Faktura zbiorcza wymaga okresu rozliczeniowego');
 
     const sources = [];
     for (const id of orderIds) sources.push(await this.loadInvoiceableSource(id));
     const first = sources[0];
-    // Jedna para stron na dokumencie: ten sam klient, ta sama organizacja i ten
-    // sam sklep grupowy (sklep z własnym NIP-em jest osobnym nabywcą)
-    const sameParties = sources.every((s) => Number(s.user.id) === Number(first.user.id)
-      && Number(s.order.organization_id) === Number(first.order.organization_id)
-      && Number(s.order.group_user_id || 0) === Number(first.order.group_user_id || 0));
+    // Jedna para stron na dokumencie: ta sama organizacja, a na poziomie 2 także
+    // ten sam klient i sklep grupowy (sklep z własnym NIP-em jest osobnym nabywcą)
+    const sameParties = sources.every((s) => Number(s.order.organization_id) === Number(first.order.organization_id)
+      && (toOrganization || (Number(s.user.id) === Number(first.user.id)
+        && Number(s.order.group_user_id || 0) === Number(first.order.group_user_id || 0))));
     if (!sameParties) {
-      throw new Error('Faktura zbiorcza wymaga zamówień jednego klienta (i jednego sklepu grupowego) w jednej organizacji');
+      throw new Error(toOrganization
+        ? 'Faktura zbiorcza poziomu 1 wymaga zamówień jednej organizacji'
+        : 'Faktura zbiorcza wymaga zamówień jednego klienta (i jednego sklepu grupowego) w jednej organizacji');
     }
 
     return this.buildDocument({
@@ -478,7 +485,11 @@ class InvoiceService {
       useSubPrices: priceBasis.useSubPrices,
       useListPrices: priceBasis.useListPrices === true,
       retailValueByItemId
-    }).map((item) => (collective ? { ...item, orderNumber: String(s.order.order_idx || s.order.id) } : item)));
+    }).map((item) => (collective ? {
+      ...item,
+      orderNumber: [level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? s.user.ident : '', String(s.order.order_idx || s.order.id)]
+        .filter(Boolean).join(' · ')
+    } : item)));
 
 
     let requestedAllocations = null;

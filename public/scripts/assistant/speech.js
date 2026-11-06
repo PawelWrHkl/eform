@@ -36,7 +36,8 @@
 	audio.preload = 'auto';
 	var queue = [];        // [{ text }]
 	var current = null;    // bieżąca wypowiedź
-	var blocked = null;    // wypowiedź czekająca na gest klienta
+	var blocked = null;    // [wypowiedzi] czekające na gest klienta — NIE wstrzymują pokazu
+	var guard = null;      // bezpiecznik: zawieszone nagranie nie blokuje Eforka
 	var unlocked = false;
 	var generation = 0;    // stop() unieważnia trwające pobrania
 
@@ -61,6 +62,7 @@
 	}
 
 	function finish() {
+		window.clearTimeout(guard);
 		current = null;
 		setSpeaking(false);
 		next();
@@ -71,6 +73,13 @@
 		current = queue.shift();
 		var item = current;
 		var gen = generation;
+		// Pobranie (do ~9 s) + czas mówienia (~110 ms/znak) + zapas; potem idziemy dalej bez tego zdania.
+		window.clearTimeout(guard);
+		guard = window.setTimeout(function () {
+			if (current !== item) return;
+			try { audio.pause(); } catch (_) { /* nic */ }
+			finish();
+		}, 9000 + item.text.length * 110);
 		if (!serverTts) return speakBrowser(item, gen);
 		A.api('POST', '/assistant/speak', { text: item.text, lang: LANG }).then(function (r) {
 			if (gen !== generation || current !== item) return;
@@ -91,8 +100,11 @@
 				if (current !== item) return;
 				setSpeaking(false);
 				if (err && err.name === 'NotAllowedError') {
-					// Przeglądarka czeka na gest klienta — wypowiedź zagra po pierwszym kliknięciu.
-					blocked = item;
+					// Przeglądarka czeka na gest klienta (np. po przejściu pieska na inną stronę) —
+					// wypowiedź zagra po pierwszym kliknięciu, a pokaz w tym czasie idzie dalej.
+					window.clearTimeout(guard);
+					blocked = [item].concat(queue);
+					queue = [];
 					current = null;
 					A.root.classList.add('ea-sound-blocked');
 					return;
@@ -140,6 +152,8 @@
 	function say(text) {
 		var t = String(text || '').replace(/\s+/g, ' ').trim();
 		if (!enabled || !t || muted() || voiceBusy()) return;
+		// Niezagrane (zablokowane) zdania dotyczą już poprzedniego kroku — nie odtwarzamy ich po czasie.
+		if (blocked) { blocked = null; A.root.classList.remove('ea-sound-blocked'); }
 		chunks(t).forEach(function (c) { queue.push({ text: c }); });
 		next();
 	}
@@ -189,6 +203,7 @@
 	/** Cisza i pusta kolejka (np. „Dalej", „Zakończ", nowe pytanie). */
 	function stop() {
 		generation += 1;
+		window.clearTimeout(guard);
 		queue = [];
 		blocked = null;
 		current = null;
@@ -199,7 +214,7 @@
 	}
 
 	function speaking() {
-		return !!(current || queue.length || blocked);
+		return !!(current || queue.length);
 	}
 
 	// Pierwszy gest klienta: odblokowanie odtwarzacza i zaległa wypowiedź.
@@ -211,11 +226,10 @@
 			if (p && p.catch) p.catch(function () { unlocked = false; });
 		}
 		if (blocked) {
-			var item = blocked;
+			queue = blocked.concat(queue);
 			blocked = null;
-			current = item;
 			A.root.classList.remove('ea-sound-blocked');
-			play(item);
+			next();
 		}
 	}
 	document.addEventListener('pointerdown', onGesture, true);
