@@ -1,0 +1,127 @@
+{% extends "base.njk" %}
+
+{% block head %}
+    <link rel="stylesheet" href="/styles/home.css">
+    <link rel="stylesheet" href="/styles/mobile/home.css">
+    <style>
+        .plr { max-width: 1200px; margin: 0 auto; padding: 16px; }
+        .plr-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 12px; }
+        .plr-head h1 { font-size: 1.4rem; margin: 0; }
+        .plr-intro, .plr-meta { color: #5b6876; font-size: 0.9rem; margin: 4px 0 0; }
+        .plr-note { background: #fff8e6; border: 1px solid #f3d27a; border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+        .plr-section { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin: 12px 0; }
+        .plr-section > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; display: flex; justify-content: space-between; gap: 12px; }
+        .plr-count { min-width: 2.5em; text-align: center; border-radius: 12px; padding: 0 8px; font-size: 0.85rem; background: #e8f1f2; color: #1f6f78; }
+        .plr-count.is-bad { background: #fde8e8; color: #9b1c1c; }
+        .plr-hint { color: #5b6876; font-size: 0.85rem; margin: 0 16px 8px; }
+        .plr-table-wrap { overflow-x: auto; padding: 0 16px 12px; }
+        .plr table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .plr th, .plr td { border-bottom: 1px solid #e5e9ee; padding: 4px 6px; text-align: left; vertical-align: top; }
+        .plr th { background: #f5f8f9; font-weight: 600; }
+        .plr code { font-size: 0.8rem; word-break: break-all; }
+    </style>
+{% endblock head %}
+
+{% macro section(title, hint, rows, bad) %}
+    <details class="plr-section"{% if rows.length and bad %} open{% endif %}>
+        <summary><span>{{ title }}</span><span class="plr-count{% if rows.length and bad %} is-bad{% endif %}">{{ rows.length }}</span></summary>
+        <p class="plr-hint">{{ hint }}</p>
+        {% if rows.length %}<div class="plr-table-wrap">{{ caller() }}</div>{% else %}<p class="plr-hint">{{ __('admin_pricelists.ok_empty') }}</p>{% endif %}
+    </details>
+{% endmacro %}
+
+{% block content %}
+<div class="content">
+<div class="plr">
+    <div class="plr-head">
+        <div>
+            <h1>{{ __('admin_pricelists.title') }}</h1>
+            <p class="plr-intro">{{ __('admin_pricelists.intro') }}</p>
+            {% if report %}<p class="plr-meta">{{ __('admin_pricelists.generated') }} {{ generatedLocal }} · {{ report.durationSec }} s · {{ report.dataDir }}</p>{% endif %}
+        </div>
+        <form method="post" action="/admin/pricelists/refresh">
+            <button type="submit" class="btn btn-primary"{% if running %} disabled{% endif %}>{{ __('admin_pricelists.refresh') }}</button>
+        </form>
+    </div>
+
+    {% if running %}<div class="plr-note">{{ __('admin_pricelists.running', { since: runningSince }) }}</div>
+    {% elif started %}<div class="plr-note">{{ __('admin_pricelists.started') }}</div>{% endif %}
+
+    {% if not report %}
+        <div class="plr-note">{{ __('admin_pricelists.none') }}</div>
+    {% else %}
+        {% call section(__('admin_pricelists.broken'), __('admin_pricelists.broken_hint'), report.brokenScripts, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_file') }}</th><th>{{ __('admin_pricelists.col_clients') }}</th><th>{{ __('admin_pricelists.col_error') }}</th></tr>
+            {% for r in report.brokenScripts %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.clients }}</td><td>{{ r.error }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.unsupported'), __('admin_pricelists.unsupported_hint'), report.unsupportedScripts, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_file') }}</th><th>{{ __('admin_pricelists.col_clients') }}</th><th>{{ __('admin_pricelists.col_error') }}</th></tr>
+            {% for r in report.unsupportedScripts %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.clients }}</td><td>{{ r.msg }} ({{ r.line }}): <code>{{ r.text }}</code></td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.missing_scripts'), __('admin_pricelists.missing_scripts_hint'), report.missingScripts, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_client') }}</th><th>{{ __('admin_pricelists.col_source') }}</th><th>{{ __('admin_pricelists.col_params') }}</th></tr>
+            {% for r in report.missingScripts %}<tr><td>{{ r.group }}</td><td>{{ r.client }}</td><td>{{ r.source }}</td><td>{{ r.params | join(', ') }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.missing_files'), __('admin_pricelists.missing_files_hint'), report.missingFiles, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_client') }}</th><th>{{ __('admin_pricelists.col_source') }}</th><th>{{ __('admin_pricelists.col_params') }}</th><th>{{ __('admin_pricelists.col_file') }}</th></tr>
+            {% for r in report.missingFiles %}<tr><td>{{ r.group }}</td><td>{{ r.client }}</td><td>{{ r.source }}</td><td>{{ r.param }}</td><td><code>{{ r.file }}</code></td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.table_defects'), __('admin_pricelists.table_defects_hint'), report.tableDefects, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_file') }}</th><th>{{ __('admin_pricelists.col_section') }}</th><th>{{ __('admin_pricelists.col_sample') }}</th></tr>
+            {% for r in report.tableDefects %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.section }}</td><td><code>{{ r.sample }}</code> × {{ r.count }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.repeated'), __('admin_pricelists.repeated_hint'), report.repeatedSections, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_file') }}</th><th>{{ __('admin_pricelists.col_section') }}</th></tr>
+            {% for r in report.repeatedSections %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.sections | join(', ') }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.commas'), __('admin_pricelists.commas_hint'), report.increaseCommas, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_file') }}</th><th>{{ __('admin_pricelists.col_accounts') }}</th><th>{{ __('admin_pricelists.col_rule') }}</th></tr>
+            {% for r in report.increaseCommas %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.accounts | join(', ') or r.uid }}</td><td>{{ r.defect }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.hash'), __('admin_pricelists.hash_hint'), report.hashMismatch, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_account') }}</th><th>{{ __('admin_pricelists.col_groups') }}</th></tr>
+            {% for r in report.hashMismatch %}<tr><td>{{ r.account }}</td><td>{{ r.groups | join(', ') }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.collisions'), __('admin_pricelists.collisions_hint'), report.uidCollisions, true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_file') }}</th><th>{{ __('admin_pricelists.col_accounts') }}</th><th>{{ __('admin_pricelists.col_rule') }}</th></tr>
+            {% for r in report.uidCollisions %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.accounts | join(', ') or r.uid }}</td><td>{{ __('admin_pricelists.from') }} {{ r.from }}: {{ r.values | join(' / ') }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        {% call section(__('admin_pricelists.expired'), __('admin_pricelists.expired_hint'), report.expiredIncreases, false) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_file') }}</th><th>{{ __('admin_pricelists.col_rule') }}</th></tr>
+            {% for r in report.expiredIncreases %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.rules }} × {{ __('admin_pricelists.from') }} {{ r.previous }} → 0 {{ __('admin_pricelists.from') }} {{ r.since }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
+        <h2 class="h5 mt-4">{{ __('admin_pricelists.produkt') }}</h2>
+        <p class="plr-intro">{{ __('admin_pricelists.produkt_hint') }}</p>
+        {% if not report.workbooks %}
+            <div class="plr-note">{{ __('admin_pricelists.produkt_unavailable') }}</div>
+        {% else %}
+            {% for p in report.produkt %}
+                {% set issues = (p.onlyInProdukt or []).length + (p.onlyInProdTxt or []).length + (p.differentScript or []).length + (p.oddNames or []).length %}
+                <details class="plr-section">
+                    <summary><span>{{ __('admin_pricelists.col_group') }} {{ p.group }}{% if p.workbook %} · {{ p.workbook }}{% endif %}</span><span class="plr-count{% if issues %} is-bad{% endif %}">{{ issues }}</span></summary>
+                    {% if p.error %}<p class="plr-hint">{{ p.error }}</p>{% endif %}
+                    <div class="plr-table-wrap">
+                        <table>
+                            {% for r in p.differentScript %}<tr><td>{{ __('admin_pricelists.different') }}</td><td>{{ r.owner }}/{{ r.user }}</td><td>{{ r.param }}</td><td><code>{{ r.produkt }}</code> ≠ <code>{{ r.prodTxt or '—' }}</code></td></tr>{% endfor %}
+                            {% for r in p.onlyInProdukt %}<tr><td>{{ __('admin_pricelists.only_produkt') }}</td><td>{{ r.owner }}/{{ r.user }}</td><td></td><td></td></tr>{% endfor %}
+                            {% for r in p.onlyInProdTxt %}<tr><td>{{ __('admin_pricelists.only_prodtxt') }}</td><td>{{ r.owner }}/{{ r.user }}</td><td></td><td></td></tr>{% endfor %}
+                            {% for r in p.oddNames %}<tr><td>{{ __('admin_pricelists.odd_names') }}</td><td>{{ r.owner }}/{{ r.user }}</td><td></td><td></td></tr>{% endfor %}
+                        </table>
+                    </div>
+                </details>
+            {% endfor %}
+        {% endif %}
+    {% endif %}
+</div>
+</div>
+{% endblock content %}

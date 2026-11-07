@@ -378,6 +378,16 @@
     height: 15px;
 }
 
+/* Cennik z rabatem przed odblokowaniem kłódki cen — widoczny, ale nieklikalny. */
+.panel-catalog-download.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.panel-pricelists-title {
+    margin-top: 28px;
+}
+
 /* ── Empty states ── */
 .panel-empty {
     display: flex;

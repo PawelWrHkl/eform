@@ -592,4 +592,46 @@ router.get('/import-log', requireLogin, requireAdmin, async (req, res) => {
     }
 });
 
+// ─── Cenniki klientów: raport rozjazdów (services/pricelists/report.js) ────
+// Liczony w odłączonym procesie (scripts/pricelistsReport.js) — przegląd
+// wszystkich skryptów trwa minuty; strona pokazuje ostatni zapisany raport.
+const pricelistReport = require('../services/pricelists/report');
+
+router.get('/pricelists', requireLogin, requireAdmin, (req, res) => {
+    const local = (iso) => (iso ? new Date(iso).toLocaleString('pl-PL', { timeZone: 'Europe/Warsaw' }) : null);
+    const report = pricelistReport.readReport();
+    const running = pricelistReport.runningInfo();
+    return res.render('admin/pricelists.njk', {
+        report,
+        generatedLocal: report && local(report.generatedAt),
+        running,
+        runningSince: running && local(running.startedAt),
+        started: req.query.started === '1'
+    });
+});
+
+router.post('/pricelists/refresh', requireLogin, requireAdmin, (req, res) => {
+    try {
+        if (!pricelistReport.runningInfo()) {
+            const fs = require('fs');
+            const path = require('path');
+            const { spawn } = require('child_process');
+            fs.mkdirSync(pricelistReport.REPORT_DIR, { recursive: true });
+            const logFd = fs.openSync(path.join(pricelistReport.REPORT_DIR, 'report.log'), 'a');
+            const child = spawn(process.execPath, ['--max-old-space-size=1536', path.join(__dirname, '..', 'scripts', 'pricelistsReport.js')], {
+                cwd: path.join(__dirname, '..'),
+                detached: true,
+                stdio: ['ignore', logFd, logFd]
+            });
+            child.unref();
+            fs.closeSync(logFd);
+            // Blokada od razu, żeby strona po przekierowaniu pokazała „liczy się”, a drugie kliknięcie nic nie uruchomiło.
+            fs.writeFileSync(pricelistReport.LOCK_FILE, JSON.stringify({ pid: child.pid, startedAt: new Date().toISOString() }));
+        }
+    } catch (err) {
+        log('[admin/pricelists] Nie udało się uruchomić raportu:', err.message);
+    }
+    return res.redirect('/admin/pricelists?started=1');
+});
+
 module.exports = router;

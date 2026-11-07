@@ -105,17 +105,22 @@ function readScriptConditions(file) {
  * @returns {Map<string, Array<{fn, param, arg}>>}
  */
 function conditionsForParam(groupNumber, paramName, opts = {}) {
-  const root = opts.dataDir || dataDir;
-  const dir = path.join(root, String(groupNumber), 'data');
+  const file = scriptPathFor(groupNumber, paramName, opts);
+  return (file && readScriptConditions(file)) || new Map();
+}
+
+/** Ścieżka skryptu parametru: skrypt klienta (`opts.scriptFile`), a gdy go nie ma, pierwszy alfabetycznie wariant. */
+function scriptPathFor(groupNumber, paramName, opts = {}) {
+  const dir = path.join(opts.dataDir || dataDir, String(groupNumber), 'data');
   if (opts.scriptFile) {
-    const codes = readScriptConditions(path.join(dir, path.basename(opts.scriptFile)));
-    if (codes) return codes;
+    const own = path.join(dir, path.basename(opts.scriptFile));
+    if (fs.existsSync(own)) return own;
   }
   let files;
-  try { files = fs.readdirSync(dir); } catch (_e) { return new Map(); }
+  try { files = fs.readdirSync(dir); } catch (_e) { return null; }
   const prefix = `param-${paramName}-`;
   const first = files.filter((f) => f.endsWith('.js') && (f.startsWith(prefix) || f === `param-${paramName}.js`)).sort()[0];
-  return (first && readScriptConditions(path.join(dir, first))) || new Map();
+  return first ? path.join(dir, first) : null;
 }
 
 /** Tak jak public/scripts/formula.js. */
@@ -193,6 +198,7 @@ function clearCache() {
 module.exports = {
   extractCodeConditions,
   conditionsForParam,
+  scriptPathFor,
   conditionHolds,
   labelForCode,
   cleanTitle,

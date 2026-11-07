@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /home/pawel/projects/eform-project/eform/public/scripts && find formTools components intro assistant other ../../other -maxdepth 3 -type f 2>/dev/null | head -100; ls ../../other 2>/dev/null | head)",
+      "Read(//home/pawel/projects/**)"
+    ]
+  }
+}

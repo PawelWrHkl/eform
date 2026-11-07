@@ -16,8 +16,8 @@
  *
  * Każdy poziom ma własny profil wystawcy (`invoice_issuer_profile`): waluta,
  * termin płatności, szablon, wzorzec numeracji, dane rejestrowe, klauzule.
- * Numeracja jest odizolowana per (wystawca, poziom, rok) — patrz
- * `invoice_issuer_sequence` i `core/numbering.js`.
+ * Numeracja: JEDNA seria na firmę i rok, nie na poziom (HKL-producent = organizacja
+ * HKL) — patrz `repository.issuerSeriesKey` i `core/numbering.js`.
  *
  * ⚠️ Ten sam podmiot występuje na dwóch poziomach w różnych rolach: organizacja
  * jest NABYWCĄ na poziomie 1 i WYSTAWCĄ na poziomie 2; użytkownik jest nabywcą

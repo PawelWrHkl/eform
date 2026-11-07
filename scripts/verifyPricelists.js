@@ -16,13 +16,22 @@
  *
  * Tylko odczyt: pliki grup, prod.txt, SELECT-y (app_version, user, nakładka DB).
  */
+// Maglev (kompilator V8) po ~200 uruchomieniach optymalizuje gigantyczną f() skryptu
+// cenowego i RSS rośnie o gigabajty poza stertą (zmierzone na gr. 75: 135 MB → 1,5 GB),
+// aż system zabija proces. Test liczy więc zawsze bez optymalizacji.
+if (!process.execArgv.includes('--no-maglev')) {
+  const { spawnSync } = require('child_process');
+  const child = spawnSync(process.execPath, ['--no-maglev', '--no-opt', ...process.execArgv, __filename, ...process.argv.slice(2)], { stdio: 'inherit' });
+  process.exit(child.status === null ? 1 : child.status);
+}
+
 require('dotenv').config();
 
 const path = require('path');
 const { dataDir } = require('../config');
 const { selectQuery, closePool } = require('../db/core');
 const { hashUser } = require('../utils/hashUser');
-const { loadScriptRunner } = require('../services/formEngine/scriptRunner');
+const { loadScriptRunner, clearScriptCache } = require('../services/formEngine/scriptRunner');
 const sm = require('../services/pricelists/scriptModel');
 const pricelists = require('../services/pricelists');
 
@@ -37,12 +46,30 @@ const GROUPS = args.groups ? String(args.groups).split(',') : ['43', '04', '59',
 let seed = 20261106;
 const random = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 
-/** Konta z kategorii Fazy 0 (identy z bazy; uid liczy się z identu konta). */
+/** Czy dzisiejsza gałąź skryptu nalicza temu uid podwyżkę (opcjonalnie: z zaokrągleniem `fr`). */
+function activeRule(groupNumber, file, uid, withRounding) {
+  if (!file) return false;
+  const model = pricelists.loadModel(groupNumber, file);
+  if (model.missing || model.unknown.length) return false;
+  const inc = sm.increaseFor(model, uid, sm.dateKeyOf(DATE));
+  return withRounding ? inc.fr !== -1 : inc.f !== 1;
+}
+
+/**
+ * Kategorie klientów z Fazy 0. `ident` = konto wzorcowe; gdy w danej grupie nie
+ * ma dostępu, test dobiera klienta tej samej kategorii z `PARAM_SCRIPTS`.
+ */
 const CASES = [
-  { label: 'HKL bez mnożnika', ident: 'BIURO', priceSets: ['CENA'] },
-  { label: 'HKL z mnożnikiem', ident: 'BD-Line', priceSets: ['CENA', 'SUB'] },
-  { label: 'LUXANGMBH (podwyżka +3% od 01.01)', ident: 'LuxanGmbH', priceSets: ['CENA', 'SUB'] },
-  { label: 'COZY (0.05|0 na SUB___DOPLATA)', ident: 'Mevr_J_Bijleveld', priceSets: ['SUB', 'CENA'] },
+  { label: 'HKL bez mnożnika', ident: 'BIURO', priceSets: ['CENA'], pick: (c) => c.org === 'HKL' && c.scripts.CENA && !/mul/.test(c.scripts.CENA) },
+  { label: 'HKL z mnożnikiem', ident: 'BD-Line', priceSets: ['CENA', 'SUB'], pick: (c) => c.org === 'HKL' && /mul/.test(c.scripts.CENA || '') },
+  {
+    label: 'LUXANGMBH z podwyżką aktywną dziś', ident: 'LuxanGmbH', priceSets: ['CENA', 'SUB'],
+    pick: (c, g) => c.org === 'LUXANGMBH' && (activeRule(g, c.scripts.CENA, hashUser(c.client)) || activeRule(g, c.scripts.SUB___CENA, hashUser(c.client)))
+  },
+  {
+    label: 'COZY z podwyżką i zaokrągleniem (x|0)', ident: 'Mevr_J_Bijleveld', priceSets: ['SUB', 'CENA'],
+    pick: (c, g) => c.org === 'COZY' && ['SUB___CENA', 'SUB___DOPLATA', 'SUB___DOPLATA_EL'].some((p) => activeRule(g, c.scripts[p], hashUser(c.client), true))
+  },
   { label: 'nakładka DB', ident: 'ABZ', priceSets: ['CENA'], groups: ['01', '02'] }
 ];
 
@@ -52,6 +79,37 @@ async function userByIdent(ident) {
     [ident]
   );
   return rows && rows[0];
+}
+
+/** Klienci z `PARAM_SCRIPTS` grupy: `[{ org, client, scripts: {PARAM: plik} }]`. */
+function prodClients(groupNumber) {
+  const fs = require('fs');
+  const { parseProdTxt, parseScriptEntries } = require('../services/formEngine/clientScripts');
+  const prod = parseProdTxt(fs.readFileSync(path.join(dataDir, String(groupNumber), 'data', 'pl', 'prod.txt'), 'utf8'));
+  const byClient = new Map();
+  for (const e of parseScriptEntries(prod.param_scripts || '')) {
+    const key = `${e.organization.trim().toUpperCase()}/${e.client.trim().toUpperCase()}`;
+    if (!byClient.has(key)) byClient.set(key, { org: e.organization.trim().toUpperCase(), client: e.client.trim(), scripts: {} });
+    byClient.get(key).scripts[e.param] = e.file;
+  }
+  return [...byClient.values()];
+}
+
+/** Konto wzorcowe, a gdy nie ma dostępu do grupy — pierwszy klient kategorii, który jest w bazie. */
+async function clientFor(c, groupNumber) {
+  const template = await userByIdent(c.ident);
+  if (template) {
+    const { resolveGroupTerms } = require('../services/orgCustomers/groupTerms');
+    const terms = await resolveGroupTerms({ userId: template.id, groupNumber, orgIdent: template.org, userIdent: template.ident });
+    if (terms.hasAccess || !c.pick) return template;
+  }
+  if (!c.pick) return null;
+  for (const entry of prodClients(groupNumber)) {
+    if (!c.pick(entry, groupNumber)) continue;
+    const user = await userByIdent(entry.client);
+    if (user && user.org.toUpperCase() === entry.org) return user;
+  }
+  return null;
 }
 
 /** Wynik skryptu tak, jak go zobaczy formularz. */
@@ -82,27 +140,49 @@ async function verifyOne({ label, user, groupNumber, priceSet, stats, failures }
       const keys = Object.entries(table.cells).flatMap(([token, row]) => Object.keys(row).map((k) => [token, k]));
       for (const [token, key] of sample(keys, CELLS)) {
         const [w, h] = key.split('|');
-        const obj = { ...table.contexts[token] };
-        if (table.xField) obj[table.xField] = Number(w) * 10;
-        if (table.yField) obj[table.yField] = Number(h) * 10;
+        const obj = pricelists.cellObject(list, table, token, w, h);
         const expected = table.cells[token][key];
         const actual = scriptAmount(groupNumber, part.file, part.param, obj);
         cells++;
         if (String(actual) !== String(expected)) {
-          failures.push(`${label} ${groupNumber}/${part.file} ${table.sections[0]} PG ${token} ${w}×${h} cm: cennik=${expected} skrypt=${actual}`);
+          const failure = `${label} ${groupNumber}/${part.file} ${table.sections[0]} PG ${token} ${w}×${h} cm: cennik=${expected} skrypt=${actual}`;
+          failures.push(failure);
+          console.log(`    ROZJAZD ${failure}`);
         }
       }
     }
     for (const item of part.items) {
-      const checks = item.kind === 'amount' ? [[item.context, item.amount]]
-        : item.kind === 'byOption' ? item.byOption.map((b) => [{ ...item.context, MODEL: b.options[0] }, b.amount])
+      // Kwota pozycji = jej własna sekcja. Porównujemy surową wartość sekcji z tą,
+      // którą skrypt sam wypisuje w etykiecie `<PARAM>_S` („12.2(M)+35(Klemmtrager)”).
+      const checks = item.kind === 'amount' ? [[item.context, item.raw]]
+        : item.kind === 'byOption' ? item.byOption.map((b) => [{ ...item.context, MODEL: b.options[0] }, b.raw])
           : [];
-      for (const [ctx, expected] of checks) {
+      for (const [ctx, expectedRaw] of checks) {
         if (!ctx) continue;
-        const actual = scriptAmount(groupNumber, part.file, part.param, ctx);
+        const runner = loadScriptRunner(path.join(dataDir, String(groupNumber), 'data', part.file));
+        const result = runner.run(ctx, { now: DATE.toISOString() });
+        const stamp = String(result[`${part.param}_S`] || '');
+        const m = new RegExp(`(?:^|[+(])(-?[0-9.eE+-]+)\\(${item.name}\\)`).exec(stamp);
+        let actualRaw = m ? Number(m[1]) : 0;
+        // Sekcja o powtórzonej nazwie (gr. 01): etykieta zapisuje wartość PIERWSZEGO
+        // bloku, a kolejny ją nadpisuje — wiarygodna jest wtedy tylko suma skryptu.
+        const model = pricelists.loadModel(groupNumber, part.file);
+        if (model.sections.filter((sec) => sec.name === item.name).length > 1) {
+          if (item.alsoFired && item.alsoFired.length) continue;
+          actualRaw = Number(sm.configuratorRound(result[part.param], part.param));
+          if (Number(item.amount) !== actualRaw) {
+            const failure = `${label} ${groupNumber}/${part.file} pozycja ${item.name} (sekcja powtórzona): cennik=${item.amount} skrypt=${actualRaw}`;
+            failures.push(failure);
+            console.log(`    ROZJAZD ${failure}`);
+          }
+          items++;
+          continue;
+        }
         items++;
-        if (String(actual) !== String(expected)) {
-          failures.push(`${label} ${groupNumber}/${part.file} pozycja ${item.name}: cennik=${expected} skrypt=${actual}`);
+        if (Number(expectedRaw) !== actualRaw) {
+          const failure = `${label} ${groupNumber}/${part.file} pozycja ${item.name}: cennik(surowa)=${expectedRaw} skrypt(etykieta)=${actualRaw}`;
+          failures.push(failure);
+          console.log(`    ROZJAZD ${failure}`);
         }
       }
     }
@@ -110,27 +190,8 @@ async function verifyOne({ label, user, groupNumber, priceSet, stats, failures }
   stats.cells += cells;
   stats.items += items;
   const incr = list.parts.filter((p) => p.increase && p.increase.f !== 1).map((p) => `${p.param} f=${p.increase.f}${p.increase.fr !== -1 ? ` fr=${p.increase.fr}` : ''}`);
-  console.log(`  ${groupNumber} ${priceSet}: ${cells} komórek, ${items} pozycji${incr.length ? `, podwyżka: ${incr.join(', ')}` : ''}`);
-}
-
-/** Klient, któremu skrypt grupy NA DZIŚ nalicza podwyżkę (żeby kategoria „z podwyżką” coś sprawdzała). */
-async function clientWithActiveIncrease(groupNumber, orgIdent, priceSet) {
-  const users = await selectQuery(
-    'SELECT u.id, u.ident, o.ident AS org FROM user u JOIN organization o ON o.id = u.organization_id WHERE o.ident = ? AND u.ident NOT REGEXP ? ORDER BY u.id',
-    [orgIdent, '[^ -~]']
-  );
-  const byUid = new Map(users.map((u) => [hashUser(u.ident), u]));
-  const { resolveGroupTerms } = require('../services/orgCustomers/groupTerms');
-  const param = priceSet === 'SUB' ? 'SUB___CENA' : 'CENA';
-  for (const u of users.slice(0, 400)) {
-    const terms = await resolveGroupTerms({ userId: u.id, groupNumber, orgIdent: u.org, userIdent: u.ident });
-    if (!terms.hasAccess || !terms.scripts[param]) continue;
-    const model = pricelists.loadModel(groupNumber, terms.scripts[param]);
-    if (model.missing || model.unknown.length) continue;
-    const inc = sm.increaseFor(model, hashUser(u.ident), sm.dateKeyOf(DATE));
-    if (inc.f !== 1 && byUid.has(hashUser(u.ident))) return u;
-  }
-  return null;
+  const mem = process.memoryUsage();
+  console.log(`  ${groupNumber} ${priceSet}: ${cells} komórek, ${items} pozycji${incr.length ? `, podwyżka: ${incr.join(', ')}` : ''} [RSS ${Math.round(mem.rss / 1048576)} MB, sterta ${Math.round(mem.heapUsed / 1048576)} MB]`);
 }
 
 async function crossover() {
@@ -148,7 +209,7 @@ async function crossover() {
       const token = table.priceGroups[1] || table.priceGroups[0];
       const key = Object.keys(table.cells[token])[5];
       const [w, h] = key.split('|');
-      const obj = { ...table.contexts[token], [table.xField]: Number(w) * 10, [table.yField]: Number(h) * 10 };
+      const obj = pricelists.cellObject(list, table, token, w, h);
       const runner = loadScriptRunner(path.join(dataDir, groupNumber, 'data', part.file));
       const script = sm.configuratorRound(runner.run(obj, { now: date.toISOString() })[part.param], part.param);
       const cennik = table.cells[token][key];
@@ -173,22 +234,24 @@ async function crossover() {
     }
     console.log(`Data: ${DATE.toISOString().slice(0, 10)}, komórek na tabelę: ${CELLS}`);
     for (const c of CASES) {
-      const user = await userByIdent(c.ident);
-      if (!user) {
-        console.log(`${c.label}: brak konta ${c.ident}`);
-        continue;
-      }
-      console.log(`${c.label}: ${user.org}/${user.ident} (uid ${hashUser(user.ident).slice(0, 8)}…)`);
+      console.log(c.label);
       for (const groupNumber of c.groups || GROUPS) {
-        for (const priceSet of c.priceSets) await verifyOne({ label: c.label, user, groupNumber, priceSet, stats, failures });
+        // Każda grupa to inne 5-megabajtowe skrypty — nie trzymamy poprzednich w pamięci.
+        pricelists.clearCaches();
+        clearScriptCache();
+        const user = await clientFor(c, groupNumber);
+        if (!user) {
+          console.log(`  ${groupNumber}: brak klienta tej kategorii z dostępem do grupy`);
+          continue;
+        }
+        console.log(`  ${groupNumber}: ${user.org}/${user.ident} (uid ${hashUser(user.ident).slice(0, 8)}…)`);
+        for (const priceSet of c.priceSets) {
+          await verifyOne({ label: c.label, user, groupNumber, priceSet, stats, failures });
+          // Duże grupy (75) trzymają po kilkaset MB modeli i skompilowanych skryptów.
+          pricelists.clearCaches();
+          clearScriptCache();
+        }
       }
-    }
-    // Kategoria „podwyżka aktywna dziś” — wyszukana w skryptach, nie zgadywana.
-    for (const groupNumber of GROUPS) {
-      const user = await clientWithActiveIncrease(groupNumber, 'LUXANGMBH', 'SUB');
-      if (!user) continue;
-      console.log(`Podwyżka aktywna dziś (gr. ${groupNumber}): ${user.org}/${user.ident}`);
-      for (const priceSet of ['SUB', 'CENA']) await verifyOne({ label: 'aktywna podwyżka', user, groupNumber, priceSet, stats, failures });
     }
   } finally {
     console.log(`\nSprawdzono: ${stats.cells} komórek, ${stats.items} pozycji. Rozjazdy: ${failures.length}`);

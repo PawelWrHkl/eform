@@ -28,6 +28,7 @@
 const { parseSpecExpression, allocateToTotal } = require('./expression');
 const { conditionsForParam, labelForCode, cleanTitle, optionText } = require('./scriptLabels');
 const { translator, resolveLang } = require('./i18n');
+const { raffrolloItems } = require('./raffrollo');
 const { isDisabledDefaultRow } = require('../orderService');
 
 /** Składniki ceny jednostkowej, w kolejności pokazywania. */
@@ -260,11 +261,14 @@ function buildSetSpec({ prefix, factor, lockedVisible, clientDiscountVisible, va
     const amount = amountOf(key);
     if (!amount) continue;
     const row = rowOf(key);
-    const parsed = parseSpecExpression(values[`${key}_S`]);
-    const items = parsed.items.filter((i) => i.amount !== 0);
-    const allocated = allocateToTotal(items, amount);
-    const conditions = allocated ? conditionsForParam(groupNumber, key, { scriptFile: scripts[key] || scripts[param], dataDir }) : new Map();
     const isBase = param === 'CENA';
+    const scriptFile = scripts[key] || scripts[param];
+    const parsed = parseSpecExpression(values[`${key}_S`]);
+    const nonZero = parsed.items.filter((i) => i.amount !== 0);
+    // Raffrollo: szycie i system osobno (raffrollo.js).
+    const items = isBase ? raffrolloItems(nonZero, { groupNumber, values, paramName: key, scriptFile, dataDir }) : nonZero;
+    const allocated = allocateToTotal(items, amount);
+    const conditions = allocated ? conditionsForParam(groupNumber, key, { scriptFile, dataDir }) : new Map();
     const lines = [];
     if (allocated) {
       items.forEach((item, idx) => {
@@ -274,7 +278,7 @@ function buildSetSpec({ prefix, factor, lockedVisible, clientDiscountVisible, va
         const groupText = group ? capitalize(t('price_group', { n: group })) : null;
         // Cena bazowa: wiersz = grupa cenowa, a opcje, z których wynika, pod
         // spodem jako szczegół. Dopłata: wiersz = opcja, która ją wywołała.
-        const label = groupText || condition || (isBase ? t('base_price') : item.code);
+        const label = (item.rr && t(item.rr)) || groupText || condition || (isBase ? t('base_price') : item.code);
         lines.push({
           label,
           detail: condition && condition !== label ? condition : null,
@@ -589,7 +593,7 @@ function templateStrings(t, currency, advanced = false) {
   const keys = ['title', 'order', 'commission', 'date', 'generated', 'position', 'quantity', 'unit_price', 'line_total', 'discounts',
     'unit_after_discount', 'total_after_discount', 'summary', 'positions', 'total', 'total_after_discount_sum',
     'component', 'amount', 'code', 'print', 'pdf', 'close', 'empty', 'no_breakdown',
-    'col_component', 'col_value', 'col_discount', 'col_after', 'discounts_hidden', 'discount_total_only'];
+    'col_component', 'col_value', 'col_gross', 'col_discount', 'col_after', 'discounts_hidden', 'discount_total_only'];
   const out = {};
   for (const k of keys) out[k] = t(k);
   if (advanced) out.title = t('advanced_title');

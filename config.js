@@ -35,6 +35,9 @@ module.exports = {
   // z samego żądania wyszłoby http://. Brak = adres liczony z żądania.
   publicBaseUrl: String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, ''),
   shortJsonDir: path.join(ROOT_DIR, 'json_short'),
+  // Cenniki klientów PDF (services/pricelists) — pamięć podręczna wygenerowanych plików,
+  // celowo poza /data i /mnt/eformconf (źródła aplikacji zewnętrznej).
+  pricelistsDir: process.env.PRICELISTS_DIR || path.join(ROOT_DIR, 'pricelists'),
   // Automatyczny tester konfiguratora (services/configuratorTester) — raporty JSON per przebieg.
   configTestOutputDir: process.env.CONFIGTEST_OUTPUT_DIR || path.join(ROOT_DIR, 'configtest-output'),
   availabeLanguages: ['pl', 'en', 'de', 'fr', 'nl'],

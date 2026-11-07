@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ __('pricelist.title') }} — {{ groupDescription }}</title>
+<style>
+  @page { size: A4 landscape; margin: 9mm 8mm 10mm 8mm; }
+  :root { --ink: #1d2733; --muted: #5b6876; --line: #c9d1da; --head: #e8f1f2; --accent: #1f6f78; --dash: #a3adb8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fff; font-family: "Segoe UI", "DejaVu Sans", Arial, sans-serif; font-size: 7.4pt; color: var(--ink); }
+  header.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 8mm; border-bottom: 1.6pt solid var(--accent); padding-bottom: 3mm; margin-bottom: 3mm; }
+  header.top img { height: 13mm; }
+  header.top h1 { margin: 0 0 1mm; font-size: 14pt; font-weight: 650; }
+  header.top .meta { color: var(--muted); font-size: 8pt; line-height: 1.45; }
+  header.top .meta strong { color: var(--ink); }
+  .badge { display: inline-block; padding: 0.4mm 2mm; border-radius: 2mm; background: var(--head); color: var(--accent); font-weight: 600; }
+  section.family { margin-top: 4mm; }
+  section.family h2 { margin: 0 0 1mm; font-size: 9.5pt; font-weight: 650; break-after: avoid; }
+  section.family .sub { color: var(--muted); margin: 0 0 1.5mm; break-after: avoid; }
+  table.grid { border-collapse: collapse; width: 100%; margin-bottom: 2.5mm; }
+  table.grid th, table.grid td { border: 0.4pt solid var(--line); padding: 0.5mm 1mm; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.grid thead th { background: var(--head); font-weight: 600; text-align: center; }
+  table.grid thead tr.pg th { font-weight: 500; color: var(--muted); }
+  table.grid tbody th { background: #f5f8f9; text-align: center; font-weight: 600; }
+  table.grid td.dash { color: var(--dash); text-align: center; }
+  table.grid tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+  h3 { font-size: 9.5pt; margin: 5mm 0 1.5mm; break-after: avoid; }
+  table.items { border-collapse: collapse; width: 100%; }
+  table.items th, table.items td { border-bottom: 0.4pt solid var(--line); padding: 0.8mm 1.2mm; vertical-align: top; text-align: left; }
+  table.items th { background: var(--head); font-weight: 600; }
+  table.items td.amount, table.items th.amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.items td.code { white-space: nowrap; width: 34mm; font-weight: 600; }
+  table.items .opts { color: var(--muted); }
+  table.items tr { break-inside: avoid; }
+  footer.note { margin-top: 5mm; color: var(--muted); font-size: 7pt; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>{{ __('pricelist.title') }} — {{ groupDescription }} ({{ __('pricelist.group') }} {{ groupNumber }})</h1>
+    <div class="meta">
+      <strong>{{ clientName }}</strong> ({{ clientIdent }})<br>
+      {{ __('pricelist.as_of') }} {{ dateText }} ·
+      {% if priceSet == 'SUB' %}{{ __('pricelist.list_prices') }}{% else %}{{ __('pricelist.net_prices') }}{% endif %}
+      · {{ currency }}
+      {% if discounted %} · <span class="badge">{{ __('pricelist.discounted') }}</span>{% endif %}
+    </div>
+  </div>
+  {% if logo %}<img src="{{ logo }}" alt="">{% endif %}
+</header>
+
+{% for part in parts %}
+  {% for t in part.tables %}
+  <section class="family">
+    <h2>{% if part.kind != 'CENA' %}{{ part.label }}: {% endif %}{{ t.options | join(', ') }}</h2>
+    {% if t.doubleFabric or t.filters | length %}
+    <p class="sub">
+      {% if t.doubleFabric %}{{ __('pricelist.double_fabric') }}{% endif %}
+      {% for f in t.filters %} · {{ f.label }}: {{ f.values }}{% endfor %}
+    </p>
+    {% endif %}
+    {% for chunk in t.chunks %}
+    <table class="grid">
+      <thead>
+        <tr>
+          <th rowspan="{{ 2 if t.showGroups else 1 }}">{% if t.yLabel %}{{ t.yLabel }} ↓{% endif %}{% if t.xLabel %} / {{ t.xLabel }} →{% endif %}</th>
+          {% for w in chunk.widths %}<th colspan="{{ t.groups | length }}">{% if w !== null %}{{ __('pricelist.up_to') }} {{ w }} cm{% else %}—{% endif %}</th>{% endfor %}
+        </tr>
+        {% if t.showGroups %}
+        <tr class="pg">{% for w in chunk.widths %}{% for g in t.groups %}<th>{{ __('pricelist.price_group_short') }} {{ g.label }}</th>{% endfor %}{% endfor %}</tr>
+        {% endif %}
+      </thead>
+      <tbody>
+        {% for row in chunk.rows %}
+        <tr>
+          <th>{% if row.height !== null %}{{ __('pricelist.up_to') }} {{ row.height }} cm{% else %}—{% endif %}</th>
+          {% for c in row.cells %}{% if c === null %}<td class="dash">—</td>{% else %}<td>{{ c }}</td>{% endif %}{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endfor %}
+  </section>
+  {% endfor %}
+{% endfor %}
+
+{% for part in parts %}
+  {% if part.items | length %}
+  <h3>{% if part.kind == 'DOPLATA' %}{{ __('pricelist.surcharges') }}{% elif part.kind == 'DOPLATA_EL' %}{{ __('pricelist.surcharges_el') }}{% elif part.kind == 'CENA' %}{{ __('pricelist.price_adjustments') }}{% else %}{{ part.label }}{% endif %}</h3>
+  <table class="items">
+    <thead><tr><th>{{ __('pricelist.item') }}</th><th>{{ __('pricelist.when') }}</th><th class="amount">{{ __('pricelist.amount') }}</th></tr></thead>
+    <tbody>
+      {% for i in part.items %}
+      <tr>
+        <td class="code">{{ i.code }}</td>
+        <td>{% for f in i.when %}{% if not loop.first %} · {% endif %}{% if f.label %}{{ f.label }}{% if f.negated %} ({{ __('pricelist.without') }}){% endif %}: {{ f.values }}{% else %}{{ f }}{% endif %}{% endfor %}</td>
+        <td class="amount">
+          {% if i.amounts %}{% for a in i.amounts %}{% if a.options %}<span class="opts">{{ a.options }}:</span> {% endif %}{{ a.amount }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+          {% elif i.percent %}{{ i.percent }} % {{ __('pricelist.of_price') }}
+          {% elif i.perMeter %}{{ i.perMeter }} {{ __('pricelist.per_meter') }}
+          {% else %}{{ __('pricelist.by_configurator') }}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+{% endfor %}
+
+<footer class="note">
+  {{ __('pricelist.footer_source') }}
+  {{ __('pricelist.footer_cells') }}
+  {% if vatRate !== null %}{{ __('pricelist.footer_vat', { rate: vatRate }) }}{% endif %}
+</footer>
+</body>
+</html>

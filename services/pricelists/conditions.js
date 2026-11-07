@@ -65,6 +65,9 @@ const descriptionParam = (name) => {
  */
 function clausesOf(formula) {
   const text = String(formula || '').trim().replace(/^=/, '');
+  // Porównanie z liczbą: `SZEROKOSC<=1300` (dopłata zależna od wymiaru).
+  const cmp = /^([A-Za-z_][A-Za-z0-9_]*)\s*(<=|>=|<>|<|>|=)\s*(-?\d+(?:\.\d+)?)$/.exec(text);
+  if (cmp) return [{ kind: 'compare', param: cmp[1], op: cmp[2], value: Number(cmp[3]), text }];
   const call = parseCall(text);
   if (!call) return [{ kind: 'raw', text }];
 
@@ -121,4 +124,14 @@ function familyOf(section) {
   };
 }
 
-module.exports = { clausesOf, familyOf, splitArgs, parseCall, descriptionParam };
+/** Wartość spełniająca porównanie (do minimalnej konfiguracji pozycji). */
+function satisfyingValue(clause) {
+  switch (clause.op) {
+    case '<': return clause.value - 1;
+    case '>': return clause.value + 1;
+    case '<>': return clause.value + 1;
+    default: return clause.value;
+  }
+}
+
+module.exports = { clausesOf, familyOf, splitArgs, parseCall, descriptionParam, satisfyingValue };

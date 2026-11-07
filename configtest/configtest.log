@@ -4409,3 +4409,9 @@ Call log:
 [2026-11-06T02:24:19.436Z] ConfiguratorTester (kopiowanie): limit czasu — wykonano 22 z 24 przypadków wygenerowanych
 [2026-11-06T02:24:19.625Z] ConfiguratorTester (kopiowanie): koniec: 35 przypadków (21 z błędami, 0 pominiętych), 146 kopii/kontroli, 24114 porównań pól, 50.2 min
 [2026-11-06T02:24:20.621Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (80 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as EE61A2B0C03 | id <d3e00868-27bb-989f-d11b-8641e62c069a@e-orders.eu>
+[2026-11-07T01:00:03.206Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-10-24)
+[2026-11-07T01:00:04.383Z] ConfiguratorTester: przebieg przerwany globalnie — page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/user/auth/login?pin=admin&password=eforszef123
+Call log:
+  - navigating to "http://localhost:8000/user/auth/login?pin=admin&password=eforszef123", waiting until "load"
+
+[2026-11-07T01:00:05.585Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (1 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as CFFA42B36F9 | id <460173d8-17b1-17da-e173-a939ddcffb77@e-orders.eu>

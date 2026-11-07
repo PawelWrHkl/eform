@@ -600,12 +600,13 @@ test('zaawansowana: bez kłódki — tylko składnik i wartość, bez kolumn rab
   assert.equal(closed.positions[0].sets[0].discountVisible, false);
   const closedHtml = env.render('partials/price_spec_body.njk', { spec: closed });
   assert.ok(closedHtml.includes('Rabaty i wartości po rabacie pokazują się po odblokowaniu cen'));
-  assert.ok(!closedHtml.includes('Wartość po rabacie'));
+  assert.ok(!closedHtml.includes('Wartość netto po rabacie'));
+  assert.ok(closedHtml.includes('<th scope="col">Wartość</th>') && !closedHtml.includes('Wartość brutto'), 'bez kolumn rabatu wartość bez „brutto”');
   assert.ok(!closedHtml.includes('132,31'), 'cena po rabacie nie wychodzi bez kłódki');
 
   const open = build({ isGroupShop: true, discountPricesUnlocked: true }, { advanced: true });
   const html = env.render('partials/price_spec_body.njk', { spec: open });
-  for (const head of ['Składnik ceny', 'Wartość', 'Rabat', 'Wartość po rabacie']) assert.ok(html.includes(`<th scope="col">${head}</th>`), head);
+  for (const head of ['Składnik ceny', 'Wartość brutto', 'Rabat', 'Wartość netto po rabacie']) assert.ok(html.includes(`<th scope="col">${head}</th>`), head);
   assert.ok(html.includes('price-spec--advanced'));
   assert.ok(html.includes('132,31'), 'wartość po rabacie z zlecenia');
   // prosta specyfikacja bez zmian — bez kolumn

@@ -227,11 +227,15 @@ async function resolveRegularVatRateForOrder(orderId) {
   const rows = await db.selectQuery('SELECT user_id, organization_id FROM `order` WHERE id = ?', orderId);
   const order = rows?.[0];
   if (!order) return { vatRate: null, reason: 'unknown' };
-  if (Number(order.organization_id) === HKL_ORG_ID) {
-    return resolveVatRateForUser(order.user_id, order.organization_id);
-  }
+  return resolveRegularVatRateForUser(order.user_id, order.organization_id);
+}
+
+/** Ta sama reguła cen zwykłych dla konta bez zlecenia (dopisek VAT w cenniku netto). */
+async function resolveRegularVatRateForUser(userId, orgId) {
+  if (!vatFeatureEnabled) return { vatRate: null, reason: 'disabled' };
+  if (Number(orgId) === HKL_ORG_ID) return resolveVatRateForUser(userId, orgId);
   const [organizationCountry, hklCountry] = await Promise.all([
-    getOrganizationCountry(order.organization_id),
+    getOrganizationCountry(orgId),
     getOrganizationCountry(HKL_ORG_ID)
   ]);
   return calculateVatDetails(organizationCountry, hklCountry);
@@ -272,6 +276,7 @@ module.exports = {
   resolveVatLocals,
   resolveVatRateForOrder,
   resolveRegularVatRateForOrder,
+  resolveRegularVatRateForUser,
   resolveGroupVatRateForOrder,
   VAT_RATES_BY_COUNTRY,
   EU_VAT_RATES,

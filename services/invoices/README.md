@@ -136,7 +136,11 @@ jest nabywcą na 1 i wystawcą na 2), dlatego identyfikacja to zawsze **para
 tym samym `2026/00001`.
 
 **Numeracja:** `{YYYY}/{NR:5}` → `2026/00001`, licznik zerowany 1 stycznia,
-odizolowany per (wystawca, poziom, rok) w `invoice_issuer_sequence`. Rezerwacja
+JEDEN na firmę (`repository.issuerSeriesKey`): HKL na poziomie 1 (producent) liczy w
+serii organizacji HKL z poziomu 2, organizacja na poziomach 2 i 4 w jednej serii,
+użytkownik (poziom 3) we własnej. Do 2026-11-06 licznik był per (wystawca, poziom, rok),
+więc HKL wystawiło 97 par faktur o tym samym numerze (poziom 1 i 2, jeden NIP). Na
+produkcji faktury poziomu 1 usunięto i wystawiono od nowa w serii wspólnej. Rezerwacja
 numeru jest atomowa (`INSERT … ON DUPLICATE KEY UPDATE LAST_INSERT_ID(last+1)`)
 i wykonuje się w tej samej transakcji co zapis dokumentu.
 
@@ -708,10 +712,14 @@ na każdej stronie; formatka zostaje wektorowa.
 **Wszystkie faktury są POZIOME** (decyzja właściciela 2026-10-23): rozmiar strony
 bierze się z formatki, a bez formatki — A4 poziomo. Jedyna pionowa formatka, `HKL.pdf`
 (A4 ×1,34, pion), została zastąpiona `HKL_POZIOM.pdf` (A4 poziomo) złożoną z jej
-WYCINKÓW (PyMuPDF `show_pdf_page` z `clip` — dane firmy, wyróżnienia i rachunki
-EUR/PLN są dokładnie te z oryginału, bez przepisywania): nagłówek = logo | wyróżnienia |
-dane firmy, stopka = rachunek EUR | rachunek PLN w pełnej wielkości (czytelniej niż na
-oryginale). Marginesy 30/12/25/12 mm (pole treści ~155 mm, jak Luxan 159 mm).
+danych tej formatki: nagłówek = samo logo (obrazek wyrenderowany z oryginału), stopka =
+dane firmy | rachunek EUR | rachunek PLN jako tekst wektorowy (6,8 pt). Napisy rachunków i ich
+pozycje skrypt wyciąga programem z `HKL.pdf`, więc IBAN-y nie są przepisywane ręcznie.
+⚠️ Bez wycinków (`show_pdf_page` z `clip`), od 2026-11-07: wycinek to cała strona oryginału
+przycięta tylko wizualnie. Przeglądarka PDF właściciela przycinanie ignorowała: nad kreską
+wychodziły podpisy wyróżnień („informacje szablonowe”), a rachunki rysowały się podwójnie.
+Do tego każda strona faktury niosła 12 pełnostronicowych obrazów (PDF ~900 KB, teraz ~170 KB).
+Od 2026-11-06 dane firmy są w stopce, nie nad kreską nagłówka. Marginesy 30/12/25/12 mm (pole treści ~155 mm, jak Luxan 159 mm).
 Przypisana z `--code HKL`, więc drukują się na niej także wcześniej wystawione
 (testowe) faktury HKL. `HKL.pdf` zostaje w katalogu jako źródło.
 

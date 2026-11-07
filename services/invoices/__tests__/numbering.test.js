@@ -106,3 +106,21 @@ test('statusy: przekroczony termin płatności', () => {
   assert.equal(isOverdue(invoice, new Date('2026-08-01T10:00:00')), false, 'w dniu terminu jeszcze nie ma zaległości');
   assert.equal(isOverdue({ status: InvoiceStatus.PAID, dueDate: '2026-08-01' }, new Date('2026-09-01')), false);
 });
+
+test('seria numeracji: jedna na firmę — HKL na poziomach 1 i 2 z jednego licznika (2026-11-06)', async () => {
+  const { allocateIssuerSequence, issuerSeriesKey } = require('../db/repository');
+  const { HKL_ORG_ID } = require('../../subPrices');
+  const hkl = { issuerType: 'organization', issuerId: Number(HKL_ORG_ID), level: 2 };
+  assert.deepEqual(issuerSeriesKey({ issuerType: 'manufacturer', issuerId: 0, level: 1 }), hkl);
+  assert.deepEqual(issuerSeriesKey({ issuerType: 'organization', issuerId: HKL_ORG_ID, level: 2 }), hkl);
+  // Organizacja sprzedająca odbiorcy końcowemu (poziom 4) liczy w tej samej serii co na poziomie 2
+  assert.deepEqual(issuerSeriesKey({ issuerType: 'organization', issuerId: 5, level: 4 }), { issuerType: 'organization', issuerId: 5, level: 2 });
+  assert.deepEqual(issuerSeriesKey({ issuerType: 'user', issuerId: 77, level: 3 }), { issuerType: 'user', issuerId: 77, level: 3 });
+
+  const calls = [];
+  const conn = { query: async (sql, params) => { calls.push(params); return [{ insertId: calls.length }]; } };
+  await allocateIssuerSequence({ issuerType: 'manufacturer', issuerId: 0, level: 1, year: 2026 }, conn);
+  await allocateIssuerSequence({ issuerType: 'organization', issuerId: HKL_ORG_ID, level: 2, year: 2026 }, conn);
+  assert.deepEqual(calls[0], calls[1], 'ten sam klucz licznika');
+  assert.deepEqual(calls[0], ['organization', Number(HKL_ORG_ID), 2, 2026]);
+});

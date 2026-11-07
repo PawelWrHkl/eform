@@ -96,6 +96,8 @@ function createRealm() {
       sandbox.inputsValidators = {};
       sandbox.inputsDefaults = {};
       sandbox.formulaContext = {};
+      // USTAW(…,"WAR",…) zostawia tu wartość wymuszoną (np. typ skosu) — czytelną po wywołaniu.
+      sandbox.constValues = {};
       sandbox.actualParam = paramName;
       sandbox.actualValue = optionValue;
       this.evaluate(procedure, values, 'PROCEDURE');
@@ -107,7 +109,7 @@ function createRealm() {
 
 // Compiling one generated script costs ~0.7 s and ~65 MB (5–6 MB of if/else),
 // so keep a few compiled realms keyed by path + mtime + size.
-const MAX_CACHED_SCRIPTS = 4;
+const MAX_CACHED_SCRIPTS = 3;
 const scriptCache = new Map();
 
 /** Realm with one price script loaded; `run(values, { now })` calls its `f()`. */
@@ -197,4 +199,9 @@ function runPriceScripts(params, values, groupNumber, version) {
   return values;
 }
 
-module.exports = { executeScript, runPriceScripts, createRealm, loadScriptRunner };
+/** Drop compiled scripts (long runs switch groups; each realm holds a 5 MB script). */
+function clearScriptCache() {
+  scriptCache.clear();
+}
+
+module.exports = { executeScript, runPriceScripts, createRealm, loadScriptRunner, clearScriptCache };

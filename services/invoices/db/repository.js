@@ -1352,10 +1352,29 @@ async function getAdvanceInvoicesForOrder(orderId) {
  * ===================================================================== */
 
 /**
+ * Klucz serii numeracji wystawcy — firma, nie poziom (patrz `allocateIssuerSequence`).
+ * Organizacja zostaje przy kluczu poziomu 2, bo tam są jej istniejące liczniki.
+ *
+ * @param {{ issuerType: string, issuerId: number, level: number }} issuer
+ * @returns {{ issuerType: string, issuerId: number, level: number }}
+ */
+function issuerSeriesKey({ issuerType, issuerId, level }) {
+  if (issuerType === 'manufacturer') {
+    const { HKL_ORG_ID } = require('../../subPrices');
+    return { issuerType: 'organization', issuerId: Number(HKL_ORG_ID), level: 2 };
+  }
+  if (issuerType === 'organization') return { issuerType, issuerId: Number(issuerId) || 0, level: 2 };
+  return { issuerType, issuerId: Number(issuerId) || 0, level: Number(level) };
+}
+
+/**
  * Atomowa rezerwacja numeru w serii wystawcy (`YYYY/00001`).
  *
- * Klucz licznika to (typ wystawcy, id wystawcy, poziom, rok) — każdy podmiot na
- * każdym poziomie ma własną serię zerowaną 1 stycznia. Ta sama technika co w
+ * JEDNA seria na firmę, zerowana 1 stycznia: wspólny wzorzec `YYYY/00001` przy osobnych
+ * licznikach dawał te same numery dwóm fakturom jednego NIP-u (2026-11-06: HKL poziom 1 i
+ * poziom 2 → 97 par). Dlatego klucz (`issuerSeriesKey`) pomija poziom: HKL-producent
+ * (poziom 1) liczy w serii organizacji HKL, organizacja (poziomy 2 i 4) w swojej serii
+ * z poziomu 2, użytkownik (poziom 3) w swojej. Ta sama technika co w
  * `allocateSequence`: `LAST_INSERT_ID(expr)` zapisuje i zwraca wartość w jednym
  * zapytaniu, więc dwa równoległe wystawienia nie dostaną tego samego numeru
  * (żadnego `SELECT … FOR UPDATE`).
@@ -1365,6 +1384,7 @@ async function getAdvanceInvoicesForOrder(orderId) {
  * @returns {Promise<number>}
  */
 async function allocateIssuerSequence({ issuerType, issuerId, level, year }, conn) {
+  ({ issuerType, issuerId, level } = issuerSeriesKey({ issuerType, issuerId, level }));
   const sql = `
     INSERT INTO invoice_issuer_sequence (issuer_type, issuer_id, level, year, last_number)
     VALUES (?, ?, ?, ?, LAST_INSERT_ID(1))
@@ -2007,6 +2027,7 @@ async function runSchemaMigration() {
 module.exports = {
   withTransaction,
   allocateIssuerSequence,
+  issuerSeriesKey,
   getIssuerProfile,
   upsertIssuerProfile,
   createEndClient,

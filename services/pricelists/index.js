@@ -24,7 +24,7 @@ const { parseTabFile } = require('../formEngine/clientScripts');
 const { createRealm } = require('../formEngine/scriptRunner');
 const { hashUser } = require('../../utils/hashUser');
 const sm = require('./scriptModel');
-const { familyOf, clausesOf } = require('./conditions');
+const { familyOf, clausesOf, satisfyingValue } = require('./conditions');
 
 const VERSION_COLUMN = { dev: 'version_dev', archive: 'version_archive', test: 'version_string', prod: 'version_string' };
 
@@ -80,7 +80,8 @@ function readOptions(groupNumber, version, lang) {
   });
 }
 
-const MAX_MODELS = 24;
+// Sparsowany 5-megabajtowy skrypt to dziesiątki MB obiektów — mała pamięć, żeby nie wypchnąć serwera z RAM.
+const MAX_MODELS = 6;
 const modelCache = new Map();
 
 /** Model skryptu (parsowanie ~0,5 s dla 5 MB) — LRU po ścieżce, mtime i rozmiarze. */
@@ -111,15 +112,25 @@ const realm = () => (sharedRealm = sharedRealm || createRealm());
 
 const truthy = (value) => !!value;
 
-/** `evaluate` z pamięcią: wynik zależy od formuły i wartości, których ona używa. */
+/**
+ * `evaluate` z pamięcią: wynik zależy od formuły i wartości, których ona używa.
+ * Tekst formuły (bywa na setki znaków) jest kluczem raz, wartości — osobno.
+ */
 function memoEvaluate() {
   const memo = new Map();
   return (formula, obj) => {
-    const ids = identifiers(formula);
-    const key = `${formula}\u0000${ids.map((id) => `${id}=${obj[id]}`).join('\u0001')}`;
-    if (!memo.has(key)) memo.set(key, realm().evaluate(formula, obj));
-    return memo.get(key);
+    let byValues = memo.get(formula);
+    if (!byValues) memo.set(formula, (byValues = new Map()));
+    const key = identifiers(formula).map((id) => (obj[id] === undefined ? '\u0002' : String(obj[id]))).join('\u0001');
+    if (!byValues.has(key)) byValues.set(key, realm().evaluate(formula, obj));
+    return byValues.get(key);
   };
+}
+
+/** Zwalnia pamięć podręczną plików i modeli (np. między grupami w długim przebiegu). */
+function clearCaches() {
+  fileCache.clear();
+  modelCache.clear();
 }
 
 const IDENT_CACHE = new Map();
@@ -155,10 +166,39 @@ function hardRange(validators, field) {
  * Walidatory opcji przy danej szerokości — z pamięcią, bo procedura bywa zależna
  * od szerokości (`USTAW("WYSOKOSC","MAX",IF(SZEROKOSC<=1200,2200,1500))`).
  */
-function validatorsAt(memo, option, procParam, xField, x) {
+function validatorsAt(memo, option, procParam, xField, x, subforms = {}) {
   const key = `${option.VALUE}|${xField}|${x}`;
-  if (!memo.has(key)) memo.set(key, option.PROC ? realm().procedure(option.PROC, { [procParam]: option.VALUE, [xField]: x }, procParam, option.VALUE) : {});
+  if (!memo.has(key)) {
+    let validators = {};
+    if (option.PROC) {
+      validators = realm().procedure(option.PROC, { [procParam]: option.VALUE, [xField]: x }, procParam, option.VALUE);
+      // Model wymusza typ podformularza (`USTAW("WYMIAROWANIE_SLOPOW.TYP","WAR","TYP8")`) — jego limity WYM_*.
+      for (const [field, value] of Object.entries({ ...realm().sandbox.constValues })) {
+        const [name, typeField] = field.split('.');
+        if (typeField && subforms[name]) Object.assign(validators, subformValidators(subforms[name], typeField, value, { [xField]: x }));
+      }
+    }
+    memo.set(key, validators);
+  }
   return memo.get(key);
+}
+
+/**
+ * Walidatory podformularza dla wymuszonego typu, jak `runSlopeProcedures`.
+ * Pola spoza `dims` dostają swoje minimum (2 przebiegi), żeby limity wzajemne
+ * (`WYM_H1` ≥ `WYM_H2` ≥ 300) liczyły się przy najluźniejszym wypełnieniu.
+ */
+function subformValidators(subform, typeField, typeValue, dims) {
+  const option = (subform.options[typeField] || []).find((o) => o.VALUE === typeValue);
+  if (!option || !option.PROC) return {};
+  const free = Object.keys(subform.params).filter((f) => f !== typeField && !(f in dims));
+  let values = { ...Object.fromEntries(free.map((f) => [f, 0])), ...dims, [typeField]: typeValue };
+  let validators = {};
+  for (let pass = 0; pass < 3; pass++) {
+    validators = realm().procedure(option.PROC, values, typeField, typeValue);
+    values = { ...values, ...Object.fromEntries(free.filter((f) => validators[f] && Number.isFinite(validators[f].MIN)).map((f) => [f, validators[f].MIN])) };
+  }
+  return validators;
 }
 
 /**
@@ -166,15 +206,15 @@ function validatorsAt(memo, option, procParam, xField, x) {
  * Procedurę sprawdzamy przy obu brzegach szerokości (max wysokości bywa warunkowy),
  * POW — jego własną formułą z param.txt, tylko gdy grupa ma taki parametr.
  */
-function acceptsCell({ memo, option, procParam, xField, yField, cell, powFormula }) {
+function acceptsCell({ memo, option, procParam, xField, yField, cell, powFormula, subforms }) {
   if (!option.PROC) return true;
   if (!xField) {
     // Tabela tylko po wysokości: jej zakres nie zależy od szerokości.
-    const ry = hardRange(validatorsAt(memo, option, procParam, yField, cell.y1), yField) || { min: 0, max: Infinity };
+    const ry = hardRange(validatorsAt(memo, option, procParam, yField, cell.y1, subforms), yField) || { min: 0, max: Infinity };
     return Math.max(cell.y0 + 1, ry.min) <= Math.min(cell.y1, ry.max);
   }
   for (const x of yField ? [cell.x0 + 1, cell.x1] : [cell.x1]) {
-    const validators = validatorsAt(memo, option, procParam, xField, x);
+    const validators = validatorsAt(memo, option, procParam, xField, x, subforms);
     const rx = hardRange(validators, xField) || { min: 0, max: Infinity };
     const xLo = Math.max(cell.x0 + 1, rx.min);
     const xHi = Math.min(cell.x1, rx.max);
@@ -217,69 +257,152 @@ function sectionIsRisky(section) {
 }
 
 /**
- * Szybki odpowiednik `runModel` dla stałych opcji i zmiennych wymiarów: liczba
- * trafień `n` każdej sekcji liczona raz, wymiary wchodzą przez osie. Sekcje
- * z `n=0` dają 0 (v*0), chyba że są „ryzykowne” — wtedy liczymy je jak skrypt.
- * Model z progami-zmiennymi idzie zawsze pełną ścieżką `runModel`.
+ * Parametry-formuły z param.txt liczone wyłącznie z wymiarów (np. POW =
+ * SZEROKOSC*WYSOKOSC/1000000) — konfigurator ma je w `values`, zanim uruchomi
+ * skrypt ceny, więc warunek sekcji może z nich korzystać. Zaokrąglenie jak
+ * `calculateFromFormula`: wynik ujemny/false → 0, inaczej toFixed(2).
  */
-function cellRunner(model, ctx, evaluate, increase) {
+function derivedDims(params, dims) {
+  const fields = Object.keys(dims);
+  const out = {};
+  for (const [name, p] of Object.entries(params)) {
+    if (!present(p.FORMULA) || fields.includes(name)) continue;
+    const ids = identifiers(p.FORMULA);
+    if (!ids.length || !ids.every((id) => fields.includes(id))) continue;
+    const result = realm().evaluate(p.FORMULA, dims);
+    out[name] = result === false || result === null || result < 0 ? 0 : parseFloat(parseFloat(result).toFixed(2));
+  }
+  return out;
+}
+
+/**
+ * Szybki odpowiednik `runModel` dla stałych opcji i zmiennych wymiarów: liczba
+ * trafień `n` sekcji liczona raz na konfigurację, a per komórka tylko dla sekcji,
+ * których warunek zależy od wymiaru (np. `SZEROKOSC<=1300`). Osie i `x`/`y`
+ * przechodzą między sekcjami jak w skrypcie; sekcja z `n=0` daje 0, chyba że
+ * jest „ryzykowna” (tekst, wzór, próg-zmienna — `NaN*0` to NaN) — wtedy liczona.
+ */
+function cellRunner(model, ctx, evaluate, increase, { params = {}, dimFields = [] } = {}) {
   if (!model.meta) {
     model.meta = {
       clauses: model.sections.map((s) => s.conditions.map((c) => (c.formula ? clausesOf(c.formula) : []))),
-      risky: model.sections.map(sectionIsRisky)
+      risky: model.sections.map(sectionIsRisky),
+      declared: new Set(model.sections.map((s) => s.name))
     };
-    model.meta.anyRefs = model.meta.risky.some(Boolean);
   }
-  const n = model.sections.map((s, i) => s.conditions.reduce((acc, c, k) => {
+  const meta = model.meta;
+  const derivedNames = new Set(Object.entries(params).filter(([, p]) => present(p.FORMULA)).map(([name]) => name));
+  const dependsOnDims = model.sections.map((s) => s.conditions.some((c) => c.formula && identifiers(c.formula).some((id) => dimFields.includes(id) || derivedNames.has(id))));
+  const nOf = (i, obj) => model.sections[i].conditions.reduce((acc, c, k) => {
     if (!c.formula) return acc + (sm.literalNumber(c) ? 1 : 0);
-    if (quickFalse(model.meta.clauses[i][k], ctx)) return acc;
-    return acc + (truthy(evaluate(c.formula, ctx)) ? 1 : 0);
-  }, s.nInit));
+    if (quickFalse(meta.clauses[i][k], obj)) return acc;
+    return acc + (truthy(evaluate(c.formula, obj)) ? 1 : 0);
+  }, model.sections[i].nInit);
+  const n = model.sections.map((s, i) => (dependsOnDims[i] ? null : nOf(i, ctx)));
 
+  const derivedMemo = new Map();
+  const derivedFor = (dims) => {
+    const key = JSON.stringify(dims);
+    if (!derivedMemo.has(key)) derivedMemo.set(key, derivedDims(params, dims));
+    return derivedMemo.get(key);
+  };
   const run = (dims) => {
-    if (model.meta.anyRefs) return sm.runModel(model, { ...ctx, ...dims }, evaluate, increase);
-    const obj = { ...ctx, ...dims };
+    const obj = { ...ctx, ...dims, ...derivedFor(dims) };
     const scope = Object.create(null);
-    model.sections.forEach((s, i) => {
-      if (!n[i]) {
+    let x = null;
+    let y = null;
+    const resolveRef = (name) => {
+      if (name === 'x') return { value: x };
+      if (name === 'y') return { value: y };
+      if (name in scope) return { value: scope[name] };
+      if (meta.declared.has(name)) return { value: undefined };
+      return { unknown: name };
+    };
+    const axis = (a) => {
+      const field = simpleAxis(a);
+      if (field && typeof obj[field] === 'number') return obj[field] / 10;
+      return a.formula ? evaluate(a.formula, obj) : 'num' in a ? a.num : a.str;
+    };
+    for (let i = 0; i < model.sections.length; i++) {
+      const s = model.sections[i];
+      const count = n[i] === null ? nOf(i, obj) : n[i];
+      if (s.axisX) x = axis(s.axisX);
+      if (s.axisY) y = axis(s.axisY);
+      if (!count && !meta.risky[i]) {
         scope[s.name] = 0;
-        return;
+        continue;
       }
-      const axis = (a) => {
-        if (!a) return null;
-        const field = simpleAxis(a);
-        if (field && typeof obj[field] === 'number') return obj[field] / 10;
-        return a.formula ? evaluate(a.formula, obj) : 'num' in a ? a.num : a.str;
-      };
-      const entry = sm.lookupEntry(s, axis(s.axisX), axis(s.axisY));
+      const entry = sm.lookupEntry(s, x, y, resolveRef);
+      if (entry && entry.unknown) return { error: `próg zależny od zmiennej ${entry.unknown}` };
       let v = 0;
       if (entry) v = entry.value.formula ? evaluate(entry.value.formula, obj) : 'num' in entry.value ? entry.value.num : entry.value.str;
-      scope[s.name] = v * n[i];
-    });
+      scope[s.name] = v * count;
+    }
     let total;
     model.sum.forEach((name, k) => {
       total = k === 0 ? scope[name] : total + scope[name];
     });
-    return { amount: sm.finalAmount(model, total, increase), sections: scope };
+    return { amount: sm.finalAmount(model, total, increase), sections: scope, obj };
   };
-  return { n, run };
+  return { n: n.map((v, i) => (v === null ? `d${i}` : v)), run };
 }
 
 // ---------------------------------------------------------------------------
 // Tabele cen (sekcje z osiami wymiarów).
 
-/** Oś `PARAM/10` → nazwa pola; inne formuły osi to przypadki specjalne (etap 4). */
+/** Oś `PARAM/10` → nazwa pola. */
 function simpleAxis(axis) {
   if (!axis || !axis.formula) return null;
   const m = /^([A-Z0-9_]+)\/10$/.exec(axis.formula.trim());
   return m ? m[1] : null;
 }
 
-function isTableSection(section) {
-  if (!['xy', 'x', 'y'].includes(section.value.kind)) return false;
-  if (section.value.kind === 'x' || section.value.kind === 'xy') if (!simpleAxis(section.axisX)) return false;
-  if (section.value.kind === 'y' || section.value.kind === 'xy') if (!simpleAxis(section.axisY)) return false;
-  return true;
+/**
+ * Pole wymiaru osi tabeli:
+ * - `PARAM/10` → `{ field }`;
+ * - stała (`""` w gr. 80) → `{ literal }` — skrypt bierze zawsze pierwszy próg;
+ * - wzór zależny od jednej opcji (`IF(WYS_RODZ="VERTI",(WYSOKOSC-38)/10,WYSOKOSC/10)`) →
+ *   tabela dla wariantu, w którym oś to samo pole (PASEK), a pozostałe warianty
+ *   jako przesunięcie do przypisu (VERTI: +38 mm).
+ * Inne wzory → null (sekcja nie jest tabelą).
+ */
+function resolveAxis(axis, options) {
+  if (!axis) return null;
+  const field = simpleAxis(axis);
+  if (field) return { field, fixed: {}, variants: [] };
+  if (!axis.formula) return { literal: true, fixed: {}, variants: [] };
+  const ids = identifiers(axis.formula);
+  const choices = ids.filter((id) => (options[id] || []).length);
+  const fields = ids.filter((id) => !choices.includes(id));
+  if (fields.length !== 1 || choices.length !== 1) return null;
+  const [dim] = fields;
+  const [choice] = choices;
+  const at = (value, mm) => Number(realm().evaluate(axis.formula, { [choice]: value, [dim]: mm }));
+  const variants = [];
+  for (const o of options[choice]) {
+    const shift = at(o.VALUE, 0) * 10; // oś·10 − pole, w mm
+    const affine = [1000, 2000, 3000].every((mm) => Math.abs(at(o.VALUE, mm) * 10 - mm - shift) < 1e-9);
+    if (!affine) return null;
+    variants.push({ param: choice, value: o.VALUE, description: o.DESCRIPTION, shiftMm: -shift });
+  }
+  const identity = variants.find((v) => v.shiftMm === 0);
+  if (!identity) return null;
+  return { field: dim, fixed: { [choice]: identity.value }, base: identity, variants: variants.filter((v) => v !== identity) };
+}
+
+function isTableSection(section, axisOf) {
+  const kind = section.value.kind;
+  if (!['xy', 'x', 'y'].includes(kind)) return false;
+  const x = kind === 'x' || kind === 'xy' ? axisOf(section.axisX) : null;
+  const y = kind === 'y' || kind === 'xy' ? axisOf(section.axisY) : null;
+  if ((kind !== 'y' && !x) || (kind !== 'x' && !y)) return false;
+  // Stała oś ma sens tylko obok osi-pola (tabela po samej wysokości).
+  return !!((x && x.field) || (y && y.field));
+}
+
+/** Wartość, którą konfigurator wstawia za wyłączony parametr (`neutralValueFor`): liczony → 0, wpisywany → ''. */
+function neutralValue(param) {
+  return param && (present(param.FORMULA) || present(param.SCRIPTS)) ? 0 : '';
 }
 
 /** Progi osi zebrane z tabel wszystkich sekcji rodziny (rosnąco, tylko liczby). */
@@ -322,7 +445,7 @@ function familyContext({ uid, family, domainParam, option, token, others, second
   return ctx;
 }
 
-function buildTables({ model, sections, params, options, uid, increase, evaluate, notes }) {
+function buildTables({ model, sections, params, options, uid, increase, evaluate, notes, subforms = {}, axisOf, gridStep = null }) {
   const families = new Map();
   for (const section of sections) {
     const fam = familyOf(section);
@@ -336,11 +459,15 @@ function buildTables({ model, sections, params, options, uid, increase, evaluate
   for (const family of families.values()) {
     const clauses = family.conditions[0].filter((c) => c.kind === 'filter');
     const first = family.sections[0];
-    const xField = simpleAxis(first.axisX);
-    const yField = simpleAxis(first.axisY);
+    const ax = first.axisX ? axisOf(first.axisX) : null;
+    const ay = first.axisY ? axisOf(first.axisY) : null;
+    const xField = (ax && ax.field) || null;
+    const yField = (ay && ay.field) || null;
 
-    // Domena = parametr z limitami wymiarów (MODEL, a w 24/46 SYSTEM/TYP), spośród klauzul rodziny.
-    const limitParams = clauses.filter((c) => !c.negated && options[c.param] && options[c.param].some((o) => /USTAW\("(SZEROKOSC|WYSOKOSC)","(MIN|MAX)2?"/i.test(o.PROC)));
+    // Domena = parametr z limitami osi tabeli (MODEL, a w 24/46 SYSTEM/TYP) albo wymuszający typ podformularza (skosy).
+    const axisFields = [xField, yField].filter(Boolean);
+    const setsLimits = (proc) => axisFields.some((f) => new RegExp(`USTAW\\("${f}","(MIN|MAX)2?"`, 'i').test(proc)) || /USTAW\("[A-Z0-9_]+\.[A-Z0-9_]+","WAR"/i.test(proc);
+    const limitParams = clauses.filter((c) => !c.negated && options[c.param] && options[c.param].some((o) => setsLimits(o.PROC)));
     const domainClause = limitParams.find((c) => c.param === 'MODEL') || limitParams[0] || clauses.find((c) => c.param === 'MODEL') || null;
     const domainParam = domainClause ? domainClause.param : null;
     const domain = domainClause ? optionsMatching(domainClause, options[domainParam] || [], evaluate) : [{ VALUE: null, DESCRIPTION: '', PROC: '' }];
@@ -358,6 +485,17 @@ function buildTables({ model, sections, params, options, uid, increase, evaluate
       if (matching.length) others[clause.param] = matching[0].VALUE;
       otherFilters.push({ param: clause.param, options: matching.map((o) => o.VALUE), text: clause.text });
     }
+    // Wariant osi-wzoru, w którym oś to samo pole (14: WYS_RODZ=PASEK).
+    Object.assign(others, ax && ax.fixed, ay && ay.fixed);
+    // Tkanina z grupą cenową musi być włączona: jej ENABLE dopisuje brakujące wybory (73: KOLOR wymaga STOFF=K).
+    const fabric = family.fabricParams[0];
+    if (fabric && params[fabric] && present(params[fabric].ENABLE)) {
+      for (const clause of clausesOf(params[fabric].ENABLE.replace(/^=/, ''))) {
+        if (clause.kind !== 'filter' || clause.param === domainParam || clause.param in others) continue;
+        const matching = optionsMatching(clause, options[clause.param] || [], evaluate);
+        if (matching.length) others[clause.param] = matching[0].VALUE;
+      }
+    }
 
     // Druga tkanina: włączona przez ENABLE jej parametru w param.txt dla danego modelu.
     const secondParam = family.fabricParams[1];
@@ -368,7 +506,7 @@ function buildTables({ model, sections, params, options, uid, increase, evaluate
     const groups = new Map();
     for (const option of domain) {
       const double = isDouble(option);
-      const runners = family.tokens.map((token) => cellRunner(model, familyContext({ uid, family, domainParam, option, token, others, secondFabric: double }), evaluate, increase));
+      const runners = family.tokens.map((token) => cellRunner(model, familyContext({ uid, family, domainParam, option, token, others, secondFabric: double }), evaluate, increase, { params, dimFields: [xField, yField].filter(Boolean) }));
       const key = `${double}|${runners.map((r) => r.n.join(',')).join('|')}`;
       if (!groups.has(key)) groups.set(key, { double, options: [], runners });
       groups.get(key).options.push(option);
@@ -377,23 +515,47 @@ function buildTables({ model, sections, params, options, uid, increase, evaluate
       notes.push({ kind: 'family-split', section: first.name, groups: [...groups.values()].map((g) => g.options.map((o) => o.VALUE)) });
     }
 
-    const widths = xField ? axisBounds(family.sections, 'x') : [null];
-    const heights = yField ? axisBounds(family.sections, 'y') : [null];
+    // 73: siatka co `gridStep` cm (decyzja właściciela 07.11) — progi skryptu będące jej wielokrotnością.
+    const thin = (bounds) => {
+      if (!gridStep) return bounds;
+      const kept = bounds.filter((b) => b % gridStep === 0);
+      return kept.length ? kept : bounds;
+    };
     const powFormula = params.POW && present(params.POW.FORMULA) ? params.POW.FORMULA : null;
     const validatorMemo = new Map();
 
     for (const group of groups.values()) {
+      // Pole osi wyłączone w tej konfiguracji (73: SZEROKOSC_POTRZEBNA przy KAR) → konfigurator podaje
+      // wartość neutralną i skrypt bierze pierwszy próg: oś znika z tabeli, a raport to zgłasza.
+      const groupCtx = familyContext({ uid, family, domainParam, option: group.options[0], token: family.tokens[0], others, secondFabric: group.double });
+      const fixedDims = {};
+      for (const field of [xField, yField]) {
+        const p = field && params[field];
+        if (p && present(p.ENABLE) && !truthy(evaluate(p.ENABLE, groupCtx))) {
+          fixedDims[field] = neutralValue(p);
+          notes.push({ kind: 'axis-disabled', section: first.name, field, options: group.options.map((o) => o.VALUE) });
+        }
+      }
+      const tx = xField && !(xField in fixedDims) ? xField : null;
+      const ty = yField && !(yField in fixedDims) ? yField : null;
+      if (!tx && !ty) {
+        notes.push({ kind: 'table-without-axes', section: first.name });
+        continue;
+      }
+      const widths = tx ? thin(axisBounds(family.sections, 'x')) : [null];
+      const heights = ty ? thin(axisBounds(family.sections, 'y')) : [null];
       // Komórka istnieje, gdy choć jedna opcja tabeli przyjmie wymiar z jej przedziału:
       // zakres = najniższe min i najwyższe max opcji, w środku kreska, gdy żadna nie pasuje.
       const allowed = new Map();
       widths.forEach((w, wi) => heights.forEach((h, hi) => {
+        // Przy siatce rzadszej niż progi skryptu komórka to punkt siatki: sprawdzamy jej własny próg.
         const cell = {
-          x0: xField && wi ? widths[wi - 1] * 10 : 0,
-          x1: xField ? w * 10 : 0,
-          y0: yField && hi ? heights[hi - 1] * 10 : 0,
-          y1: yField ? h * 10 : 0
+          x0: tx ? (gridStep ? w * 10 - 1 : wi ? widths[wi - 1] * 10 : 0) : 0,
+          x1: tx ? w * 10 : 0,
+          y0: ty ? (gridStep ? h * 10 - 1 : hi ? heights[hi - 1] * 10 : 0) : 0,
+          y1: ty ? h * 10 : 0
         };
-        allowed.set(`${w}|${h}`, !domainParam || group.options.some((option) => acceptsCell({ memo: validatorMemo, option, procParam: domainParam, xField, yField, cell, powFormula })));
+        allowed.set(`${w}|${h}`, !domainParam || group.options.some((option) => acceptsCell({ memo: validatorMemo, option, procParam: domainParam, xField: tx, yField: ty, cell, powFormula, subforms })));
       }));
 
       const cells = {};
@@ -404,9 +566,9 @@ function buildTables({ model, sections, params, options, uid, increase, evaluate
         for (const w of widths) {
           for (const h of heights) {
             if (!allowed.get(`${w}|${h}`)) continue;
-            const dims = {};
-            if (xField) dims[xField] = w * 10;
-            if (yField) dims[yField] = h * 10;
+            const dims = { ...fixedDims };
+            if (tx) dims[tx] = w * 10;
+            if (ty) dims[ty] = h * 10;
             const result = group.runners[t].run(dims);
             if (result.error) {
               notes.push({ kind: 'cell-error', section: first.name, error: result.error });
@@ -430,8 +592,12 @@ function buildTables({ model, sections, params, options, uid, increase, evaluate
         doubleFabric: group.double,
         fabricParam: family.fabricParams[0] || null,
         priceGroups: family.tokens,
-        xField,
-        yField,
+        xField: tx,
+        yField: ty,
+        fixedDims,
+        gridStep,
+        // Oś-wzór: wariant w tabeli i przesunięcia pozostałych (do przypisu).
+        axisVariants: [ax, ay].filter((a) => a && a.base && [tx, ty].includes(a.field)).map((a) => ({ field: a.field, base: a.base, others: a.variants })),
         widths: widths.filter((w) => usedW.has(w)),
         heights: heights.filter((h) => usedH.has(h)),
         cells,
@@ -446,7 +612,7 @@ function buildTables({ model, sections, params, options, uid, increase, evaluate
 // ---------------------------------------------------------------------------
 // Pozycje (dopłaty, dopłaty EL, sekcje bez wymiarów w cenie).
 
-function buildItems({ model, sections, options, uid, increase, evaluate, notes }) {
+function buildItems({ model, sections, params, options, uid, increase, evaluate, notes }) {
   const items = [];
   for (const section of sections) {
     const clauses = section.conditions.flatMap((c) => (c.formula ? clausesOf(c.formula) : []));
@@ -458,6 +624,12 @@ function buildItems({ model, sections, options, uid, increase, evaluate, notes }
         ctx[`${clause.param}_ALIAS___DESCRIPTION`] = '';
         continue;
       }
+      if (clause.kind === 'compare') {
+        // Dopłata zależna od wymiaru (`SZEROKOSC<=1300`): konfiguracja z pasującym wymiarem.
+        if (ctx[clause.param] === undefined) ctx[clause.param] = satisfyingValue(clause);
+        filters.push({ compare: true, param: clause.param, op: clause.op, value: clause.value, text: clause.text });
+        continue;
+      }
       if (clause.kind !== 'filter') {
         filters.push({ raw: clause.text });
         continue;
@@ -467,8 +639,15 @@ function buildItems({ model, sections, options, uid, increase, evaluate, notes }
       if (!clause.negated && matching.length && ctx[clause.param] === undefined) ctx[clause.param] = matching[0].VALUE;
     }
 
+    // Parametry liczone z wymiarów (POW) — jak w `values` konfiguratora.
+    const dims = Object.fromEntries(['SZEROKOSC', 'WYSOKOSC'].filter((f) => typeof ctx[f] === 'number').map((f) => [f, ctx[f]]));
+    if (Object.keys(dims).length) Object.assign(ctx, derivedDims(params, dims));
     const valueFormula = section.value.kind === 'const' && section.value.value.formula ? section.value.value.formula : null;
     const item = { param: model.param, name: section.name, filters };
+    // Kwota SAMEJ pozycji: jej sekcja z mnożnikiem, podwyżką i zaokrągleniem — tyle
+    // konfigurator doliczy za nią. Suma konfiguracji zawierałaby też inne dopłaty
+    // tej samej konfiguracji (np. „M” dla modeli _M obok „Klemmtrager”).
+    const ownAmount = (run) => (run.error ? null : Number(sm.finalAmount(model, run.sections[section.name], increase)));
 
     if (section.value.kind !== 'const') {
       item.kind = 'dimensional';
@@ -476,7 +655,8 @@ function buildItems({ model, sections, options, uid, increase, evaluate, notes }
     } else if (!valueFormula) {
       const run = sm.runModel(model, ctx, evaluate, increase);
       item.kind = 'amount';
-      item.amount = run.error ? null : Number(run.amount);
+      item.amount = ownAmount(run);
+      item.raw = run.error ? null : run.sections[section.name];
       item.context = ctx;
       // Inne sekcje, które ta sama minimalna konfiguracja uruchamia (np. dopłata za model).
       item.alsoFired = run.error ? [] : Object.entries(run.sections).filter(([n, v]) => n !== section.name && v).map(([n]) => n);
@@ -489,21 +669,21 @@ function buildItems({ model, sections, options, uid, increase, evaluate, notes }
         const byAmount = new Map();
         for (const value of models) {
           const run = sm.runModel(model, { ...ctx, MODEL: value }, evaluate, increase);
-          const amount = run.error ? null : Number(run.amount);
-          if (!byAmount.has(amount)) byAmount.set(amount, []);
-          byAmount.get(amount).push(value);
+          const amount = ownAmount(run);
+          if (!byAmount.has(amount)) byAmount.set(amount, { raw: run.error ? null : run.sections[section.name], options: [] });
+          byAmount.get(amount).options.push(value);
         }
         item.kind = 'byOption';
         item.context = ctx;
-        item.byOption = [...byAmount.entries()].map(([amount, values]) => ({ amount, options: values }));
+        item.byOption = [...byAmount.entries()].map(([amount, { raw, options: values }]) => ({ amount, raw, options: values }));
       } else if (ids.length === 1 && /CENA/.test(ids[0])) {
         // Procent ceny bazowej: kwota dla ceny 100 = efektywny procent (już z mnożnikiem i podwyżką).
         const run = sm.runModel(model, { ...ctx, [ids[0]]: 100 }, evaluate, increase);
         item.kind = 'percentOf';
         item.ofParam = ids[0];
-        item.percent = run.error ? null : Number(run.amount);
+        item.percent = ownAmount(run);
       } else if (ids.length === 1 && ['SZEROKOSC', 'WYSOKOSC'].includes(ids[0])) {
-        const at = (mm) => Number(sm.runModel(model, { ...ctx, [ids[0]]: mm }, evaluate, increase).amount);
+        const at = (mm) => ownAmount(sm.runModel(model, { ...ctx, [ids[0]]: mm }, evaluate, increase));
         const perMeter = at(1000);
         item.kind = Math.abs(at(2000) - 2 * perMeter) <= 0.011 ? 'perMeter' : 'formula';
         item.ofParam = ids[0];
@@ -576,6 +756,18 @@ async function buildPricelist({ groupNumber, user, orgIdent, priceSet, lang = 'p
   const notes = [];
   const parts = [];
 
+  // Podformularze, których typ wymusza procedura opcji (`USTAW("WYMIAROWANIE_SLOPOW.TYP","WAR",…)`) — limity ich pól.
+  const subforms = {};
+  const subNames = new Set(Object.values(optionsPl).flatMap((opts) => opts.flatMap((o) => [...o.PROC.matchAll(/USTAW\("([A-Z0-9_]+)\.[A-Z0-9_]+","WAR"/gi)].map((m) => m[1].toUpperCase()))));
+  for (const name of subNames) {
+    const subVersion = await activeVersion(name);
+    try {
+      subforms[name] = { params: readParams(name, subVersion, 'pl'), options: readOptions(name, subVersion, 'pl') };
+    } catch (err) {
+      notes.push({ kind: 'subform-missing', subform: name, version: subVersion, error: err.message });
+    }
+  }
+
   for (const component of components) {
     const file = terms.scripts[component];
     if (!file) {
@@ -602,8 +794,8 @@ async function buildPricelist({ groupNumber, user, orgIdent, priceSet, lang = 'p
       param: component,
       file,
       increase: { f: increase.f, fr: increase.fr, branch: increase.branch },
-      tables: buildTables({ model, sections: tableSections, params, options: optionsPl, uid, increase, evaluate, notes }),
-      items: buildItems({ model, sections: itemSections, options: optionsPl, uid, increase, evaluate, notes })
+      tables: buildTables({ model, sections: tableSections, params, options: optionsPl, uid, increase, evaluate, notes, subforms }),
+      items: buildItems({ model, sections: itemSections, params, options: optionsPl, uid, increase, evaluate, notes })
     });
   }
 
@@ -652,4 +844,16 @@ function applyDiscount(pricelist) {
   };
 }
 
-module.exports = { buildPricelist, applyDiscount, activeVersion, readParams, readOptions, loadModel, discountedAmount };
+/**
+ * Dokładna konfiguracja komórki tabeli (kontekst + wymiary + parametry z wymiarów),
+ * na której test porównawczy uruchamia prawdziwy skrypt.
+ */
+function cellObject(pricelist, table, token, w, h) {
+  const dims = {};
+  if (table.xField) dims[table.xField] = Number(w) * 10;
+  if (table.yField) dims[table.yField] = Number(h) * 10;
+  const params = readParams(pricelist.groupNumber, pricelist.version, 'pl');
+  return { ...table.contexts[token], ...dims, ...derivedDims(params, dims) };
+}
+
+module.exports = { buildPricelist, applyDiscount, activeVersion, readParams, readOptions, loadModel, discountedAmount, clearCaches, cellObject };

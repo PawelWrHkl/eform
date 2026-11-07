@@ -58,7 +58,7 @@
                                 <thead>
                                     <tr>
                                         <th scope="col">{{ spec.t.col_component }}</th>
-                                        <th scope="col">{{ spec.t.col_value }}</th>
+                                        <th scope="col">{{ spec.t.col_gross if cols else spec.t.col_value }}</th>
                                         {% if cols %}<th scope="col">{{ spec.t.col_discount }}</th><th scope="col">{{ spec.t.col_after }}</th>{% endif %}
                                     </tr>
                                 </thead>
@@ -180,7 +180,7 @@
                         <thead>
                             <tr>
                                 <th scope="col">{{ spec.t.col_component }}</th>
-                                <th scope="col">{{ spec.t.col_value }}</th>
+                                <th scope="col">{{ spec.t.col_gross if sumCols else spec.t.col_value }}</th>
                                 {% if sumCols %}<th scope="col">{{ spec.t.col_discount }}</th><th scope="col">{{ spec.t.col_after }}</th>{% endif %}
                             </tr>
                         </thead>
