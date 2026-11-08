@@ -2,6 +2,10 @@ const db = require("../db/db_helper.js");
 const usersDb = require("../db/users.js");
 const { customOrgSorting } = require('../utils/otherBossUtilities.js');
 const { log } = require('../utils/logging');
+const staffAccess = require('../services/staffAccess');
+const staffAudit = require('../services/staffAudit');
+const ownerService = require('../services/owner');
+const { applySubPriceLocals } = require('../services/subPriceContext');
 
 function requireLogin(req, res, next) {
   if (!req.session.user) {
@@ -71,37 +75,63 @@ function requirePermission(req, res, next) {
   next();
 }
 
+/**
+ * Konto biura: zlecenie musi należeć do klienta z jego listy (services/staffAccess.js).
+ * Kontekst wyrównujemy do właściciela zlecenia — jak admin w GET /orders/order/:id —
+ * żeby `getCurrentUser` na trasach zlecenia wskazywał klienta TEGO zlecenia
+ * (adresy, mail potwierdzenia, cenniki), a nie ostatnio wybranego.
+ */
+async function staffOrderAccess(req, res, orderId) {
+  const owner = await staffAccess.canAccessOrder(req.session.user.userId, orderId);
+  if (!owner) return false;
+  // Audyt „kto z biura ostatni zmieniał" — każda udana zmiana zlecenia lub pozycji.
+  // Kopia („Zamów ponownie") nie zmienia źródła; nowe zlecenie dostaje autora w trasie.
+  if (req.method !== 'GET' && res?.on && !String(req.originalUrl || '').startsWith('/orders/copy/')) {
+    const staffUserId = req.session.user.userId;
+    res.on('finish', () => {
+      if (res.statusCode < 400) staffAudit.markUpdatedByStaff(orderId, staffUserId);
+    });
+  }
+  if (req.session.context_user?.userId !== owner.userId) {
+    const ctx = await ownerService.setContextUserByIdent(req, owner.ident);
+    if (!ctx || ctx.userId !== owner.userId) {
+      ownerService.clearContextUser(req);
+      return false;
+    }
+    if (res?.locals) {
+      // `applySubPriceLocals` i pasek kontekstu policzyły się wcześniej (server.js) ze starym kontekstem.
+      applySubPriceLocals(req, res);
+      res.locals.staffContext = { ident: ctx.ident, clientName: ctx.clientName, organization: ctx.organization };
+    }
+  }
+  return true;
+}
+
+/**
+ * Czy zalogowany może działać na zleceniu: owner/admin — każde, konto biura —
+ * zlecenia dozwolonych klientów, sklep grupy — swoje (`group_user_id`),
+ * reszta — własne (`order.user_id`). Wspólne dla `checkOrderOwnership`
+ * i tras `/position/*`, które zlecenie biorą z treści żądania albo z pozycji.
+ */
+async function hasOrderAccess(req, res, orderId) {
+  const user = req.session?.user;
+  if (!user) return false;
+  if (user.isOwner) return true;
+  if (user.isStaff) return staffOrderAccess(req, res, orderId);
+  if (user.isGroupShop) {
+    if (!user.groupShopId) return false;
+    return !!(await db.checkGroupShopOrderOwner(orderId, user.groupShopId));
+  }
+  if (!user.userId) return false;
+  return !!(await db.checkOwner(orderId, user.userId));
+}
+
 async function checkOrderOwnership(req, res, next) {
   try {
-    if (req.session.user?.isOwner) {
-      return next();
-    }
-
-    // Group shop: order belongs to this shop (check by group_user_id)
-    if (req.session.user?.isGroupShop) {
-      const groupShopId = req.session.user.groupShopId;
-      const orderId = req.params.orderId;
-      if (!groupShopId) return res.redirect('/user/no-permission');
-      const owns = await db.checkGroupShopOrderOwner(orderId, groupShopId);
-      if (!owns) return res.redirect('/user/no-permission');
-      return next();
-    }
-
-    const userId = req.session.user?.userId;
-    const orderId = req.params.orderId;
-    // log(userId, orderId, 'in checkOrderOwnership middleware');
-    if (!userId) {
+    if (!(await hasOrderAccess(req, res, req.params.orderId))) {
       return res.redirect('/user/no-permission');
     }
-    const order = await db.checkOwner(orderId, userId);
-    // log(order, 'order ownership check result');
-    if (!order) {
-      return res.redirect('/user/no-permission');
-    }
-
-
     next();
-
   } catch (err) {
     next(err);
   }
@@ -146,4 +176,4 @@ function requireGroupShop(req, res, next) {
   next();
 }
 
-module.exports = { requireLogin, requirePermission, checkOrderOwnership, isOwner, requireOwner, requireGroup, requireGroupShop, addOrganizationsForAdmin };
+module.exports = { requireLogin, requirePermission, checkOrderOwnership, hasOrderAccess, isOwner, requireOwner, requireGroup, requireGroupShop, addOrganizationsForAdmin };

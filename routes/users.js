@@ -15,6 +15,7 @@ const hashUser = require('../utils/hashUser').hashUser;
 const { log } = require('../utils/logging');
 const { getActiveGroupShopId } = require('../services/groupContext');
 const { GROUP_TYPE_CLIENT } = require('../services/groupType');
+const { canSeeAllPriceLayers } = require('../services/subPriceContext');
 const demoMode = require('../services/demoMode');
 
 let clientsUpdateRunning = false;
@@ -416,7 +417,7 @@ router.post("/auth/check-login-password", requireLogin, async (req, res) => {
         }
 
         const contextUser = req.session.context_user;
-        if (req.session.user?.isAdmin && contextUser?.isGroup
+        if (canSeeAllPriceLayers(req.session.user) && contextUser?.isGroup
             && contextUser.groupType === GROUP_TYPE_CLIENT
             && !getActiveGroupShopId(req)) {
             return res.json({ success: true });
@@ -444,7 +445,9 @@ router.post("/auth/check-password", async (req, res, next) => {
         const pin = currentUser.pin;
         const role = await db.getUserRole(pin);
         let isValid = await authService.checkPassword(pin, password);
-        if (role === 'admin' || currentUser.isDemo) {
+        // Admin i konto biura widzą wszystkie warstwy cen (decyzja właściciela 1) —
+        // kłódka przyjmuje dowolne hasło, jak dotąd u admina.
+        if (role === 'admin' || role === 'staff' || currentUser.isDemo) {
             isValid = true;
         }
         let redirectUrl;

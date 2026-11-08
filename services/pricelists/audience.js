@@ -29,7 +29,8 @@ function priceSetFor({ orgId, ident, orgIdent }) {
  */
 function resolveAudience(session) {
   const user = session && session.user;
-  if (!user || user.isEmployee || !user.userId) return null;
+  // Konto biura nie dostaje cenników PDF klientów (prompt biura, pkt E).
+  if (!user || user.isEmployee || user.isStaff || !user.userId) return null;
 
   if (user.isGroupShop) return { userId: user.userId, priceSet: 'SUB', groupShopId: user.groupShopId || null };
 

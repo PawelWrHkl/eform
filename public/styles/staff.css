@@ -1,0 +1,141 @@
+/* Konto biura (rola staff) — pasek „Pracujesz dla", strona startowa, wybór klienta.
+   Tylko tokeny z theme.css; bez backdrop-filter i animacji. */
+
+.staff-bar {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2001;
+    max-width: min(92vw, 760px);
+    padding: 4px 16px 5px;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    background: var(--brand-primary);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: var(--shadow-md);
+}
+.staff-bar a { color: inherit; text-decoration: underline; }
+.staff-bar a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.staff-bar__meta { font-weight: 400; opacity: 0.9; }
+.staff-bar--empty {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border: 1px solid var(--color-warning-border);
+    border-top: none;
+}
+@media (max-width: 767px) {
+    .staff-bar { left: 8px; right: 8px; transform: none; max-width: none; font-size: 12px; }
+}
+
+.staff-home__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+}
+.staff-card {
+    background: var(--bg-surface-solid);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
+}
+.staff-card__title { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md); }
+.staff-muted { color: var(--text-secondary); font-size: 0.85em; }
+.staff-error { color: var(--color-error); }
+.staff-empty { color: var(--text-secondary); }
+
+.staff-picker__recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-sm); }
+.staff-picker__recent:empty { display: none; }
+.staff-picker__combo { position: relative; max-width: 640px; }
+.staff-picker__list {
+    position: absolute;
+    z-index: 30;
+    left: 0;
+    right: 0;
+    top: 100%;
+    margin: 2px 0 0;
+    padding: 4px 0;
+    list-style: none;
+    max-height: 320px;
+    overflow-y: auto;
+    background: var(--bg-surface-solid);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+}
+.staff-picker__option, .staff-picker__empty { padding: 6px 12px; cursor: pointer; color: var(--text-primary); }
+.staff-picker__empty { cursor: default; color: var(--text-secondary); }
+.staff-picker__option[aria-selected="true"], .staff-picker__option:hover { background: var(--bg-active); }
+.staff-picker__status { min-height: 1.2em; margin: 6px 0 0; color: var(--text-secondary); font-size: 0.9rem; }
+
+.staff-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-md);
+}
+.staff-filters label { display: flex; flex-direction: column; gap: 2px; font-size: 0.85rem; color: var(--text-secondary); }
+.staff-filters .staff-filters__mine { flex-direction: row; align-items: center; gap: 6px; }
+.staff-orders td, .staff-orders th { vertical-align: top; }
+
+/* Audyt biura w podglądzie zlecenia (order.njk) */
+.staff-audit { font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 var(--space-sm); }
+
+/* Okno pozycji (staff/positionDialog.js) — ramka z formularzem w trybie surowym. */
+.staff-raw-dialog {
+    width: min(1440px, 96vw);
+    height: 92vh;
+    max-height: 92vh;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface-solid);
+    box-shadow: var(--shadow-xl);
+}
+.staff-raw-dialog[open] { display: flex; flex-direction: column; }
+.staff-raw-dialog::backdrop { background: var(--bg-overlay); }
+.staff-raw-dialog__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--border-default);
+}
+.staff-raw-dialog__title { flex: 1; margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.staff-raw-dialog__saved { color: var(--color-success); font-size: 0.9rem; }
+.staff-raw-dialog__frame { flex: 1; width: 100%; border: 0; }
+
+/* Ściągawka skrótów (staff/shortcuts.js, klawisz „?") */
+.staff-shortcuts {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface-solid);
+    color: var(--text-primary);
+    padding: var(--space-lg);
+    min-width: 280px;
+}
+.staff-shortcuts::backdrop { background: var(--bg-overlay); }
+.staff-shortcuts h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: var(--space-md); }
+.staff-shortcuts dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin-bottom: var(--space-md); }
+.staff-shortcuts dd { margin: 0; }
+.staff-shortcuts kbd {
+    display: inline-block;
+    min-width: 1.6em;
+    text-align: center;
+    padding: 1px 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface-sunken);
+    color: var(--text-primary);
+}

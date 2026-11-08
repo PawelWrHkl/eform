@@ -95,6 +95,11 @@
             {% for r in report.uidCollisions %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.accounts | join(', ') or r.uid }}</td><td>{{ __('admin_pricelists.from') }} {{ r.from }}: {{ r.values | join(' / ') }}</td></tr>{% endfor %}</table>
         {% endcall %}
 
+        {% call section(__('admin_pricelists.build_notes'), __('admin_pricelists.build_notes_hint'), report.buildNotes or [], true) %}
+            <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_kind') }}</th><th>{{ __('admin_pricelists.col_section') }}</th><th>{{ __('admin_pricelists.col_detail') }}</th><th>{{ __('admin_pricelists.col_client') }}</th></tr>
+            {% for r in report.buildNotes %}<tr><td>{{ r.group }}</td><td>{{ __('admin_pricelists.note_' + (r.kind | replace('-', '_'))) }}</td><td>{{ r.section }}</td><td><code>{{ r.detail }}</code></td><td>{{ r.client }}</td></tr>{% endfor %}</table>
+        {% endcall %}
+
         {% call section(__('admin_pricelists.expired'), __('admin_pricelists.expired_hint'), report.expiredIncreases, false) %}
             <table><tr><th>{{ __('admin_pricelists.col_group') }}</th><th>{{ __('admin_pricelists.col_file') }}</th><th>{{ __('admin_pricelists.col_rule') }}</th></tr>
             {% for r in report.expiredIncreases %}<tr><td>{{ r.group }}</td><td><code>{{ r.file }}</code></td><td>{{ r.rules }} × {{ __('admin_pricelists.from') }} {{ r.previous }} → 0 {{ __('admin_pricelists.from') }} {{ r.since }}</td></tr>{% endfor %}</table>

@@ -5,6 +5,7 @@ const db = require("../db/db_helper.js");
 const adminDb = require("../db/admin/db_helper.js");
 const usersDb = require("../db/users.js");
 const ownerService = require('../services/owner.js');
+const staffAccess = require('../services/staffAccess');
 const path = require('path')
 const { customOrgSorting } = require('../utils/otherBossUtilities.js');
 const fs = require('fs');
@@ -94,9 +95,13 @@ router.get('/change-language', (req, res) => {
 
 
 router.get("/", requireLogin, async (req, res) => {
+  const mustAcceptRODO = req.session.mustAcceptRODO || false;
+  // Konto biura ma własną stronę startową (routes/staff.js) — po akceptacji RODO.
+  if (req.session.user?.isStaff && !mustAcceptRODO) {
+    return res.redirect('/staff');
+  }
   const currentUser = ownerService.getCurrentUser(req);
   console.log(currentUser, 'current user in index.js');
-  const mustAcceptRODO = req.session.mustAcceptRODO || false;
   let user, orders, ordersSent;
 
   if (req.session.user?.isGroupShop) {
@@ -246,6 +251,17 @@ router.get('/recent-clients', requireLogin, async (req, res) => {
       return res.status(200).json([]);
     }
     const recent = await usersDb.getRecentClients(userId);
+    // Konto biura: tylko klienci, do których nadal ma dostęp (admin mógł go odebrać).
+    if (req.session.user?.isStaff) {
+      const allowed = await staffAccess.filterAllowedIdents(userId, (recent || []).map((r) => r.ident));
+      const byIdent = new Map(allowed.map((a) => [String(a.ident).toUpperCase(), a]));
+      return res.status(200).json((recent || [])
+        .filter((r) => byIdent.has(String(r.ident).toUpperCase()))
+        .map((r) => {
+          const a = byIdent.get(String(r.ident).toUpperCase());
+          return { ident: a.ident, name: a.client_name, organization: a.org_ident };
+        }));
+    }
     return res.status(200).json(recent);
   } catch (error) {
     log('Error fetching recent clients:', error);
@@ -260,6 +276,10 @@ router.post('/recent-clients', requireLogin, async (req, res) => {
     const { ident, name } = req.body;
     if (!userId || !ident || !name) {
       return res.status(400).json({ success: false });
+    }
+    // Konto biura zapisuje ostatnich klientów samo, przy wyborze klienta (routes/staff.js).
+    if (req.session.user?.isStaff) {
+      return res.status(403).json({ success: false });
     }
     await usersDb.saveRecentClient(userId, ident, name);
     return res.status(200).json({ success: true });

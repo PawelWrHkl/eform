@@ -125,9 +125,12 @@ export async function getUserName() {
             setContextUserSelected(contextData.ident);
             if (contextData.success && contextData.contextUser) {
                 window.context = true
-                contextBtns.forEach(contextBtn => {
-                    contextBtn.classList.remove('d-none');
-                });
+                // Konto biura zmienia klienta na swojej stronie (/staff), nie „wyłącza kontekstu".
+                if (!window.isStaffSession) {
+                    contextBtns.forEach(contextBtn => {
+                        contextBtn.classList.remove('d-none');
+                    });
+                }
                 contextInfo = `<br><p id='ident'>ID: ${contextData.ident}</p>(${contextData.userName}) `;
             }
             else {

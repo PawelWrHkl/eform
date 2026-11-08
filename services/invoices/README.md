@@ -485,6 +485,31 @@ plik błędów pusty. Wyłączenie: zakomentować wpisy crona. Powrót do serwer
 `PROD_STATUS_SYNC_MODE=child` (albo usunąć) w `.env` + restart aplikacji + usunąć
 wpisy crona — dwa wyzwalacze naraz nie zaszkodzą (`GET_LOCK`), ale dublują przebiegi.
 
+## Pozycja na fakturze: produkt, specyfikacja, cena – ilość – wartość
+
+Od wersji 7 (2026-11-07, uwagi KK) każda pozycja (`core/orderMapper.js`, `templates/partials/items_table.njk`):
+
+- **nazwa = produkt**: dział i grupa (`buildItemName`), np. `VERTIKALJALOUSIE`, `ROLETY – BB24`,
+  bez dubla, gdy grupa zawiera dział. Nazwa własna pozycji (pokój, goły kod) nie jest nazwą;
+- **wiersz opisu na całą szerokość tabeli** pod kwotami: krótka specyfikacja z
+  `json_parameters_desc` w języku zlecenia (`priceSpec.configSummary`: 6 głównych parametrów,
+  bez wymiarów, które mają własną kolumnę), potem nazwa własna, komisja i komentarz (bez
+  powtórzeń). Stare pozycje bez opisu parametrów → kody `MODEL`/`KOLOR`/… jak dawniej;
+- **cena jedn. netto** = wartość pozycji / ilość, zaokrąglona do grosza, liczona w szablonie
+  (więc ma ją też ponowny wydruk starej faktury). Przy nierównym dzieleniu iloczyn może się
+  różnić o grosz: wiąże wartość. Z rabatem SUB___: cena jedn. przed rabatem | rabat | cena
+  jedn. po rabacie | wartość netto.
+
+Nazwa i opis są zapisywane w `invoice_item` przy wystawieniu, więc faktury sprzed zmiany
+zachowują stare opisy.
+
+## Wersje faktur (`changes.js`)
+
+Lista „co i kiedy" na fakturach (zalecenie KK 2026-11-07) dla admina: `/invoices/changes`,
+skrót „Wersje faktur · vN" w panelu faktur. **Każda zmiana wyglądu albo treści faktury = nowy
+wpis na górze `changes.js`** (kolejny numer, `env: 'test'`, a po wdrożeniu `'produkcja'`) i ten
+sam opis w raporcie dla właściciela. Spójność listy pilnuje `__tests__/changes.test.js`.
+
 ## Rabat klienta na fakturze (klient organizacji, ceny SUB___)
 
 Decyzja właściciela 2026-10-22: klient organizacji ≠ HKL (np. klient Luxanu albo

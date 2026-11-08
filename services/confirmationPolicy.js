@@ -111,6 +111,26 @@ async function resolveOrderAbPolicy(orderId, deps = {}) {
  * @param {string|null} [p.extraAbMail] dodatkowy odbiorca BCC (`user.extra_ab_mail`)
  * @returns {{mainRecipient: string|null, bccList: string[], bcc: string}}
  */
+const SKRZYNKA_DEV = 'pawel.woroniecki@hkl.eu';
+const SKRZYNKA_DEV_BCC = 'krzysztof.krawczyk@hkl.eu';
+
+/**
+ * Kopia potwierdzenia dla konta biura, które wysłało zlecenie (decyzja właściciela 3),
+ * jako ukryte BCC. Brak adresu = brak kopii. Na dev/test obowiązuje przekierowanie
+ * jak dla całego potwierdzenia: kopia idzie tylko na skrzynkę testową, inny adres
+ * zostaje w logu (`reason: 'redirected'`).
+ *
+ * @returns {{ bcc: string|null, reason: 'ok'|'no_email'|'redirected' }}
+ */
+function resolveStaffCopy({ env = process.env.NODE_ENV, staffEmail = null } = {}) {
+  const email = String(staffEmail || '').trim();
+  if (!email) return { bcc: null, reason: 'no_email' };
+  if ((env === 'test' || env === 'dev') && ![SKRZYNKA_DEV, SKRZYNKA_DEV_BCC].includes(email.toLowerCase())) {
+    return { bcc: null, reason: 'redirected' };
+  }
+  return { bcc: email, reason: 'ok' };
+}
+
 function resolveConfirmationRecipients({
   env = process.env.NODE_ENV,
   clientAb = false,
@@ -120,9 +140,6 @@ function resolveConfirmationRecipients({
   extraMail = false,
   extraAbMail = null
 } = {}) {
-  const SKRZYNKA_DEV = 'pawel.woroniecki@hkl.eu';
-  const SKRZYNKA_DEV_BCC = 'krzysztof.krawczyk@hkl.eu';
-
   let mainRecipient;
   let bccList;
 
@@ -148,5 +165,6 @@ function resolveConfirmationRecipients({
 module.exports = {
   resolveOrderAbPolicy,
   resolveConfirmationRecipients,
+  resolveStaffCopy,
   policyFromUserRow
 };

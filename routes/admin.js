@@ -22,6 +22,9 @@ const INVOICE_SCHEDULE_OPTIONS = [
 const groupPriceMode = require('../services/groupPriceMode');
 const currency = require('../services/currency');
 const { availabeLanguages } = require('../config');
+const staffAccess = require('../services/staffAccess');
+const { HKL_ORG_ID } = require('../services/subPrices');
+const { customOrgSorting } = require('../utils/otherBossUtilities.js');
 
 router.use(async (req, res, next) => {
     if (req.session.user?.isOwner) {
@@ -360,6 +363,76 @@ router.post('/api/users/:id/password', requireLogin, requireAdmin, async (req, r
     } catch (err) {
         log('[admin/users] błąd zmiany hasła:', err.message);
         return res.status(500).json({ success: false, message: 'Błąd zmiany hasła' });
+    }
+});
+
+/* ------------------------------------------------------------------ */
+/* Konta biura (rola `staff`) — services/staffAccess.js                */
+/* ------------------------------------------------------------------ */
+
+function staffAccessError(req, res, err, where) {
+    if (staffAccess.isMissingTableError(err)) {
+        return res.status(500).json({ success: false, message: res.__('staff.admin.migration_missing') });
+    }
+    log(`[admin/staff] błąd (${where}):`, err.message);
+    return res.status(500).json({ success: false, message: res.__('staff.admin.error_server') });
+}
+
+router.post('/api/staff-accounts', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const { values, password, errors } = userAdminService.normalizeNewStaffAccount(req.body);
+        if (errors.length) return res.status(400).json({ success: false, message: errors.map((k) => res.__(k)).join(' ') });
+
+        const created = await userAdminDb.createStaffAccount({ ...values, password, organizationId: HKL_ORG_ID });
+        if (created.error) return res.status(400).json({ success: false, message: res.__(created.error) });
+
+        log(`[admin/staff] ${req.session.user?.ident || req.session.user?.pin} założył konto biura ${values.pin} (id ${created.id})`);
+        return res.json({ success: true, user: await userAdminDb.getUserForAdmin(created.id) });
+    } catch (err) {
+        return staffAccessError(req, res, err, 'zakładanie konta');
+    }
+});
+
+router.get('/api/users/:id/staff-access', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const user = await userAdminDb.getUserForAdmin(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'Nie znaleziono użytkownika' });
+        const organizations = customOrgSorting((await db.getAllOrganizations()) || [])
+            .map((o) => ({ id: o.id, ident: o.ident, name: o.name }));
+        const access = await staffAccess.getStaffAccess(user.id);
+        return res.json({ success: true, organizations, access });
+    } catch (err) {
+        return staffAccessError(req, res, err, 'odczyt dostępu');
+    }
+});
+
+router.get('/api/organizations/:id/clients', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const clients = await staffAccess.listOrganizationClients(req.params.id);
+        return res.json({ success: true, clients });
+    } catch (err) {
+        return staffAccessError(req, res, err, 'lista klientów');
+    }
+});
+
+router.post('/api/users/:id/staff-access', requireLogin, requireAdmin, async (req, res) => {
+    try {
+        const user = await userAdminDb.getUserForAdmin(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'Nie znaleziono użytkownika' });
+        if (user.role !== staffAccess.STAFF_ROLE) {
+            return res.status(400).json({ success: false, message: res.__('staff.admin.error_not_staff') });
+        }
+        const { entries, errors } = staffAccess.normalizeAccessInput(req.body);
+        if (errors.length) return res.status(400).json({ success: false, message: errors.map((k) => res.__(k)).join(' ') });
+
+        const result = await staffAccess.replaceStaffAccess(user.id, entries);
+        if (!result.ok) return res.status(400).json({ success: false, message: res.__(result.error) });
+
+        const summary = entries.map((e) => `${e.organizationId}:${e.allClients ? 'wszyscy' : e.clientIds.length}`).join(', ') || 'brak';
+        log(`[admin/staff] ${req.session.user?.ident || req.session.user?.pin} zmienił dostęp biura ${user.ident} (id ${user.id}): ${summary}`);
+        return res.json({ success: true, access: await staffAccess.getStaffAccess(user.id) });
+    } catch (err) {
+        return staffAccessError(req, res, err, 'zapis dostępu');
     }
 });
 

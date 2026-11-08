@@ -215,7 +215,14 @@
     "overview_error": "Nie udało się wczytać przeglądu — szczegóły w logu serwera.",
     "overview_truncated": "Pokazano {shown} z {total} nabywców (najpierw ci z zamówieniami bez faktury) — zawęź okres.",
     "lang_auto": "wg kraju klienta",
-    "lang_by_country": "Wg kraju klienta: NL → niderlandzki, PL → polski, DE i AT → niemiecki, FR → francuski, pozostali → angielski."
+    "lang_by_country": "Wg kraju klienta: NL → niderlandzki, PL → polski, DE i AT → niemiecki, FR → francuski, pozostali → angielski.",
+    "changes_link": "Wersje faktur",
+    "changes_title": "Wersje faktur",
+    "changes_intro": "Co i kiedy zmieniło się na fakturach. Najnowsza wersja na górze.",
+    "changes_env_produkcja": "produkcja",
+    "changes_env_test": "tylko test",
+    "changes_version": "Wersja",
+    "changes_back": "Wróć do faktur"
   },
   "en": {
     "title": "Invoices",
@@ -426,7 +433,14 @@
     "overview_error": "Could not load the overview — see the server log.",
     "overview_truncated": "Showing {shown} of {total} buyers (those with uninvoiced orders first) — narrow the period.",
     "lang_auto": "by client's country",
-    "lang_by_country": "By client's country: NL → Dutch, PL → Polish, DE and AT → German, FR → French, others → English."
+    "lang_by_country": "By client's country: NL → Dutch, PL → Polish, DE and AT → German, FR → French, others → English.",
+    "changes_link": "Invoice versions",
+    "changes_title": "Invoice versions",
+    "changes_intro": "What changed on invoices and when. Newest version first.",
+    "changes_env_produkcja": "production",
+    "changes_env_test": "test only",
+    "changes_version": "Version",
+    "changes_back": "Back to invoices"
   },
   "de": {
     "title": "Rechnungen",
@@ -637,6 +651,13 @@
     "overview_error": "Übersicht konnte nicht geladen werden — Details im Serverprotokoll.",
     "overview_truncated": "{shown} von {total} Käufern angezeigt (zuerst die mit offenen Aufträgen) — Zeitraum eingrenzen.",
     "lang_auto": "nach Land des Kunden",
-    "lang_by_country": "Nach Land des Kunden: NL → Niederländisch, PL → Polnisch, DE und AT → Deutsch, FR → Französisch, übrige → Englisch."
+    "lang_by_country": "Nach Land des Kunden: NL → Niederländisch, PL → Polnisch, DE und AT → Deutsch, FR → Französisch, übrige → Englisch.",
+    "changes_link": "Rechnungsversionen",
+    "changes_title": "Rechnungsversionen",
+    "changes_intro": "Was sich an den Rechnungen wann geändert hat. Neueste Version oben.",
+    "changes_env_produkcja": "Produktion",
+    "changes_env_test": "nur Test",
+    "changes_version": "Version",
+    "changes_back": "Zurück zu den Rechnungen"
   }
 }

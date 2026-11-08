@@ -50,6 +50,17 @@
            Etykiety: partials/efor-v2-strings.njk (słownik w repo, bo pliki
            tłumaczeń żyją poza nim — patrz komentarz w tamtym pliku). #}
         <script src="/scripts/uiVariant.js?v={{ assetVersion }}"></script>
+        {% if rawMode %}
+        {# Okno pozycji konta biura (`?raw=1`, middleware/staffGuard.js): zawsze wariant A,
+           bez nawigacji strony, przewodnika i asystenta — public/styles/staffRaw.css. #}
+        <script>
+            document.documentElement.classList.remove('theme-efor-v2');
+            document.documentElement.setAttribute('data-ui-variant', 'classic');
+            document.documentElement.classList.add('raw-mode');
+            window.rawMode = true;
+        </script>
+        <link rel="stylesheet" href="/styles/staffRaw.css?v={{ assetVersion }}">
+        {% endif %}
         {% import "partials/efor-v2-strings.njk" as eforStrings %}
         {% set eforT = eforStrings.dict[locale] or eforStrings.dict["en"] %}
         <style id="efor-v2-strings">:root{ {%- for key in eforStrings.cssKeys %}--efor-t-{{ key }}:"{{ eforT[key] | safe }}";{% endfor -%} }</style>
@@ -140,6 +151,7 @@
    specyficzności wygrywał. W wariancie A nic nie robi — każda reguła wisi pod
    `.theme-efor-v2` (wyjątek: sam przycisk „Zmień wygląd”, opisany w pliku). #}
 <link rel="stylesheet" href="/styles/theme-efor-v2.css?v={{ assetVersion }}">
+{% if isStaff %}<link rel="stylesheet" href="/styles/staff.css?v={{ assetVersion }}">{% endif %}
 </head><body>
 {% include "partials/efor-v2-icons.njk" %}
 {% if isDemo %}
@@ -147,6 +159,20 @@
 <div class="demo-badge" role="status">{{ __('demo.badge') }} {{ demoExpiresLabel }}</div>
 <script>window.isDemoSession = true;</script>
 {% endif %}
+{% if isStaff and not rawMode %}
+{# Konto biura (middleware/staffGuard.js): stały pasek „Pracujesz dla" — główne
+   zabezpieczenie przed wpisaniem zlecenia niewłaściwemu klientowi. #}
+<div class="staff-bar{% if not staffContext %} staff-bar--empty{% endif %}" role="status">
+    {% if staffContext %}
+        <span>{{ __('staff.bar_working_for') }}</span> <strong>{{ staffContext.clientName }}</strong>
+        <span class="staff-bar__meta">({{ staffContext.ident }} · {{ staffContext.organization }})</span>
+    {% else %}
+        <span>{{ __('staff.bar_no_client') }}</span>
+    {% endif %}
+    · <a href="/staff">{{ __('staff.bar_change') }}</a>
+</div>
+{% endif %}
+{% if isStaff %}<script>window.isStaffSession = true;</script>{% endif %}
 {% block nav %}
     <nav class="navbar navbar-expand-lg navbar-light bg-light mobile-nav">
         <div class="container-fluid">
@@ -763,18 +789,20 @@
         window.isClient = {{ isClient | dump | default("false") }};
         window.isOrgAccount = {{ isOrgAccount | dump | default("false") }};
     </script>
-    <script type='module' src="/scripts/intro/main.js"></script><script type='module' src='/scripts/base.js'></script><script type="module" src="/scripts/getEnv.js"></script><script src="/scripts/navActiveState.js"></script><script type="module" src="/scripts/owner/owner.js"></script><script>window.loadTranslations(document.documentElement.lang || 'en');
+    {% if not rawMode %}<script type='module' src="/scripts/intro/main.js"></script>{% endif %}<script type='module' src='/scripts/base.js'></script><script type="module" src="/scripts/getEnv.js"></script><script src="/scripts/navActiveState.js"></script><script type="module" src="/scripts/owner/owner.js"></script><script>window.loadTranslations(document.documentElement.lang || 'en');
     window.loadLangs()
 </script>
 {# Widoki wariantu B (okruszki, karty wyboru produktu, panel ceny, podsumowanie
    oferty). Czysto prezentacyjne — czytają istniejący DOM i klikają istniejące
    przyciski, nie liczą niczego same. W wariancie A śpią (brak obserwatorów). #}
-<script type="module" src="/scripts/uiVariantView.js?v={{ assetVersion }}"></script>
+{% if not rawMode %}<script type="module" src="/scripts/uiVariantView.js?v={{ assetVersion }}"></script>{% endif %}
 {# Wariant B na telefonie: arkusz „Więcej”, tytuł w pasku nawigacji (jak iOS). #}
-<script type="module" src="/scripts/uiVariantMobile.js?v={{ assetVersion }}"></script>
+{% if not rawMode %}<script type="module" src="/scripts/uiVariantMobile.js?v={{ assetVersion }}"></script>{% endif %}
 {# Menu konta w nagłówku: inicjały, nazwa i mail (oba warianty). #}
 <script type="module" src="/scripts/headerMenu.js?v={{ assetVersion }}"></script>
 {# Asystent eForm (czat AI) — tylko przy ASSISTANT_ENABLED i dozwolonej sesji,
    patrz server.js (`assistantEnabled`) i services/assistant. #}
-{% if assistantEnabled %}{% include "partials/assistant-widget.njk" %}{% endif %}
+{% if assistantEnabled and not rawMode %}{% include "partials/assistant-widget.njk" %}{% endif %}
+{# Konto biura: skróty klawiszowe (N nowe zlecenie, P nowa pozycja, K zmień klienta, ? ściągawka). #}
+{% if isStaff and not rawMode %}<script type="module" src="/scripts/staff/shortcuts.js?v={{ assetVersion }}"></script>{% endif %}
 {% block scripts %}{% endblock scripts %}</body></html>

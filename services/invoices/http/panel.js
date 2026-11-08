@@ -20,6 +20,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { requireLogin, requireOwner } = require('../../../middleware/loginMixture');
+const { INVOICE_VERSIONS, CURRENT_INVOICE_VERSION } = require('../changes');
 const { InvoiceService, DocumentType, InvoiceStatus, DOCUMENT_CURRENCY, money, taxRules } = require('../main');
 const repository = require('../db/repository');
 const { selectQuery } = require('../../../db/core');
@@ -415,6 +416,7 @@ router.get('/', requireLogin, async (req, res) => {
     return res.render('owner/invoices.njk', {
       L,
       panelLang: lang,
+      invoiceVersion: CURRENT_INVOICE_VERSION,
       overview,
       level: ctx.level,
       levelOptions: ctx.allowedLevels.map((lv) => ({ level: lv, label: L[`level_${lv}`] || `#${lv}`, active: lv === ctx.level })),
@@ -567,6 +569,15 @@ router.get('/end-clients', requireLogin, async (req, res) => {
 // sprawdza `canAccessInvoice` (organizacja dla ownera, `issuer_type='user'`
 // + jego id dla salonu) — inaczej „Podgląd" w panelu salonu zwracał 403
 // „Access denied. Owner privileges required.".
+// Wersje faktur — co i kiedy się zmieniło (`services/invoices/changes.js`), tylko admin
+router.get('/changes', requireLogin, (req, res) => {
+  if (!req.session.user?.isAdmin) return res.status(403).send('Brak dostępu');
+  const { lang, L } = labelsFor(req);
+  res.locals.owner = !!req.session.user?.isOwner;
+  res.locals.admin = true;
+  return res.render('owner/invoice_changes.njk', { L, panelLang: lang, versions: INVOICE_VERSIONS });
+});
+
 router.get('/:id/view', requireLogin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).send('Nieprawidłowy identyfikator');

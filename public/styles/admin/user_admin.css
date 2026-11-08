@@ -174,3 +174,26 @@
     .ua-card { padding: var(--space-md); }
     .ua-actions .btn { flex: 1 1 100%; }
 }
+
+/* --- Dostęp biura (rola staff) ------------------------------------- */
+.ua-staff-orgs { display: grid; gap: var(--space-sm); }
+.ua-staff-org {
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: var(--space-sm) var(--space-md);
+}
+.ua-staff-org__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); cursor: pointer; margin: 0; }
+.ua-staff-org__count { margin-left: auto; color: var(--text-secondary); font-size: 0.85rem; }
+.ua-staff-org__body { margin-top: var(--space-sm); display: grid; gap: var(--space-sm); }
+.ua-staff-future { font-weight: 600; margin: 0; }
+.ua-staff-tools { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
+.ua-staff-tools .ua-input { flex: 1 1 200px; width: auto; }
+.ua-staff-clients {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+}
+.ua-staff-clients.is-disabled { opacity: 0.55; }
+.ua-staff-client { display: block; padding: 3px 0; margin: 0; font-size: 0.9rem; color: var(--text-primary); }

@@ -153,4 +153,26 @@ async function zapiszHasloWLustrze(ident, pin, plainPassword) {
   return insertQuery(sql, [ident, pin, plainPassword]);
 }
 
-module.exports = { searchUsers, getUserForAdmin, updateUserSettings, setUserPassword };
+/**
+ * Konto biura (rola `staff`) zakładane z panelu admina — w contractors.txt go nie ma,
+ * a rola od pierwszego zapisu chroni je przed usunięciem przez synchronizację
+ * (services/dbUserSync.js `compareClients`). Organizacja: HKL (biuro HKL).
+ * Hasła NIE kopiujemy do `usrtblpsswd` — to podgląd haseł klientów dla ownera.
+ *
+ * @returns {Promise<{ id?: number, error?: string }>} `error` = klucz tłumaczenia
+ */
+async function createStaffAccount({ pin, clientName, email, password, organizationId }) {
+  const ident = `STAFF_${pin.toUpperCase()}`;
+  const taken = await selectQuery('SELECT id FROM `user` WHERE pin = ? OR ident = ? LIMIT 1', [pin, ident]);
+  if (taken && taken.length) return { error: 'staff.admin.error_pin_taken' };
+  const hash = bcrypt.hashSync(password, 12);
+  const result = await insertQuery(
+    `INSERT INTO \`user\` (pin, password, client_name, ident, organization_id, email, role, intro_needed)
+     VALUES (?, ?, ?, ?, ?, ?, 'staff', 0)`,
+    [pin, hash, clientName, ident, organizationId, email]
+  );
+  const insertId = result && result[0] && result[0].insertId;
+  return insertId ? { id: insertId } : { error: 'staff.admin.error_create' };
+}
+
+module.exports = { searchUsers, getUserForAdmin, updateUserSettings, setUserPassword, createStaffAccount };

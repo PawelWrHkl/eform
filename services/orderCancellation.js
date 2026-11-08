@@ -150,6 +150,10 @@ function describeActor({ sessionUser, sessionEmployee, contextUser } = {}) {
     let label;
     if (sessionUser?.isEmployee) {
         label = `employee:${sessionEmployee?.id ?? '?'}${sessionEmployee?.login ? ` (${sessionEmployee.login})` : ''}`;
+    } else if (sessionUser?.isStaff) {
+        // Konto biura anuluje zawsze w kontekście klienta zlecenia (checkOrderOwnership).
+        label = `staff:${sessionUser.ident || sessionUser.pin || '?'}`;
+        if (contextUser?.ident) label += ` -> ${contextUser.ident}`;
     } else if (sessionUser?.isAdmin || sessionUser?.isOwner) {
         const role = sessionUser.isAdmin ? 'admin' : 'owner';
         label = `${role}:${sessionUser.ident || sessionUser.pin || '?'}`;

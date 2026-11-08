@@ -4415,3 +4415,31 @@ Call log:
   - navigating to "http://localhost:8000/user/auth/login?pin=admin&password=eforszef123", waiting until "load"
 
 [2026-11-07T01:00:05.585Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (1 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as CFFA42B36F9 | id <460173d8-17b1-17da-e173-a939ddcffb77@e-orders.eu>
+[2026-11-08T01:00:03.306Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-10-25)
+[2026-11-08T01:07:59.348Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 9
+[2026-11-08T01:07:59.389Z] ConfiguratorTester: pamięć po etapie „przeglądarka" — proces główny 1276 MB, wolne na hoście 1924 MB
+[2026-11-08T01:11:45.466Z] ConfiguratorTester: skrypty cenowe — sprawdzono 1863, niesparsowalnych 5
+[2026-11-08T01:15:59.258Z] ConfiguratorTester: grupa 71 — 7 błędów
+[2026-11-08T01:21:54.759Z] ConfiguratorTester: grupa 43 — 2 błędów
+[2026-11-08T01:23:08.599Z] ConfiguratorTester: grupa 20 — 2 błędów
+[2026-11-08T01:27:34.886Z] ConfiguratorTester: grupa 39 — 120 błędów
+[2026-11-08T01:30:03.017Z] ConfiguratorTester: grupa 02 — 4 błędów
+[2026-11-08T01:32:34.540Z] ConfiguratorTester: grupa 59 — 2 błędów
+[2026-11-08T01:33:31.313Z] ConfiguratorTester: grupa 04 — 13 błędów
+[2026-11-08T01:36:27.458Z] ConfiguratorTester: grupa 75 zatrzymana przez strażnika pamięci — proces grupy zajął 1756 MB RAM (limit 1700 MB)
+[2026-11-08T01:36:27.597Z] ConfiguratorTester: grupa 75 — 1 błędów
+[2026-11-08T01:37:01.762Z] ConfiguratorTester: grupa 76 — 0 błędów
+[2026-11-08T01:38:53.681Z] ConfiguratorTester: grupa 14 — 4 błędów
+[2026-11-08T01:39:06.584Z] ConfiguratorTester: grupa 01 — 0 błędów
+[2026-11-08T01:41:32.724Z] ConfiguratorTester: grupa 80 zatrzymana przez strażnika pamięci — proces grupy zajął 1983 MB RAM (limit 1700 MB)
+[2026-11-08T01:41:32.877Z] ConfiguratorTester: grupa 80 — 1 błędów
+[2026-11-08T01:43:10.411Z] ConfiguratorTester: grupa 24 — 9 błędów
+[2026-11-08T01:44:48.493Z] ConfiguratorTester: grupa 73 zatrzymana przez strażnika pamięci — proces grupy zajął 1812 MB RAM (limit 1700 MB)
+[2026-11-08T01:44:48.626Z] ConfiguratorTester: grupa 73 — 1 błędów
+[2026-11-08T01:45:07.819Z] ConfiguratorTester: grupa 11 — 0 błędów
+[2026-11-08T01:45:31.043Z] ConfiguratorTester: grupa 46 — 1 błędów
+[2026-11-08T01:46:19.247Z] ConfiguratorTester: symulacja pominięta — nie udało się odczytać listy działów: page.waitForFunction: Timeout 45000ms exceeded.
+[2026-11-08T01:46:19.263Z] ConfiguratorTester (kopiowanie): start — http://localhost:8000, zlecenie symulatora 3034, przeglądarki: chromium, 24 przypadków + 14 scenariuszy na przeglądarkę, limit 50 min, ziarno 20261108
+[2026-11-08T01:47:21.376Z] ConfiguratorTester (kopiowanie): chromium: przerwana — page.waitForFunction: Timeout 60000ms exceeded.
+[2026-11-08T01:47:21.431Z] ConfiguratorTester (kopiowanie): koniec: 0 przypadków (0 z błędami, 0 pominiętych), 0 kopii/kontroli, 0 porównań pól, 1 min
+[2026-11-08T01:47:22.523Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (64 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as D74222B1630 | id <23d110c8-e371-e745-4e92-efcf1f732698@e-orders.eu>

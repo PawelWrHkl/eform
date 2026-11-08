@@ -129,10 +129,12 @@
                     </script>
                     {% endif %}
                     <script type="module" src="/scripts/main.js"></script>
+                    {# Okno pozycji konta biura (`?raw=1`): pasek zapisu, klawiatura, wyszukiwanie w listach. #}
+                    {% if rawMode %}<script type="module" src="/scripts/staff/rawForm.js?v={{ assetVersion }}"></script>{% endif %}
                     <script type="module" src="/scripts/tools/betterNumberValidator.js"></script>
                     {# Mobile ETAP 1 - stepper (wskaznik postepu + scroll do sekcji).
                        Czysto prezentacyjny, nie dotyka wartosci ani widocznosci pol -
                        szczegoly w naglowku samego pliku. Na desktopie konczy dzialanie
                        na pierwszym `matchMedia`, wiec nie wykonuje tam nic. #}
-                    <script src="/scripts/mobile/configuratorStepper.js?v={{ assetVersion }}" defer></script>
+                    {% if not rawMode %}<script src="/scripts/mobile/configuratorStepper.js?v={{ assetVersion }}" defer></script>{% endif %}
                   {% endblock scripts %}

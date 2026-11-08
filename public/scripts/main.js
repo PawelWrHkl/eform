@@ -45,6 +45,10 @@ function initialize() {
 	(async () => {
 		if (performance.getEntriesByType("navigation")[0].type === "reload") {
 			await refreshFormBehaviour();
+		} else if (new URLSearchParams(window.location.search).get('resume') === '1') {
+			// „Pełny formularz" z okna pozycji konta biura: wartości wpisane w oknie
+			// (localStorage `formData` + `lastChoice`, ten sam mechanizm co „ostatnia konfiguracja").
+			await refreshFormBehaviour(getLocalPositionObject());
 		}
 	})();
 }
@@ -238,7 +242,9 @@ async function buildDynamicForm(version, groupNumber, config = null) {
 		setupShowButton(inputs, values, valuesToDisplay, orderId, comment, version, groupNumber);
 
 		setupResetButton(inputs, values, valuesToDisplay);
-	}, 10000);
+		// Okno pozycji konta biura (staff/rawForm.js) czeka na podpięcie zapisu.
+		if (window.rawMode) window.dispatchEvent(new CustomEvent('raw-form-ready'));
+	}, window.rawMode ? 1000 : 10000);
 }
 
 function setupShowButton(inputs, values, valuesToDisplay, orderId, comment, version, groupNumber) {
@@ -371,6 +377,13 @@ async function sendData(inputs, values, valuesToDisplay, orderId, comment, versi
 	try {
 		const result = await sendFormDataWithAttachments("/position/save", postBody, "POST");
 		console.log('Odpowiedź serwera:', result);
+
+		// Okno pozycji konta biura: bez przekierowania — co dalej, decyduje staff/rawForm.js
+		// („Zapisz", „Zapisz i dodaj kolejną", „Zapisz i nowa"). `false` = można zapisać znowu.
+		if (window.rawMode) {
+			window.dispatchEvent(new CustomEvent('raw-position-saved', { detail: { orderId } }));
+			return false;
+		}
 
 		setTimeout(() => {
 			window.location.href = `/orders/order/${orderId}`;

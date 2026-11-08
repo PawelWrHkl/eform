@@ -160,9 +160,209 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('ua-password').value = '';
         document.getElementById('ua-password2').value = '';
 
+        // Dostęp biura — tylko dla roli „Biuro" (staff).
+        formBiura.hidden = u.role !== 'staff';
+        if (!formBiura.hidden) wczytajDostepBiura(u.id);
+
         pusty.hidden = true;
         edytor.hidden = false;
     }
+
+    /* --- Konta biura (rola staff) ------------------------------------- */
+
+    var formBiura = document.getElementById('ua-staff-access-form');
+    var organizacjeBiura = document.getElementById('ua-staff-orgs');
+    var bladBiura = document.getElementById('ua-staff-access-error');
+    var formNowegoBiura = document.getElementById('ua-new-staff-form');
+
+    function tr(klucz) {
+        var tekst = typeof window.t === 'function' ? window.t(klucz) : '';
+        return tekst || klucz;
+    }
+
+    function el(tag, klasa, tekst) {
+        var node = document.createElement(tag);
+        if (klasa) node.className = klasa;
+        if (tekst != null) node.textContent = tekst;
+        return node;
+    }
+
+    async function wczytajDostepBiura(id) {
+        organizacjeBiura.innerHTML = '';
+        bladBiura.hidden = true;
+        try {
+            var resp = await fetch('/admin/api/users/' + encodeURIComponent(id) + '/staff-access');
+            var dane = await resp.json();
+            if (!dane.success) throw new Error(dane.message || tr('staff.admin.error_server'));
+            (dane.organizations || []).forEach(function (org) {
+                organizacjeBiura.appendChild(budujOrganizacje(org, (dane.access || {})[org.id]));
+            });
+        } catch (e) {
+            bladBiura.textContent = e.message || tr('staff.admin.error_server');
+            bladBiura.hidden = false;
+        }
+    }
+
+    function budujOrganizacje(org, zapis) {
+        var box = el('fieldset', 'ua-staff-org');
+        box.dataset.org = org.id;
+        box._wybrani = new Set(zapis ? zapis.clientIds : []);
+        box._zaladowani = false;
+
+        var naglowek = el('label', 'ua-staff-org__head');
+        var zaznacz = el('input', 'ua-staff-org__check');
+        zaznacz.type = 'checkbox';
+        zaznacz.checked = !!zapis;
+        var licznik = el('span', 'ua-staff-org__count');
+        naglowek.append(zaznacz, el('strong', null, org.ident), el('span', 'ua-result__meta', org.name || ''), licznik);
+
+        var cialo = el('div', 'ua-staff-org__body');
+        cialo.hidden = !zapis;
+
+        var wszyscyEtykieta = el('label', 'ua-staff-future');
+        var wszyscy = el('input');
+        wszyscy.type = 'checkbox';
+        wszyscy.checked = !!(zapis && zapis.allClients);
+        wszyscyEtykieta.append(wszyscy, document.createTextNode(' ' + tr('staff.admin.all_and_future')));
+
+        var narzedzia = el('div', 'ua-staff-tools');
+        var filtr = el('input', 'ua-input');
+        filtr.type = 'search';
+        filtr.placeholder = tr('staff.admin.filter_placeholder');
+        var wszystkich = el('button', 'btn btn-outline-secondary btn-sm', tr('staff.admin.select_all'));
+        wszystkich.type = 'button';
+        var nikogo = el('button', 'btn btn-outline-secondary btn-sm', tr('staff.admin.select_none'));
+        nikogo.type = 'button';
+        narzedzia.append(filtr, wszystkich, nikogo);
+
+        var lista = el('div', 'ua-staff-clients');
+        cialo.append(wszyscyEtykieta, narzedzia, lista);
+        box.append(naglowek, cialo);
+
+        function odswiezLicznik() {
+            if (!zaznacz.checked) { licznik.textContent = ''; return; }
+            var ile = box._zaladowani ? lista.querySelectorAll('input:checked').length : box._wybrani.size;
+            licznik.textContent = wszyscy.checked ? tr('staff.admin.count_all') : tr('staff.admin.count_selected') + ' ' + ile;
+        }
+        function odswiezBlokade() {
+            narzedzia.hidden = wszyscy.checked;
+            lista.classList.toggle('is-disabled', wszyscy.checked);
+            Array.prototype.forEach.call(lista.querySelectorAll('input'), function (i) { i.disabled = wszyscy.checked; });
+            odswiezLicznik();
+        }
+
+        zaznacz.addEventListener('change', function () {
+            cialo.hidden = !zaznacz.checked;
+            if (zaznacz.checked) zaladujKlientow(box, lista, odswiezBlokade);
+            odswiezLicznik();
+        });
+        wszyscy.addEventListener('change', odswiezBlokade);
+        lista.addEventListener('change', odswiezLicznik);
+        filtr.addEventListener('input', function () {
+            var fraza = filtr.value.trim().toLowerCase();
+            Array.prototype.forEach.call(lista.children, function (wiersz) {
+                wiersz.hidden = !!fraza && wiersz.textContent.toLowerCase().indexOf(fraza) === -1;
+            });
+        });
+        function ustawWidocznych(stan) {
+            Array.prototype.forEach.call(lista.children, function (wiersz) {
+                if (!wiersz.hidden) wiersz.querySelector('input').checked = stan;
+            });
+            odswiezLicznik();
+        }
+        wszystkich.addEventListener('click', function () { ustawWidocznych(true); });
+        nikogo.addEventListener('click', function () { ustawWidocznych(false); });
+
+        if (zapis) zaladujKlientow(box, lista, odswiezBlokade);
+        odswiezBlokade();
+        return box;
+    }
+
+    async function zaladujKlientow(box, lista, poZaladowaniu) {
+        if (box._zaladowani || box._laduje) return;
+        box._laduje = true;
+        try {
+            var resp = await fetch('/admin/api/organizations/' + encodeURIComponent(box.dataset.org) + '/clients');
+            var dane = await resp.json();
+            if (!dane.success) throw new Error(dane.message || tr('staff.admin.error_server'));
+            (dane.clients || []).forEach(function (k) {
+                var wiersz = el('label', 'ua-staff-client');
+                var check = el('input');
+                check.type = 'checkbox';
+                check.value = k.id;
+                check.checked = box._wybrani.has(k.id);
+                var opis = [k.client_name, k.ident, 'PIN ' + k.pin, k.city].filter(Boolean).join(' · ');
+                if (k.role === 'group') opis += ' · ' + tr('staff.admin.group_badge');
+                wiersz.append(check, document.createTextNode(' ' + opis));
+                lista.appendChild(wiersz);
+            });
+            box._zaladowani = true;
+        } catch (e) {
+            powiadom('error', e.message || tr('staff.admin.error_server'));
+        } finally {
+            box._laduje = false;
+            poZaladowaniu();
+        }
+    }
+
+    function zbierzDostepBiura() {
+        var organizacje = [];
+        Array.prototype.forEach.call(organizacjeBiura.querySelectorAll('.ua-staff-org'), function (box) {
+            if (!box.querySelector('.ua-staff-org__check').checked) return;
+            var wszyscy = box.querySelector('.ua-staff-future input').checked;
+            var ids = wszyscy ? [] : (box._zaladowani
+                ? Array.prototype.map.call(box.querySelectorAll('.ua-staff-clients input:checked'), function (i) { return Number(i.value); })
+                : Array.from(box._wybrani));
+            organizacje.push({ id: Number(box.dataset.org), allClients: wszyscy, clientIds: ids });
+        });
+        return { organizations: organizacje };
+    }
+
+    formBiura.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (!wybrany) return;
+        var btn = document.getElementById('ua-save-staff-access');
+        btn.disabled = true;
+        try {
+            var resp = await fetch('/admin/api/users/' + wybrany.id + '/staff-access', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(zbierzDostepBiura())
+            });
+            var dane = await resp.json();
+            if (!dane.success) throw new Error(dane.message || tr('staff.admin.error_server'));
+            powiadom('success', tr('staff.admin.access_saved'));
+            wczytajDostepBiura(wybrany.id);
+        } catch (e2) {
+            powiadom('error', e2.message || tr('staff.admin.error_server'));
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    formNowegoBiura.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var dane = Object.fromEntries(new FormData(formNowegoBiura).entries());
+        var btn = formNowegoBiura.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+            var resp = await fetch('/admin/api/staff-accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dane)
+            });
+            var wynik = await resp.json();
+            if (!wynik.success) throw new Error(wynik.message || tr('staff.admin.error_server'));
+            formNowegoBiura.reset();
+            powiadom('success', tr('staff.admin.new_created'));
+            wybrany = wynik.user;
+            wypelnij(wybrany);
+        } catch (e2) {
+            powiadom('error', e2.message || tr('staff.admin.error_server'));
+        } finally {
+            btn.disabled = false;
+        }
+    });
 
     document.getElementById('ua-reset-settings').addEventListener('click', function () {
         if (wybrany) wypelnij(wybrany);

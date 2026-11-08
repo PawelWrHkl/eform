@@ -288,7 +288,8 @@ async function getUsers() {
             pin,
             password,
             phone,
-            country AS kraj
+            country AS kraj,
+            role
         FROM eform.\`user\`
     `;
     const result = await selectQuery(sql);

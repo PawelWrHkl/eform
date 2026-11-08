@@ -60,22 +60,37 @@ test('pozycje zamówienia są zawsze towarem — usługi dokłada się jawnie', 
   assert.deepEqual(seen, [{ isService: false, isInstallation: false }]);
 });
 
-test('nazwa pozycji: własna nazwa → dział + grupa → dział', () => {
-  assert.equal(buildItemName({ name: 'Roleta dzień-noc' }), 'Roleta dzień-noc');
-  assert.equal(buildItemName({ name: '', department: 'PLISY', group_name: 'EOS' }), 'PLISY EOS');
+test('nazwa pozycji: zawsze produkt (dział – grupa), nazwa własna nie zastępuje produktu (KK 2026-11-07)', () => {
+  assert.equal(buildItemName({ name: 'Bad / EG', department: 'PLISY', group_name: 'EOS' }), 'PLISY – EOS', 'pokój nie jest produktem');
+  assert.equal(buildItemName({ department: 'VORHÄNGE', group_name: 'VORHÄNGE' }), 'VORHÄNGE', 'bez dubla działu i grupy');
+  assert.equal(buildItemName({ department: 'JALOEZIEËN', group_name: 'HOUTENJALOEZIEËN' }), 'HOUTENJALOEZIEËN', 'grupa zawiera dział');
+  assert.equal(buildItemName({ name: '272116', department: 'ROLETY', group_name: 'BB24' }), 'ROLETY – BB24', 'goły kod katalogowy idzie do opisu');
   assert.equal(buildItemName({ department: 'ŻALUZJE' }), 'ŻALUZJE');
+  assert.equal(buildItemName({ name: 'Roleta dzień-noc' }), 'Roleta dzień-noc', 'bez działu i grupy zostaje nazwa własna');
   assert.equal(buildItemName({}), 'Pozycja zamówienia');
 });
 
-test('nazwa pozycji: goły kod katalogowy dostaje kontekst działu i grupy', () => {
-  // Realne dane: `order_item.name = '272116'`. Sam kod nie spełnia wymogu
-  // „nazwa towaru lub usługi" na fakturze.
-  assert.equal(buildItemName({ name: '272116', department: 'ROLETY', group_name: 'BB24' }), 'ROLETY BB24 272116');
-  assert.equal(buildItemName({ name: '272116' }), '272116', 'bez działu i grupy zostaje sam kod');
-  assert.equal(buildItemName({ name: 'Duette 32 mm', department: 'ROLETY' }), 'Duette 32 mm', 'nazwa z literami zostaje bez zmian');
+test('opis pozycji: krótka specyfikacja z opisu parametrów, potem nazwa własna, referencja i komentarz', () => {
+  const desc = buildItemDescription(
+    {
+      name: 'Bad / EG',
+      commision: 'DS.R.01 B3',
+      comment: 'montaż od wewnątrz',
+      json_parameters_desc: JSON.stringify([
+        ['MODEL', { row: 1, param_description: 'MODEL', option_value: 'I25SD', option_description: 'EUROPA 25mm' }],
+        ['KOLOR', { row: 1, param_description: 'KOLOR', option_value: '764-25', option_description: 'PG #0' }],
+        ['SZEROKOSC', { row: 1, param_description: 'SZEROKOŚĆ', option_value: '624' }],
+        ['ILOSC', { row: 1, param_description: 'ILOŚĆ', option_value: '2' }]
+      ])
+    },
+    { MODEL: 'I25SD', KOLOR: '764-25', SZEROKOSC: 624, ILOSC: 2 }
+  );
+  assert.match(desc, /^MODEL: I25SD – EUROPA 25mm · KOLOR: 764-25 – PG #0 · Bad \/ EG · DS\.R\.01 B3 · montaż od wewnątrz$/);
+  assert.doesNotMatch(desc, /624|ILOŚĆ/, 'wymiary i ilość mają własne kolumny');
+  assert.equal(buildItemDescription({ name: '273030', commision: '273030' }, {}), '273030', 'nazwa własna = referencja → raz');
 });
 
-test('opis pozycji: wymiary, wybrane parametry, referencja i komentarz', () => {
+test('opis pozycji bez opisu parametrów (stare zlecenia): kody wybranych parametrów, referencja i komentarz', () => {
   const desc = buildItemDescription(
     { commision: 'Salon okno 1', comment: 'montaż od wewnątrz' },
     { SZEROKOSC: 1232, WYSOKOSC: 1500, MODEL: 'AO30', KOLOR: '2002-P20', DODATKI: '-' }

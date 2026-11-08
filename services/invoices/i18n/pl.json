@@ -22,7 +22,7 @@
   "items.name": "Nazwa towaru / usługi",
   "items.unit": "J.m.",
   "items.quantity": "Ilość",
-  "items.unit_price_net": "Cena netto",
+  "items.unit_price_net": "Cena jedn. netto",
   "items.discount": "Rabat",
   "items.price_before_discount": "Cena przed rabatem",
   "items.price_after_discount": "Cena po rabacie",

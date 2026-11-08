@@ -30,7 +30,11 @@ async function prepareRestData() {
 		'country': document.getElementById("sendCountry_code")?.value ?? '',
 
 	}
+	// Konto biura: klient, dla którego wyrenderowano formularz — serwer odrzuci zapis,
+	// gdy w innej karcie wybrano już innego klienta (routes/orders.js /save-order).
+	const staffClientIdent = document.getElementById('staff-client-ident')?.value;
 	let body = JSON.stringify({
+		...(staffClientIdent !== undefined ? { clientIdent: staffClientIdent } : {}),
 		commission: orderCommision,
 		comment: comment,
 		addrId: addrId,
@@ -92,6 +96,9 @@ async function createOrder() {
 			isEmployee: window.isEmployee
 		});
 		const result = await response.json();
+		if (!response.ok && result.message) {
+			showToast('error', result.message);
+		}
 
 		if (result.redirect) {
 			newOrderButton.disabled = true;
@@ -315,6 +322,13 @@ if (updateOrderButton) {
 
 else if (newOrderButton) {
 	const runCreateOrder = async () => {
+		// Konto biura bez wybranego klienta nie zapisze zlecenia (blokada też na serwerze).
+		const staffClient = document.getElementById('staff-client-ident');
+		if (staffClient && !staffClient.value) {
+			showToast('error', t('staff.pick_client_first'));
+			document.getElementById('staff-client-input')?.focus();
+			return;
+		}
 		if (validate('.validate') && await confirmMissingAddress()) {
 			createOrder();
 		}

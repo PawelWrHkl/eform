@@ -19,7 +19,9 @@ const { BEZ_CEN } = require('../abType');
 const ROLE_OPTIONS = [
   { value: '',      label: 'Klient (brak roli)' },
   { value: 'admin', label: 'Administrator' },
-  { value: 'group', label: 'Grupa (sklep)' }
+  { value: 'group', label: 'Grupa (sklep)' },
+  // Biuro: wpisuje zlecenia za klientów z sekcji „Dostęp biura" (services/staffAccess.js).
+  { value: 'staff', label: 'Biuro (zlecenia za klientów)' }
 ];
 
 /**
@@ -195,6 +197,27 @@ function validateNewPassword(password, confirmation) {
 }
 
 /**
+ * Nowe konto biura (rola `staff`) z panelu. PIN = login, więc tylko znaki
+ * bezpieczne w adresie i bez spacji; kolumna `user.pin` ma 12 znaków.
+ * Klucze błędów to klucze tłumaczeń (`staff.admin.*`).
+ *
+ * @returns {{ values?: { pin: string, clientName: string, email: string|null }, password?: string, errors: string[] }}
+ */
+function normalizeNewStaffAccount(body = {}) {
+  const errors = [];
+  const pin = String(body.pin == null ? '' : body.pin).trim();
+  if (!/^[A-Za-z0-9._-]{3,12}$/.test(pin)) errors.push('staff.admin.error_pin');
+  const clientName = String(body.name == null ? '' : body.name).trim();
+  if (!clientName || clientName.length > 128) errors.push('staff.admin.error_name');
+  const email = parseEmail(body.email);
+  if (email.error) errors.push('staff.admin.error_email');
+  const haslo = validateNewPassword(body.password, body.password2);
+  if (haslo.errors.length) errors.push('staff.admin.error_password');
+  if (errors.length) return { errors };
+  return { values: { pin, clientName, email: email.value }, password: haslo.password, errors };
+}
+
+/**
  * Czy admin próbuje odebrać rolę sam sobie.
  *
  * ⚠️ Bez tej zapory jedno kliknięcie („Klient (brak roli)" na własnym koncie)
@@ -215,6 +238,7 @@ module.exports = {
   normalizeUserSettings,
   validateNewPassword,
   wouldDropOwnAdminRole,
+  normalizeNewStaffAccount,
   naTinyint,
   parseDeliveryDelay,
   parseAbLang,

@@ -1,0 +1,108 @@
+/* Tryb surowy formularza pozycji (okno konta biura, `?raw=1`, staff/rawForm.js).
+   Tylko wygląd — silnik i ceny bez zmian. Tokeny z theme.css, bez animacji. */
+
+html.raw-mode nav.mobile-nav,
+html.raw-mode nav.desktop-nav,
+html.raw-mode header.languages,
+html.raw-mode footer.site-footer,
+html.raw-mode .m-bottomnav,
+html.raw-mode .modern-back-btn,
+html.raw-mode #mobile-back-btn,
+html.raw-mode #user-div,
+html.raw-mode .order-reminder > h3,
+html.raw-mode .content > h1,
+html.raw-mode #show-button,
+html.raw-mode #reset-button,
+html.raw-mode .param-info-icon,
+html.raw-mode .param-info-cupon,
+html.raw-mode .param-info-tooltip,
+html.raw-mode #color-dialog img,
+html.raw-mode .diag-image {
+    display: none !important;
+}
+
+html.raw-mode *,
+html.raw-mode *::before,
+html.raw-mode *::after {
+    animation: none !important;
+    transition: none !important;
+}
+
+html.raw-mode body { padding-bottom: 72px; background: var(--bg-surface-solid); }
+html.raw-mode .content,
+html.raw-mode .desktop-nav.collapsed ~ main .content,
+html.raw-mode.nav-collapsed .content {
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    padding: 8px 12px !important;
+}
+html.raw-mode .container { max-width: none; padding: 0; }
+html.raw-mode .asortment-inputs { gap: var(--space-sm); flex-wrap: wrap; margin-bottom: var(--space-sm); }
+
+/* Zwarty układ „etykieta | pole”, na szerokim ekranie w 2 kolumnach.
+   Kolejność DOM = kolejność parametrów, więc Tab idzie po kolei. */
+html.raw-mode #dynamic-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    column-gap: 28px;
+    row-gap: 2px;
+}
+@media (min-width: 1100px) {
+    html.raw-mode #dynamic-form { grid-template-columns: 1fr 1fr; }
+}
+html.raw-mode #dynamic-form > div[class$="-select-area"] {
+    display: grid;
+    grid-template-columns: minmax(150px, 42%) 1fr;
+    align-items: center;
+    gap: 2px 8px;
+    padding: 2px 0;
+    margin: 0;
+    border-bottom: 1px solid var(--border-default);
+}
+html.raw-mode #dynamic-form > div[class$="-select-area"] > br { display: none; }
+html.raw-mode #dynamic-form > div[class$="-select-area"] > *:not(.field-label-row) { grid-column: 2; }
+html.raw-mode #dynamic-form .field-label-row { grid-column: 1; margin: 0; font-size: 0.85rem; color: var(--text-secondary); }
+html.raw-mode #dynamic-form .field-label-row label { margin: 0; }
+html.raw-mode #dynamic-form select,
+html.raw-mode #dynamic-form input:not([type="checkbox"]):not([type="radio"]),
+html.raw-mode #dynamic-form .button {
+    min-height: 30px;
+    padding: 2px 8px;
+    font-size: 0.9rem;
+    width: 100%;
+}
+html.raw-mode #dynamic-form .comment-space { grid-column: 1 / -1; }
+
+.raw-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm) var(--space-md);
+    padding: 8px 12px;
+    background: var(--bg-surface-solid);
+    border-top: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-md);
+}
+.raw-bar__total { font-weight: 700; color: var(--text-primary); }
+.raw-bar__status { color: var(--text-secondary); font-size: 0.9rem; flex: 1; }
+.raw-bar__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+
+.raw-search {
+    position: absolute;
+    z-index: 2100;
+    padding: 4px;
+    background: var(--bg-surface-solid);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+}
+.raw-search ul { list-style: none; margin: 4px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.raw-search li { padding: 4px 8px; cursor: pointer; font-size: 0.9rem; color: var(--text-primary); }
+.raw-search li[aria-selected="true"], .raw-search li:hover { background: var(--bg-active); }

@@ -1,0 +1,46 @@
+{#
+  Wersje faktur — co i kiedy się zmieniło (tylko admin, `GET /invoices/changes`).
+  Dane: `services/invoices/changes.js` (najnowsza wersja pierwsza), etykiety: `L` z panel.json.
+#}
+{% extends "base.njk" %}
+
+{% block title %}{{ L.changes_title }}{% endblock title %}
+
+{% block head %}
+  <link rel="stylesheet" href="/styles/orders.css">
+  <link rel="stylesheet" href="/styles/invoices.css?v={{ assetVersion }}">
+{% endblock head %}
+
+{% block key_nav %}window.location.href='/invoices'{% endblock %}
+
+{% block back_link %}
+  <button class="modern-back-btn" onclick="window.location.href='/invoices'">
+{% endblock %}
+
+{% block content %}
+  <div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card">
+      <div class="inv-topbar">
+        <div>
+          <h2 class="fw-bold header mb-1">{{ L.changes_title }}</h2>
+          <div class="inv-subtitle">{{ L.changes_intro }}</div>
+        </div>
+        <div class="inv-topbar__actions">
+          <a class="inv-btn inv-btn--ghost" href="/invoices">{{ L.changes_back }}</a>
+        </div>
+      </div>
+
+      {% for v in versions %}
+        <section class="inv-card">
+          <h3 class="inv-card__title">
+            {{ L.changes_version }} {{ v.version }} · {{ v.date }} — {{ v.title }}
+            <span class="inv-status {{ 'inv-status--paid' if v.env == 'produkcja' else 'inv-status--draft' }}">{{ L['changes_env_' + v.env] }}</span>
+          </h3>
+          <ul class="mb-0">
+            {% for c in v.changes %}<li>{{ c }}</li>{% endfor %}
+          </ul>
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

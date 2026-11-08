@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { requireLogin, checkOrderOwnership, requireOwner, isOwner } = require('../middleware/loginMixture');
+const { requireLogin, checkOrderOwnership, hasOrderAccess, requireOwner, isOwner } = require('../middleware/loginMixture');
+const staffAudit = require('../services/staffAudit');
 const { loadEmployeePermissions, requireSendPermission, filterPriceData, filterOrdersByPermission } = require('../middleware/employeePermissions');
 const db = require("../db/db_helper.js");
 const fs = require('fs');
@@ -23,7 +24,7 @@ const { getPriceAfterDiscount } = require('../services/getDiscount.js');
 const { setParcelHref, parseSpeditionNumbers, alignStatusesToItems } = require('../services/prodStatus.js');
 const invoiceRepository = require('../services/invoices/db/repository');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
-const { applySubPriceLocals } = require('../services/subPriceContext');
+const { applySubPriceLocals, canSeeAllPriceLayers } = require('../services/subPriceContext');
 const { log } = require('../utils/logging');
 const { availabeLanguages } = require('../config');
 const { translateOrderItems } = require('../services/translationDict/itemTranslator');
@@ -32,7 +33,7 @@ const { getProductionSendSkipClient, shouldForceProductionSend } = require('../u
 const { getOrderMutationBlock, shouldRedirectFromActiveOrderView, getClientGroupOrderBlock, isCanceledOrder } = require('../utils/orderStatusGuard');
 const orderCancellation = require('../services/orderCancellation');
 const { getGroupShopSendBlock } = require('../services/groupShopSendPolicy');
-const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../services/confirmationPolicy');
+const { resolveOrderAbPolicy, resolveConfirmationRecipients, resolveStaffCopy } = require('../services/confirmationPolicy');
 const { resolveVatLocals, vatFeatureEnabled } = require('../services/vatCalculator');
 const { features } = require('../config');
 const { buildOrderPriceSpec } = require('../services/priceSpec');
@@ -50,7 +51,7 @@ function sentOrderPath(orderId) {
  * dopiero po `PRICE_SPEC_CLIENTS_ENABLED=true` (config.js `features.priceSpecClients`).
  */
 function canSeePriceSpec(req) {
-    return !!(req.session?.user?.isAdmin || features.priceSpecClients);
+    return !!(canSeeAllPriceLayers(req.session?.user) || features.priceSpecClients);
 }
 
 /**
@@ -257,7 +258,7 @@ router.get('/search', requireLogin, async (req, res) => {
     }
 });
 
-router.get('/edit/:orderId', requireLogin, async (req, res) => {
+router.get('/edit/:orderId', requireLogin, checkOrderOwnership, async (req, res) => {
     if (await redirectSentOrder(req, res)) {
         return;
     }
@@ -712,6 +713,10 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         }
 
         rememberPriceSpecView(req, res, orderDetails.id, req.session.user?.showPrices || req.session.user?.showPricesOnce);
+        // Audyt biura (kto założył / ostatnio zmienił) — tylko biuro i admin; nigdy w PDF ani mailu.
+        if (req.session.user?.isStaff || req.session.user?.isAdmin) {
+            res.locals.staffAudit = (await staffAudit.getStaffAudit([orderDetails.id]))[orderDetails.id] || null;
+        }
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render("order_sent_prices.njk",
                 {
@@ -736,6 +741,12 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
 
 router.get("/add-order", requireLogin, async (req, res) => {
     const currentUser = ownerService.getCurrentUser(req);
+
+    // Konto biura bez wybranego klienta: formularz zaczyna się od wyboru klienta
+    // (templates/new-order.njk), adresy i maile pojawią się po wyborze.
+    if (req.session.user?.isStaff && !req.session.context_user) {
+        return res.render("new-order.njk", { addr: [], emails: [], staffNeedsClient: true });
+    }
 
     const addOrderShopId = getActiveGroupShopId(req);
     if (addOrderShopId) {
@@ -843,6 +854,10 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         const { isClientView, showBoth: showBothInPdf } = resolveSubPricePdfView(req, hasSubPrices);
 
         rememberPriceSpecView(req, res, orderDetails.id, req.session.user?.showPrices || req.session.user?.showPricesOnce);
+        // Audyt biura (kto założył / ostatnio zmienił) — tylko biuro i admin; nigdy w PDF ani mailu.
+        if (req.session.user?.isStaff || req.session.user?.isAdmin) {
+            res.locals.staffAudit = (await staffAudit.getStaffAudit([orderDetails.id]))[orderDetails.id] || null;
+        }
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render('order_prices.njk', {
                 orderDetails,
@@ -1365,7 +1380,7 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
 });
 
 
-router.get("/order/:orderId/new-position/", requireLogin, loadEmployeePermissions, filterPriceData, async (req, res) => {
+router.get("/order/:orderId/new-position/", requireLogin, checkOrderOwnership, loadEmployeePermissions, filterPriceData, async (req, res) => {
     if (await redirectSentOrder(req, res)) {
         return;
     }
@@ -1697,7 +1712,8 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
 
         // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
         const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices, hasSubPrices: hasSubPricesMail, currencySymbol })
-        const orgData = await db.getOrgInfo(req.session.user.organization)
+        // Konto biura: dane organizacji KLIENTA zlecenia (stopka maila), nie biura.
+        const orgData = await db.getOrgInfo(req.session.user?.isStaff ? currentUser?.orgId : req.session.user.organization)
 
         // Odbiorca i BCC — wspólna reguła dla panelu, importu i wysyłki na
         // produkcję (`services/confirmationPolicy.js`), żeby tory nie rozjechały
@@ -1711,6 +1727,19 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             extraAbMail: abPolicy.extraAbMail
         });
         if (abPolicy.clientAb) log(`[client_ab] zamówienie ${id}: potwierdzenie dla klienta (${mainRecipient})`);
+
+        // Kopia dla konta biura, które wysłało zlecenie (decyzja właściciela 3) —
+        // ukryte BCC; brak adresu albo przekierowanie testowe nie zatrzymuje wysyłki.
+        let staffBcc = null;
+        if (req.session.user?.isStaff) {
+            const staffMail = await db.getUserMail(req.session.user.pin);
+            const copy = resolveStaffCopy({ staffEmail: staffMail?.user_email });
+            staffBcc = copy.bcc;
+            const opis = copy.reason === 'ok' ? copy.bcc
+                : copy.reason === 'no_email' ? 'brak adresu e-mail konta biura — bez kopii'
+                : `przekierowana (NODE_ENV=${process.env.NODE_ENV}), adres konta: ${staffMail?.user_email}`;
+            log(`[staff] zamówienie ${id}: kopia potwierdzenia dla ${req.session.user.ident} — ${opis}`);
+        }
 
         mailBot.sendMail(
             mainRecipient,
@@ -1727,7 +1756,7 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
             bcc,
             // `abLang` — mail (temat, treść, nazwa załącznika) w języku
             // potwierdzenia klienta; `null` = zachowanie dotychczasowe
-            { htmlContent: confirmationHtml, abLang }
+            { htmlContent: confirmationHtml, abLang, bcc: staffBcc }
         );
 
         // Generuj i wyślij PDF produkcyjny po polsku (fire-and-forget, nie blokuje odpowiedzi)
@@ -1793,6 +1822,7 @@ router.post('/copy/:orderId', checkOrderOwnership, requireLogin, async (req, res
     if (!newOrderId) {
         return res.status(500).json({ status: "error", message: "Nie udało się skopiować zamówienia" });
     }
+    if (req.session.user?.isStaff) await staffAudit.markCreatedByStaff(newOrderId, req.session.user.userId);
     for (const item of orderItems) {
         let body = buildOrderItemStructure(
             newOrderId,
@@ -1876,6 +1906,18 @@ router.post('/save-order', requireLogin, async (req, res) => {
     try {
         let { commission, comment, addrId, mailId, orderSendAddress } = req.body;
 
+        // Konto biura: zlecenie zawsze dla wybranego klienta — i dokładnie tego,
+        // dla którego wyrenderowano formularz (inna karta mogła zmienić klienta).
+        if (req.session.user?.isStaff) {
+            const ctx = req.session.context_user;
+            if (!ctx) {
+                return res.status(400).json({ status: "error", message: res.__('staff.pick_client_first') });
+            }
+            if (String(req.body.clientIdent || '') !== String(ctx.ident)) {
+                return res.status(409).json({ status: "error", message: res.__('staff.client_changed') });
+            }
+        }
+
         let response
         let sendAddrId = null;
 
@@ -1901,6 +1943,7 @@ router.post('/save-order', requireLogin, async (req, res) => {
         if (!id) {
             return res.status(500).json({ status: "error", message: "Nie udało się utworzyć zamówienia. Skontaktuj się z administratorem." });
         }
+        if (req.session.user?.isStaff) await staffAudit.markCreatedByStaff(id, req.session.user.userId);
         return res.json({ status: "success", message: "Dane zapisane poprawnie", redirect: `/orders/order/${id}` });
     }
     catch (err) {
@@ -1978,7 +2021,7 @@ router.delete('/order/:orderId/delete/', requireLogin, checkOrderOwnership, asyn
 })
 
 
-router.patch('/:orderId/comment/update', requireLogin, async (req, res) => {
+router.patch('/:orderId/comment/update', requireLogin, checkOrderOwnership, async (req, res) => {
     const { orderId } = req.params;
     const { comment } = req.body;
     try {
@@ -2152,8 +2195,12 @@ router.patch('/order/:orderId/toggle-status', requireLogin, async (req, res) => 
 
 
 router.post('/order/:orderId/send-to-production', requireLogin, async (req, res) => {
-    if (!req.session.user?.isAdmin) {
+    const sessionUser = req.session.user;
+    if (!sessionUser?.isAdmin && !sessionUser?.isStaff) {
         return res.status(403).json({ success: false, message: 'Brak uprawnień' });
+    }
+    if (sessionUser.isStaff && !(await hasOrderAccess(req, res, req.params.orderId))) {
+        return res.status(403).json({ success: false, message: res.__('access.order_denied') });
     }
     if (await rejectCanceledOrderSend(req, res, req.params.orderId)) return;
     try {

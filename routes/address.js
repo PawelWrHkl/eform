@@ -12,7 +12,30 @@ const path = require("path");
 const { updateClients } = require('../services/dbUserSync');
 const hashUser = require('../utils/hashUser').hashUser;
 const { log } = require('../utils/logging');
+const { selectQuery } = require('../db/core');
 
+
+/**
+ * Adres dostawy / mail po id: tylko konta, do którego należy (bieżący użytkownik
+ * albo klient z kontekstu — owner/admin/biuro). Owner i admin jak dotąd bez ograniczeń.
+ * Nieznane id przepuszczamy — 404 zwraca trasa.
+ */
+function addressOwnerGuard(table) {
+    return async (req, res, next) => {
+        try {
+            if (req.session.user?.isOwner) return next();
+            const rows = await selectQuery(`SELECT user_id FROM ${table} WHERE id = ?`, [req.params.id]);
+            if (!rows) return next();
+            const current = ownerService.getCurrentUser(req);
+            if (Number(rows[0].user_id) !== Number(current?.userId)) {
+                return res.status(403).json({ success: false, message: res.__('access.address_denied') });
+            }
+            next();
+        } catch (err) {
+            next(err);
+        }
+    };
+}
 
 router.post("/add-delivery-address", requireLogin, async (req, res) => {
     try {
@@ -133,7 +156,7 @@ router.post("/add-mail-address", requireLogin, async (req, res) => {
     }
 });
 
-router.get('/:id', requireLogin, async (req, res) => {
+router.get('/:id', requireLogin, addressOwnerGuard('delivery_address'), async (req, res) => {
     try {
         const address = await db.getAddressById(req.params.id);
         if (!address) {
@@ -157,7 +180,7 @@ router.get('/:id', requireLogin, async (req, res) => {
     }
 });
 
-router.get('/mail/:id', requireLogin, async (req, res) => {
+router.get('/mail/:id', requireLogin, addressOwnerGuard('contact_info'), async (req, res) => {
     try {
         const mail = await db.getMailById(req.params.id);
         if (!mail) {
@@ -181,7 +204,7 @@ router.get('/mail/:id', requireLogin, async (req, res) => {
     }
 });
 
-router.put('/:id', requireLogin, async (req, res) => {
+router.put('/:id', requireLogin, addressOwnerGuard('delivery_address'), async (req, res) => {
     try {
         const { name, phone, street, city, zip, country } = req.body;
         const payload = {
@@ -214,7 +237,7 @@ router.put('/:id', requireLogin, async (req, res) => {
     }
 });
 
-router.put('/mail/:id', requireLogin, async (req, res) => {
+router.put('/mail/:id', requireLogin, addressOwnerGuard('contact_info'), async (req, res) => {
     try {
         const { mail } = req.body;
         const email = (mail || '').trim().toLowerCase();
@@ -241,7 +264,7 @@ router.put('/mail/:id', requireLogin, async (req, res) => {
     }
 });
 
-router.delete('/:id', requireLogin, async (req, res) => {
+router.delete('/:id', requireLogin, addressOwnerGuard('delivery_address'), async (req, res) => {
     try {
         await db.deleteAddress(req.params.id);
         return res.status(200).json({
@@ -257,7 +280,7 @@ router.delete('/:id', requireLogin, async (req, res) => {
     }
 });
 
-router.delete('/mail/:id', requireLogin, async (req, res) => {
+router.delete('/mail/:id', requireLogin, addressOwnerGuard('contact_info'), async (req, res) => {
     try {
         await db.deleteMail(req.params.id);
         return res.status(200).json({

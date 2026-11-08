@@ -86,7 +86,11 @@ function getCurrentUser(req) {
             return null;
         }
 
-        if ((req.session.user?.isOwner || req.session.user?.isAdmin) && req.session.context_user) {
+        // Konto biura pracuje za klienta jak admin. Kontekst jest tu już sprawdzony:
+        // middleware/staffGuard.js przy KAŻDYM żądaniu czyści kontekst klienta,
+        // do którego biuro straciło dostęp (services/staffAccess.js).
+        const sessionUser = req.session.user;
+        if ((sessionUser?.isOwner || sessionUser?.isAdmin || sessionUser?.isStaff) && req.session.context_user) {
             return req.session.context_user;
         }
 

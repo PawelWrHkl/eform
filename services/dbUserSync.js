@@ -80,10 +80,16 @@ function getClientKey(client) {
 
 
 
-function compareClients(fileClients, dbClients) {
+function compareClients(fileClients, allDbClients) {
 
-  const pinsInDb = new Set(dbClients.map(c => (c.pin || '').toUpperCase()));
-  const identsInDb = new Set(dbClients.map(c => (c.ident || '').toUpperCase()));
+  // Konta biura (`role = 'staff'`) zakłada admin w aplikacji — w contractors.txt
+  // ich nie ma i nigdy nie będzie, więc synchronizacja nie może ich ani usuwać,
+  // ani nadpisywać. Warunek po roli, nie po kolejnym pinie na liście wyjątków.
+  const dbClients = allDbClients.filter(c => String(c.role || '').toLowerCase() !== 'staff');
+  // Zajęte piny/identy liczymy z WSZYSTKICH kont — wiersz pliku z pinem konta biura
+  // nie może próbować wstawić duplikatu.
+  const pinsInDb = new Set(allDbClients.map(c => (c.pin || '').toUpperCase()));
+  const identsInDb = new Set(allDbClients.map(c => (c.ident || '').toUpperCase()));
 
   const toAdd = fileClients.filter(client => {
     const pin = (client.pin || '').toUpperCase();
@@ -408,4 +414,4 @@ async function fixEncodingInDatabase() {
     }
   }
 }
-module.exports = { updateClients, fixEncodingInDatabase, updateExistingClients, syncUserCountry, isLocallyManagedPassword };
+module.exports = { updateClients, fixEncodingInDatabase, updateExistingClients, syncUserCountry, isLocallyManagedPassword, compareClients };

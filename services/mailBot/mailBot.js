@@ -138,6 +138,11 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
   if (cc) {
     mailOptions.cc = cc;
   }
+  // Prawdziwe ukryte BCC (np. kopia dla konta biura, które wysłało zlecenie) —
+  // parametr `cc` wyżej trafia do klienta jako widoczna kopia.
+  if (options.bcc) {
+    mailOptions.bcc = options.bcc;
+  }
 
   return mailOptions;
 }
@@ -153,6 +158,9 @@ function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars
         log('Stylizowany e-mail wysłany:', info.response, to);
         if (cc) {
           log('CC:', cc);
+        }
+        if (options.bcc) {
+          log('BCC:', options.bcc);
         }
         resolve(info);
       }

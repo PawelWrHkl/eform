@@ -34,6 +34,28 @@
                             <div class="row justify-content-center">
                                 <div id="new-order-card" class="card m-3 mb-5 col-md-6 shadow-lg mobile-rm-card mobile-rm-m">
                                     <div class="card-body">
+                                        {# Konto biura: pierwsze pole to klient, za którego powstaje zlecenie
+                                           (routes/staff.js, public/scripts/staff/clientPicker.js). Bez klienta
+                                           zapis jest zablokowany tu i w POST /orders/save-order. #}
+                                        {% block staff_client_section %}
+                                        {% if isStaff %}
+                                        <div class="row mb-3 align-items-start mt-3">
+                                            <div class="col-md-3 text-start fw-semibold">
+                                                <label for="staff-client-input">{{ __('staff.client_label') }}</label>
+                                            </div>
+                                            <div class="col-md-9" data-staff-picker-after="reload">
+                                                {% if staffContext %}
+                                                    <p class="mb-1"><strong>{{ staffContext.clientName }}</strong>
+                                                        <span class="staff-muted">{{ staffContext.ident }} · {{ staffContext.organization }}</span></p>
+                                                {% else %}
+                                                    <p class="staff-error mb-1" role="alert">{{ __('staff.pick_client_first') }}</p>
+                                                {% endif %}
+                                                {% include "partials/staff_client_picker.njk" %}
+                                                <input type="hidden" id="staff-client-ident" value="{{ staffContext.ident if staffContext else '' }}">
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        {% endblock staff_client_section %}
                                         <div class="row mb-3 align-items-center mt-3">
                                             <div class="col-md-3 text-start fw-semibold">
                                                 <label for="commission-input">{{ __('new-order.order_name') }}</label>
@@ -320,7 +342,7 @@
                                                     </div>
                                                     <div class="d-flex justify-content-center gap-3 text-center ms-5 mobile-rm-d-flex">
                                                         {% block sendBbtn %}
-                                                            <button class="btn btn-outline-success p-2 col-3" type="button" id="save-order-btn" data-href="/orders/save-order">
+                                                            <button class="btn btn-outline-success p-2 col-3" type="button" id="save-order-btn" data-href="/orders/save-order"{% if isStaff and not staffContext %} disabled{% endif %}>
                                                                 {{ __('new-order.save_button') }}
                                                             </button>
                                                         {% endblock sendBbtn %}

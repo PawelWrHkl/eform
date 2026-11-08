@@ -94,19 +94,50 @@ function filterText(filter, { params, options }) {
   return { label: paramLabel(params, filter.param), negated: !!filter.negated, values: values.join(', ') + more };
 }
 
+/** Nagłówek progu: „do 120 cm”, przy siatce punkt „150 cm”, przy osi-liczniku sama liczba (TORY 3). */
+function boundHead(value, { count, grid }) {
+  if (value === null) return null;
+  return { value, upTo: !count && !grid, cm: !count };
+}
+
+/** Przypis do osi-wzoru (14: tabela w wymiarze paska, VERTI = wymiar całkowity − 3,8 cm). */
+function variantNotes(table, { params, options, lang }) {
+  const fmt = formatter(lang, 1);
+  return (table.axisVariants || []).map((a) => ({
+    field: paramLabel(params, a.field),
+    base: optionLabel(options, a.base.param, a.base.value),
+    others: a.others.map((v) => ({ variant: optionLabel(options, v.param, v.value), cm: fmt.format(Math.abs(v.shiftMm) / 10), less: v.shiftMm > 0 }))
+  }));
+}
+
 /** Wysokości w wierszach, szerokości × grupy cenowe w kolumnach, bloki szerokości pod A4. */
 function tableView(table, { params, options, lang }) {
   const amounts = Object.values(table.cells).flatMap((row) => Object.values(row));
   const fmt = formatter(lang, amounts.every((a) => Number.isInteger(a)) ? 0 : 2);
   const groups = table.priceGroups.map((token) => ({ token, label: token === null ? '' : String(token) }));
-  const perChunk = Math.max(1, Math.floor(26 / groups.length));
+  const grid = !!table.gridStep;
+  // Obie osie wyłączone (73: KARNISZ przy KAR) — jedna kwota niezależna od wymiarów.
+  if (!table.xField && !table.yField && groups.length === 1) {
+    const amount = (table.cells[groups[0].token] || {})['null|null'];
+    if (amount !== undefined) {
+      const domainLabels = table.options.map((o) => optionLabel(options, table.domainParam, o.value)).filter(Boolean);
+      const filters = table.otherFilters.map((f) => filterText({ ...f, negated: false }, { params, options })).filter(Boolean);
+      return { title: domainLabels.length ? domainLabels.join(', ') : filters.map((f) => `${f.label}: ${f.values}`).join(' · '), filters: domainLabels.length ? filters : [], single: fmt.format(amount), chunks: [], variants: [] };
+    }
+  }
+  // Kwoty z groszami są szersze: mniej kolumn na blok, żeby tabela zmieściła się na A4 poziomo.
+  const maxPerChunk = Math.max(1, Math.floor((amounts.every((a) => Number.isInteger(a)) ? 26 : 20) / groups.length));
+  // Bloki równej szerokości (21 kolumn → 11 + 10, nie 20 + 1).
+  const perChunk = Math.ceil(table.widths.length / Math.max(1, Math.ceil(table.widths.length / maxPerChunk)));
   const chunks = [];
   for (let i = 0; i < table.widths.length; i += perChunk) {
     const widths = table.widths.slice(i, i + perChunk);
     chunks.push({
       widths,
+      heads: widths.map((w) => boundHead(w, { count: table.xCount, grid })),
       rows: table.heights.map((h) => ({
         height: h,
+        head: boundHead(h, { count: table.yCount, grid }),
         cells: widths.flatMap((w) => groups.map((g) => {
           const amount = (table.cells[g.token] || {})[`${w}|${h}`];
           return amount === undefined ? null : fmt.format(amount);
@@ -114,15 +145,42 @@ function tableView(table, { params, options, lang }) {
       }))
     });
   }
+  // Bez domeny (np. 46: KONFIGURACJA=S_N) nagłówkiem tabeli są jej filtry.
+  const domainLabels = table.options.map((o) => optionLabel(options, table.domainParam, o.value)).filter(Boolean);
+  const filters = table.otherFilters.map((f) => filterText({ ...f, negated: false }, { params, options })).filter(Boolean);
   return {
-    options: table.options.map((o) => optionLabel(options, table.domainParam, o.value)),
-    filters: table.otherFilters.map((f) => filterText({ ...f, negated: false }, { params, options })).filter(Boolean),
+    title: domainLabels.length ? domainLabels.join(', ') : filters.map((f) => `${f.label}: ${f.values}`).join(' · '),
+    filters: domainLabels.length ? filters : [],
     doubleFabric: table.doubleFabric,
     groups,
     showGroups: !(groups.length === 1 && groups[0].token === null),
     xLabel: table.xField ? paramLabel(params, table.xField) : null,
     yLabel: table.yField ? paramLabel(params, table.yField) : null,
+    variants: variantNotes(table, { params, options, lang }),
     chunks
+  };
+}
+
+/** Wzór z param.txt słowami: identyfikatory → opisy parametrów, `*` → `×`. */
+function formulaWords(formula, params) {
+  return String(formula).replace(/^=/, '')
+    .replace(/[A-Z_][A-Z0-9_]*/g, (id) => (params[id] ? paramLabel(params, id) : id))
+    .replace(/\*/g, ' × ').replace(/\+/g, ' + ').replace(/\s+/g, ' ').trim();
+}
+
+/** Przewodnik „szerokość tkaniny” (73) w języku konta. */
+function guideView(guide, { params, options, lang }) {
+  if (!guide) return null;
+  const fmt = formatter(lang, Number.isInteger(guide.addCm) ? 0 : 1);
+  return {
+    addCm: fmt.format(guide.addCm),
+    flatLabel: paramLabel(params, guide.flatParam),
+    models: guide.models.map((m) => ({
+      label: optionLabel(options, 'MODEL', m.value),
+      rows: m.rows.map((r) => ({ label: optionLabel(options, r.param, r.value), percent: r.percent })),
+      flat: m.flat.length ? m.flat.join(', ') : null,
+      formula: m.formulaParam && params[m.formulaParam] ? formulaWords(params[m.formulaParam].FORMULA, params) : null
+    }))
   };
 }
 
@@ -176,6 +234,8 @@ function buildView({ list, account, lang, groupDescription, vat, date }) {
     currency: currencySymbol(account.currency),
     vatRate: list.priceSet === 'CENA' && vat && vat.vatRate !== null && vat.vatRate !== undefined ? vat.vatRate : null,
     logo: fs.existsSync(logoPath) ? `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}` : null,
+    guide: guideView(list.guide, ctx),
+    gridStep: list.parts.flatMap((p) => p.tables || []).map((t) => t.gridStep).find(Boolean) || null,
     parts
   };
 }

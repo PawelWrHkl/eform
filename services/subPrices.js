@@ -1,4 +1,4 @@
-const { getEffectiveOrgId } = require('./subPriceContext');
+const { getEffectiveOrgId, canSeeAllPriceLayers } = require('./subPriceContext');
 const { formatAmount } = require('./currency');
 
 const HKL_ORG_ID = 3;
@@ -276,13 +276,15 @@ function resolveSubPricePdfView(req, hasSubPrices) {
   const contextUser = req.session?.context_user;
   const showSubActive = sessionUser?.showSubParams || false;
 
-  const isPureClient = !sessionUser?.isOwner && !sessionUser?.isAdmin
+  // Konto biura = jak admin (canSeeAllPriceLayers) — PDF/mail ma odwzorować jego widok strony.
+  const allLayers = canSeeAllPriceLayers(sessionUser);
+  const isPureClient = !sessionUser?.isOwner && !allLayers
     && !sessionUser?.isEmployee && !sessionUser?.isGroup && !sessionUser?.isGroupShop
     && nonHklOrg;
 
   const hasSubToggle = nonHklOrg && (
     (sessionUser?.isOwner && !sessionUser?.isAdmin) ||
-    (sessionUser?.isAdmin && !!contextUser)
+    (allLayers && !!contextUser)
   );
 
   // Użytkownik grupowy (np. TCN — klient HKL z rolą "group"): na stronie sub params

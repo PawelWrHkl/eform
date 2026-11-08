@@ -224,6 +224,11 @@ async function sendData(id, values, valuesToDisplay, comment, orderId) {
     try {
         const result = await sendFormDataWithAttachments("/position/edit/save", postBody, "PATCH");
         showToast('success', `${t('form.saved_form_success')}`);
+        // Okno pozycji konta biura (staff/rawForm.js): bez przekierowania.
+        if (window.rawMode) {
+            window.dispatchEvent(new CustomEvent('raw-position-saved', { detail: { orderId, edit: true } }));
+            return result;
+        }
         return new Promise(resolve => {
             console.log(window.jsonShort, 'JSON SHORT')
             setTimeout(() => {

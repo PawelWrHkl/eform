@@ -167,6 +167,9 @@ app.use((req, res, next) => {
 	next();
 });
 app.use(demoSessionGuard);
+// Konto biura (rola `staff`): kontekst klienta sprawdzany przy każdym żądaniu
+// + trasy zablokowane dla biura (middleware/staffGuard.js). PRZED locals cen.
+app.use(require('./middleware/staffGuard').staffGuard);
 
 const { normalizeGroupType, GROUP_TYPE_CLIENT } = require('./services/groupType');
 
@@ -193,6 +196,7 @@ app.use((req, res, next) => {
 	const u = req.session?.user;
 	res.locals.isOrgAccount = !!(
 		u &&
+		!u.isStaff &&
 		typeof u.ident === 'string' &&
 		typeof u.organization === 'string' &&
 		u.ident.toLowerCase() === u.organization.toLowerCase()
@@ -259,7 +263,8 @@ app.use(async (req, res, next) => {
 	res.locals.groupShopContext = null;
 	res.locals.groupShops = [];
 	try {
-		if (res.locals.isGroup) {
+		// Konto biura obsługuje grupę-matkę jak zwykłego klienta — bez kont podrzędnych (decyzja 4).
+		if (res.locals.isGroup && !req.session?.user?.isStaff) {
 			res.locals.groupShopContext = getGroupShopContext(req);
 			if (req.method === 'GET' && req.accepts('html')) {
 				const parentUserId = req.session?.context_user?.userId || req.session?.user?.userId;
@@ -373,6 +378,8 @@ app.use('/admin', adminRoutes);
 app.use('/group', groupRoutes);
 // Filmy wysyłane linkiem — bez logowania (`routes/film.js`)
 app.use('/film', filmRoutes);
+// Konto biura (rola `staff`): strona startowa i wybór klienta (routes/staff.js)
+app.use('/staff', require('./routes/staff'));
 app.use('/', mainRoutes);
 app.use('/orders', ordersRoutes);
 app.use('/position', positionsRoutes);

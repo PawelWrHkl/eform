@@ -1,4 +1,14 @@
 /**
+ * Kto widzi WSZYSTKIE warstwy cen (katalogowa HKL, SUB, rabaty pod kłódką,
+ * specyfikacja ceny): admin i konto biura (`staff`, decyzja właściciela 1).
+ * ⚠️ Tylko widoczność cen — uprawnienia (panel admina, korekty, ustawienia
+ * klientów) zostają na `isAdmin`/`isOwner`, które konto biura ma = false.
+ */
+function canSeeAllPriceLayers(sessionUser) {
+  return !!(sessionUser && (sessionUser.isAdmin || sessionUser.isStaff));
+}
+
+/**
  * Resolve effective organization id for price/SUB display.
  * Admin uses selected organization or context client's org — not HKL admin orgId.
  */
@@ -7,7 +17,7 @@ function getEffectiveOrgId(req) {
   const contextUser = req.session?.context_user;
   if (!sessionUser) return null;
 
-  if (sessionUser.isAdmin) {
+  if (canSeeAllPriceLayers(sessionUser)) {
     if (contextUser?.orgId != null) return contextUser.orgId;
     if (sessionUser.organization != null && sessionUser.organization !== '') {
       const parsed = parseInt(sessionUser.organization, 10);
@@ -34,8 +44,10 @@ function applySubPriceLocals(req, res) {
   let viewAsOrganization = false;
   let isClient = false;
 
+  const allLayers = canSeeAllPriceLayers(sessionUser);
+
   if (sessionUser) {
-    if (sessionUser.isAdmin && contextUser && nonHklOrg) {
+    if (allLayers && contextUser && nonHklOrg) {
       viewAsOrganization = true;
     } else if (sessionUser.isOwner && !sessionUser.isAdmin) {
       const orgId = contextUser?.orgId ?? sessionUser.orgId;
@@ -43,16 +55,16 @@ function applySubPriceLocals(req, res) {
     }
 
     isClient = !sessionUser.isOwner
-      && !sessionUser.isAdmin
+      && !allLayers
       && !sessionUser.isEmployee
       && sessionUser.orgId != null
       && Number(sessionUser.orgId) !== 3;
   }
 
-  // Pure HKL client (organization_id === 3, not owner/admin/employee) — no price padlock.
+  // Pure HKL client (organization_id === 3, not owner/admin/staff/employee) — no price padlock.
   const isHklClient = !!sessionUser
     && !sessionUser.isOwner
-    && !sessionUser.isAdmin
+    && !allLayers
     && !sessionUser.isEmployee
     && sessionUser.orgId != null
     && Number(sessionUser.orgId) === 3;
@@ -60,7 +72,7 @@ function applySubPriceLocals(req, res) {
   const showSub = sessionUser?.showSubParams || false;
   const hasSubPriceToggle = nonHklOrg && (
     (sessionUser?.isOwner && !sessionUser?.isAdmin) ||
-    (sessionUser?.isAdmin && !!contextUser)
+    (allLayers && !!contextUser)
   );
 
   let showCatalogPrices = true;
@@ -87,4 +99,4 @@ function applySubPriceLocals(req, res) {
   }
 }
 
-module.exports = { getEffectiveOrgId, applySubPriceLocals };
+module.exports = { getEffectiveOrgId, applySubPriceLocals, canSeeAllPriceLayers };

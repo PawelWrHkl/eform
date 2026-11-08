@@ -104,4 +104,6 @@
                     </script>
                     {% endif %}
                     <script type='module' src="/scripts/edit_form.js"></script>
+                    {# Okno pozycji konta biura (`?raw=1`): pasek zapisu i klawiatura (staff/rawForm.js). #}
+                    {% if rawMode %}<script type="module" src="/scripts/staff/rawForm.js?v={{ assetVersion }}"></script>{% endif %}
                   {% endblock scripts %}

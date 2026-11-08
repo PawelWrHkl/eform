@@ -233,8 +233,23 @@ body {
     text-align: left;
 }
 
-.items tbody tr:nth-child(even) td {
+/* Pozycja = własny <tbody> (wiersz kwot + wiersz opisu): pasy co pozycję, opis
+   bez kreski między nim a kwotami, pozycja nie rozrywa się między stronami */
+.items tbody:nth-of-type(even) td {
     background: #fafbfc;
+}
+
+.items tbody.items__item {
+    break-inside: avoid;
+}
+
+.items tbody tr:not(:last-child) td {
+    border-bottom: none;
+}
+
+.items tbody tr.items__desc-row td {
+    padding-top: 0;
+    text-align: left;
 }
 
 .items__name {
@@ -244,7 +259,7 @@ body {
 
 .items__desc {
     display: block;
-    margin-top: 0.6mm;
+    margin-top: 0;
     font-size: 0.9em;
     color: var(--ink-soft);
 }

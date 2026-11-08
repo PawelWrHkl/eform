@@ -22,6 +22,9 @@ const { log } = require('../utils/logging');
 const SESSION_KEY = 'group_shop_context';
 
 function isGroupSession(req) {
+    // Konto biura obsługuje grupę-matkę jak zwykłego klienta, bez kont podrzędnych
+    // (decyzja właściciela 4) — `getActiveGroupShopId` zwraca mu zawsze null.
+    if (req?.session?.user?.isStaff) return false;
     return !!(req?.session?.user?.isGroup || req?.session?.context_user?.isGroup);
 }
 

@@ -78,5 +78,7 @@ async function closePool() {
 }
 
 module.exports = {
+    // Moduły biura obsługują błędy zapytań i transakcje bezpośrednio na puli.
+    pool,
     selectQuery, updateQuery, deleteQuery, insertQuery, connetToDb, closePool
 }

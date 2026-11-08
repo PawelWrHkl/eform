@@ -2,6 +2,8 @@
 {% block title %}
   {{ __('edit_order.title') }}
 {% endblock title %}
+{# Zlecenie ma już właściciela — wybór klienta biura tylko przy nowym zleceniu. #}
+{% block staff_client_section %}{% endblock staff_client_section %}
 {% block order_title %}
   {{ __('edit_order.h1') }}
 {% endblock order_title %}

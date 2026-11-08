@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { requireLogin } = require('../middleware/loginMixture');
+const { requireLogin, checkOrderOwnership, hasOrderAccess } = require('../middleware/loginMixture');
 const { loadEmployeePermissions, filterPriceData } = require('../middleware/employeePermissions');
 const db = require("../db/db_helper.js");
 const { getOrderMutationBlock, getClientGroupOrderBlock } = require('../utils/orderStatusGuard');
@@ -52,11 +52,31 @@ function sentOrderPath(orderId) {
 }
 
 async function rejectSentOrderMutation(res, orderId, req) {
+  // Zlecenie z treści żądania albo z pozycji — te same zasady co `checkOrderOwnership`
+  // (właściciel, sklep grupy, konto biura z dostępem do klienta zlecenia).
+  if (!(await hasOrderAccess(req, res, orderId))) {
+    return res.status(403).json({ success: false, status: 'error', message: res.__('access.order_denied') });
+  }
   const block = await getOrderMutationBlock(orderId, req?.session?.user);
   if (block) {
     return res.status(403).json(block);
   }
   return null;
+}
+
+
+/** GET z `:positionId` — dostęp do zlecenia, do którego należy pozycja (brak pozycji obsługuje trasa). */
+async function requirePositionAccess(req, res, next) {
+  try {
+    const position = await db.getPosition(req.params.positionId);
+    if (position && !(await hasOrderAccess(req, res, position.order_id))) {
+      if (req.accepts('html') && !req.xhr) return res.redirect('/user/no-permission');
+      return res.status(403).json({ success: false, message: res.__('access.order_denied') });
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
 
@@ -258,7 +278,7 @@ router.get('/photo', requireLogin, async (req, res) => {
 });
 
 
-router.get('/:positionId/edit/', requireLogin, loadEmployeePermissions, filterPriceData, async (req, res) => {
+router.get('/:positionId/edit/', requireLogin, requirePositionAccess, loadEmployeePermissions, filterPriceData, async (req, res) => {
   let result = await db.getPosition(req.params.positionId);
   if (result) {
     let orderId = result.order_id;
@@ -322,7 +342,7 @@ router.get('/:positionId/admin-redit/', requireLogin, async (req, res) => {
 })
 
 
-router.get('/:orderId/:positionId/attachments', requireLogin, async (req, res) => {
+router.get('/:orderId/:positionId/attachments', requireLogin, checkOrderOwnership, async (req, res) => {
   try {
     const posId = req.params.positionId;
     const orderId = req.params.orderId;
@@ -389,7 +409,7 @@ router.post('/:positionId/duplicate/', requireLogin, async (req, res) => {
 })
 
 
-router.get('/:positionId/data', requireLogin, async (req, res) => {
+router.get('/:positionId/data', requireLogin, requirePositionAccess, async (req, res) => {
   let result = await db.getPosition(req.params.positionId);
 
   if (result) {
@@ -426,7 +446,7 @@ router.post('/favorites/toggle', requireLogin, async (req, res) => {
   }
 });
 
-router.get('/:positionId', requireLogin, async (req, res) => {
+router.get('/:positionId', requireLogin, requirePositionAccess, async (req, res) => {
   let result = await db.getPosition(req.params.positionId);
 
   // `json_parameters_desc` is a MySQL JSON column, so mysql2 may hand it back

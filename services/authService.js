@@ -35,6 +35,13 @@ async function buildOwnerSession(req, pin, password) {
         req.session.user.isOwner = true;
     }
 
+    // Konto biura: kontekst klienta jak admin, ale ŻADNYCH uprawnień ownera/admina —
+    // `checkOrderOwnership` wpuszcza ownera do każdego zlecenia bez sprawdzania,
+    // więc isOwner musi być false także przy identzie konta równym identowi organizacji.
+    if (role === 'staff') {
+        Object.assign(req.session.user, { isStaff: true, isOwner: false, isAdmin: false, isGroup: false, groupType: null });
+    }
+
     return true;
 }
 

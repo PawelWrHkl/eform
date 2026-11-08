@@ -24,6 +24,8 @@ function canAccessInvoices(sessionUser, feats = require('../../config').features
   if (!feats.invoices) return false;
   const user = sessionUser || {};
   if (user.isGroupShop) return false;
+  // Konto biura wpisuje zlecenia za klientów — faktur nie dostaje (prompt biura, pkt E).
+  if (user.isStaff) return false;
   if (feats.invoicesAdminOnly && !user.isAdmin) return false;
   return true;
 }

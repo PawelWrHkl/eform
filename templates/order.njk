@@ -734,6 +734,15 @@
                                                                                                         </div>
                                                                                                     {% endif %}
                                                                                             {% endblock %}
+                                                                                            {# Audyt biura (services/staffAudit.js) — tylko dla biura i admina; poza
+                                                                                               blokiem `table`, więc widać go też po kłódce (order_prices.njk), a nie trafia
+                                                                                               do wydruku (order_to_print.njk) ani PDF-u. #}
+                                                                                            {% if staffAudit and (isStaff or admin) %}
+                                                                                                <p class="staff-audit w-100 text-end">
+                                                                                                    {% if staffAudit.createdBy %}{{ __('staff.audit_created') }}: {{ staffAudit.createdBy }}{% endif %}
+                                                                                                    {% if staffAudit.updatedBy %} · {{ __('staff.audit_updated') }}: {{ staffAudit.updatedBy }}{% endif %}
+                                                                                                </p>
+                                                                                            {% endif %}
                                                                                             {% block send_order_btn %}
                                                                                                 {% if not isEmployee or (employeePermissions and employeePermissions.can_send_orders) %}
                                                                                                     <div class="send-order-actions d-flex justify-content-end align-items-center w-100">
@@ -897,6 +906,10 @@
                                                                     <script src="/scripts/tableTooltips.js"></script>
                                                                     {% if owner or admin %}
                                                                     <script type='module' src="/scripts/recalculateOrder.js"></script>
+                                                                    {% endif %}
+                                                                    {# Konto biura: pozycje dodaje i edytuje w oknie (tryb surowy tego samego formularza). #}
+                                                                    {% if isStaff %}
+                                                                    <script type='module' src="/scripts/staff/positionDialog.js?v={{ assetVersion }}"></script>
                                                                     {% endif %}
                                                                     {% if admin %}
                                                                     <script>

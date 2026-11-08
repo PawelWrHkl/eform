@@ -20,6 +20,7 @@
   table.grid { border-collapse: collapse; width: 100%; margin-bottom: 2.5mm; }
   table.grid th, table.grid td { border: 0.4pt solid var(--line); padding: 0.5mm 1mm; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   table.grid thead th { background: var(--head); font-weight: 600; text-align: center; }
+  table.grid thead th.corner { white-space: normal; width: 30mm; font-size: 6.6pt; line-height: 1.25; }
   table.grid thead tr.pg th { font-weight: 500; color: var(--muted); }
   table.grid tbody th { background: #f5f8f9; text-align: center; font-weight: 600; }
   table.grid td.dash { color: var(--dash); text-align: center; }
@@ -34,6 +35,11 @@
   table.items .opts { color: var(--muted); }
   table.items tr { break-inside: avoid; }
   footer.note { margin-top: 5mm; color: var(--muted); font-size: 7pt; line-height: 1.5; }
+  section.guide { margin: 1mm 0 4mm; padding: 2mm 3mm; border: 0.6pt solid var(--line); border-radius: 1.5mm; break-inside: avoid; }
+  section.guide h2 { margin: 0 0 1mm; font-size: 9.5pt; font-weight: 650; }
+  section.guide p { margin: 0 0 1.5mm; }
+  p.variant { color: var(--muted); margin: -1mm 0 2.5mm; }
+  p.single { margin: 0 0 2.5mm; font-size: 9pt; }
 </style>
 </head>
 <body>
@@ -51,22 +57,49 @@
   {% if logo %}<img src="{{ logo }}" alt="">{% endif %}
 </header>
 
+{% if guide %}
+<section class="guide">
+  <h2>{{ __('pricelist.fabric_title') }}</h2>
+  <p>{{ __('pricelist.fabric_rule', { add: guide.addCm }) }}</p>
+  <table class="items">
+    <thead><tr><th>{{ __('pricelist.model') }}</th><th>{{ __('pricelist.fullness') }}</th></tr></thead>
+    <tbody>
+      {% for m in guide.models %}
+      <tr>
+        <td class="code">{{ m.label }}</td>
+        <td>
+          {% for r in m.rows %}{{ r.label }}: {{ r.percent }} %{% if not loop.last %} · {% endif %}{% endfor %}
+          {% if m.flat %}{% if m.rows | length %}<br>{% endif %}{{ __('pricelist.fabric_flat', { tapes: m.flat, field: guide.flatLabel }) }}{% endif %}
+          {% if m.formula %}{{ __('pricelist.fabric_formula', { formula: m.formula, add: guide.addCm }) }}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
 {% for part in parts %}
   {% for t in part.tables %}
   <section class="family">
-    <h2>{% if part.kind != 'CENA' %}{{ part.label }}: {% endif %}{{ t.options | join(', ') }}</h2>
+    <h2>{% if part.kind != 'CENA' %}{{ part.label }}: {% endif %}{{ t.title }}</h2>
     {% if t.doubleFabric or t.filters | length %}
     <p class="sub">
       {% if t.doubleFabric %}{{ __('pricelist.double_fabric') }}{% endif %}
-      {% for f in t.filters %} · {{ f.label }}: {{ f.values }}{% endfor %}
+      {% for f in t.filters %}{% if not loop.first or t.doubleFabric %} · {% endif %}{{ f.label }}: {{ f.values }}{% endfor %}
     </p>
     {% endif %}
+    {% if t.single %}<p class="single">{{ __('pricelist.single_price') }}: <strong>{{ t.single }}</strong></p>{% endif %}
+    {% for v in t.variants %}
+    <p class="variant">{{ __('pricelist.axis_base', { field: v.field, base: v.base }) }}
+      {% for o in v.others %}{% if o.less %}{{ __('pricelist.axis_shift_less', { variant: o.variant, cm: o.cm }) }}{% else %}{{ __('pricelist.axis_shift_more', { variant: o.variant, cm: o.cm }) }}{% endif %} {% endfor %}</p>
+    {% endfor %}
     {% for chunk in t.chunks %}
     <table class="grid">
       <thead>
         <tr>
-          <th rowspan="{{ 2 if t.showGroups else 1 }}">{% if t.yLabel %}{{ t.yLabel }} ↓{% endif %}{% if t.xLabel %} / {{ t.xLabel }} →{% endif %}</th>
-          {% for w in chunk.widths %}<th colspan="{{ t.groups | length }}">{% if w !== null %}{{ __('pricelist.up_to') }} {{ w }} cm{% else %}—{% endif %}</th>{% endfor %}
+          <th class="corner" rowspan="{{ 2 if t.showGroups else 1 }}">{% if t.yLabel %}{{ t.yLabel }} ↓{% endif %}{% if t.xLabel %} / {{ t.xLabel }} →{% endif %}</th>
+          {% for w in chunk.heads %}<th colspan="{{ t.groups | length }}">{% if w %}{% if w.upTo %}{{ __('pricelist.up_to') }} {% endif %}{{ w.value }}{% if w.cm %} cm{% endif %}{% else %}—{% endif %}</th>{% endfor %}
         </tr>
         {% if t.showGroups %}
         <tr class="pg">{% for w in chunk.widths %}{% for g in t.groups %}<th>{{ __('pricelist.price_group_short') }} {{ g.label }}</th>{% endfor %}{% endfor %}</tr>
@@ -75,7 +108,7 @@
       <tbody>
         {% for row in chunk.rows %}
         <tr>
-          <th>{% if row.height !== null %}{{ __('pricelist.up_to') }} {{ row.height }} cm{% else %}—{% endif %}</th>
+          <th>{% if row.head %}{% if row.head.upTo %}{{ __('pricelist.up_to') }} {% endif %}{{ row.head.value }}{% if row.head.cm %} cm{% endif %}{% else %}—{% endif %}</th>
           {% for c in row.cells %}{% if c === null %}<td class="dash">—</td>{% else %}<td>{{ c }}</td>{% endif %}{% endfor %}
         </tr>
         {% endfor %}
@@ -112,6 +145,7 @@
 <footer class="note">
   {{ __('pricelist.footer_source') }}
   {{ __('pricelist.footer_cells') }}
+  {% if gridStep %}{{ __('pricelist.footer_grid', { step: gridStep }) }}{% endif %}
   {% if vatRate !== null %}{{ __('pricelist.footer_vat', { rate: vatRate }) }}{% endif %}
 </footer>
 </body>

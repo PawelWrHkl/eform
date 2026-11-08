@@ -1,0 +1,106 @@
+{% extends "base.njk" %}
+{% block title %}{{ __('staff.home_title') }}{% endblock title %}
+{% block head %}
+    <link rel="stylesheet" href="/styles/orders.css">
+{% endblock head %}
+{% block content %}
+<div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card staff-home">
+        <div class="staff-home__head">
+            <h2 class="fw-bold header mb-0">{{ __('staff.home_title') }}</h2>
+            {% if staffContext %}
+                <a href="/orders/add-order" class="btn btn-primary" data-staff-shortcut="new-order">
+                    {{ __('staff.new_order_for') }} {{ staffContext.clientName }}
+                </a>
+            {% endif %}
+        </div>
+
+        {# Wybór klienta: public/scripts/staff/clientPicker.js #}
+        <section class="staff-card" aria-labelledby="staff-picker-title">
+            <h3 class="staff-card__title" id="staff-picker-title">{{ __('staff.client_label') }}</h3>
+            {% include "partials/staff_client_picker.njk" %}
+        </section>
+
+        <section class="staff-card" aria-labelledby="staff-orders-title">
+            <h3 class="staff-card__title" id="staff-orders-title">{{ __('staff.recent_orders') }}</h3>
+            <form class="staff-filters" method="get" action="/staff">
+                <label>{{ __('staff.filter_client') }}
+                    <input type="text" name="client" value="{{ filters.client }}" class="form-control" list="staff-client-idents" autocomplete="off">
+                </label>
+                <datalist id="staff-client-idents">
+                    {% for o in orders %}<option value="{{ o.ident }}">{{ o.client_name }}</option>{% endfor %}
+                </datalist>
+                <label>{{ __('orders.status') }}
+                    <select name="status" class="form-select">
+                        <option value="">{{ __('orders.all_statuses') }}</option>
+                        {% for st in statuses %}
+                            <option value="{{ st }}" {% if filters.status == st %}selected{% endif %}>{{ __('staff.status.' + st) }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>{{ __('orders.created_from') }}
+                    <input type="date" name="from" value="{{ filters.from }}" class="form-control">
+                </label>
+                <label>{{ __('orders.created_to') }}
+                    <input type="date" name="to" value="{{ filters.to }}" class="form-control">
+                </label>
+                <label class="staff-filters__mine">
+                    <input type="checkbox" name="mine" value="1" {% if filters.mine %}checked{% endif %} {% if not withAudit %}disabled{% endif %}>
+                    {{ __('staff.filter_mine') }}
+                </label>
+                <button type="submit" class="btn btn-outline-primary">{{ __('orders.search') }}</button>
+            </form>
+
+            {% if errorKey %}
+                <p class="staff-error" role="alert">{{ __(errorKey) }}</p>
+            {% elif not orders.length %}
+                <p class="staff-empty">{{ __('orders.nothing_here') }}</p>
+            {% else %}
+                <div class="table-responsive">
+                    <table class="table staff-orders">
+                        <thead>
+                            <tr>
+                                <th scope="col">{{ __('staff.order_number') }}</th>
+                                <th scope="col">{{ __('staff.client') }}</th>
+                                <th scope="col">{{ __('orders.commission') }}</th>
+                                <th scope="col">{{ __('orders.status') }}</th>
+                                <th scope="col">{{ __('orders.created_date') }}</th>
+                                {% if withAudit %}<th scope="col">{{ __('staff.audit_column') }}</th>{% endif %}
+                                <th scope="col">{{ __('orders.action') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for o in orders %}
+                                <tr>
+                                    <td><a href="/orders/order/{{ o.id }}">{{ o.order_idx or o.id }}</a></td>
+                                    <td>{{ o.client_name }} <span class="staff-muted">{{ o.ident }} · {{ o.org_ident }}</span></td>
+                                    <td>{{ o.commision }}</td>
+                                    <td>{{ __('staff.status.' + o.status) if o.status else '' }}</td>
+                                    <td>{{ o.created_label }}</td>
+                                    {% if withAudit %}
+                                        {% set a = audit[o.id] %}
+                                        <td class="staff-muted">
+                                            {% if a and a.createdBy %}{{ __('staff.audit_created') }}: {{ a.createdBy }}{% endif %}
+                                            {% if a and a.updatedBy %}<br>{{ __('staff.audit_updated') }}: {{ a.updatedBy }}{% endif %}
+                                        </td>
+                                    {% endif %}
+                                    <td>
+                                        {# Kopia trafia do klienta zlecenia źródłowego (POST /orders/copy/:orderId). #}
+                                        <button type="button" class="btn btn-outline-secondary btn-sm staff-reorder" data-id="{{ o.id }}">{{ __('orders.reorder') }}</button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </section>
+    </div>
+</div>
+{% endblock content %}
+{% block scripts %}
+<script type="module">
+    import { openReorderDialog } from '/scripts/orderTools/reorder.js';
+    document.querySelectorAll('.staff-reorder').forEach((btn) => btn.addEventListener('click', () => openReorderDialog(btn)));
+</script>
+{% endblock scripts %}

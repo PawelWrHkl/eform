@@ -24,6 +24,7 @@
 const { Unit } = require('../domain/constants');
 const { OrderParam } = require('../domain/orderParams');
 const money = require('./money');
+const { configSummary } = require('../../priceSpec');
 
 /**
  * ⚠️ NIE MA w `json_parameters` flagi „usługa montażu".
@@ -100,29 +101,50 @@ function resolveUnitAndQuantity(params, amount) {
 }
 
 /**
- * Nazwa pozycji na fakturze. Priorytet: nazwa własna pozycji → dział + grupa
- * asortymentowa → sam dział.
+ * Nazwa pozycji na fakturze = PRODUKT: dział i grupa asortymentowa (bez dubla, gdy
+ * grupa zawiera nazwę działu — „VORHÄNGE", nie „VORHÄNGE VORHÄNGE").
+ *
+ * ⚠️ Od 2026-11-07 (uwaga KK: „każda pozycja musi mieć produkt, model, dodatki")
+ * nazwa własna pozycji NIE jest już nazwą: klienci wpisują tam pokój („Bad / EG")
+ * albo goły kod katalogowy („272116"), więc faktura nie mówiła, CO sprzedano.
+ * Nazwa własna idzie do opisu (`buildItemDescription`).
  *
  * @param {Record<string, any>} item wiersz `order_item`
  * @returns {string}
  */
 function buildItemName(item) {
-  const own = String(item.name || '').trim();
   const dept = String(item.department || '').trim();
   const group = String(item.group_name || '').trim();
-  const context = [dept, group].filter(Boolean).join(' ');
+  if (dept && group && !group.toUpperCase().includes(dept.toUpperCase())) return `${dept} – ${group}`;
+  return group || dept || String(item.name || '').trim() || 'Pozycja zamówienia';
+}
 
-  // ⚠️ `order_item.name` bywa gołym kodem katalogowym (realne dane: „272116").
-  // Sam kod na fakturze nie spełnia wymogu „nazwa towaru lub usługi", dlatego
-  // wartość bez ani jednej litery poprzedzamy działem i grupą asortymentową.
-  if (own && !/\p{L}/u.test(own)) return context ? `${context} ${own}` : own;
-  if (own) return own;
-  return context || 'Pozycja zamówienia';
+/** Wymiary mają własną kolumnę na dokumencie — nie powtarzamy ich w opisie. */
+const DIMENSION_KEYS = new Set([OrderParam.WIDTH_MM, OrderParam.HEIGHT_MM]);
+
+/**
+ * Krótka specyfikacja z `json_parameters_desc` (etykieta i opis wybranej opcji w języku
+ * zlecenia): te same główne parametry co w specyfikacji ceny (`priceSpec.configSummary`),
+ * np. „MODEL: I25SD – EUROPA 25mm · KOLOR: 764-25 – PG #0 · STEROWANIE: EL – ELEKTRYCZNE".
+ *
+ * @param {Record<string, any>} item
+ * @param {Record<string, any>} params `json_parameters`
+ * @returns {string} pusty, gdy pozycja nie ma opisu parametrów (stare zlecenia)
+ */
+function buildSpecSummary(item, params) {
+  let raw = item.json_parameters_desc;
+  for (let i = 0; i < 2 && typeof raw === 'string'; i++) {
+    try { raw = JSON.parse(raw); } catch { return ''; }
+  }
+  if (!Array.isArray(raw)) return '';
+  const rows = new Map(raw.filter((e) => Array.isArray(e) && !DIMENSION_KEYS.has(e[0])));
+  return configSummary(rows, 6, params).map((r) => `${r.label}: ${r.value}`).join(' · ');
 }
 
 /**
- * Opis pozycji: wymiary + wybrane parametry + komentarz.
- * Krótko i konkretnie — faktura nie jest kartą technologiczną.
+ * Opis pozycji: krótka specyfikacja (model, kolor, sterowanie, napęd…), potem nazwa
+ * własna pozycji, referencja klienta i komentarz. Bez opisu parametrów (stare
+ * zlecenia) — same kody wybranych parametrów, jak przed 2026-11-07.
  *
  * @param {Record<string, any>} item
  * @param {Record<string, any>} params
@@ -133,17 +155,24 @@ function buildItemDescription(item, params) {
   // + `invoice_item.width_mm/height_mm`). Powtarzanie ich w opisie zawijało
   // wiersz na dwie linie i wypychało dokument na kolejną stronę.
   const parts = [];
-
-  for (const key of DESCRIPTION_KEYS) {
-    const value = params[key];
-    if (value === undefined || value === '' || value === '-') continue;
-    parts.push(`${key}: ${value}`);
+  const spec = buildSpecSummary(item, params);
+  if (spec) parts.push(spec);
+  else {
+    for (const key of DESCRIPTION_KEYS) {
+      const value = params[key];
+      if (value === undefined || value === '' || value === '-') continue;
+      parts.push(`${key}: ${value}`);
+    }
   }
 
-  const ownRef = String(item.commision || '').trim();
-  if (ownRef) parts.push(ownRef);
-  const comment = String(item.comment || '').trim();
-  if (comment) parts.push(comment);
+  // Nazwa własna bywa tą samą wartością co referencja klienta („273030 · 273030")
+  const seen = new Set();
+  for (const extra of [item.name, item.commision, item.comment]) {
+    const text = String(extra || '').trim();
+    if (!text || seen.has(text.toUpperCase())) continue;
+    seen.add(text.toUpperCase());
+    parts.push(text);
+  }
 
   return parts.join(' · ');
 }

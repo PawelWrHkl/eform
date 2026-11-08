@@ -23,6 +23,10 @@ const { listGroups } = require('../orgCustomers/groupTerms');
 const { parseProdTxt, parseScriptEntries } = require('../formEngine/clientScripts');
 const { hashUser } = require('../../utils/hashUser');
 const sm = require('./scriptModel');
+const pricelists = require('./index');
+
+// Uwagi `buildPricelist` warte raportu (reszta to szczegóły techniczne budowy tabel).
+const BUILD_NOTE_KINDS = ['axis-disabled', 'family-without-options', 'dimensional-item', 'unsupported-formula', 'cell-error', 'subform-missing'];
 
 const REPORT_DIR = path.join(config.rootDir, 'pricelists');
 const REPORT_FILE = path.join(REPORT_DIR, 'report.json');
@@ -209,6 +213,7 @@ async function buildReport({ progress = () => {} } = {}) {
     missingScripts: [],
     missingFiles: [],
     hashMismatch: [],
+    buildNotes: [],
     produkt: [],
     groups: []
   };
@@ -276,6 +281,28 @@ async function buildReport({ progress = () => {} } = {}) {
         report.produkt.push({ group: g, error: err.message });
       }
       if (produkt) report.produkt.push({ group: g, workbook: produkt.workbook, ...compareProdukt(produkt, prod) });
+    }
+    // Cennik wzorcowego klienta grupy: miejsca, gdzie konfigurator pomija wymiar albo cena nie mieści się w tabeli.
+    const sample = prod.clients.values().next().value;
+    if (sample) {
+      try {
+        const account = users.find((u) => u.ident.toUpperCase() === sample.client.toUpperCase() && u.org.toUpperCase() === sample.org.toUpperCase());
+        const list = await pricelists.buildPricelist({ groupNumber: g, user: { id: account ? account.id : 0, ident: sample.client }, orgIdent: sample.org, priceSet: 'CENA', lang: 'pl' });
+        const seen = new Set();
+        for (const n of (list.notes || []).filter((x) => BUILD_NOTE_KINDS.includes(x.kind))) {
+          const detail = n.kind === 'axis-disabled' ? `${n.field} (${(n.options || []).filter(Boolean).join(', ') || '—'})`
+            : n.kind === 'family-without-options' ? n.clause
+              : n.kind === 'unsupported-formula' ? `${n.param}: ${n.formula}`
+                : n.error || n.param || n.subform || '';
+          const key = `${n.kind}|${n.section}|${detail}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          report.buildNotes.push({ group: g, client: `${sample.org}/${sample.client}`, kind: n.kind, section: n.section || '', detail });
+        }
+      } catch (err) {
+        report.buildNotes.push({ group: g, client: `${sample.org}/${sample.client}`, kind: 'build-error', section: '', detail: err.message });
+      }
+      pricelists.clearCaches();
     }
     report.groups.push({ group: g, description: group.description, clients: prod.clients.size, scripts: analyzed });
   }

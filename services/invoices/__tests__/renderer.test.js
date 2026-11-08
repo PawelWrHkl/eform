@@ -65,7 +65,7 @@ test('render: dokument zawiera numer, strony i kwoty w walucie dokumentu', () =>
   assert.match(html, /1\.523,00/, 'do zapłaty po odliczeniu zaliczki');
 });
 
-test('render: klient z rabatem — trzy kolumny: cena przed rabatem, rabat, cena po rabacie', () => {
+test('render: klient z rabatem — cena jedn. przed rabatem, rabat, cena jedn. po rabacie i wartość netto', () => {
   const base = ctx();
   // Pierwsza pozycja z rabatem 60% (1 460,00 → 584,00), pozostałe bez rabatu
   const items = base.invoice.items.map((it, i) => (i === 0
@@ -74,14 +74,15 @@ test('render: klient z rabatem — trzy kolumny: cena przed rabatem, rabat, cena
   const table = itemsTable(renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'pl', items } }));
 
   assert.match(table, /^<table class="items items--discount">/);
-  assert.match(table, /<th class="col-before">Cena przed rabatem<\/th>\s*<th class="col-disc">Rabat<\/th>\s*<th class="col-net">Cena po rabacie<\/th>/);
-  assert.doesNotMatch(table, /Wartość netto/, 'kolumna „po rabacie” zastępuje „Wartość netto”');
+  assert.match(table, /<th class="col-before">Cena przed rabatem<\/th>\s*<th class="col-disc">Rabat<\/th>\s*<th class="col-price">Cena po rabacie<\/th>\s*<th class="col-net">Wartość netto<\/th>/);
   // Polski zapis nie grupuje liczb czterocyfrowych (1460,00) — separator opcjonalny
-  assert.match(table, /<td class="col-before">1\s?460,00<\/td>\s*<td class="col-disc">60%<\/td>\s*<td class="col-net">584,00<\/td>/);
-  // Pozycja bez rabatu: „przed” = netto, rabat „—”
-  assert.match(table, /<td class="col-before">1\s?215,00<\/td>\s*<td class="col-disc">—<\/td>\s*<td class="col-net">1\s?215,00<\/td>/);
-  // RAZEM przed rabatem: 1460 + 1215 + 300 = 2975,00; po rabacie = suma netto 2099,00
-  assert.match(table, /<td class="col-before">2\s?975,00<\/td>\s*<td><\/td>\s*<td class="col-net">2\s?099,00<\/td>/);
+  assert.match(table, /<td class="col-before">1\s?460,00<\/td>\s*<td class="col-disc">60%<\/td>\s*<td class="col-price">584,00<\/td>\s*<td class="col-net">584,00<\/td>/);
+  // Pozycja bez rabatu: „przed” = cena jednostkowa, rabat „—”
+  assert.match(table, /<td class="col-before">1\s?215,00<\/td>\s*<td class="col-disc">—<\/td>\s*<td class="col-price">1\s?215,00<\/td>/);
+  // 2 szt. za 300,00 → ceny jednostkowe 150,00, wartość 300,00
+  assert.match(table, /<td class="col-before">150,00<\/td>\s*<td class="col-disc">—<\/td>\s*<td class="col-price">150,00<\/td>\s*<td class="col-net">300,00<\/td>/);
+  // RAZEM tylko pod wartością — suma cen jednostkowych nic nie znaczy
+  assert.match(table, /<td><\/td>\s*<td><\/td>\s*<td><\/td>\s*<td class="col-net">2\s?099,00<\/td>/);
 });
 
 test('render: różne rabaty składników ceny (Cozy) — rozbicie pod łącznym procentem', () => {
@@ -95,12 +96,14 @@ test('render: różne rabaty składników ceny (Cozy) — rozbicie pod łącznym
   assert.match(de, /<span class="items__term">Preis 60\s?%<\/span><span class="items__term">Aufpreise 35\s?%<\/span>/);
 });
 
-test('render: bez rabatów tabela pozycji jak dotąd', () => {
+test('render: bez rabatów — cena jednostkowa netto i wartość netto', () => {
   const base = ctx();
   const table = itemsTable(renderInvoiceHtml({ ...base, invoice: { ...base.invoice, lang: 'pl' } }));
   assert.match(table, /^<table class="items">/);
-  assert.match(table, /<th class="col-net">Wartość netto<\/th>/);
+  assert.match(table, /<th class="col-price">Cena jedn. netto<\/th>\s*<th class="col-net">Wartość netto<\/th>/);
   assert.doesNotMatch(table, /col-before|col-disc/);
+  // Cena – ilość – wartość (KK 2026-11-07): montaż 2 szt. za 300,00 → 150,00 za sztukę
+  assert.match(table, /<td class="col-price">150,00<\/td>\s*<td class="col-net">300,00<\/td>/);
 });
 
 test('summarizeItemDiscounts: przełącznik i suma przed rabatem (pozycja bez rabatu liczy się netto)', () => {
