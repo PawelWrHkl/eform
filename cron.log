@@ -4812,3 +4812,49 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-11-08 10:35:01 - Start ===
 === 2026-11-08 10:35:01 - Dodawanie zmian do commita ===
+[main d8688df] Automatic commit 2026-11-08 10:35
+ 83 files changed, 12670 insertions(+), 248 deletions(-)
+ rewrite configtest/nightly.out (100%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 middleware/__tests__/orderAccessStaff.test.js
+ create mode 100644 middleware/__tests__/staffGuard.test.js
+ create mode 100644 middleware/staffGuard.js
+ create mode 100644 migrations/add_order_staff_audit.sql
+ create mode 100644 migrations/add_staff_client_access.sql
+ create mode 100644 prompt-serwis-reklamacje.md
+ create mode 100644 public/scripts/staff/clientPicker.js
+ create mode 100644 public/scripts/staff/positionDialog.js
+ create mode 100644 public/scripts/staff/rawForm.js
+ create mode 100644 public/scripts/staff/shortcuts.js
+ create mode 100644 public/styles/staff.css
+ create mode 100644 public/styles/staffRaw.css
+ create mode 100644 routes/staff.js
+ create mode 100644 services/__tests__/dbUserSyncStaff.test.js
+ create mode 100644 services/__tests__/staffAccess.test.js
+ create mode 100644 services/__tests__/staffDbIntegration.test.js
+ create mode 100644 services/__tests__/staffRole.test.js
+ create mode 100644 services/invoices/__tests__/changes.test.js
+ create mode 100644 services/invoices/changes.js
+ create mode 100644 services/pricelists/__tests__/axes.test.js
+ create mode 100644 services/staffAccess.js
+ create mode 100644 services/staffAudit.js
+ create mode 100644 templates/owner/invoice_changes.njk
+ create mode 100644 templates/partials/staff_client_picker.njk
+ create mode 100644 templates/staff/home.njk
+=== 2026-11-08 10:35:05 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 73.31 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 118 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 68 high, 41 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   51c9db8..d8688df  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-11-08 10:35:11 - Koniec ===
+=== 2026-11-08 12:00:01 - Start ===
+=== 2026-11-08 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-11-09 10:35:01 - Start ===
+=== 2026-11-09 10:35:01 - Dodawanie zmian do commita ===
