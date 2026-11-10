@@ -66,9 +66,32 @@ function save(saveMode) {
     mode = saveMode;
     saving = true;
     status.textContent = tr('staff.raw.saving');
-    btn.click();
-    // Walidacja silnika może odrzucić zapis bez zdarzenia — po chwili znów można próbować.
-    setTimeout(() => { if (saving) { saving = false; status.textContent = ''; } }, 15000);
+    // Znaczniki z poprzedniej próby — walidacja silnika (main.js) doda je od nowa.
+    form?.querySelectorAll('.invalid-input').forEach((el) => el.classList.remove('invalid-input'));
+    clickWhenIdle(btn);
+    // Odrzucenie przez walidację nie wysyła zdarzenia — rozpoznajemy je po zaznaczonych polach.
+    const started = Date.now();
+    const watch = setInterval(() => {
+        if (!saving) { clearInterval(watch); return; }
+        if (form?.querySelector('.invalid-input')) {
+            saving = false;
+            status.textContent = tr('form.incorrect_data');
+            clearInterval(watch);
+        } else if (Date.now() - started > 20000) {
+            saving = false;
+            status.textContent = '';
+            clearInterval(watch);
+        }
+    }, 300);
+}
+
+// Silnik na czas przeliczania wyłącza #show-button (form.js disableFormButtons), a click()
+// na wyłączonym przycisku nic nie robi — klikamy dopiero po zakończeniu obliczeń.
+function clickWhenIdle(btn, started = Date.now()) {
+    const busy = window.isCalculating || (window.calculationQueue?.length ?? 0) > 0 || btn.disabled;
+    if (!busy) { btn.click(); return; }
+    if (Date.now() - started > 30000) { saving = false; status.textContent = tr('form.incorrect_data'); return; }
+    setTimeout(() => clickWhenIdle(btn, started), 100);
 }
 
 // Zapis jest gotowy, gdy silnik podepnie #show-button (main.js po zbudowaniu formularza).
@@ -84,7 +107,7 @@ function refreshTotal() {
     const sums = getTotal(values) || {};
     const currency = window.priceCurrency || 'EUR';
     const parts = [`${tr('staff.raw.total')}: ${money(Number(sums.total))} ${currency}`];
-    if (Number(sums.total_hidden) > 0) parts.push(`${tr('staff.raw.total_hidden')}: ${money(Number(sums.total_hidden))} ${currency}`);
+    if (Number(sums.total_hidden) > 0 && Number(sums.total_hidden) !== Number(sums.total)) parts.push(`${tr('staff.raw.total_hidden')}: ${money(Number(sums.total_hidden))} ${currency}`);
     if (Number(sums.total_sub) > 0) parts.push(`SUB: ${money(Number(sums.total_sub))} ${currency}`);
     total.textContent = parts.join(' · ');
 }

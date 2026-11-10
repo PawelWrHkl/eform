@@ -1,0 +1,34 @@
+{% extends "_base.njk" %}
+{% block header %}{% if message %}Dopisek klienta · {% endif %}{{ pkg.number }} · {{ typeLabel }}{% endblock %}
+{% block body %}
+<table role="presentation" cellpadding="4" cellspacing="0" style="font-size:14px;">
+<tr><td><strong>Klient</strong></td><td>{{ pkg.client.name }} ({{ pkg.client.ident }}) · {{ pkg.client.organization_ident }}</td></tr>
+<tr><td><strong>Komisja</strong></td><td>{{ pkg.commission }}</td></tr>
+{% if pkg.order %}<tr><td><strong>Zlecenie eForm</strong></td><td>{{ pkg.order.order_idx }} · plik {{ pkg.order.production_file }} · wysłane {{ pkg.order.sent_date }}{% if pkg.order.age_days !== null %} ({{ pkg.order.age_days }} dni temu){% endif %}</td></tr>
+{% else %}<tr><td><strong>Zlecenie</strong></td><td>bez numeru z eForm{% if pkg.order_no_text %} · podany numer: {{ pkg.order_no_text }}{% endif %}{% if pkg.department %} · kolekcja: {{ pkg.department.pl }}{% endif %}</td></tr>{% endif %}
+{% if categoryLabel %}<tr><td><strong>Kategoria</strong></td><td>{{ categoryLabel }}</td></tr>{% endif %}
+{% if pkg.end_client %}<tr><td><strong>Odbiorca końcowy</strong></td><td>{{ pkg.end_client }}</td></tr>{% endif %}
+<tr><td><strong>Kontakt</strong></td><td>{{ pkg.contact.name }} · {{ pkg.contact.phone }} · {{ pkg.contact.email }}</td></tr>
+{% if pkg.product_address %}<tr><td><strong>Adres produktu</strong></td><td>{{ pkg.product_address }}</td></tr>{% endif %}
+{% if pkg.transport %}<tr><td><strong>Transport</strong></td><td>dostawa {{ pkg.transport.delivered_at or '—' }} · u kuriera/w protokole: {% if pkg.transport.carrier_noted === true %}tak{% elif pkg.transport.carrier_noted === false %}nie{% else %}—{% endif %}</td></tr>{% endif %}
+{% if pkg.repair %}<tr><td><strong>Naprawa</strong></td><td>wycena przed naprawą poza gwarancją: {{ 'tak' if pkg.repair.quote_before_repair else 'nie' }}</td></tr>{% endif %}
+<tr><td><strong>Zgłosił</strong></td><td>{{ pkg.created_by }} · język {{ pkg.client.lang or '—' }}</td></tr>
+</table>
+{% if message %}
+<h3 style="margin:18px 0 6px;font-size:15px;">Dopisek klienta</h3>
+<p style="background:#f8fafc;border-left:4px solid #0f766e;padding:10px 14px;white-space:pre-line;">{{ message.text or '—' }}</p>
+{% else %}
+{% set rows = [] %}
+{% for it in items %}{% set rows = (rows.push({ pos: it.pos, departmentLabel: (it.department.pl if it.department else ''), group: it.group, summary: it.summary, note: it.note, qty: it.qty, categoryLabel: it.categoryLabel }), rows) %}{% endfor %}
+{% set items = rows %}
+{% include "_items.njk" %}
+{% if pkg.description %}
+<h3 style="margin:18px 0 6px;font-size:15px;">Opis klienta (oryginał)</h3>
+<p style="white-space:pre-line;">{{ pkg.description }}</p>
+{% if pkg.description_pl %}<h3 style="margin:18px 0 6px;font-size:15px;">Tłumaczenie na polski</h3><p style="white-space:pre-line;">{{ pkg.description_pl }}</p>{% endif %}
+{% endif %}
+{% endif %}
+<p style="font-size:13px;color:#4b5563;">Załączone zdjęcia: {{ attachedCount }}{% if listed and listed.length %} · tylko w paczce FTP: {% for f in listed %}{{ f.name }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</p>
+{% if adminLink %}<p><a href="{{ adminLink }}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;">Podgląd w panelu admina</a></p>{% endif %}
+{% endblock %}
+{% block footer %}Odpowiedz na tę wiadomość, żeby napisać do klienta (Reply-To = {{ pkg.contact.email }}). Zgłoszenie z portalu eForm.{% endblock %}

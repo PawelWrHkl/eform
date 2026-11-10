@@ -1,0 +1,204 @@
+{% extends "base.njk" %}
+{# Kreator zgłoszenia serwisowego (4 kroki) — routes/service.js GET /service/new.
+   Dane list (zlecenia, pozycje, podsumowanie) renderuje public/scripts/service/wizard.js
+   z JSON-ów poniżej; reguły walidacji to TEN SAM plik co na serwerze (/service/rules.js). #}
+{% block title %}{{ __('service.wizard_title') }}{% endblock %}
+{% block head %}
+    <link rel="stylesheet" href="/styles/service.css?v={{ assetVersion }}">
+{% endblock %}
+{% block key_nav %}window.location.href='/service'{% endblock %}
+{% block back_link %}<button class="modern-back-btn" onclick="window.location.href='/service'">{% endblock %}
+{% block content %}
+<div class="content col-12 center-content">
+    <div class="svc-wrap" id="svc-wizard" data-preselected="{{ preselectedOrder or '' }}" data-no-order="{{ 'true' if noOrder else '' }}" data-type="{{ preselectedType or '' }}" data-lang="{{ lang }}">
+        <h1 class="svc-title">{{ __('service.wizard_title') }}</h1>
+
+        <ol class="svc-steps" id="svc-steps">
+            <li data-step="1" class="is-active"><span class="svc-step-num">1</span><span class="svc-step-label">{{ __('service.step.order') }}</span></li>
+            <li data-step="2"><span class="svc-step-num">2</span><span class="svc-step-label">{{ __('service.step.type') }}</span></li>
+            <li data-step="3"><span class="svc-step-num">3</span><span class="svc-step-label">{{ __('service.step.details') }}</span></li>
+            <li data-step="4"><span class="svc-step-num">4</span><span class="svc-step-label">{{ __('service.step.summary') }}</span></li>
+        </ol>
+        <div class="svc-progress" role="progressbar" aria-valuemin="1" aria-valuemax="4" aria-valuenow="1" id="svc-progress"><div class="svc-progress-bar" style="width:25%"></div></div>
+        <p class="svc-step-of" id="svc-step-of"></p>
+        <div id="svc-live" class="visually-hidden" aria-live="assertive"></div>
+        <p class="svc-error svc-error--global" id="svc-global-error" hidden></p>
+
+        {# ── Krok 1: zlecenie ── #}
+        <section class="svc-panel" data-panel="1">
+            <div class="svc-tabs" role="tablist">
+                <button type="button" role="tab" class="svc-tab is-active" data-tab="delivered" aria-selected="true">{{ __('service.tab_delivered') }}</button>
+                <button type="button" role="tab" class="svc-tab" data-tab="in_progress" aria-selected="false">{{ __('service.tab_in_progress') }}</button>
+            </div>
+            <p class="svc-hint" id="svc-tab-hint" hidden>{{ __('service.in_progress_hint') }}</p>
+            <form class="svc-search" id="svc-order-search" novalidate>
+                <label class="svc-field svc-field--grow"><span>{{ __('service.search') }}</span><input type="search" name="q" maxlength="80" placeholder="{{ __('service.search_placeholder') }}" autocomplete="off"></label>
+                <label class="svc-field"><span>{{ __('service.date_from') }}</span><input type="date" name="from"></label>
+                <label class="svc-field"><span>{{ __('service.date_to') }}</span><input type="date" name="to"></label>
+                <button type="submit" class="btn svc-btn-secondary">{{ __('service.search') }}</button>
+            </form>
+            <p class="svc-hint"><a href="#" id="svc-no-order-link" class="svc-link">{{ __('service.no_order_link') }}</a> — {{ __('service.no_order_hint') }}</p>
+            <div id="svc-orders" class="svc-orders" role="radiogroup" aria-label="{{ __('service.step.order') }}"></div>
+            <p id="svc-orders-more" class="svc-hint" hidden></p>
+            <p class="svc-error" data-error-for="order" hidden></p>
+        </section>
+
+        {# ── Krok 2: rodzaj i pozycje ── #}
+        <section class="svc-panel" data-panel="2" hidden>
+            <div id="svc-order-summary" class="svc-order-summary"></div>
+            <fieldset class="svc-fieldset">
+                <legend>{{ __('service.col.type') }}</legend>
+                <div class="svc-types" id="svc-types">
+                    {% for type in ['repair', 'complaint', 'transport', 'delivery'] %}
+                        <label class="svc-type" data-type="{{ type }}">
+                            <input type="radio" name="type" value="{{ type }}">
+                            <span class="svc-type-name">{{ loop.index }}. {{ __('service.type.' + type) }}</span>
+                            <span class="svc-type-desc">{{ __('service.type_desc.' + type) }}</span>
+                            <span class="svc-type-disabled">{{ __('service.type_disabled_hint') }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+                <p class="svc-error" data-error-for="type" hidden></p>
+            </fieldset>
+
+            <div id="svc-known" class="svc-known" hidden>
+                <h3 class="svc-section-title">{{ __('service.known_title') }}</h3>
+                <dl class="svc-dl">
+                    <dt>{{ __('service.known_status') }}</dt><dd data-known="status"></dd>
+                    <dt>{{ __('service.known_date') }}</dt><dd data-known="date"></dd>
+                    <dt>{{ __('service.known_parcels') }}</dt><dd data-known="parcels"></dd>
+                </dl>
+                <button type="button" class="btn svc-btn-secondary" id="svc-not-answered">{{ __('service.not_answered') }}</button>
+            </div>
+
+            <div id="svc-type-details" hidden>
+                <div id="svc-no-order-fields" class="svc-grid" hidden>
+                    <label class="svc-field"><span>{{ __('service.order_no_text') }}</span><input name="orderNoText" maxlength="100" autocomplete="off"></label>
+                    <label class="svc-field"><span>{{ __('service.department') }} *</span>
+                        <select name="departmentId" id="svc-department"><option value="">{{ __('service.department_select') }}</option></select>
+                        <span class="svc-error" data-error-for="departmentId" hidden></span>
+                    </label>
+                </div>
+                <label class="svc-field"><span>{{ __('service.commission') }} *</span>
+                    <input name="commission" maxlength="255" required autocomplete="off">
+                    <span class="svc-error" data-error-for="commission" hidden></span>
+                </label>
+                <div id="svc-delivery-category" hidden>
+                    <label class="svc-field"><span>{{ __('service.category_label') }} *</span>
+                        <select name="category" id="svc-category"></select>
+                        <span class="svc-error" data-error-for="category" hidden></span>
+                    </label>
+                </div>
+                <div id="svc-positions-block" hidden>
+                    <div class="svc-positions-head">
+                        <h3 class="svc-section-title">{{ __('service.positions') }}</h3>
+                        <label class="svc-check"><input type="checkbox" id="svc-select-all"> <span>{{ __('service.select_all') }}</span></label>
+                    </div>
+                    <p class="svc-error" data-error-for="items" hidden></p>
+                    <table class="svc-table svc-pos-table" id="svc-positions-table">
+                        <thead><tr>
+                            <th scope="col" class="svc-col-check"><span class="visually-hidden">{{ __('service.select_all') }}</span></th>
+                            <th scope="col">{{ __('service.col.pos') }}</th>
+                            <th scope="col">{{ __('service.department') }}</th>
+                            <th scope="col">{{ __('service.col.group') }}</th>
+                            <th scope="col">{{ __('service.col.summary') }}</th>
+                            <th scope="col">{{ __('service.col.qty') }}</th>
+                            <th scope="col">{{ __('service.col.shipping') }}</th>
+                            <th scope="col">{{ __('service.col.parcel') }}</th>
+                        </tr></thead>
+                        <tbody id="svc-positions"></tbody>
+                    </table>
+                </div>
+                <div id="svc-extra-transport" class="svc-grid" hidden>
+                    <label class="svc-field"><span>{{ __('service.delivered_at') }}</span>
+                        <input type="date" name="deliveredAt">
+                        <span class="svc-error" data-error-for="deliveredAt" hidden></span>
+                    </label>
+                    <fieldset class="svc-field svc-field--radios">
+                        <legend>{{ __('service.carrier_noted') }}</legend>
+                        <label class="svc-check"><input type="radio" name="carrierNoted" value="1"> <span>{{ __('service.yes') }}</span></label>
+                        <label class="svc-check"><input type="radio" name="carrierNoted" value="0"> <span>{{ __('service.no') }}</span></label>
+                    </fieldset>
+                    <p class="svc-warning" id="svc-late-warning" hidden>{{ __('service.warn.late_transport_report') }}</p>
+                </div>
+                <div id="svc-extra-repair" hidden>
+                    <label class="svc-check"><input type="checkbox" name="quoteBeforeRepair" checked> <span>{{ __('service.quote_before_repair') }}</span></label>
+                </div>
+            </div>
+        </section>
+
+        {# ── Krok 3: opis i zdjęcia ── #}
+        <section class="svc-panel" data-panel="3" hidden>
+            <label class="svc-field"><span>{{ __('service.description') }} <em id="svc-description-required">*</em></span>
+                <textarea name="description" rows="5" maxlength="4000"></textarea>
+                <small class="svc-hint">{{ __('service.description_hint') }}</small>
+                <span class="svc-error" data-error-for="description" hidden></span>
+            </label>
+
+            <fieldset class="svc-fieldset">
+                <legend>{{ __('service.files') }}</legend>
+                <p class="svc-hint" id="svc-files-hint">{{ __('service.files_hint') | replace('{max}', 10) | replace('{size}', 20) }}</p>
+                <p class="svc-hint svc-hint--strong" id="svc-files-required"></p>
+                <div class="svc-dropzone" id="svc-dropzone" tabindex="0">
+                    <span class="svc-dropzone-text">{{ __('service.drop_hint') }}</span>
+                    <div class="svc-files-controls">
+                        <label class="btn svc-btn-secondary svc-only-mobile"><input type="file" accept="image/*" capture="environment" hidden data-add-files>{{ __('service.take_photo') }}</label>
+                        <label class="btn svc-btn-secondary"><input type="file" multiple accept="image/*,video/mp4,video/quicktime,application/pdf,.heic,.heif" hidden data-add-files>{{ __('service.add_files') }}</label>
+                    </div>
+                </div>
+                <ul class="svc-files svc-files--picked" id="svc-files"></ul>
+                <p class="svc-error" data-error-for="files" hidden></p>
+            </fieldset>
+
+            <fieldset class="svc-fieldset">
+                <legend>{{ __('service.contact') }}</legend>
+                <div class="svc-grid">
+                    <label class="svc-field"><span>{{ __('service.contact_name') }} *</span><input name="contactName" maxlength="150" autocomplete="name"><span class="svc-error" data-error-for="contactName" hidden></span></label>
+                    <label class="svc-field"><span>{{ __('service.contact_phone') }} *</span><input name="contactPhone" maxlength="50" autocomplete="tel" inputmode="tel"><span class="svc-error" data-error-for="contactPhone" hidden></span></label>
+                    <label class="svc-field"><span>{{ __('service.contact_email') }} *</span><input name="contactEmail" maxlength="160" autocomplete="email" inputmode="email"><span class="svc-error" data-error-for="contactEmail" hidden></span></label>
+                    <label class="svc-field"><span>{{ __('service.end_client') }}</span><input name="endClient" maxlength="250"></label>
+                    <label class="svc-field svc-field--full"><span>{{ __('service.product_address') }}</span><input name="productAddress" maxlength="500" autocomplete="street-address"><span class="svc-error" data-error-for="productAddress" hidden></span></label>
+                </div>
+            </fieldset>
+        </section>
+
+        {# ── Krok 4: podsumowanie ── #}
+        <section class="svc-panel" data-panel="4" hidden>
+            <h2 class="svc-section-title">{{ __('service.summary_title') }}</h2>
+            <p class="svc-hint">{{ __('service.summary_hint') }}</p>
+            <div id="svc-warnings"></div>
+            <div id="svc-summary" class="svc-summary"></div>
+            <div class="svc-actions">
+                <button type="button" class="btn btn-primary svc-submit" id="svc-submit">{{ __('service.submit') }}</button>
+            </div>
+        </section>
+
+        {# ── Potwierdzenie ── #}
+        <section class="svc-panel svc-done" data-panel="done" hidden>
+            <div class="svc-done-icon" aria-hidden="true">✓</div>
+            <h2 class="svc-section-title">{{ __('service.done_title') }}</h2>
+            <p class="svc-done-number"><span>{{ __('service.done_number') }}:</span> <strong id="svc-done-number"></strong></p>
+            <p id="svc-done-text">{{ __('service.done_text') }}</p>
+            <p class="svc-warning" id="svc-done-demo" hidden>{{ __('service.done_demo') }}</p>
+            <div class="svc-actions">
+                <a href="#" class="btn btn-primary" id="svc-done-open">{{ __('service.open_ticket') }}</a>
+                <a href="/service" class="btn svc-btn-secondary">{{ __('service.back_to_list') }}</a>
+            </div>
+        </section>
+
+        <div class="svc-nav" id="svc-nav">
+            <button type="button" class="btn svc-btn-secondary" id="svc-back">{{ __('service.back') }}</button>
+            <button type="button" class="btn btn-primary" id="svc-next">{{ __('service.next') }}</button>
+        </div>
+    </div>
+</div>
+<script type="application/json" id="svc-strings">{{ stringsJson | safe }}</script>
+<script type="application/json" id="svc-rules">{{ rulesJson | safe }}</script>
+<script type="application/json" id="svc-departments">{{ departmentsJson | safe }}</script>
+<script type="application/json" id="svc-defaults">{{ defaultsJson | safe }}</script>
+<script type="application/json" id="svc-status-labels">{{ statusLabelsJson | safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/service/rules.js?v={{ assetVersion }}"></script>
+<script type="module" src="/scripts/service/wizard.js?v={{ assetVersion }}"></script>
+{% endblock %}

@@ -82,6 +82,7 @@
                             <div class="mobile-order-actions">
                                 <button type="button" class="btn reorder-btn reorder-btn--labeled copy-order-btn stop-propagation" data-id="{{ order.id }}" onclick="event.stopPropagation()">{% include 'partials/reorder_icon.njk' %}<span>{{ __('orders.reorder') }}</span></button>
                                     {% include 'partials/cancel_order_btn.njk' %}
+                                    {% set svcOrderId = order.id %}{% set svcOrderStatus = order.status %}{% include 'partials/service_report_btn.njk' %}
                                 {% if isAdmin %}
                                 <button class="btn btn-sm btn-warning open-correction-btn stop-propagation ms-1" data-order-id="{{ order.id }}" onclick="event.stopPropagation()" title="Korekta zlecenia">
                                     <i class="bi bi-pencil-square me-1"></i>Korekta
@@ -147,6 +148,7 @@
                                 <td>
                                     <button type="button" class="action-btn action-btn-copy reorder-btn copy-order-btn stop-propagation has-tooltip" data-id="{{ order.id }}" data-tooltip="{{ __('orders.reorder') }}" aria-label="{{ __('orders.reorder') }}" onclick="event.stopPropagation()">{% include 'partials/reorder_icon.njk' %}</button>
                                     {% include 'partials/cancel_order_btn.njk' %}
+                                    {% set svcOrderId = order.id %}{% set svcOrderStatus = order.status %}{% include 'partials/service_report_btn.njk' %}
                                 </td>
                                 {% if isAdmin %}
                                 <td onclick="event.stopPropagation()">

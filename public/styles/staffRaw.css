@@ -106,3 +106,7 @@ html.raw-mode #dynamic-form .comment-space { grid-column: 1 / -1; }
 .raw-search ul { list-style: none; margin: 4px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
 .raw-search li { padding: 4px 8px; cursor: pointer; font-size: 0.9rem; color: var(--text-primary); }
 .raw-search li[aria-selected="true"], .raw-search li:hover { background: var(--bg-active); }
+
+/* Okno skosów (SourceWindow, formTools/slope.js) — bez rysunku w trybie surowym */
+html.raw-mode #slope-modal .slope-image,
+html.raw-mode #slope-modal .img-placeholder { display: none !important; }

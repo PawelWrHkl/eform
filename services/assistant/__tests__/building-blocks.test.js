@@ -148,12 +148,16 @@ test('rozdziały warunkowe: <!-- wymaga: invoices --> tylko z flagą, <!-- wymag
 });
 
 test('flagsFor: faktury tylko przy włączonym module i nie dla konta sklepu grupy (jak menu portalu); group dla centrali grupy', () => {
-	const on = { features: { invoices: true } };
-	assert.deepEqual(knowledge.flagsFor({ type: 'client' }, on), { invoices: true, group: false });
-	assert.deepEqual(knowledge.flagsFor({ type: 'employee' }, on), { invoices: true, group: false });
-	assert.deepEqual(knowledge.flagsFor({ type: 'group_shop' }, on), { invoices: false, group: false });
-	assert.deepEqual(knowledge.flagsFor({ type: 'group' }, on), { invoices: true, group: true });
-	assert.deepEqual(knowledge.flagsFor({ type: 'client' }, { features: { invoices: false } }), { invoices: false, group: false });
+	const on = { features: { invoices: true }, serviceConfig: { mode: 'off' } };
+	assert.deepEqual(knowledge.flagsFor({ type: 'client' }, on), { invoices: true, group: false, service: false });
+	assert.deepEqual(knowledge.flagsFor({ type: 'employee' }, on), { invoices: true, group: false, service: false });
+	assert.deepEqual(knowledge.flagsFor({ type: 'group_shop' }, on), { invoices: false, group: false, service: false });
+	assert.deepEqual(knowledge.flagsFor({ type: 'group' }, on), { invoices: true, group: true, service: false });
+	assert.deepEqual(knowledge.flagsFor({ type: 'client' }, { features: { invoices: false }, serviceConfig: { mode: 'off' } }), { invoices: false, group: false, service: false });
+	// Serwis: `true` dla każdego konta, `admins` tylko dla admina (jak menu portalu)
+	assert.equal(knowledge.flagsFor({ type: 'client' }, { features: {}, serviceConfig: { mode: 'true' } }).service, true);
+	assert.equal(knowledge.flagsFor({ type: 'client' }, { features: {}, serviceConfig: { mode: 'admins' } }).service, false);
+	assert.equal(knowledge.flagsFor({ type: 'admin' }, { features: {}, serviceConfig: { mode: 'admins' } }).service, true);
 });
 
 test('etykiety {{inv:…}}: język panelu faktur, a dla fr/nl polski (tak jak w samym panelu)', () => {

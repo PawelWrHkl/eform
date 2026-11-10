@@ -15,7 +15,7 @@ const INVOICE_VERSIONS = Object.freeze([
   {
     version: 7,
     date: '2026-11-07',
-    env: 'test',
+    env: 'produkcja',
     title: 'Opis pozycji: produkt, model, dodatki; cena – ilość – wartość (uwagi KK)',
     changes: [
       'Nazwa pozycji to zawsze produkt: dział i grupa, np. „VERTIKALJALOUSIE”, „ROLETY – BB24”. Wcześniej stała tam nazwa własna pozycji (pokój, np. „Bad / EG”, albo goły kod katalogowy) albo zdublowane „VORHÄNGE VORHÄNGE”.',

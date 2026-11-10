@@ -1,0 +1,74 @@
+{% extends "base.njk" %}
+{# Moduł „Serwis” — strona startowa: rodzaje zgłoszeń + „Moje zgłoszenia” (routes/service.js GET /service). #}
+{% block title %}{{ __('service.title') }}{% endblock %}
+{% block head %}
+    <link rel="stylesheet" href="/styles/service.css?v={{ assetVersion }}">
+{% endblock %}
+{% block key_nav %}window.location.href='/'{% endblock %}
+{% block back_link %}<button class="modern-back-btn" onclick="window.location.href='/'">{% endblock %}
+{% block content %}
+<div class="content col-12 center-content">
+    <div class="svc-wrap">
+        <header class="svc-header">
+            <div>
+                <h1 class="svc-title">{{ __('service.title') }}</h1>
+                <p class="svc-subtitle">{{ __('service.intro') }}</p>
+            </div>
+            <a href="/service/new" class="btn btn-primary svc-cta" id="svc-new-ticket-btn">{{ __('service.start_new') }}</a>
+        </header>
+
+        <section class="svc-types svc-types--index" aria-label="{{ __('service.col.type') }}">
+            {% for type in types %}
+                <a class="svc-type svc-type--link" href="/service/new?type={{ type }}">
+                    <span class="svc-type-name">{{ loop.index }}. {{ __('service.type.' + type) }}</span>
+                    <span class="svc-type-desc">{{ __('service.type_desc.' + type) }}</span>
+                </a>
+            {% endfor %}
+        </section>
+        <p class="svc-hint"><a href="/service/new?order=none" class="svc-link">{{ __('service.no_order_link') }}</a> — {{ __('service.no_order_hint') }}</p>
+
+        <section class="svc-card" id="svc-my-tickets">
+            <h2 class="svc-section-title">{{ __('service.my_tickets') }}</h2>
+            {% if tickets and tickets.length %}
+                <table class="svc-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ __('service.col.number') }}</th>
+                            <th scope="col">{{ __('service.col.date') }}</th>
+                            <th scope="col">{{ __('service.col.type') }}</th>
+                            <th scope="col">{{ __('service.col.order') }}</th>
+                            <th scope="col">{{ __('service.col.commission') }}</th>
+                            <th scope="col">{{ __('service.col.status') }}</th>
+                            <th scope="col">{{ __('service.col.last_change') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in tickets %}
+                            <tr class="svc-row" data-href="/service/tickets/{{ t.id }}" tabindex="0">
+                                <td data-label="{{ __('service.col.number') }}"><a href="/service/tickets/{{ t.id }}" class="svc-row-link">{{ t.number }}</a></td>
+                                <td data-label="{{ __('service.col.date') }}">{{ t.created_label }}</td>
+                                <td data-label="{{ __('service.col.type') }}">{{ __('service.type.' + t.type) }}</td>
+                                <td data-label="{{ __('service.col.order') }}">{% if t.order_idx %}{{ t.order_idx }}{% elif t.order_no_text %}{{ t.order_no_text }}{% else %}<span class="svc-muted">{{ __('service.no_order') }}</span>{% endif %}</td>
+                                <td data-label="{{ __('service.col.commission') }}">{{ t.commission }}</td>
+                                <td data-label="{{ __('service.col.status') }}"><span class="svc-badge svc-badge--{{ t.status }}">{{ __('service.status.' + t.status) }}</span></td>
+                                <td data-label="{{ __('service.col.last_change') }}">{{ t.last_change_label }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="svc-muted svc-empty">{{ __('service.no_tickets') }}</p>
+            {% endif %}
+        </section>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    // Cały wiersz klikalny (jak na listach zleceń), klawiatura: Enter.
+    document.querySelectorAll('.svc-row[data-href]').forEach((row) => {
+        row.addEventListener('click', (e) => { if (!e.target.closest('a')) window.location.href = row.dataset.href; });
+        row.addEventListener('keydown', (e) => { if (e.key === 'Enter') window.location.href = row.dataset.href; });
+    });
+</script>
+{% endblock %}

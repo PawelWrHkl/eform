@@ -201,8 +201,9 @@ async function setGroupUserSendOrderPolicy(id, allowed) {
 
 async function updateGroupUserPassword(id, password) {
     const hashedPassword = bcrypt.hashSync(password, 12);
-    const query = `UPDATE group_user SET password = ? WHERE id = ?`;
-    await updateQuery(query, [hashedPassword, id]);
+    // `plain` razem z hashem — panel grupy kopiuje stamtąd hasło do przekazania klientowi.
+    const query = `UPDATE group_user SET password = ?, plain = ? WHERE id = ?`;
+    await updateQuery(query, [hashedPassword, password, id]);
     return { success: true };
 }
 

@@ -27,6 +27,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PURGE_STATEMENTS = [
 	'DELETE oi FROM order_item oi JOIN `order` o ON o.id = oi.order_id WHERE o.user_id IN (?)',
 	'DELETE FROM `order` WHERE user_id IN (?)',
+	// Zgłoszenia serwisowe (services/serviceTickets) — pozycje, pliki i oś czasu kasuje CASCADE.
+	'DELETE FROM service_ticket WHERE user_id IN (?)',
 	'DELETE FROM send_address WHERE user_id IN (?)',
 	'DELETE FROM order_address WHERE user_id IN (?)',
 	'DELETE FROM delivery_address WHERE user_id IN (?)',
@@ -47,6 +49,8 @@ function resolveDeps(deps = {}) {
 	return {
 		getConnection: deps.getConnection || (() => require('../db/core').connetToDb()),
 		unlink: deps.unlink || ((file) => require('fs').promises.unlink(file)),
+		// Katalog plików zgłoszenia serwisowego (`outputData/service/<numer>/`)
+		removeDir: deps.removeDir || ((dir) => require('fs').promises.rm(dir, { recursive: true, force: true })),
 		outputData: deps.outputData || require('../config').outputData,
 		env: deps.env || process.env,
 		log: deps.log || require('../utils/logging').log
@@ -140,7 +144,7 @@ async function purgeDemoUsers(userIds, deps) {
 	const requested = (userIds || []).filter((id) => Number.isInteger(id));
 	if (!requested.length) return 0;
 
-	const { ids, files } = await withConnection(d, async (conn) => {
+	const { ids, files, ticketDirs } = await withConnection(d, async (conn) => {
 		await conn.beginTransaction();
 		try {
 			const [users] = await conn.query(
@@ -150,7 +154,7 @@ async function purgeDemoUsers(userIds, deps) {
 			const demoIds = users.map((u) => u.id);
 			if (!demoIds.length) {
 				await conn.rollback();
-				return { ids: [], files: [] };
+				return { ids: [], files: [], ticketDirs: [] };
 			}
 			const [items] = await conn.query(
 				'SELECT oi.attachments FROM order_item oi JOIN `order` o ON o.id = oi.order_id WHERE o.user_id IN (?)',
@@ -162,12 +166,14 @@ async function purgeDemoUsers(userIds, deps) {
 				'SELECT DISTINCT send_address_id AS id FROM `order` WHERE user_id IN (?) AND send_address_id IS NOT NULL',
 				[demoIds]
 			);
+			// Numery zgłoszeń serwisowych = nazwy katalogów ze zdjęciami (services/serviceTickets/files.js).
+			const [tickets] = await conn.query('SELECT number FROM service_ticket WHERE user_id IN (?)', [demoIds]);
 			for (const sql of PURGE_STATEMENTS) await conn.query(sql, [demoIds]);
 			if (sendAddresses.length) {
 				await conn.query('DELETE FROM send_address WHERE id IN (?)', [sendAddresses.map((a) => a.id)]);
 			}
 			await conn.commit();
-			return { ids: demoIds, files: items.flatMap((i) => attachmentNames(i.attachments)) };
+			return { ids: demoIds, files: items.flatMap((i) => attachmentNames(i.attachments)), ticketDirs: tickets.map((t) => t.number).filter(Boolean) };
 		} catch (err) {
 			await conn.rollback();
 			throw err;
@@ -178,7 +184,10 @@ async function purgeDemoUsers(userIds, deps) {
 	await Promise.all(files.map((name) =>
 		d.unlink(path.join(d.outputData, path.basename(name))).catch(() => {})
 	));
-	if (ids.length) d.log(`[demo] usunięto konta demo: ${ids.join(', ')} (załączników: ${files.length})`);
+	await Promise.all(ticketDirs.map((number) =>
+		d.removeDir(path.join(d.outputData, 'service', path.basename(number))).catch(() => {})
+	));
+	if (ids.length) d.log(`[demo] usunięto konta demo: ${ids.join(', ')} (załączników: ${files.length}, zgłoszeń serwisowych: ${ticketDirs.length})`);
 	return ids.length;
 }
 

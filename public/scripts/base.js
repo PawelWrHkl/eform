@@ -403,7 +403,8 @@ function getEmp() {
     let mobileEmpLink = document.getElementById('mobile-employee-panel-link');
     let UserNameDiv = document.getElementById('user-info');
 
-    if (empBtn) {
+    // Konto biura nie zarządza pracownikami klienta (middleware/staffGuard.js) — bez przycisku i bez etykiety.
+    if (empBtn && !window.isStaffSession) {
         fetch('/employee-status', {
             method: 'GET',
             credentials: 'include'

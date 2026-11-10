@@ -22,6 +22,8 @@ const { isClientGroupType } = require('../services/groupType');
 const groupPriceMode = require('../services/groupPriceMode');
 const { orderHasSubPrices } = require('../services/subPrices');
 const { currencyLocalsForOrder } = require('../services/currency');
+const shopPricing = require('../services/pricelists/shop');
+const pricelistPdf = require('../services/pricelists/pdf');
 
 // ── Middleware: wszystkie trasy wymagają zalogowania i roli 'group' ──────────
 
@@ -186,6 +188,59 @@ router.get('/shops/:id/edit', async (req, res, next) => {
     } catch (err) {
         log('[group/shops/:id/edit] Error:', err);
         return next(err);
+    }
+});
+
+// ── Cenniki konta podrzędnego ─────────────────────────────────────────────────
+// Pobiera je WYŁĄCZNIE właściciel grupy (decyzja 2026-11-09): konto podrzędne
+// cenników nie widzi, a właściciel przekazuje mu PDF sam. Kwoty liczone jak
+// w konfiguratorze konta (rabat / narzut / ekstra rabat) — services/pricelists/shop.js.
+
+router.get('/shops/:id/pricelists', async (req, res, next) => {
+    try {
+        if (req.session.user?.isGroupShop) return res.redirect('/');
+        const currentUser = ownerService.getCurrentUser(req);
+        const shop = await shopPricing.loadShopPricing(currentUser.userId, req.params.id);
+        if (!shop) return res.redirect('/group/panel?tab=shops&error=notfound');
+        const account = await pricelistPdf.loadAccount(currentUser.userId);
+        const groups = account ? await pricelistPdf.listForAccount(account, null, res.locals.locale || 'pl', shop) : [];
+        return res.render('group/shop_pricelists.njk', { shop, groups });
+    } catch (err) {
+        log('[group/shops/:id/pricelists] Error:', err);
+        return next(err);
+    }
+});
+
+router.get('/shops/:id/pricelists/:group/:kind', async (req, res) => {
+    const { group, kind } = req.params;
+    if (req.session.user?.isGroupShop) return res.status(403).send(res.__('panel.pricelist_not_found'));
+    if (!/^\d{1,4}$/.test(group) || !['base', 'rabat'].includes(kind)) return res.status(404).send(res.__('panel.pricelist_not_found'));
+    if (kind === 'rabat' && !res.locals.discountPricesUnlocked) return res.status(403).send(res.__('panel.pricelist_discount_locked'));
+    try {
+        const currentUser = ownerService.getCurrentUser(req);
+        const shop = await shopPricing.loadShopPricing(currentUser.userId, req.params.id);
+        const account = shop ? await pricelistPdf.loadAccount(currentUser.userId) : null;
+        if (!account) return res.status(404).send(res.__('panel.pricelist_not_found'));
+        const result = await pricelistPdf.getPricelistPdf({
+            account,
+            shop,
+            groupNumber: group,
+            discounted: kind === 'rabat',
+            lang: res.locals.locale || 'pl',
+            renderHtml: (view) => new Promise((resolve, reject) => {
+                res.render('pricelists/pdf.njk', view, (err, html) => (err ? reject(err) : resolve(html)));
+            })
+        });
+        if (!result.ok) {
+            log(`[group/pricelists] konto ${shop.ident} gr. ${group} ${kind}: ${result.reason}`);
+            return res.status(result.status).send(res.__('panel.pricelist_not_found'));
+        }
+        res.set('Content-Type', 'application/pdf');
+        res.set('Content-Disposition', `inline; filename="${result.fileName}"`);
+        return res.send(result.pdf);
+    } catch (err) {
+        log('[group/pricelists] Error:', err);
+        return res.status(500).send(res.__('panel.pricelist_error'));
     }
 });
 

@@ -1,0 +1,22 @@
+{% extends "_base.njk" %}
+{% block header %}{{ pkg.number }} · {{ typeLabel }}{% endblock %}
+{% block body %}
+<p>{{ t('service.mail.hello') }}</p>
+{% if mode == 'status' %}
+<p>{{ t('service.mail.status_intro', { number: pkg.number, status: newStatus }) }}</p>
+{% if message %}<p style="background:#f8fafc;border-left:4px solid #0f766e;padding:10px 14px;white-space:pre-line;"><strong>{{ t('service.mail.message_from_service') }}:</strong><br>{{ message }}</p>{% endif %}
+{% else %}
+<p>{{ t('service.mail.client_intro') }}</p>
+<p><strong>{{ t('service.done_number') }}:</strong> {{ pkg.number }}<br>
+<strong>{{ t('service.col.type') }}:</strong> {{ typeLabel }}<br>
+<strong>{{ t('service.commission') }}:</strong> {{ pkg.commission }}<br>
+{% if pkg.order %}<strong>{{ t('service.col.order') }}:</strong> {{ pkg.order.order_idx }}<br>{% elif pkg.order_no_text %}<strong>{{ t('service.order_no_text') }}:</strong> {{ pkg.order_no_text }}<br>{% endif %}
+{% if categoryLabel %}<strong>{{ t('service.category_label') }}:</strong> {{ categoryLabel }}<br>{% endif %}
+<strong>{{ t('service.col.status') }}:</strong> {{ statusLabel }}</p>
+{% include "_items.njk" %}
+{% if pkg.description %}<p><strong>{{ t('service.description') }}:</strong><br><span style="white-space:pre-line;">{{ pkg.description }}</span></p>{% endif %}
+{% if pkg.files and pkg.files.length %}<p><strong>{{ t('service.files') }}:</strong> {{ pkg.files.length }}</p>{% endif %}
+{% endif %}
+{% if link %}<p><a href="{{ link }}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;">{{ t('service.mail.view') }}</a></p>{% endif %}
+{% endblock %}
+{% block footer %}{{ t('service.mail.footer') }}{% endblock %}

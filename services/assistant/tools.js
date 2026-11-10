@@ -22,8 +22,6 @@
 'use strict';
 
 const { selectQuery } = require('../../db/core');
-const ownerService = require('../owner');
-const { getActiveGroupShopId } = require('../groupContext');
 const { parseSpeditionNumbers } = require('../prodStatus');
 const orderCancellation = require('../orderCancellation');
 const labels = require('./labels');
@@ -34,46 +32,8 @@ const { log } = require('../../utils/logging');
 const MAX_LIST = 10;
 
 // ── zakres konta ──────────────────────────────────────────────────────────
-/**
- * Zakres danych dla żądania. Wołać PO `loadEmployeePermissions` (świeże uprawnienia).
- */
-function scopeFromRequest(req, lang) {
-	const u = (req.session && req.session.user) || {};
-	const current = ownerService.getCurrentUser(req) || {};
-	const perms = req.session.employeePermissions || null;
-	const isEmployee = !!u.isEmployee;
-	const features = require('../../config').features || {};
-	return {
-		userId: Number(current.userId) || null,
-		pin: current.pin || null,
-		// „Moje Importy” (routes/orders.js GET /import-log) patrzą na zalogowanego, nie na kontekst.
-		ident: u.ident || u.userIdent || null,
-		lang,
-		isEmployee,
-		isGroup: !!(u.isGroup || (req.session.context_user && req.session.context_user.isGroup)),
-		isGroupShop: !!u.isGroupShop,
-		isOwner: !!u.isOwner,
-		// Pracownik bez „Wszystkie zamówienia” widzi tylko swoje — jak lista „Wysłane zlecenia”.
-		employeeId: isEmployee && !(perms && perms.can_see_all_orders) ? (req.session.employee && req.session.employee.id) || -1 : null,
-		groupUserId: getActiveGroupShopId(req) || null,
-		// Ta sama reguła co menu portalu (także tryb INVOICES_ADMIN_ONLY)
-		invoices: require('../invoices/access').canAccessInvoices(u, features),
-		cancelCtx: {
-			sessionUser: u,
-			sessionEmployee: req.session.employee,
-			employeePermissions: perms,
-			contextUser: req.session.context_user
-		}
-	};
-}
-
-function scopeWhere(scope) {
-	const clauses = ['o.user_id = ?'];
-	const params = [scope.userId];
-	if (scope.employeeId !== null && scope.employeeId !== undefined) { clauses.push('o.employee_id = ?'); params.push(scope.employeeId); }
-	if (scope.groupUserId) { clauses.push('o.group_user_id = ?'); params.push(scope.groupUserId); }
-	return { sql: clauses.join(' AND '), params };
-}
+// Wspólne z modułem serwisu: services/orderScope.js (jedno źródło prawdy).
+const { scopeFromRequest, scopeWhere } = require('../orderScope');
 
 // ── formatowanie ──────────────────────────────────────────────────────────
 const KIND_BY_STATUS = { active: 'offer', pending_approval: 'offer_pending_approval', sent: 'sent', canceled: 'canceled' };

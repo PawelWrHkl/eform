@@ -956,7 +956,11 @@ async function buildPricelist({ groupNumber, user, orgIdent, priceSet, lang = 'p
   const rebates = {};
   let discount = null;
   if (finalParam && present(finalParam.FORMULA)) {
-    for (const id of identifiers(finalParam.FORMULA).filter((x) => /RABAT/.test(x))) {
+    // Rabaty ze wzoru ceny końcowej oraz stawki dopłat, które konfigurator sklepu czyta
+    // wprost z `values` (`clientDiscountBreakdown`), gdy grupa ma taki parametr.
+    const rebateIds = new Set(identifiers(finalParam.FORMULA).filter((x) => /RABAT/.test(x)));
+    for (const id of ['CENA_RABAT', 'DOPLATA_RABAT', 'DOPLATA_EL_RABAT'].map((x) => prefix + x)) if (params[id]) rebateIds.add(id);
+    for (const id of rebateIds) {
       const file = terms.scripts[id];
       const model = file ? loadModel(groupNumber, file) : null;
       if (!model || model.missing || model.unknown.length) {
@@ -974,13 +978,12 @@ async function buildPricelist({ groupNumber, user, orgIdent, priceSet, lang = 'p
 }
 
 /** Kwoty po rabacie dla całego cennika (osobny PDF „z rabatem”). */
-function applyDiscount(pricelist) {
-  const d = pricelist.discount;
-  if (!d) return null;
-  const apply = (component, amount) => (amount === null || amount === undefined ? amount : discountedAmount({ formula: d.formula, component, amount, components: d.components, rebates: d.rebates }));
+/** Każda kwota cennika (komórki, pozycje, kwoty per opcja, „za metr”) przez `fn(składnik, kwota)`. */
+function mapAmounts(pricelist, fn, extra = {}) {
+  const apply = (component, amount) => (amount === null || amount === undefined ? amount : fn(component, amount));
   return {
     ...pricelist,
-    discounted: true,
+    ...extra,
     parts: pricelist.parts.map((part) => (!part.tables ? part : {
       ...part,
       tables: part.tables.map((t) => ({
@@ -997,6 +1000,12 @@ function applyDiscount(pricelist) {
   };
 }
 
+function applyDiscount(pricelist) {
+  const d = pricelist.discount;
+  if (!d) return null;
+  return mapAmounts(pricelist, (component, amount) => discountedAmount({ formula: d.formula, component, amount, components: d.components, rebates: d.rebates }), { discounted: true });
+}
+
 /**
  * Dokładna konfiguracja komórki tabeli (kontekst + wymiary + parametry z wymiarów),
  * na której test porównawczy uruchamia prawdziwy skrypt.
@@ -1009,4 +1018,4 @@ function cellObject(pricelist, table, token, w, h) {
   return { ...baseContext(pricelist.uid, params), ...table.contexts[token], ...dims, ...derivedDims(params, dims) };
 }
 
-module.exports = { buildPricelist, applyDiscount, activeVersion, readParams, readOptions, loadModel, discountedAmount, clearCaches, cellObject, resolveAxis, completeEnable, baseContext };
+module.exports = { buildPricelist, applyDiscount, mapAmounts, activeVersion, readParams, readOptions, loadModel, discountedAmount, clearCaches, cellObject, resolveAxis, completeEnable, baseContext };

@@ -1,0 +1,58 @@
+{% extends "base.njk" %}
+{# Cenniki konta podrzędnego grupy — widzi je tylko właściciel grupy (routes/group.js). #}
+{% block title %}{{ __('group.shop_pricelists_title', { name: shop.name or shop.ident }) }}{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="/styles/panel.css">
+{% endblock %}
+
+{% block back_link %}
+    <button class="modern-back-btn" onclick="window.location.href='/group/panel?tab=shops'">
+{% endblock %}
+
+{% block content %}
+<div class="content col-12 center-content">
+    <div class="panel-wrap">
+        <div>
+            <h2 class="panel-section-title">{{ __('group.shop_pricelists_title', { name: shop.name or shop.ident }) }}</h2>
+            <p class="panel-section-hint">{{ __('group.shop_pricelists_hint') }}</p>
+            {% if groups and groups | length > 0 %}
+                <div class="panel-catalog-list">
+                    {% for p in groups %}
+                        <div class="panel-catalog-item">
+                            <div class="panel-catalog-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                            </div>
+                            <div class="panel-catalog-meta">
+                                <div class="panel-catalog-name">{{ p.description or p.groupNumber }}</div>
+                                <div class="panel-catalog-size">{{ __('pricelist.group') }} {{ p.groupNumber }}</div>
+                            </div>
+                            <a class="panel-catalog-download btn-primary" href="/group/shops/{{ shop.id }}/pricelists/{{ p.groupNumber }}/base" target="_blank" rel="noopener">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                {{ __('panel.pricelist_download') }}
+                            </a>
+                            {% if p.hasRebate %}
+                                {% if discountPricesUnlocked %}
+                                    <a class="panel-catalog-download btn-primary" href="/group/shops/{{ shop.id }}/pricelists/{{ p.groupNumber }}/rabat" target="_blank" rel="noopener">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        {{ __('panel.pricelist_download_discount') }}
+                                    </a>
+                                {% else %}
+                                    <span class="panel-catalog-download btn-primary is-disabled" aria-disabled="true" title="{{ __('panel.pricelist_discount_locked') }}">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        {{ __('panel.pricelist_download_discount') }}
+                                    </span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="panel-empty">
+                    <p class="panel-empty-title">{{ __('panel.pricelists_empty') }}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

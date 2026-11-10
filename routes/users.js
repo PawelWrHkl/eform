@@ -129,8 +129,8 @@ router.post("/accept-rodo", async (req, res, next) => {
     try {
         const { accepted } = req.body;
         if (accepted) {
-            const currentUser = ownerService.getCurrentUser(req);
-            const pin = currentUser.pin;
+            // RODO akceptuje zalogowana osoba — nie klient z kontekstu admina/ownera/biura.
+            const pin = req.session.user?.pin;
             await db.setUserAcceptedRODO(pin, true);
             req.session.mustAcceptRODO = false;
             return res.status(200).json({ message: "RODO accepted" });

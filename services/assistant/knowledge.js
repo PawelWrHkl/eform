@@ -64,7 +64,9 @@ function flagsFor(account, deps = {}) {
 		// Ta sama reguła co menu portalu (także tryb INVOICES_ADMIN_ONLY);
 		// `describeAccount` (sessionContext.js) zwraca dla admina `type: 'admin'`
 		invoices: canAccessInvoices({ isAdmin: type === 'admin', isGroupShop: type === 'group_shop' }, features),
-		group: type === 'group'
+		group: type === 'group',
+		// Moduł „Serwis” (SERVICE_ENABLED=true|admins) — ta sama reguła co menu (services/serviceTickets/access.js)
+		service: require('../serviceTickets/access').canAccessService({ isAdmin: type === 'admin' }, deps.serviceConfig || require('../../config').service)
 	};
 }
 

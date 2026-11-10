@@ -21,12 +21,13 @@ const { listGroups, resolveGroupTerms } = require('../orgCustomers/groupTerms');
 const { currencySymbol } = require('../currency');
 const { log } = require('../../utils/logging');
 const pricelists = require('./index');
+const { shopPriceSet, shopPricelist, shopHasFinalPrices } = require('./shop');
 
 const CACHE_DIR = path.join(config.rootDir, 'pricelists');
 const CACHE_DAYS = 7;
 const LOCALES = { pl: 'pl-PL', de: 'de-DE', nl: 'nl-NL', en: 'en-GB', fr: 'fr-FR' };
 // Pliki, od których zależy wygląd i kwoty PDF-u: ich zmiana unieważnia cache.
-const CODE_FILES = ['index.js', 'scriptModel.js', 'conditions.js', 'pdf.js'].map((f) => path.join(__dirname, f))
+const CODE_FILES = ['index.js', 'scriptModel.js', 'conditions.js', 'pdf.js', 'shop.js'].map((f) => path.join(__dirname, f))
   .concat(path.join(__dirname, '..', '..', 'templates', 'pricelists', 'pdf.njk'));
 
 /** Konto, którego cennik liczymy (uid, skrypty, nagłówek PDF). */
@@ -51,14 +52,20 @@ function hasRebate(scripts, priceSet) {
   });
 }
 
-/** Grupy, do których konto ma dostęp i przypisany skrypt ceny — do listy w panelu. */
-async function listForAccount(account, priceSet, lang = 'pl') {
+/**
+ * Grupy, do których konto ma dostęp i przypisany skrypt ceny — do listy w panelu.
+ * `shop` (konto podrzędne grupy, `loadShopPricing`): skrypty grupy-matki w zestawie
+ * konfiguratora konta, a drugi PDF, gdy cena końcowa konta różni się od katalogowej.
+ */
+async function listForAccount(account, priceSet, lang = 'pl', shop = null) {
+  const set = shop ? shopPriceSet(shop) : priceSet;
   const out = [];
   for (const group of listGroups(lang)) {
     const terms = await resolveGroupTerms({ userId: account.id, groupNumber: group.groupNumber, orgIdent: account.org, userIdent: account.ident });
-    const priceParam = priceSet === 'SUB' ? 'SUB___CENA' : 'CENA';
+    const priceParam = set === 'SUB' ? 'SUB___CENA' : 'CENA';
     if (!terms.hasAccess || !terms.scripts[priceParam]) continue;
-    out.push({ groupNumber: group.groupNumber, description: group.description, hasRebate: hasRebate(terms.scripts, priceSet) });
+    const rebate = hasRebate(terms.scripts, set);
+    out.push({ groupNumber: group.groupNumber, description: group.description, hasRebate: shop ? shopHasFinalPrices(shop, rebate) : rebate });
   }
   return out;
 }
@@ -206,11 +213,13 @@ function itemView(item, { params, options, lang }) {
 /**
  * Dane do szablonu PDF. `list` = wynik `buildPricelist` (albo `applyDiscount`).
  */
-function buildView({ list, account, lang, groupDescription, vat, date }) {
+function buildView({ list, account, lang, groupDescription, vat, date, shop = null }) {
   const params = pricelists.readParams(list.groupNumber, list.version, lang);
   const options = pricelists.readOptions(list.groupNumber, list.version, lang);
   const ctx = { params, options, lang };
-  const logoFile = list.priceSet === 'SUB' ? account.photo_path : 'hkl.png';
+  // Konto podrzędne grupy dostaje ceny klienta (łańcuch SUB___), także przy narzucie od cen zwykłych.
+  const shownSet = shop ? 'SUB' : list.priceSet;
+  const logoFile = shownSet === 'SUB' ? account.photo_path : 'hkl.png';
   const logoPath = path.join(__dirname, '..', '..', 'img', logoFile || 'hkl.png');
   const parts = list.parts.filter((p) => p.tables || p.items).map((part) => {
     const base = part.param.replace(/^SUB___/, '');
@@ -226,13 +235,13 @@ function buildView({ list, account, lang, groupDescription, vat, date }) {
     lang,
     groupNumber: list.groupNumber,
     groupDescription,
-    clientName: account.client_name || account.ident,
-    clientIdent: account.ident,
+    clientName: shop ? shop.name || shop.ident : account.client_name || account.ident,
+    clientIdent: shop ? shop.ident : account.ident,
     dateText: date.toLocaleDateString(LOCALES[lang] || 'pl-PL'),
-    priceSet: list.priceSet,
+    priceSet: shownSet,
     discounted: !!list.discounted,
     currency: currencySymbol(account.currency),
-    vatRate: list.priceSet === 'CENA' && vat && vat.vatRate !== null && vat.vatRate !== undefined ? vat.vatRate : null,
+    vatRate: shownSet === 'CENA' && vat && vat.vatRate !== null && vat.vatRate !== undefined ? vat.vatRate : null,
     logo: fs.existsSync(logoPath) ? `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}` : null,
     guide: guideView(list.guide, ctx),
     gridStep: list.parts.flatMap((p) => p.tables || []).map((t) => t.gridStep).find(Boolean) || null,
@@ -293,7 +302,8 @@ async function htmlToPdf(html) {
  * @param {(account:object)=>Promise<object>} [opts.resolveVat]
  * @returns {Promise<{ok:true, pdf:Buffer, fileName:string}|{ok:false, status:number, reason:string}>}
  */
-async function getPricelistPdf({ account, priceSet, groupNumber, discounted, lang, renderHtml, resolveVat, date = new Date() }) {
+async function getPricelistPdf({ account, priceSet: requestedSet, groupNumber, discounted, lang, renderHtml, resolveVat, date = new Date(), shop = null }) {
+  const priceSet = shop ? shopPriceSet(shop) : requestedSet;
   const terms = await resolveGroupTerms({ userId: account.id, groupNumber, orgIdent: account.org, userIdent: account.ident });
   if (!terms.hasAccess) return { ok: false, status: 404, reason: 'brak dostępu do grupy' };
   const version = await pricelists.activeVersion(groupNumber);
@@ -303,6 +313,7 @@ async function getPricelistPdf({ account, priceSet, groupNumber, discounted, lan
   const key = cacheKey({
     groupNumber: String(groupNumber), version, priceSet, discounted: !!discounted, lang,
     account: [account.id, account.ident, account.client_name, account.currency],
+    shop: shop && [shop.id, shop.ident, shop.name, shop.mode, shop.markupPercent, shop.clientPct, shop.bonusPct],
     day: date.toISOString().slice(0, 10),
     scripts: Object.entries(terms.scripts).sort().map(([p, f]) => {
       try {
@@ -314,7 +325,7 @@ async function getPricelistPdf({ account, priceSet, groupNumber, discounted, lan
     })
   });
   const groupDescription = (listGroups(lang).find((g) => g.groupNumber === String(groupNumber)) || {}).description || '';
-  const fileName = `${groupDescription || groupNumber}${discounted ? '-rabat' : ''}-${date.toISOString().slice(0, 10)}.pdf`.replace(/[^A-Za-z0-9._-]+/g, '_');
+  const fileName = `${shop ? `${shop.ident}-` : ''}${groupDescription || groupNumber}${discounted ? '-rabat' : ''}-${date.toISOString().slice(0, 10)}.pdf`.replace(/[^A-Za-z0-9._-]+/g, '_');
   const cached = path.join(CACHE_DIR, `${key}.pdf`);
   if (fs.existsSync(cached)) return { ok: true, pdf: fs.readFileSync(cached), fileName };
 
@@ -322,12 +333,14 @@ async function getPricelistPdf({ account, priceSet, groupNumber, discounted, lan
   if (!list.ok) return { ok: false, status: 404, reason: list.reason };
   // Np. grupa 76: każdy skrypt z błędem składni — konfigurator też nic nie wyceni.
   if (list.parts.every((p) => p.missing || p.unparsed)) return { ok: false, status: 404, reason: 'żaden skrypt cenowy grupy nie daje się policzyć' };
-  if (discounted) {
+  if (shop) {
+    list = shopPricelist(list, shop, !!discounted);
+  } else if (discounted) {
     list = pricelists.applyDiscount(list);
     if (!list) return { ok: false, status: 404, reason: 'grupa nie ma wzoru ceny po rabacie' };
   }
-  const vat = priceSet === 'CENA' && resolveVat ? await resolveVat(account) : null;
-  const html = await renderHtml(buildView({ list, account, lang, groupDescription, vat, date }));
+  const vat = !shop && priceSet === 'CENA' && resolveVat ? await resolveVat(account) : null;
+  const html = await renderHtml(buildView({ list, account, lang, groupDescription, vat, date, shop }));
   const pdf = await htmlToPdf(html);
 
   fs.mkdirSync(CACHE_DIR, { recursive: true });

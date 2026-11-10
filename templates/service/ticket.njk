@@ -1,0 +1,139 @@
+{% extends "base.njk" %}
+{# Podgląd zgłoszenia serwisowego z osią czasu i dopiskiem (routes/service.js GET /service/tickets/:id). #}
+{% block title %}{{ ticket.number }}{% endblock %}
+{% block head %}
+    <link rel="stylesheet" href="/styles/service.css?v={{ assetVersion }}">
+{% endblock %}
+{% block key_nav %}window.location.href='/service'{% endblock %}
+{% block back_link %}<button class="modern-back-btn" onclick="window.location.href='/service'">{% endblock %}
+{% block content %}
+<div class="content col-12 center-content">
+    <div class="svc-wrap" id="svc-ticket" data-ticket-id="{{ ticket.id }}">
+        <header class="svc-header">
+            <div>
+                <p class="svc-kicker">{{ __('service.ticket_title') }}</p>
+                <h1 class="svc-title">{{ ticket.number }}</h1>
+                <p class="svc-subtitle">{{ __('service.type.' + ticket.type) }} · {{ ticket.commission }}</p>
+            </div>
+            <span class="svc-badge svc-badge--{{ ticket.status }} svc-badge--lg">{{ __('service.status.' + ticket.status) }}</span>
+        </header>
+
+        <section class="svc-card">
+            <dl class="svc-dl">
+                <dt>{{ __('service.col.order') }}</dt>
+                <dd>{% if ticket.order_id %}<a href="/orders/history/order/{{ ticket.order_id }}">{{ ticket.order_idx }}</a>{% elif ticket.order_no_text %}{{ ticket.order_no_text }}{% else %}<span class="svc-muted">{{ __('service.no_order') }}</span>{% endif %}</dd>
+                {% if ticket.department_name %}<dt>{{ __('service.department') }}</dt><dd>{{ ticket.department_name }}</dd>{% endif %}
+                {% if ticket.category %}<dt>{{ __('service.category_label') }}</dt><dd>{{ __('service.category.' + ticket.category) }}</dd>{% endif %}
+                {% if ticket.end_client %}<dt>{{ __('service.end_client') }}</dt><dd>{{ ticket.end_client }}</dd>{% endif %}
+                <dt>{{ __('service.contact') }}</dt><dd>{{ ticket.contact_name }} · {{ ticket.contact_phone }} · {{ ticket.contact_email }}</dd>
+                {% if ticket.product_address %}<dt>{{ __('service.product_address_short') }}</dt><dd>{{ ticket.product_address }}</dd>{% endif %}
+                {% if ticket.type == 'transport' %}
+                    <dt>{{ __('service.delivered_at') }}</dt><dd>{{ ticket.delivered_label or '—' }}</dd>
+                    <dt>{{ __('service.carrier_noted') }}</dt><dd>{% if ticket.carrier_noted === 1 %}{{ __('service.yes') }}{% elif ticket.carrier_noted === 0 %}{{ __('service.no') }}{% else %}—{% endif %}</dd>
+                {% endif %}
+                {% if ticket.type == 'repair' %}
+                    <dt>{{ __('service.quote_before_repair_short') }}</dt><dd>{{ __('service.yes') if ticket.quote_before_repair else __('service.no') }}</dd>
+                {% endif %}
+                <dt>{{ __('service.col.date') }}</dt><dd>{{ ticket.created_label }}</dd>
+            </dl>
+            {% if ticket.description %}
+                <h2 class="svc-section-title">{{ __('service.description') }}</h2>
+                <p class="svc-prewrap">{{ ticket.description }}</p>
+            {% endif %}
+        </section>
+
+        {% if items and items.length %}
+        <section class="svc-card">
+            <h2 class="svc-section-title">{{ __('service.positions') }}</h2>
+            <table class="svc-table svc-pos-table">
+                <thead><tr>
+                    <th scope="col">{{ __('service.col.pos') }}</th>
+                    <th scope="col">{{ __('service.department') }}</th>
+                    <th scope="col">{{ __('service.col.summary') }}</th>
+                    <th scope="col">{{ __('service.qty_affected') }}</th>
+                    <th scope="col">{{ __('service.category_label') }}</th>
+                </tr></thead>
+                <tbody>
+                {% for it in items %}
+                    <tr>
+                        <td data-label="{{ __('service.col.pos') }}">{{ it.order_pos }}</td>
+                        <td data-label="{{ __('service.department') }}">{{ it.department_name }}{% if it.group_name %} / {{ it.group_name }}{% endif %}</td>
+                        <td data-label="{{ __('service.col.summary') }}">{{ it.summary }}{% if it.note %}<br><em class="svc-muted">{{ it.note }}</em>{% endif %}</td>
+                        <td data-label="{{ __('service.qty_affected') }}">{{ it.qty }}</td>
+                        <td data-label="{{ __('service.category_label') }}">{{ __('service.category.' + it.category) }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        {% endif %}
+
+        {% if ticket.files and ticket.files.length %}
+        <section class="svc-card">
+            <h2 class="svc-section-title">{{ __('service.files_count') | replace('{n}', ticket.files.length) }}</h2>
+            <ul class="svc-files">
+                {% for f in ticket.files %}
+                    <li class="svc-file">
+                        <a href="/service/tickets/{{ ticket.id }}/files/{{ f.id }}" target="_blank" rel="noopener" class="svc-file-link" title="{{ f.original_name }}">
+                            {% if f.mime.startsWith('image/') %}
+                                <img src="/service/tickets/{{ ticket.id }}/files/{{ f.id }}?thumb=1" alt="{{ f.original_name }}" loading="lazy">
+                            {% else %}
+                                <span class="svc-file-icon" aria-hidden="true">{{ f.mime.split('/')[1] | upper | truncate(4, true, '') }}</span>
+                            {% endif %}
+                            <span class="svc-file-name">{{ f.original_name }}</span>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+        <section class="svc-card">
+            <h2 class="svc-section-title">{{ __('service.timeline') }}</h2>
+            <ol class="svc-timeline">
+                {% for e in ticket.events %}
+                    <li class="svc-event svc-event--{{ e.kind }}">
+                        <time class="svc-event-time">{{ e.created_label }}</time>
+                        <div class="svc-event-body">
+                            <strong>{{ __('service.event.' + e.kind) }}{% if e.kind == 'status' and e.status %}: {{ __('service.status.' + e.status) }}{% endif %}</strong>
+                            {% if e.message %}<p class="svc-prewrap">{{ e.message }}</p>{% endif %}
+                            {% set evFiles = [] %}
+                            {% for f in ticket.files %}{% if f.event_id == e.id %}{% set evFiles = (evFiles.push(f), evFiles) %}{% endif %}{% endfor %}
+                            {% if evFiles.length %}<p class="svc-muted">{{ __('service.files_count') | replace('{n}', evFiles.length) }}</p>{% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+            </ol>
+        </section>
+
+        <section class="svc-card" id="svc-message-card">
+            {% if ticket.canAddMessage %}
+                <h2 class="svc-section-title">{{ __('service.add_message') }}</h2>
+                <form id="svc-message-form" novalidate>
+                    <label class="svc-field"><span>{{ __('service.message') }}</span>
+                        <textarea name="message" rows="4" maxlength="4000"></textarea>
+                    </label>
+                    <div class="svc-files-controls">
+                        <label class="btn svc-btn-secondary svc-only-mobile"><input type="file" accept="image/*" capture="environment" hidden data-add-files>{{ __('service.take_photo') }}</label>
+                        <label class="btn svc-btn-secondary"><input type="file" multiple accept="image/*,video/mp4,video/quicktime,application/pdf,.heic,.heif" hidden data-add-files>{{ __('service.add_files') }}</label>
+                    </div>
+                    <ul class="svc-files svc-files--picked" data-files-list></ul>
+                    <p class="svc-error" data-error-for="message" hidden></p>
+                    <p class="svc-error" data-error-for="files" hidden></p>
+                    <div class="svc-actions">
+                        <button type="submit" class="btn btn-primary" data-submit>{{ __('service.send_message') }}</button>
+                    </div>
+                </form>
+            {% else %}
+                <p class="svc-muted">{{ __('service.closed_info') }}</p>
+            {% endif %}
+        </section>
+        <div id="svc-live" class="visually-hidden" aria-live="assertive"></div>
+    </div>
+</div>
+<script type="application/json" id="svc-strings">{{ stringsJson | safe }}</script>
+<script type="application/json" id="svc-rules">{{ rulesJson | safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script type="module" src="/scripts/service/ticket.js?v={{ assetVersion }}"></script>
+{% endblock %}

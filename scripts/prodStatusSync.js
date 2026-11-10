@@ -66,7 +66,8 @@ const args = new Set(process.argv.slice(2));
         const invoiceFailures = result.autoInvoices?.failed?.length || 0;
         const mailFailures = result.invoiceMails?.failed?.length || 0;
         const ftpFailures = result.invoiceFtp?.failed?.length || 0;
-        if (statusFailures || invoiceFailures || mailFailures || ftpFailures) code = 1;
+        const serviceFailures = result.serviceExports?.failed?.length || 0;
+        if (statusFailures || invoiceFailures || mailFailures || ftpFailures || serviceFailures) code = 1;
     } catch (err) {
         log(`[prodStatus] cykl przerwany: ${err && err.stack ? err.stack : err}`);
         code = 2;

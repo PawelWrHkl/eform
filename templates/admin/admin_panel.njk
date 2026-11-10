@@ -125,6 +125,19 @@
                                             </a>
                                         </div>
                                     </div>
+                                    {% if serviceEnabled %}
+                                    <!-- Serwis — zgłoszenia reklamacyjne (routes/admin/serviceTickets.js) -->
+                                    <div class="card admin-card">
+                                        <div class="card-body d-flex flex-column">
+                                            <h5 class="card-title">
+                                                <i class="bi bi-tools me-2"></i>
+                                                Serwis — zgłoszenia
+                                            </h5>
+                                            <p class="card-text">Zgłoszenia reklamacyjne i serwisowe klientów: podgląd, pliki, eksport do HKL, ręczna zmiana statusu</p>
+                                            <a href="/admin/service" class="btn btn-secondary mt-auto">Otwórz</a>
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                     <!-- Aktywne sesje -->
                                     <div class="card admin-card">
                                         <div class="card-body d-flex flex-column">

@@ -114,6 +114,23 @@ test('sprzątanie: tylko potwierdzone konta demo, dzieci przed rodzicami, załą
 	assert.deepStrictEqual(removed, ['/mnt/out/11_PLIK_a.pdf', '/mnt/out/x'], 'nazwa przycięta do basename');
 });
 
+test('sprzątanie: zgłoszenia serwisowe konta demo znikają z bazy i z dysku (outputData/service/<numer>/)', async () => {
+	const conn = fakeConnection([
+		[[{ id: 7 }]],
+		[[]],
+		[[]],
+		[[{ number: 'SRV-2026-00012' }, { number: 'SRV-2026-00013' }]]
+	]);
+	const removedDirs = [];
+	await demo.purgeDemoUsers([7], deps(conn, { removeDir: async (dir) => removedDirs.push(dir) }));
+	const sqls = conn.calls.map((c) => c.sql);
+	assert.ok(sqls.some((q) => /^SELECT number FROM service_ticket/.test(q)));
+	const ticketDelete = sqls.findIndex((q) => /^DELETE FROM service_ticket WHERE user_id/.test(q));
+	assert.ok(ticketDelete > sqls.findIndex((q) => /^DELETE FROM `order`/.test(q)), 'po zleceniach');
+	assert.ok(ticketDelete < sqls.findIndex((q) => /^DELETE FROM `user`/.test(q)), 'przed kontem');
+	assert.deepStrictEqual(removedDirs, ['/mnt/out/service/SRV-2026-00012', '/mnt/out/service/SRV-2026-00013']);
+});
+
 test('sprzątanie: id prawdziwego klienta nic nie usuwa', async () => {
 	const conn = fakeConnection([[[]]]);
 	assert.equal(await demo.purgeDemoUsers([123], deps(conn)), 0);

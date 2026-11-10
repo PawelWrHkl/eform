@@ -16,6 +16,10 @@
                 {% endblock %}
                 {% block order_notice %}
                     {% include 'partials/order_cancellation.njk' %}
+                    {# „Zgłoś problem” → kreator serwisu z tym zleceniem (partials/service_report_btn.njk).
+                       Pulpit tutaj; telefon przy sumie (blok send_order_btn), bo górę przykrywa #order-nav. #}
+                    {% set svcOrderId = orderDetails.id %}{% set svcOrderStatus = orderDetails.status %}
+                    <div class="svc-report-wrap d-none d-md-flex">{% include 'partials/service_report_btn.njk' %}</div>
                 {% endblock %}
                 {% block table_style %}
                     <table class="table align-left table-striped order-table">
@@ -134,6 +138,7 @@
                                 {# Telefon: ten sam komunikat przy sumie (patrz partials/order_cancellation.njk). #}
                                 {% set noticePlacement = 'bottom' %}
                                 {% include 'partials/order_cancellation.njk' %}
+                                <div class="svc-report-wrap d-flex d-md-none">{% include 'partials/service_report_btn.njk' %}</div>
                                 {# Anulowanego nie cofamy do aktywnych — serwer i tak odmówi
                                    (routes/orders.js toggle-status). #}
                                 {% if admin and orderDetails.status != 'canceled' %}

@@ -63,8 +63,8 @@ async function acquireDbLock(name) {
  * @param {boolean} [opts.invoices=true] uruchom automat faktur po synchronizacji
  * @param {boolean} [opts.mail=true]     wyślij maile z fakturami automatu (`invoiceMailer.js`); tylko razem z `invoices`
  * @param {boolean} [opts.ftp=true]      wyślij PDF-y faktur automatu na FTP (`invoiceFtpExport.js`); tylko razem z `invoices`
- * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runInvoiceMailing, runInvoiceFtpExport, log }`
- * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null, invoiceMails?: object|null, invoiceFtp?: object|null }>}
+ * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runInvoiceMailing, runInvoiceFtpExport, retryServiceExports, serviceMode, log }`
+ * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null, invoiceMails?: object|null, invoiceFtp?: object|null, serviceExports?: object|null }>}
  */
 async function runProdStatusCycle({ dryRun = false, full = false, invoices = true, mail = true, ftp = true, deps = {} } = {}) {
     const log = deps.log || defaultLog;
@@ -109,7 +109,22 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
                 }
             }
         }
-        return { statuses, autoInvoices, invoiceMails, invoiceFtp };
+        // Zgłoszenia serwisowe z nieudanym eksportem do HKL (services/serviceTickets) —
+        // ponawiane w tym samym cyklu, tylko przy włączonym module (SERVICE_ENABLED).
+        let serviceExports = null;
+        if ((deps.serviceMode || require('../config').service.mode) !== 'off') {
+            try {
+                const retry = deps.retryServiceExports || require('./serviceTickets').retryFailedExports;
+                serviceExports = await retry(undefined, { dryRun });
+                if (serviceExports && serviceExports.planned && serviceExports.planned.length) {
+                    log(`[service] ponowienia eksportu: ${dryRun ? 'DRY-RUN ' : ''}planowane ${serviceExports.planned.length}, udane ${serviceExports.retried.length}, nieudane ${serviceExports.failed.length}`);
+                }
+            } catch (err) {
+                log(`[service] ponawianie eksportów przerwane: ${err && err.message ? err.message : err}`);
+                serviceExports = { retried: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
+            }
+        }
+        return { statuses, autoInvoices, invoiceMails, invoiceFtp, serviceExports };
     } finally {
         await lock.release();
     }

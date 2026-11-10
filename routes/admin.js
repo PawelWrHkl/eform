@@ -59,6 +59,8 @@ function requireReportsApiAccess(req, res, next) {
 }
 
 router.use('/order-corrections', orderCorrectionsRoutes);
+// Zgłoszenia serwisowe (moduł „Serwis”) — routes/admin/serviceTickets.js
+router.use('/service', require('./admin/serviceTickets'));
 
 router.get('/', requireLogin, requireAdmin, async (req, res) => {
     res.render('admin/admin_panel.njk', {

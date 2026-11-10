@@ -281,3 +281,24 @@ test('harmonogram: osobny proces z tym samym node, bez nakładania się cykli', 
     scheduler.stop();
   }
 });
+
+test('cykl: ponawianie eksportów serwisu po fakturach, tylko przy włączonym module; awaria nie przerywa cyklu', async () => {
+  const order = [];
+  const base = {
+    log: () => {}, acquireLock: async () => ({ release: async () => order.push('release') }),
+    syncStatuses: async () => { order.push('statuses'); return {}; },
+    runAutoInvoicing: async () => { order.push('invoices'); return {}; },
+    runInvoiceMailing: async () => { order.push('mail'); return EMPTY_MAIL(); },
+    runInvoiceFtpExport: async () => { order.push('ftp'); return EMPTY_FTP(); }
+  };
+  const on = await runProdStatusCycle({ deps: { ...base, serviceMode: 'true', retryServiceExports: async (_d, { dryRun }) => { order.push(`service:${dryRun}`); return { retried: ['SRV-2026-00001'], failed: [], planned: ['SRV-2026-00001'] }; } } });
+  assert.deepEqual(order, ['statuses', 'invoices', 'mail', 'ftp', 'service:false', 'release']);
+  assert.deepEqual(on.serviceExports.retried, ['SRV-2026-00001']);
+  order.length = 0;
+  const off = await runProdStatusCycle({ deps: { ...base, serviceMode: 'off', retryServiceExports: async () => { order.push('service'); } } });
+  assert.ok(!order.includes('service'));
+  assert.equal(off.serviceExports, null);
+  const broken = await runProdStatusCycle({ deps: { ...base, serviceMode: 'true', retryServiceExports: async () => { throw new Error('baza padła'); } } });
+  assert.equal(broken.serviceExports.failed[0].error, 'baza padła');
+  assert.ok(order.includes('release'));
+});

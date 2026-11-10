@@ -152,6 +152,36 @@ module.exports = {
     attempts: Number(process.env.CUSTOMER_EXPORT_ATTEMPTS) || 4
   },
 
+  // ── Moduł „Serwis” — zgłoszenia reklamacyjne i serwisowe (services/serviceTickets) ──
+  // `SERVICE_ENABLED`: `true` = wejście dla każdego zalogowanego, `admins` = pilotaż
+  // tylko dla kont admina, cokolwiek innego (także brak) = wyłączony — router
+  // `/service` nie wstaje, menu nie pokazuje pozycji (konwencja `assistant`).
+  //
+  // ⚠️ Adresat maila do serwisu HKL jest WYŁĄCZNIE w `.env`: `SERVICE_NOTIFY_EMAIL`
+  // (lista po przecinku) i per marka `SERVICE_NOTIFY_EMAIL_<IDENT_ORGANIZACJI>`
+  // (np. `_LUXANGMBH`). Celowo bez fallbacku na `organization.email` — to skrzynki
+  // zamówień produkcji (ten sam powód co `ASSISTANT_HANDOFF_EMAIL`). Brak adresu =
+  // zgłoszenie zapisuje się i idzie na FTP, w dzienniku zdarzeń jest `mail_failed`.
+  //
+  // `SERVICE_MAIL_REDIRECT=a@x,b@y` — tryb testowy: mail do KLIENTA idzie wyłącznie
+  // na te adresy (wzorzec `INVOICE_MAIL_REDIRECT`); poza produkcją baza ma prawdziwe
+  // adresy klientów. Pusty = mail do klienta na adres z konta.
+  //
+  // Paczka dla HKL (katalog `<numer>/` z plikami i `ticket.json`) idzie na FTP
+  // `FTP_HOST`/`FTP_USER` (konto orderbot, to samo co zlecenia) do katalogu
+  // `SERVICE_FTP_DIR` — domyślnie `/service` przy `NODE_ENV=prod`, `/service-test`
+  // poza produkcją (wzorzec `INVOICE_FTP_DIR`); lustro lokalne zawsze w
+  // `outputData/service-out/`. Pliki zgłoszeń: `outputData/service/<numer>/`
+  // (na produkcji `/eform/data/out` z hosta — trwały wolumen).
+  service: {
+    mode: String(process.env.SERVICE_ENABLED || '').trim().toLowerCase() === 'admins'
+      ? 'admins'
+      : envSwitch(process.env.SERVICE_ENABLED) ? 'true' : 'off',
+    notifyEmail: process.env.SERVICE_NOTIFY_EMAIL || '',
+    mailRedirect: process.env.SERVICE_MAIL_REDIRECT || '',
+    ftpDir: process.env.SERVICE_FTP_DIR || ''
+  },
+
   // ── Asystent eForm (czat AI dla klientów, services/assistant) ──────────
   // `ASSISTANT_ENABLED`: `true` = widżet dla każdego zalogowanego, `admins` =
   // pilotaż tylko dla kont admina, cokolwiek innego (także brak) = wyłączony,

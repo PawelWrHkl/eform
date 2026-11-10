@@ -1,0 +1,20 @@
+{% if items and items.length %}
+<table role="presentation" width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:13px;margin:12px 0;">
+<tr style="background:#f1f5f9;">
+<th align="left" style="border-bottom:1px solid #e5e7eb;">{{ t('service.col.pos') }}</th>
+<th align="left" style="border-bottom:1px solid #e5e7eb;">{{ t('service.department') }}</th>
+<th align="left" style="border-bottom:1px solid #e5e7eb;">{{ t('service.col.summary') }}</th>
+<th align="left" style="border-bottom:1px solid #e5e7eb;">{{ t('service.col.qty') }}</th>
+<th align="left" style="border-bottom:1px solid #e5e7eb;">{{ t('service.category_label') }}</th>
+</tr>
+{% for it in items %}
+<tr>
+<td style="border-bottom:1px solid #f1f5f9;">{{ it.pos }}</td>
+<td style="border-bottom:1px solid #f1f5f9;">{{ it.departmentLabel }}{% if it.group %} / {{ it.group }}{% endif %}</td>
+<td style="border-bottom:1px solid #f1f5f9;">{{ it.summary }}{% if it.note %}<br><em>{{ it.note }}</em>{% endif %}</td>
+<td style="border-bottom:1px solid #f1f5f9;">{{ it.qty }}</td>
+<td style="border-bottom:1px solid #f1f5f9;">{{ it.categoryLabel }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}

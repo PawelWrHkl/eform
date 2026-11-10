@@ -75,7 +75,9 @@ const SCREENS = {
 	catalogs: { page: 'catalogs', path: '^/panel/?$', query: 'tab=catalogs', label: 'panel: katalogi' },
 	employees: { page: 'employees', path: '^/user/employee-panel', label: 'panel pracowników' },
 	add_employee: { page: 'add_employee', path: '^/user/employee/add', label: 'formularz nowego pracownika' },
-	group_panel: { page: 'group_panel', path: '^/group/panel', label: 'panel grupy' }
+	group_panel: { page: 'group_panel', path: '^/group/panel', label: 'panel grupy' },
+	service: { page: 'service', path: '^/service/?$', label: 'serwis: rodzaje zgłoszeń i „Moje zgłoszenia”' },
+	service_new: { page: 'service_new', path: '^/service/new', label: 'kreator zgłoszenia serwisowego' }
 };
 
 const CATALOG = [
@@ -86,6 +88,9 @@ const CATALOG = [
 	{ key: 'nav_canceled', selectors: ['#orders-canceled-nav-btn'], labelKey: 'cancel_order.panel_link_title', description: 'menu: zlecenia anulowane', screens: ['any'], click: true, navTo: 'canceled' },
 	{ key: 'nav_employee_panel', selectors: ['#employee-panel-nav-btn'], labelKey: 'base.employee_panel', description: 'menu: panel pracowników', screens: ['any'], click: true, navTo: 'employees' },
 	{ key: 'nav_invoices', selectors: ['#invoices-nav-btn'], labelKey: null, description: 'menu: moduł „Faktury" (tylko gdy moduł jest włączony)', screens: ['any'], click: true, navTo: 'invoices' },
+	{ key: 'nav_service', selectors: ['#service-nav-btn'], labelKey: 'service.menu_label', description: 'menu: „Serwis” — zgłoszenie problemu z zamówieniem (tylko gdy moduł jest włączony)', screens: ['any'], click: true, navTo: 'service' },
+	{ key: 'service_new_btn', selectors: ['#svc-new-ticket-btn'], labelKey: 'service.start_new', description: 'przycisk „Nowe zgłoszenie” na stronie Serwis — otwiera kreator (4 kroki)', screens: ['service'], click: true, navTo: 'service_new' },
+	{ key: 'report_problem_btn', selectors: ['.svc-report-btn'], labelKey: 'service.report_button', description: 'przycisk „Zgłoś problem” w wierszu wysłanego zlecenia i w jego podglądzie — otwiera kreator z tym zleceniem', screens: ['history', 'sent_view'], click: true },
 	{ key: 'user_panel_btn', selectors: ['#user-panel-header-btn'], labelKey: 'panel.nav_link', description: 'nagłówek → menu konta (awatar ze strzałką): panel użytkownika (dane konta, hasło, katalogi)', screens: ['any'], click: true, navTo: 'account' },
 	{ key: 'mobile_menu', selectors: ['.navbar-toggler', '.m-bottomnav [data-m-nav="more"]'], labelKey: null, description: 'telefon: menu (trzy kreski w nagłówku albo „Więcej” w dolnym pasku — w nowym wyglądzie arkusz od dołu)', screens: ['any'], click: true },
 	{ key: 'tour_button', selectors: ['#intro-tour-header-btn'], labelKey: null, description: 'nagłówek → menu konta (awatar ze strzałką): „Przewodnik po portalu” (ikona kompasu)', screens: ['any'] },

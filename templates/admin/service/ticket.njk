@@ -1,0 +1,100 @@
+{% extends "base.njk" %}
+{# Panel admina — podgląd zgłoszenia serwisowego z pełną osią czasu i akcjami (routes/admin/serviceTickets.js). #}
+{% block title %}{{ ticket.number }} — Serwis{% endblock %}
+{% block head %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="/styles/service.css?v={{ assetVersion }}">
+{% endblock head %}
+{% block content %}
+<div class="content">
+    <div class="container mb-5 col-12 w-100 mobile-rm-card">
+        <a href="/admin/service" class="btn btn-outline-secondary btn-sm mb-2">&larr; Lista zgłoszeń</a>
+        {% if msg == 'resent' %}<div class="alert alert-info">Ponowny eksport wykonany — wynik w osi czasu poniżej.</div>{% endif %}
+        {% if msg == 'status' %}<div class="alert alert-success">Status zmieniony, klient dostał wiadomość (o ile ma adres).</div>{% endif %}
+        {% if msg == 'status_error' %}<div class="alert alert-danger">Nie udało się zmienić statusu.</div>{% endif %}
+
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+            <div>
+                <h2 class="mb-0">{{ ticket.number }} <small class="text-muted">{{ TYPE_PL[ticket.type] or ticket.type }}</small></h2>
+                <p class="text-muted mb-0">{{ ticket.client_name }} ({{ ticket.user_ident }}) · {{ ticket.organization_ident }} · zgłosił {{ ticket.created_by }} · {{ ticket.created_label }}</p>
+            </div>
+            <div class="text-end">
+                <span class="badge bg-light text-dark border fs-6">{{ STATUS_PL[ticket.status] or ticket.status }}</span><br>
+                {% if lastExport %}<small class="{{ 'text-success' if lastExport.kind == 'export_ok' else 'text-danger' }}">{{ EVENT_PL[lastExport.kind] }} · {{ lastExport.created_label }}</small>{% else %}<small class="text-muted">bez eksportu</small>{% endif %}
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-7">
+                <div class="card mb-3"><div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Komisja</dt><dd class="col-sm-8">{{ ticket.commission }}</dd>
+                        <dt class="col-sm-4">Zlecenie eForm</dt><dd class="col-sm-8">{% if ticket.order_id %}<a href="/orders/history/order/{{ ticket.order_id }}">{{ ticket.order_idx }}</a> · wysłane {{ ticket.order_sent_label }} · {{ ticket.order_prod_status or 'przyjęte' }}{% else %}bez zlecenia{% if ticket.order_no_text %} · podany numer: {{ ticket.order_no_text }}{% endif %}{% endif %}</dd>
+                        {% if ticket.department %}<dt class="col-sm-4">Kolekcja</dt><dd class="col-sm-8">{{ ticket.department.pl }}</dd>{% endif %}
+                        {% if ticket.category %}<dt class="col-sm-4">Kategoria</dt><dd class="col-sm-8">{{ __('service.category.' + ticket.category) }}</dd>{% endif %}
+                        <dt class="col-sm-4">Kontakt</dt><dd class="col-sm-8">{{ ticket.contact_name }} · {{ ticket.contact_phone }} · <a href="mailto:{{ ticket.contact_email }}">{{ ticket.contact_email }}</a></dd>
+                        {% if ticket.end_client %}<dt class="col-sm-4">Odbiorca końcowy</dt><dd class="col-sm-8">{{ ticket.end_client }}</dd>{% endif %}
+                        {% if ticket.product_address %}<dt class="col-sm-4">Adres produktu</dt><dd class="col-sm-8">{{ ticket.product_address }}</dd>{% endif %}
+                        {% if ticket.type == 'transport' %}<dt class="col-sm-4">Transport</dt><dd class="col-sm-8">dostawa {{ ticket.delivered_label or '—' }} · u kuriera: {% if ticket.carrier_noted === 1 %}tak{% elif ticket.carrier_noted === 0 %}nie{% else %}—{% endif %}</dd>{% endif %}
+                        {% if ticket.type == 'repair' %}<dt class="col-sm-4">Wycena przed naprawą</dt><dd class="col-sm-8">{{ 'tak' if ticket.quote_before_repair else 'nie' }}</dd>{% endif %}
+                        <dt class="col-sm-4">Język klienta</dt><dd class="col-sm-8">{{ ticket.lang or '—' }}</dd>
+                        {% if ticket.hkl_ref %}<dt class="col-sm-4">Nr w bazie HKL</dt><dd class="col-sm-8">{{ ticket.hkl_ref }}</dd>{% endif %}
+                    </dl>
+                    {% if ticket.description %}<h6 class="mt-3">Opis klienta</h6><p class="svc-prewrap">{{ ticket.description }}</p>{% endif %}
+                    {% if ticket.description_pl %}<h6>Tłumaczenie PL</h6><p class="svc-prewrap text-muted">{{ ticket.description_pl }}</p>{% endif %}
+                </div></div>
+
+                {% if ticket.items and ticket.items.length %}
+                <div class="card mb-3"><div class="card-body">
+                    <h6>Pozycje</h6>
+                    <table class="table table-sm mb-0"><thead><tr><th>Poz.</th><th>Kolekcja / grupa</th><th>Opis</th><th>Ilość</th><th>Kategoria</th><th>Uwaga</th></tr></thead><tbody>
+                    {% for it in ticket.items %}<tr><td>{{ it.order_pos }}</td><td>{{ it.department.pl if it.department else '—' }}{% if it.group_name %} / {{ it.group_name }}{% endif %}</td><td>{{ it.summary }}</td><td>{{ it.qty }}</td><td>{{ __('service.category.' + it.category) }}</td><td>{{ it.note or '' }}</td></tr>{% endfor %}
+                    </tbody></table>
+                </div></div>
+                {% endif %}
+
+                {% if ticket.files and ticket.files.length %}
+                <div class="card mb-3"><div class="card-body">
+                    <h6>Pliki ({{ ticket.files.length }})</h6>
+                    <ul class="svc-files">
+                    {% for f in ticket.files %}<li class="svc-file"><a class="svc-file-link" href="/service/tickets/{{ ticket.id }}/files/{{ f.id }}" target="_blank" rel="noopener" title="{{ f.original_name }}">{% if f.mime.startsWith('image/') %}<img src="/service/tickets/{{ ticket.id }}/files/{{ f.id }}?thumb=1" alt="{{ f.original_name }}" loading="lazy">{% else %}<span class="svc-file-icon">{{ f.mime.split('/')[1] | upper | truncate(4, true, '') }}</span>{% endif %}<span class="svc-file-name">{{ f.original_name }}{% if f.event_id %} · dopisek{% endif %}</span></a></li>{% endfor %}
+                    </ul>
+                </div></div>
+                {% endif %}
+
+                <details class="card mb-3"><summary class="card-body py-2">ticket.json (paczka dla HKL)</summary><pre class="small p-3 mb-0" style="max-height:400px;overflow:auto;">{{ pkgPreview }}</pre></details>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card mb-3"><div class="card-body">
+                    <h6>Akcje</h6>
+                    <form method="post" action="/admin/service/{{ ticket.id }}/resend" class="mb-3">
+                        <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Wyślij ponownie do HKL</button>
+                        <small class="text-muted d-block">Paczka na FTP + mail do serwisu. Bez maila do klienta.</small>
+                    </form>
+                    <form method="post" action="/admin/service/{{ ticket.id }}/status">
+                        <label class="form-label small mb-0">Nowy status</label>
+                        <select name="status" class="form-select form-select-sm mb-2">{% for s in statuses %}<option value="{{ s }}" {% if s == ticket.status %}selected{% endif %}>{{ STATUS_PL[s] }}</option>{% endfor %}</select>
+                        <label class="form-label small mb-0">Wiadomość do klienta (w jego języku, trafi mailem i na oś czasu)</label>
+                        <textarea name="message" rows="3" class="form-control form-control-sm mb-2" maxlength="2000"></textarea>
+                        <button type="submit" class="btn btn-primary btn-sm">Zapisz status i powiadom klienta</button>
+                        <small class="text-muted d-block mt-1">Tymczasowo ręcznie — docelowo statusy wrócą z bazy reklamacji HKL.</small>
+                    </form>
+                </div></div>
+
+                <div class="card"><div class="card-body">
+                    <h6>Oś czasu (wszystkie zdarzenia)</h6>
+                    <ol class="svc-timeline">
+                    {% for e in ticket.events %}
+                        <li class="svc-event svc-event--{{ e.kind }}">
+                            <time class="svc-event-time">{{ e.created_label }} · {{ e.actor }}</time>
+                            <div><strong class="{{ 'text-danger' if e.kind == 'export_failed' or e.kind == 'mail_failed' else '' }}">{{ EVENT_PL[e.kind] or e.kind }}{% if e.status %}: {{ STATUS_PL[e.status] or e.status }}{% endif %}</strong>{% if e.message %}<div class="small svc-prewrap">{{ e.message }}</div>{% endif %}</div>
+                        </li>
+                    {% endfor %}
+                    </ol>
+                </div></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

@@ -18,6 +18,7 @@
         <link rel="stylesheet" href="/styles/extra-functions.css?v={{ assetVersion }}">
         <link rel="stylesheet" href="/styles/responsive.css?v={{ assetVersion }}">
         <link rel="stylesheet" href="/styles/intro.css">
+        {% if serviceEnabled %}<link rel="stylesheet" href="/styles/service.css?v={{ assetVersion }}">{% endif %}
         <script src="/scripts/themeToggle.js"></script>
         {# Szyna nawigacji (desktop, A i B) ma stały rozmiar na ekranie — nie rośnie
            i nie maleje z powiększeniem przeglądarki (Ctrl +/−). `--nav-zoom` =
@@ -206,7 +207,7 @@
                     <span class="efor-sheet-title">{{ eforT.more }}</span>
                     <button type="button" class="efor-sheet-close" data-efor-sheet-close>{{ eforT.sheetClose }}</button>
                 </div>
-                <a href="/panel" class="efor-sheet-account efor-v2-only">
+                <a href="{{ '/staff' if isStaff else '/panel' }}" class="efor-sheet-account efor-v2-only">
                     <span class="efor-sheet-account__avatar" data-header-menu-initials aria-hidden="true"><svg><use href="#efor-i-user"/></svg></span>
                     <span class="efor-sheet-account__who">
                         <span class="efor-sheet-account__name" data-header-menu-name>{{ eforT.account }}</span>
@@ -249,9 +250,16 @@
                     <li class="nav-item">
                         <a href="/orders/canceled" class="nav-link">{{ __('cancel_order.panel_link_title') }}</a>
                     </li>
+                    {% if serviceEnabled %}
+                        <li class="nav-item">
+                            <a href="/service" class="nav-link">{{ __('service.title') if isAdminSession else __('service.menu_label') }}</a>
+                        </li>
+                    {% endif %}
+                    {% if not isStaff %}
                     <li class="nav-item">
                         <a href="/panel" class="nav-link">{{ __('panel.nav_link') }}</a>
                     </li>
+                    {% endif %}
                     <li class="nav-item d-none" id="mobile-employee-panel-item">
                         <a href="#" id="mobile-employee-panel-link" class="nav-link">{{ __('base.employee_panel') }}</a>
                     </li>
@@ -265,7 +273,7 @@
                             <a href="/org/customers" class="nav-link">Klienci organizacji</a>
                         </li>
                     {% endif %}
-                    {% if isGroup %}
+                    {% if isGroup and not isStaff %}
                         <li class="nav-item">
                             <a href="/group/panel" class="nav-link">{{ __('group.panel_title') }}</a>
                         </li>
@@ -409,6 +417,15 @@
                     <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-file-x"/></svg>
                     <span class="nav-text">{{ __('cancel_order.panel_link_title') }}</span>
                 </a>
+                {# Serwis — zgłoszenia reklamacyjne (routes/service.js), przy włączonym module.
+                   Klient widzi „Mam problem z zamówieniem”, admin krótkie „Serwis”. #}
+                {% if serviceEnabled %}
+                    <a href="/service" id='service-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="{{ __('service.menu_label') }}">
+                        <img src="/img/orders_canceled.svg" class='nav-icon' alt="service-ico">
+                        <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-alert"/></svg>
+                        <span class="nav-text">{{ __('service.title') if isAdminSession else __('service.menu_label') }}</span>
+                    </a>
+                {% endif %}
                 <a id='employee-panel-nav-btn' class="custom-nav-link has-tooltip d-none" data-tooltip="{{ __('base.employee_panel_tooltip') }}">
                     <img src="/img/employee.png" class='nav-icon' alt="orders-ico">
                     <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-users"/></svg>
@@ -439,7 +456,7 @@
                         <span class="nav-text">Klienci</span>
                     </a>
                 {% endif %}
-                {% if isGroup %}
+                {% if isGroup and not isStaff %}
                     <a href="/group/panel" class="custom-nav-link has-tooltip" data-tooltip="{{ __('group.panel_title') }}">
                         <img src="/img/orders.png" class='nav-icon' alt="group-panel-icon">
                         <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-store"/></svg>
@@ -567,11 +584,11 @@
                     <span class="header-menu__mail" data-header-menu-mail></span>
                 </span>
             </div>
-            <a href="/panel" id="user-panel-header-btn" class="dropdown-item header-menu__item">
+            {% if not isStaff %}<a href="/panel" id="user-panel-header-btn" class="dropdown-item header-menu__item">
                 <span class="header-menu__icon" aria-hidden="true"><svg><use href="#efor-i-user"/></svg></span>
                 <span class="header-menu__label">{{ __('panel.nav_link') }}</span>
                 <svg class="header-menu__end" aria-hidden="true"><use href="#efor-i-chevron-right"/></svg>
-            </a>
+            </a>{% endif %}
             {# Plakietka A/B: treść z `data-state-*` w CSS (sekcja 0 theme-efor-v2.css). #}
             <button type="button" id="ui-variant-toggle" class="dropdown-item header-menu__item" data-ui-variant-toggle aria-pressed="false">
                 <span class="header-menu__icon" aria-hidden="true"><svg><use href="#efor-i-palette"/></svg></span>

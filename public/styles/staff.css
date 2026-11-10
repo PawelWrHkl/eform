@@ -118,6 +118,12 @@
 
 /* Ściągawka skrótów (staff/shortcuts.js, klawisz „?") */
 .staff-shortcuts {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+    opacity: 1;
+    animation: none;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-lg);
     background: var(--bg-surface-solid);

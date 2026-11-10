@@ -1,0 +1,69 @@
+{% extends "base.njk" %}
+{# Panel admina — zgłoszenia serwisowe (routes/admin/serviceTickets.js). Po polsku, jak reszta panelu. #}
+{% block title %}Serwis — zgłoszenia{% endblock %}
+{% block head %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+{% endblock head %}
+{% block content %}
+<div class="content">
+    <div class="container mb-5 col-12 w-100 mobile-rm-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <div>
+                <a href="/admin" class="btn btn-outline-secondary btn-sm mb-2">&larr; Panel admina</a>
+                <h2 class="mb-0">Serwis — zgłoszenia reklamacyjne</h2>
+                <p class="text-muted mb-0">Zgłoszenia klientów z portalu. Paczka idzie na FTP i mailem do serwisu HKL; „export NIEUDANY” ponawia cykl tła (maks. 5 prób) albo przycisk w podglądzie.</p>
+            </div>
+            <span class="badge bg-secondary">Razem: {{ total }}</span>
+        </div>
+
+        <form method="get" class="row g-2 mb-3 align-items-end">
+            <div class="col-md-2"><label class="form-label small mb-0">Rodzaj</label>
+                <select name="type" class="form-select form-select-sm"><option value="">wszystkie</option>{% for t in types %}<option value="{{ t }}" {% if filters.type == t %}selected{% endif %}>{{ TYPE_PL[t] }}</option>{% endfor %}</select></div>
+            <div class="col-md-2"><label class="form-label small mb-0">Status</label>
+                <select name="status" class="form-select form-select-sm"><option value="">wszystkie</option>{% for s in statuses %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ STATUS_PL[s] }}</option>{% endfor %}</select></div>
+            <div class="col-md-2"><label class="form-label small mb-0">Organizacja</label>
+                <select name="organization" class="form-select form-select-sm"><option value="">wszystkie</option>{% for o in organizations %}<option value="{{ o.organization_ident }}" {% if filters.organization == o.organization_ident %}selected{% endif %}>{{ o.organization_ident }}</option>{% endfor %}</select></div>
+            <div class="col-md-2"><label class="form-label small mb-0">Klient (ident/nazwa)</label><input name="client" class="form-control form-control-sm" value="{{ filters.client }}"></div>
+            <div class="col-md-2"><label class="form-label small mb-0">Numer / komisja / zlecenie</label><input name="q" class="form-control form-control-sm" value="{{ filters.q }}"></div>
+            <div class="col-md-1"><label class="form-label small mb-0">Od</label><input type="date" name="from" class="form-control form-control-sm" value="{{ filters.from }}"></div>
+            <div class="col-md-1"><label class="form-label small mb-0">Do</label><input type="date" name="to" class="form-control form-control-sm" value="{{ filters.to }}"></div>
+            <div class="col-md-3 form-check ms-2"><input type="checkbox" class="form-check-input" id="exportFailed" name="exportFailed" value="1" {% if filters.exportFailed %}checked{% endif %}><label class="form-check-label" for="exportFailed">tylko błąd eksportu</label></div>
+            <div class="col-md-3 d-flex gap-2"><button type="submit" class="btn btn-primary btn-sm">Filtruj</button><a href="/admin/service" class="btn btn-outline-secondary btn-sm">Wyczyść</a></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Numer</th><th>Data</th><th>Rodzaj</th><th>Status</th><th>Klient</th><th>Org.</th><th>Zlecenie</th><th>Komisja</th><th>Eksport</th><th></th></tr></thead>
+                <tbody>
+                {% if rows and rows.length %}
+                    {% for t in rows %}
+                    <tr>
+                        <td><a href="/admin/service/{{ t.id }}"><strong>{{ t.number }}</strong></a></td>
+                        <td>{{ t.created_label }}</td>
+                        <td>{{ TYPE_PL[t.type] or t.type }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ STATUS_PL[t.status] or t.status }}</span></td>
+                        <td>{{ t.client_name }}<br><small class="text-muted">{{ t.user_ident }}{% if t.created_by and not (t.created_by | string).startsWith('user:') %} · {{ t.created_by }}{% endif %}</small></td>
+                        <td>{{ t.organization_ident }}</td>
+                        <td>{% if t.order_idx %}<a href="/orders/history/order/{{ t.order_id }}">{{ t.order_idx }}</a>{% elif t.order_no_text %}{{ t.order_no_text }} <small class="text-muted">(ręcznie)</small>{% else %}—{% endif %}</td>
+                        <td>{{ t.commission }}</td>
+                        <td>{% if t.export_state == 'export_ok' %}<span class="badge bg-success">OK</span>{% elif t.export_state == 'export_failed' %}<span class="badge bg-danger">NIEUDANY</span>{% else %}<span class="badge bg-secondary">brak</span>{% endif %}</td>
+                        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/admin/service/{{ t.id }}">Otwórz</a></td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="10" class="text-center text-muted py-4">Brak zgłoszeń dla tych filtrów.</td></tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if totalPages > 1 %}
+        <nav aria-label="Paginacja"><ul class="pagination justify-content-center">
+            <li class="page-item {% if page <= 1 %}disabled{% endif %}"><a class="page-link" href="?page={{ page - 1 }}{% if query %}&{{ query }}{% endif %}">&laquo;</a></li>
+            {% for i in range(1, totalPages + 1) %}<li class="page-item {% if i == page %}active{% endif %}"><a class="page-link" href="?page={{ i }}{% if query %}&{{ query }}{% endif %}">{{ i }}</a></li>{% endfor %}
+            <li class="page-item {% if page >= totalPages %}disabled{% endif %}"><a class="page-link" href="?page={{ page + 1 }}{% if query %}&{{ query }}{% endif %}">&raquo;</a></li>
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock content %}
