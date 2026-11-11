@@ -479,8 +479,9 @@ function buildSetSpec({ prefix, factor, lockedVisible, clientDiscountVisible, va
  * @param {string} [params.dataDir]   katalog danych grup (testy; domyślnie config.js)
  * @param {boolean} [params.advanced] specyfikacja zaawansowana — przy każdym składniku
  *                                    rabat i wartość po rabacie (`advancedColumns`)
+ * @param {boolean} [params.grossAfterDiscount] klient Luxan EK z PL — „brutto po rabacie”
  */
-function buildOrderPriceSpec({ orderDetails, orderItems, view, lang, currency, scriptsByGroup = {}, showCodes = false, now = new Date(), dataDir, advanced = false }) {
+function buildOrderPriceSpec({ orderDetails, orderItems, view, lang, currency, scriptsByGroup = {}, showCodes = false, now = new Date(), dataDir, advanced = false, grossAfterDiscount = false }) {
   const language = resolveLang(lang);
   const t = translator(language);
   const money = moneyFormatter(language, currency);
@@ -559,7 +560,7 @@ function buildOrderPriceSpec({ orderDetails, orderItems, view, lang, currency, s
     // Kłódka cen już otwarta (order_prices.njk) — zestaw bez kolumn rabatu nie dostaje
     // podpowiedzi „po kłódce” (np. cena zakupu przy przełączniku SUB nie ma rabatów).
     pricesUnlocked: !!(view && view.prices),
-    t: templateStrings(t, currency || 'EUR', advanced),
+    t: templateStrings(t, currency || 'EUR', advanced, grossAfterDiscount),
     currency: currency || 'EUR',
     order: {
       id: orderDetails && orderDetails.id,
@@ -589,7 +590,7 @@ function formatDate(value, lang, withTime = false) {
 }
 
 /** Gotowe teksty dla szablonu (bez wywoływania funkcji z Nunjucks). */
-function templateStrings(t, currency, advanced = false) {
+function templateStrings(t, currency, advanced = false, grossAfterDiscount = false) {
   const keys = ['title', 'order', 'commission', 'date', 'generated', 'position', 'quantity', 'unit_price', 'line_total', 'discounts',
     'unit_after_discount', 'total_after_discount', 'summary', 'positions', 'total', 'total_after_discount_sum',
     'component', 'amount', 'code', 'print', 'pdf', 'close', 'empty', 'no_breakdown',
@@ -598,6 +599,14 @@ function templateStrings(t, currency, advanced = false) {
   for (const k of keys) out[k] = t(k);
   if (advanced) out.title = t('advanced_title');
   out.note = t('note', { currency });
+  // Klient Luxan EK z PL (services/vatCalculator.js resolveGrossAfterDiscountForOrder):
+  // kwoty po rabacie to brutto.
+  // shortcut: kolumna „po rabacie” jest wspólna dla ceny zakupu i ceny klienta, więc
+  // przy rabacie na cenie zakupu (widzi ją tylko HKL) też powie „brutto” — rozdzielić, gdy się pojawi.
+  if (grossAfterDiscount) {
+    for (const k of ['unit_after_discount', 'total_after_discount', 'total_after_discount_sum', 'col_after']) out[k] = t(`${k}_gross`);
+    out.note = t('note_gross', { currency });
+  }
   return out;
 }
 

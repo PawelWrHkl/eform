@@ -110,7 +110,7 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
             }
         }
         // Zgłoszenia serwisowe z nieudanym eksportem do HKL (services/serviceTickets) —
-        // ponawiane w tym samym cyklu, tylko przy włączonym module (SERVICE_ENABLED).
+        // ponawiane w tym samym cyklu, tylko przy włączonym module (SERVICE_PANEL=true).
         let serviceExports = null;
         if ((deps.serviceMode || require('../config').service.mode) !== 'off') {
             try {

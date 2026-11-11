@@ -639,3 +639,37 @@ test('sama dopłata EL u konta podrzędnego: bez wiersza „rabat na dopłatę�
   assert.equal(keys[keys.indexOf('SUB___CENA_PO_RABACIE') + 1], 'SUB___DOPLATA_PO_RABACIE');
   assert.equal(values.SUB___CENA_KONCOWA, 654.3);
 });
+
+test('klient LUXAN_EWA_KRAWCZYK z PL (window.grossAfterDiscount): ukryte kwoty po rabacie opisane jako BRUTTO, także bez rabatu', () => {
+  const window = makeWindow();
+  window.grossAfterDiscount = true;
+  const dv = displayValuesFixture(window, 113.2);
+  dv.get('SUB___CENA_RABAT').param_description = 'RABAT NETTO';
+  window.__discountTest.applyClientDiscount(valuesFixture(113.2, 1, 283), dv);
+  window.__discountTest.applyClientDiscount(valuesFixture(113.2, 1, 283), dv);
+  assert.equal(dv.get('SUB___CENA_KONCOWA').param_description, 'CENA BRUTTO PO RABACIE [€]');
+  assert.equal(dv.get('SUB___WARTOSC_KONCOWA').param_description, 'WART. BR. PO RABACIE [€]');
+  assert.equal(dv.get('SUB___CENA_RABAT').param_description, 'RABAT NETTO', 'inne wiersze bez zmian');
+
+  // VAT-u na wierzchu brutto nie ma — wiersze z wcześniejszego zapisu znikają.
+  window.vatEnabled = true;
+  window.vatRate = 23;
+  const zVat = displayValuesFixture(window, 405.56);
+  zVat.set('SUB___VAT', { param_description: 'VAT [%]', option_value: '23%' });
+  zVat.set('SUB___WARTOSC_BRUTTO', { param_description: 'WARTOŚĆ BRUTTO', option_value: '498.84' });
+  const vVat = { ...valuesFixture(405.56, 1, 831.4), WARTOSC_BRUTTO: 498.84 };
+  window.__discountTest.applyVatToGrossValue(vVat, zVat);
+  assert.equal(zVat.has('SUB___VAT'), false);
+  assert.equal(zVat.has('SUB___WARTOSC_BRUTTO'), false);
+  assert.equal(vVat.WARTOSC_BRUTTO, undefined);
+
+  const de = displayValuesFixture(window, 100);
+  de.get('SUB___CENA_KONCOWA').param_description = 'PREIS N. RABATT netto [PLN]';
+  window.__discountTest.applyClientDiscount(valuesFixture(100, 1, 250), de);
+  assert.equal(de.get('SUB___CENA_KONCOWA').param_description, 'PREIS N. RABATT brutto [PLN]');
+
+  const inny = makeWindow();
+  const dvInny = displayValuesFixture(inny, 113.2);
+  inny.__discountTest.applyClientDiscount(valuesFixture(113.2, 1, 283), dvInny);
+  assert.equal(dvInny.get('SUB___CENA_KONCOWA').param_description, 'CENA NETTO PO RABACIE [€]', 'bez flagi — jak w param.txt');
+});

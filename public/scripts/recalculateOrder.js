@@ -389,6 +389,7 @@ async function fetchPositions(orderId) {
     window.portalUsageDiscountPercent = Number(pricing.portalUsageDiscountPercent) || 0;
     window.clientPriceMode = pricing.clientPriceMode || 'discount';
     window.clientMarkupPercent = Number(pricing.clientMarkupPercent) || 0;
+    window.grossAfterDiscount = pricing.grossAfterDiscount === true;
     return data.positions || [];
 }
 

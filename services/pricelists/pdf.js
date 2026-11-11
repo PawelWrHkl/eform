@@ -101,10 +101,10 @@ function filterText(filter, { params, options }) {
   return { label: paramLabel(params, filter.param), negated: !!filter.negated, values: values.join(', ') + more };
 }
 
-/** Nagłówek progu: „do 120 cm”, przy siatce punkt „150 cm”, przy osi-liczniku sama liczba (TORY 3). */
-function boundHead(value, { count, grid }) {
+/** Nagłówek progu: sam próg („40 cm”, nie „do 40 cm” — zasadę podaje stopka; uwaga specjalisty 10.11), przy osi-liczniku sama liczba (TORY 3). */
+function boundHead(value, { count }) {
   if (value === null) return null;
-  return { value, upTo: !count && !grid, cm: !count };
+  return { value, cm: !count };
 }
 
 /** Przypis do osi-wzoru (14: tabela w wymiarze paska, VERTI = wymiar całkowity − 3,8 cm). */
@@ -117,12 +117,11 @@ function variantNotes(table, { params, options, lang }) {
   }));
 }
 
-/** Wysokości w wierszach, szerokości × grupy cenowe w kolumnach, bloki szerokości pod A4. */
+/** Osobny blok na każdą grupę cenową (PG E, PG 0, PG 1…): wysokości w wierszach, szerokości w kolumnach, bloki pod A4. */
 function tableView(table, { params, options, lang }) {
   const amounts = Object.values(table.cells).flatMap((row) => Object.values(row));
   const fmt = formatter(lang, amounts.every((a) => Number.isInteger(a)) ? 0 : 2);
   const groups = table.priceGroups.map((token) => ({ token, label: token === null ? '' : String(token) }));
-  const grid = !!table.gridStep;
   // Obie osie wyłączone (73: KARNISZ przy KAR) — jedna kwota niezależna od wymiarów.
   if (!table.xField && !table.yField && groups.length === 1) {
     const amount = (table.cells[groups[0].token] || {})['null|null'];
@@ -133,24 +132,25 @@ function tableView(table, { params, options, lang }) {
     }
   }
   // Kwoty z groszami są szersze: mniej kolumn na blok, żeby tabela zmieściła się na A4 poziomo.
-  const maxPerChunk = Math.max(1, Math.floor((amounts.every((a) => Number.isInteger(a)) ? 26 : 20) / groups.length));
+  const maxPerChunk = amounts.every((a) => Number.isInteger(a)) ? 26 : 20;
   // Bloki równej szerokości (21 kolumn → 11 + 10, nie 20 + 1).
   const perChunk = Math.ceil(table.widths.length / Math.max(1, Math.ceil(table.widths.length / maxPerChunk)));
   const chunks = [];
-  for (let i = 0; i < table.widths.length; i += perChunk) {
-    const widths = table.widths.slice(i, i + perChunk);
-    chunks.push({
-      widths,
-      heads: widths.map((w) => boundHead(w, { count: table.xCount, grid })),
-      rows: table.heights.map((h) => ({
-        height: h,
-        head: boundHead(h, { count: table.yCount, grid }),
-        cells: widths.flatMap((w) => groups.map((g) => {
-          const amount = (table.cells[g.token] || {})[`${w}|${h}`];
-          return amount === undefined ? null : fmt.format(amount);
+  for (const g of groups) {
+    const own = table.cells[g.token] || {};
+    // Grupa cenowa bez żadnej kwoty w tej tabeli nie dostaje pustego bloku.
+    if (!Object.keys(own).length) continue;
+    for (let i = 0; i < table.widths.length; i += perChunk) {
+      const widths = table.widths.slice(i, i + perChunk);
+      chunks.push({
+        group: g.token === null ? null : g.label,
+        heads: widths.map((w) => boundHead(w, { count: table.xCount })),
+        rows: table.heights.map((h) => ({
+          head: boundHead(h, { count: table.yCount }),
+          cells: widths.map((w) => (own[`${w}|${h}`] === undefined ? null : fmt.format(own[`${w}|${h}`])))
         }))
-      }))
-    });
+      });
+    }
   }
   // Bez domeny (np. 46: KONFIGURACJA=S_N) nagłówkiem tabeli są jej filtry.
   const domainLabels = table.options.map((o) => optionLabel(options, table.domainParam, o.value)).filter(Boolean);
@@ -159,8 +159,6 @@ function tableView(table, { params, options, lang }) {
     title: domainLabels.length ? domainLabels.join(', ') : filters.map((f) => `${f.label}: ${f.values}`).join(' · '),
     filters: domainLabels.length ? filters : [],
     doubleFabric: table.doubleFabric,
-    groups,
-    showGroups: !(groups.length === 1 && groups[0].token === null),
     xLabel: table.xField ? paramLabel(params, table.xField) : null,
     yLabel: table.yField ? paramLabel(params, table.yField) : null,
     variants: variantNotes(table, { params, options, lang }),
@@ -193,7 +191,9 @@ function guideView(guide, { params, options, lang }) {
 
 function itemView(item, { params, options, lang }) {
   const fmt = formatter(lang, 2);
-  const when = item.filters.map((f) => filterText(f, { params, options })).filter(Boolean);
+  // Opcje warunku zaprzeczonego (`NOT(…)`) to te, które go spełniają; „(bez)” wymienia resztę.
+  const shown = (f) => (f.negated && f.options && options[f.param] ? { ...f, options: options[f.param].map((o) => o.VALUE).filter((v) => !f.options.includes(v)) } : f);
+  const when = item.filters.map((f) => filterText(shown(f), { params, options })).filter(Boolean);
   if (item.kind === 'amount') return { code: item.name, when, amounts: [{ amount: fmt.format(item.amount) }] };
   if (item.kind === 'byOption') {
     return {
@@ -349,4 +349,4 @@ async function getPricelistPdf({ account, priceSet: requestedSet, groupNumber, d
   return { ok: true, pdf, fileName };
 }
 
-module.exports = { loadAccount, listForAccount, getPricelistPdf, buildView, hasRebate, CACHE_DIR };
+module.exports = { loadAccount, listForAccount, getPricelistPdf, buildView, tableView, itemView, hasRebate, CACHE_DIR };

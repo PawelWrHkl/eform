@@ -1,7 +1,7 @@
 <!-- wymaga: service -->
 <!--
   Część 6: moduł „Serwis” — zgłoszenia reklamacyjne i serwisowe. Trafia do modelu tylko przy
-  włączonym module (SERVICE_ENABLED, knowledge.flagsFor → service). Eforek KIERUJE do kreatora
+  włączonym module (SERVICE_PANEL=true, knowledge.flagsFor → service). Eforek KIERUJE do kreatora
   i może pokazać drogę (nav_service, service_new_btn, report_problem_btn); zgłoszenia NIGDY nie
   wysyła sam — ostatnie kliknięcie „{{service.submit}}” należy do klienta.
   Celowo pominięte: terminy odpowiedzi serwisu (szef nie podał SLA), sprawdzanie gwarancji

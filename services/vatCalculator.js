@@ -271,8 +271,39 @@ async function resolveVatLocals(req, orderId) {
   return { vatEnabled: true, vatRate, vatReason, isHklOrg: Number(currentUser?.orgId) === 3 };
 }
 
+/** Organizacja, której polscy klienci mają ceny klienta po rabacie BRUTTO. */
+const GROSS_AFTER_DISCOUNT_ORG = 'LUXAN_EWA_KRAWCZYK';
+
+/**
+ * Klient ZAMÓWIENIA jest z LUXAN_EWA_KRAWCZYK i z Polski (właściciel 2026-11-10).
+ * Sztuczka „przed rabatem brutto, po rabacie netto” działa tylko przy sprzedaży
+ * zagranicznej (VAT 0% w UE). Organizacja, klient i produkcja są tu w Polsce,
+ * więc kwota po rabacie (`SUB___CENA_KONCOWA`, `SUB___WARTOSC_KONCOWA`, suma
+ * „Razem po rabacie”) to BRUTTO: opis „brutto” i ŻADNEGO VAT-u doliczanego na
+ * wierzchu (pozycja: pricesCalculator.js, stopka: subPrices.js attachSubVatTotals).
+ * Niezależne od `VAT_ENABLED` — to opis cen, nie stawka.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function resolveGrossAfterDiscountForOrder(orderId) {
+  if (!orderId) return false;
+  // selectQuery sam łapie błąd bazy i zwraca false — wtedy zachowanie jak dotąd.
+  const rows = await db.selectQuery(
+    `SELECT u.country AS country, org.ident AS ident
+     FROM \`order\` o
+     JOIN \`user\` u ON u.id = o.user_id
+     JOIN organization org ON org.id = u.organization_id
+     WHERE o.id = ?`,
+    [orderId]
+  );
+  const row = rows && rows[0];
+  return !!row && row.ident === GROSS_AFTER_DISCOUNT_ORG
+    && String(row.country || '').trim().toUpperCase() === 'PL';
+}
+
 module.exports = {
   vatFeatureEnabled,
+  resolveGrossAfterDiscountForOrder,
   resolveVatLocals,
   resolveVatRateForOrder,
   resolveRegularVatRateForOrder,

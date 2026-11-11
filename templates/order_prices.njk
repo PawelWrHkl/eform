@@ -558,7 +558,7 @@
                                 {% if totalPrice.subLocked and totalPrice.subLocked != 0 %}
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total gold price-label col-3 text-center'>
-                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(1) }}{{ currencySuffix | default('€') }} netto</span>
+                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(1) }}{{ currencySuffix | default('€') }} {{ 'brutto' if totalPrice.subLockedGross else 'netto' }}</span>
                                 </div>
                                 {% set vatTotalsApplyFactor = false %}
                                 {% include 'partials/order_vat_totals.njk' %}
@@ -576,7 +576,7 @@
                                 {% if totalPrice.subLocked and totalPrice.subLocked != 0 %}
                                 <div class="total-price d-flex justify-content-end align-items-center col-12">
                                   <span class='total gold price-label col-3 text-center'>
-                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} netto</span>
+                                    {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} {{ 'brutto' if totalPrice.subLockedGross else 'netto' }}</span>
                                 </div>
                                 {% set vatTotalsApplyFactor = true %}
                                 {% include 'partials/order_vat_totals.njk' %}

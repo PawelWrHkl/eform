@@ -249,7 +249,7 @@ app.use((req, res, next) => {
 	// (np. panel salonu pytający o endpoint dla ownera).
 	res.locals.assetVersion = ASSET_VERSION;
 	res.locals.demoEnabled = !!features?.demo;
-	// Moduł „Serwis” (SERVICE_ENABLED=true|admins) — menu, przyciski „Zgłoś problem”
+	// Moduł „Serwis” (SERVICE_PANEL=true) — menu, przyciski „Zgłoś problem”
 	// i router liczą dostęp tą samą regułą (services/serviceTickets/access.js).
 	res.locals.serviceEnabled = require('./services/serviceTickets/access').canAccessService(req.session?.user, require('./config').service);
 	res.locals.isAdminSession = !!req.session?.user?.isAdmin;
@@ -461,9 +461,9 @@ if (features?.demo) {
 const serviceConfig = require('./config').service;
 if (serviceConfig.mode !== 'off') {
 	app.use('/service', require('./routes/service'));
-	log(`[service] moduł Serwis włączony (SERVICE_ENABLED=${serviceConfig.mode}${serviceConfig.notifyEmail ? '' : ', ⚠️ brak SERVICE_NOTIFY_EMAIL — maile do serwisu HKL nie wyjdą'})`);
+	log(`[service] moduł Serwis włączony (SERVICE_PANEL=true${serviceConfig.notifyEmail ? '' : ', ⚠️ brak SERVICE_NOTIFY_EMAIL — maile do serwisu HKL nie wyjdą'})`);
 } else {
-	log('[service] moduł Serwis WYŁĄCZONY — /service nie jest montowany');
+	log('[service] moduł Serwis WYŁĄCZONY (SERVICE_PANEL ≠ true) — /service nie jest montowany');
 }
 
 if (assistantConfig.mode !== 'off') {

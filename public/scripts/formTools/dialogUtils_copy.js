@@ -55,6 +55,11 @@ export class DialogManager {
   async initialize(param, options, groupNumber, filters, attrs) {
 
     logFunctionName('DialogManager.initialize');
+    // Okno pozycji konta biura (staff/rawCombo.js): kafelki budują się BEZ otwierania okna —
+    // pole „wpisz i wybierz” czyta z nich opcje i klika wybrany kafelek, więc wybór idzie
+    // tą samą ścieżką co u klienta (dialog-confirm → form.js). Flaga jednorazowa.
+    const headless = window.rawDialogHeadless === true;
+    window.rawDialogHeadless = false;
     this.param = param;
     this.user = await getUserName();
     this.options = options;
@@ -95,6 +100,11 @@ export class DialogManager {
 
     await this.renderOptions(imageMap);
 
+    if (headless) {
+      stopSpin();
+      window.dispatchEvent(new CustomEvent('raw-dialog-rendered', { detail: { param: param.NAME } }));
+      return;
+    }
 
     this.dialog.showModal();
     // Bez await: okno otwiera się od razu, przyciski dochodzą po odpowiedzi.

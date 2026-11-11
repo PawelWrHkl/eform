@@ -1,7 +1,9 @@
 /*
  * Wybór klienta przez konto biura (templates/partials/staff_client_picker.njk).
- * Podpowiedzi: GET /staff/api/clients (tylko dozwoleni klienci), wybór: POST /staff/context
- * — serwer sprawdza dostęp i ustawia kontekst; dopiero wtedy przechodzimy dalej.
+ * Jedno pole „wpisz i wybierz”: po otwarciu lista „ostatnio wybierani” (/recent-clients),
+ * pod nią pozostali dozwoleni klienci; wpisywanie zawęża listę (GET /staff/api/clients).
+ * Wybór: POST /staff/context — serwer sprawdza dostęp i ustawia kontekst; dopiero wtedy
+ * przechodzimy dalej. Pole zostaje z nazwą wybranego klienta.
  */
 
 const tr = (key) => (typeof window.t === 'function' && window.t(key)) || key;
@@ -9,12 +11,21 @@ const tr = (key) => (typeof window.t === 'function' && window.t(key)) || key;
 function initPicker(root) {
     const input = root.querySelector('[role="combobox"]');
     const list = root.querySelector('[role="listbox"]');
-    const recentBox = root.querySelector('[data-staff-recent]');
+    const meta = root.querySelector('.staff-picker__meta');
     const status = root.querySelector('.staff-picker__status');
-    let items = [];
+    const current = { ident: root.dataset.currentIdent || '', name: root.dataset.currentName || '' };
+    let items = [];          // tylko wybieralne wiersze (bez nagłówków), w kolejności na liście
     let active = -1;
     let timer = null;
     let controller = null;
+    let typed = false;
+    let busy = false;
+    let recent = null;
+
+    const recentReady = fetch('/recent-clients', { credentials: 'include' })
+        .then((res) => res.json())
+        .then((rows) => { recent = (Array.isArray(rows) ? rows : []).slice(0, 8).map((c) => ({ ident: c.ident, name: c.name, organization: c.organization })); })
+        .catch(() => { recent = []; });
 
     function close() {
         list.hidden = true;
@@ -22,55 +33,95 @@ function initPicker(root) {
         input.removeAttribute('aria-activedescendant');
     }
 
+    function restore() {
+        if (busy) return;
+        input.value = current.name;
+        typed = false;
+    }
+
     function highlight() {
-        Array.from(list.children).forEach((li, i) => li.setAttribute('aria-selected', String(i === active)));
-        if (active >= 0 && list.children[active]) {
-            input.setAttribute('aria-activedescendant', list.children[active].id);
-            list.children[active].scrollIntoView({ block: 'nearest' });
+        list.querySelectorAll('[role="option"]').forEach((li) => li.setAttribute('aria-selected', String(Number(li.dataset.index) === active)));
+        const el = list.querySelector(`[data-index="${active}"]`);
+        if (el) {
+            input.setAttribute('aria-activedescendant', el.id);
+            el.scrollIntoView({ block: 'nearest' });
         } else {
             input.removeAttribute('aria-activedescendant');
         }
     }
 
-    function render(clients) {
-        items = clients;
-        active = clients.length ? 0 : -1;
+    function header(text) {
+        const li = document.createElement('li');
+        li.className = 'staff-picker__header';
+        li.setAttribute('role', 'presentation');
+        li.textContent = text;
+        list.append(li);
+    }
+
+    function option(c) {
+        const index = items.length;
+        items.push(c);
+        const li = document.createElement('li');
+        li.id = `staff-client-opt-${index}`;
+        li.dataset.index = String(index);
+        li.className = 'staff-picker__option';
+        if (c.ident && c.ident === current.ident) li.classList.add('is-current');
+        li.setAttribute('role', 'option');
+        const name = document.createElement('strong');
+        name.textContent = c.name || c.ident;
+        const info = document.createElement('span');
+        info.className = 'staff-muted';
+        info.textContent = [c.ident, c.pin ? `PIN ${c.pin}` : '', c.city, c.organization].filter(Boolean).join(' · ');
+        li.append(name, ' ', info);
+        // mousedown, nie click — blur pola zamyka listę przed kliknięciem
+        li.addEventListener('mousedown', (e) => { e.preventDefault(); choose(c); });
+        list.append(li);
+    }
+
+    /** sections: [{ title, clients }] — nagłówek tylko, gdy sekcji jest więcej niż jedna. */
+    function render(sections) {
+        items = [];
         list.innerHTML = '';
-        if (!clients.length) {
+        const nonEmpty = sections.filter((s) => s.clients.length);
+        if (!nonEmpty.length) {
             const li = document.createElement('li');
             li.className = 'staff-picker__empty';
-            li.setAttribute('role', 'option');
-            li.setAttribute('aria-disabled', 'true');
+            li.setAttribute('role', 'presentation');
             li.textContent = tr('staff.no_clients_found');
             list.append(li);
         }
-        clients.forEach((c, i) => {
-            const li = document.createElement('li');
-            li.id = `staff-client-opt-${i}`;
-            li.className = 'staff-picker__option';
-            li.setAttribute('role', 'option');
-            const name = document.createElement('strong');
-            name.textContent = c.name || c.ident;
-            const meta = document.createElement('span');
-            meta.className = 'staff-muted';
-            meta.textContent = [c.ident, c.pin ? `PIN ${c.pin}` : '', c.city, c.organization].filter(Boolean).join(' · ');
-            li.append(name, ' ', meta);
-            // mousedown, nie click — blur pola zamyka listę przed kliknięciem
-            li.addEventListener('mousedown', (e) => { e.preventDefault(); choose(c); });
-            list.append(li);
+        nonEmpty.forEach((s) => {
+            if (nonEmpty.length > 1 && s.title) header(s.title);
+            s.clients.forEach(option);
         });
+        const at = items.findIndex((c) => c.ident === current.ident);
+        active = items.length ? (typed || at < 0 ? 0 : at) : -1;
         list.hidden = false;
         input.setAttribute('aria-expanded', 'true');
         highlight();
     }
 
-    async function search(q) {
+    async function fetchClients(q) {
         if (controller) controller.abort();
         controller = new AbortController();
+        const res = await fetch(`/staff/api/clients?q=${encodeURIComponent(q)}&limit=30`, { signal: controller.signal, credentials: 'include' });
+        const data = await res.json();
+        return data.success ? data.clients : [];
+    }
+
+    async function show() {
+        const q = typed ? input.value.trim() : '';
         try {
-            const res = await fetch(`/staff/api/clients?q=${encodeURIComponent(q)}&limit=20`, { signal: controller.signal, credentials: 'include' });
-            const data = await res.json();
-            render(data.success ? data.clients : []);
+            if (q) {
+                render([{ clients: await fetchClients(q) }]);
+                return;
+            }
+            const [all] = await Promise.all([fetchClients(''), recentReady]);
+            const seen = new Set((recent || []).map((c) => String(c.ident).toUpperCase()));
+            render([
+                { title: tr('staff.recent_clients'), clients: recent || [] },
+                { title: tr('staff.all_clients'), clients: all.filter((c) => !seen.has(String(c.ident).toUpperCase())) }
+            ]);
         } catch (e) {
             if (e.name !== 'AbortError') render([]);
         }
@@ -79,6 +130,8 @@ function initPicker(root) {
     async function choose(client) {
         close();
         input.value = client.name || client.ident;
+        if (client.ident === current.ident) { typed = false; return; }
+        busy = true;
         status.textContent = tr('staff.switching_client');
         try {
             const res = await fetch('/staff/context', {
@@ -89,24 +142,37 @@ function initPicker(root) {
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.message || tr('staff.client_denied'));
+            current.ident = data.client.ident;
+            current.name = data.client.name || data.client.ident;
+            input.value = current.name;
+            if (meta) meta.textContent = [data.client.ident, data.client.organization].filter(Boolean).join(' · ');
             const after = root.closest('[data-staff-picker-after]')?.dataset.staffPickerAfter;
             if (after === 'reload') window.location.reload();
             else window.location.href = `/staff?client=${encodeURIComponent(data.client.ident)}`;
         } catch (e) {
+            busy = false;
             status.textContent = e.message;
+            restore();
         }
     }
 
-    input.addEventListener('input', () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => search(input.value.trim()), 200);
+    input.addEventListener('focus', () => input.select());
+    input.addEventListener('mousedown', () => { if (list.hidden) setTimeout(show, 0); });
+    root.querySelector('.staff-picker__chevron')?.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        input.focus();
+        if (list.hidden) show(); else close();
     });
-    input.addEventListener('focus', () => { if (list.hidden) search(input.value.trim()); });
-    input.addEventListener('blur', () => setTimeout(close, 150));
+    input.addEventListener('input', () => {
+        typed = true;
+        clearTimeout(timer);
+        timer = setTimeout(show, 200);
+    });
+    input.addEventListener('blur', () => setTimeout(() => { close(); restore(); }, 150));
     input.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            if (list.hidden) search(input.value.trim());
+            if (list.hidden) show();
             else if (items.length) { active = (active + 1) % items.length; highlight(); }
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
@@ -116,28 +182,16 @@ function initPicker(root) {
             e.preventDefault();
             e.stopPropagation();
             if (!list.hidden && items[active]) choose(items[active]);
+            else show();
         } else if (e.key === 'Escape' && !list.hidden) {
             // Esc zamyka listę, a nie opuszcza strony (globalny skrót w base.njk).
             e.preventDefault();
             e.stopPropagation();
             close();
+            restore();
+            input.select();
         }
     });
-
-    fetch('/recent-clients', { credentials: 'include' })
-        .then((res) => res.json())
-        .then((recent) => {
-            (Array.isArray(recent) ? recent : []).slice(0, 8).forEach((c) => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'btn btn-outline-secondary btn-sm';
-                b.textContent = c.name || c.ident;
-                b.title = [c.ident, c.organization].filter(Boolean).join(' · ');
-                b.addEventListener('click', () => choose({ ident: c.ident, name: c.name }));
-                recentBox.append(b);
-            });
-        })
-        .catch(() => {});
 }
 
 document.querySelectorAll('[data-staff-picker]').forEach(initPicker);

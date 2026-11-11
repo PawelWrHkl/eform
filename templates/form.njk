@@ -114,6 +114,9 @@
                       // cen SUB___ z rabatem — pricesCalculator.applyClientMarkup().
                       window.clientPriceMode = {{ clientPriceMode | default('discount') | dump | safe }};
                       window.clientMarkupPercent = {{ clientMarkupPercent | default(0) | dump | safe }};
+                      // Klient LUXAN_EWA_KRAWCZYK z PL: ukryte kwoty po rabacie opisane jako
+                      // BRUTTO, nie NETTO — pricesCalculator.applyGrossAfterDiscountLabels().
+                      window.grossAfterDiscount = {{ grossAfterDiscount | default(false) | dump | safe }};
                     </script>
                     {% if vatEnabled %}
                     <script>

@@ -6,16 +6,18 @@
  * (main.js / edit_form.js → generateForm). Ten moduł tylko:
  *   • dokłada pasek na dole: suma na żywo + „Zapisz” / „Zapisz i dodaj kolejną” / „Zapisz i nowa”,
  *     które klikają zwykły przycisk zapisu silnika (#show-button);
- *   • obsługuje klawiaturę: Enter w ostatnim polu = zapis, Esc = zamknij okno (z pytaniem przy zmianach),
- *     wpisywanie tekstu na liście wyboru = wyszukiwanie;
+ *   • obsługuje klawiaturę: Enter w ostatnim polu = zapis, Esc = zamknij okno (z pytaniem przy zmianach);
+ *   • zamienia listy i przyciski okna kafelków na pola „wpisz i wybierz” (staff/rawCombo.js);
  *   • rozmawia z oknem nadrzędnym przez postMessage (ta sama domena).
  */
 
 import { getTotal } from '/scripts/form.js';
+import { initRawCombos } from '/scripts/staff/rawCombo.js';
 
 const tr = (key) => (typeof window.t === 'function' && window.t(key)) || key;
 const isEdit = !!document.getElementById('positionId');
 const form = document.getElementById('dynamic-form');
+const combos = initRawCombos();
 let mode = 'close';
 let dirty = false;
 let saving = false;
@@ -73,10 +75,12 @@ function save(saveMode) {
     const started = Date.now();
     const watch = setInterval(() => {
         if (!saving) { clearInterval(watch); return; }
-        if (form?.querySelector('.invalid-input')) {
+        const invalid = form?.querySelector('.invalid-input');
+        if (invalid) {
             saving = false;
             status.textContent = tr('form.incorrect_data');
             clearInterval(watch);
+            (combos.inputFor(invalid) || invalid).focus?.();
         } else if (Date.now() - started > 20000) {
             saving = false;
             status.textContent = '';
@@ -136,7 +140,8 @@ form?.addEventListener('change', () => { dirty = true; notify('dirty', { dirty: 
 
 /* ---------- Klawiatura ---------- */
 
-const FIELD_SELECTOR = 'input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([disabled]), select:not([disabled])';
+// Natywne pola ukryte pod polami „wpisz i wybierz” (.raw-native) nie są polami do przejścia.
+const FIELD_SELECTOR = 'input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([disabled]):not(.raw-native), select:not([disabled]):not(.raw-native)';
 function isVisible(el) {
     return !!(el.offsetParent || el.getClientRects().length);
 }
@@ -154,13 +159,13 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         // Globalny skrót strony (base.njk) przeniósłby ramkę na inną stronę.
         e.stopPropagation();
-        if (searchPopup.isOpen()) { e.preventDefault(); searchPopup.close(); return; }
+        if (combos.isOpen()) { e.preventDefault(); combos.close(); return; }
         if (nestedWindowOpen()) return; // okno zagnieżdżone zamyka się samo
         e.preventDefault();
         notify('close-request', { dirty });
         return;
     }
-    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !searchPopup.isOpen()) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !combos.isOpen()) {
         const target = e.target;
         if (target && target === lastField() && target.tagName !== 'TEXTAREA') {
             e.preventDefault();
@@ -169,103 +174,12 @@ window.addEventListener('keydown', (e) => {
     }
 }, true);
 
-/* ---------- Wyszukiwanie w listach wyboru ---------- */
-
-const searchPopup = (() => {
-    const box = document.createElement('div');
-    box.className = 'raw-search';
-    box.hidden = true;
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'form-control form-control-sm';
-    input.setAttribute('role', 'combobox');
-    input.setAttribute('aria-expanded', 'true');
-    input.setAttribute('aria-controls', 'raw-search-list');
-    input.setAttribute('aria-autocomplete', 'list');
-    input.setAttribute('aria-label', tr('staff.raw.search_options'));
-    const list = document.createElement('ul');
-    list.id = 'raw-search-list';
-    list.setAttribute('role', 'listbox');
-    box.append(input, list);
-    document.body.append(box);
-
-    let select = null;
-    let matches = [];
-    let active = 0;
-
-    const usable = (o) => o.value !== '' && !o.disabled && !o.hidden && o.style.display !== 'none';
-
-    function render() {
-        const q = input.value.trim().toLowerCase();
-        matches = Array.from(select.options).filter((o) => usable(o) && o.text.toLowerCase().includes(q)).slice(0, 60);
-        active = Math.min(active, Math.max(matches.length - 1, 0));
-        list.innerHTML = '';
-        matches.forEach((o, i) => {
-            const li = document.createElement('li');
-            li.id = `raw-search-opt-${i}`;
-            li.setAttribute('role', 'option');
-            li.setAttribute('aria-selected', String(i === active));
-            li.textContent = o.text;
-            li.addEventListener('mousedown', (ev) => { ev.preventDefault(); pick(i); });
-            list.append(li);
-        });
-        if (matches.length) {
-            input.setAttribute('aria-activedescendant', `raw-search-opt-${active}`);
-            list.children[active].scrollIntoView({ block: 'nearest' });
-        } else {
-            input.removeAttribute('aria-activedescendant');
-        }
-    }
-    function open(target, firstChar) {
-        select = target;
-        const rect = target.getBoundingClientRect();
-        box.style.top = `${rect.bottom + window.scrollY + 2}px`;
-        box.style.left = `${rect.left + window.scrollX}px`;
-        box.style.width = `${Math.max(rect.width, 280)}px`;
-        box.hidden = false;
-        input.value = firstChar;
-        active = 0;
-        render();
-        input.focus();
-    }
-    function close(refocus = true) {
-        if (box.hidden) return;
-        box.hidden = true;
-        if (refocus && select) select.focus();
-    }
-    function pick(i) {
-        const option = matches[i];
-        if (!option) return;
-        select.value = option.value;
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-        close();
-    }
-    input.addEventListener('input', () => { active = 0; render(); });
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, matches.length - 1); render(); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
-        else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); pick(active); }
-        else if (e.key === 'Tab') { close(false); }
-    });
-    input.addEventListener('blur', () => setTimeout(() => close(false), 150));
-
-    document.addEventListener('keydown', (e) => {
-        const target = e.target;
-        if (!(target instanceof HTMLSelectElement) || box.hidden === false) return;
-        if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.key === ' ') return;
-        if (!target.closest('#dynamic-form, .asortment-inputs')) return;
-        e.preventDefault();
-        open(target, e.key);
-    });
-
-    return { isOpen: () => !box.hidden, close };
-})();
-
 /* ---------- Okno nadrzędne ---------- */
 
 notify('location', { href: window.location.pathname + window.location.search, edit: isEdit });
 // Fokus na pierwszym polu wyboru: dział/grupa przy nowej pozycji, pierwszy parametr przy edycji.
 setTimeout(() => {
-    const first = document.querySelector('#department-select:not([disabled])') || form?.querySelector(FIELD_SELECTOR);
+    const dep = document.querySelector('#department-select:not([disabled])');
+    const first = (dep && combos.inputFor(dep)) || form?.querySelector(FIELD_SELECTOR);
     if (first && isVisible(first)) first.focus();
 }, 800);

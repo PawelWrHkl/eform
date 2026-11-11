@@ -1,6 +1,6 @@
 /**
  * Moduł „Serwis” — zgłoszenia reklamacyjne i serwisowe klienta (`/service/*`).
- * Montowany w server.js tylko przy `SERVICE_ENABLED=true|admins` (config.service).
+ * Montowany w server.js tylko przy `SERVICE_PANEL=true` (config.service; brak zmiennej = wyłączony).
  *
  *   GET  /service                      strona startowa: rodzaje + „Moje zgłoszenia”
  *   GET  /service/new[?order=ID]       kreator (4 kroki); `order` = zlecenie wybrane z podglądu

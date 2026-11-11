@@ -153,9 +153,9 @@ module.exports = {
   },
 
   // ── Moduł „Serwis” — zgłoszenia reklamacyjne i serwisowe (services/serviceTickets) ──
-  // `SERVICE_ENABLED`: `true` = wejście dla każdego zalogowanego, `admins` = pilotaż
-  // tylko dla kont admina, cokolwiek innego (także brak) = wyłączony — router
-  // `/service` nie wstaje, menu nie pokazuje pozycji (konwencja `assistant`).
+  // `SERVICE_PANEL=true` — moduł widoczny (menu, przyciski „Zgłoś problem”, router
+  // `/service`, panel admina `/admin/service`, asystent). `false` albo BRAK zmiennej =
+  // wyłączony: router nie wstaje, menu nie pokazuje pozycji (decyzja Pawła 10.11.2026).
   //
   // ⚠️ Adresat maila do serwisu HKL jest WYŁĄCZNIE w `.env`: `SERVICE_NOTIFY_EMAIL`
   // (lista po przecinku) i per marka `SERVICE_NOTIFY_EMAIL_<IDENT_ORGANIZACJI>`
@@ -173,10 +173,15 @@ module.exports = {
   // poza produkcją (wzorzec `INVOICE_FTP_DIR`); lustro lokalne zawsze w
   // `outputData/service-out/`. Pliki zgłoszeń: `outputData/service/<numer>/`
   // (na produkcji `/eform/data/out` z hosta — trwały wolumen).
+  //
+  // Docelowy zapis do bazy reklamacji HKL robi cron hosta WEWNĘTRZNEGO (produkcja eForm na VPS
+  // nie widzi LAN): `scripts/serviceHklSync.js` → services/serviceTickets/hklAdapter.js czyta
+  // paczki z FTP i zapisuje do MySQL `reklamacje` (192.168.0.196) + zdjęcia na udział SMB.
+  // Zmienne (sekrety w `.env.local`): `SERVICE_HKL_SYNC_ENABLED=true` (bez tego tylko --dry-run),
+  // `SERVICE_HKL_SYNC_FTP_DIR` (domyślnie `/service`), `SERVICE_HKL_DB_HOST/PORT/USER/PASSWORD/DATABASE`,
+  // `SERVICE_HKL_SMB_SHARE/DIR/USER/PASSWORD`, `SERVICE_HKL_OPERATOR` (`eForm`), `SERVICE_HKL_MAX_PER_RUN` (20).
   service: {
-    mode: String(process.env.SERVICE_ENABLED || '').trim().toLowerCase() === 'admins'
-      ? 'admins'
-      : envSwitch(process.env.SERVICE_ENABLED) ? 'true' : 'off',
+    mode: envSwitch(process.env.SERVICE_PANEL) ? 'true' : 'off',
     notifyEmail: process.env.SERVICE_NOTIFY_EMAIL || '',
     mailRedirect: process.env.SERVICE_MAIL_REDIRECT || '',
     ftpDir: process.env.SERVICE_FTP_DIR || ''

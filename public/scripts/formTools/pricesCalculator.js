@@ -200,6 +200,34 @@ export function clientDiscountBreakdown(values, clientPct) {
 
 
 /**
+ * Ukryte kwoty PO rabacie — w param.txt opisane jako NETTO („CENA NETTO PO
+ * RABACIE”, „WART. NET. PO RABACIE”, niem. „… N. RABATT netto”).
+ */
+const AFTER_DISCOUNT_KEYS = ['SUB___CENA_KONCOWA', 'SUB___WARTOSC_KONCOWA'];
+const NET_TO_GROSS = [
+    [/\bNET\./g, 'BR.'], [/\bNETTO\b/g, 'BRUTTO'], [/\bnetto\b/g, 'brutto'],
+    [/NETTO(PRIJS|WAARDE)/g, 'BRUTO$1'], [/\bNETTE\b/g, 'BRUTE'], [/\bNET\b/g, 'GROSS']
+];
+
+/**
+ * Klient LUXAN_EWA_KRAWCZYK z Polski (`window.grossAfterDiscount`, serwer:
+ * services/portalUsageDiscount.js resolveGrossAfterDiscountForOrder; decyzja
+ * właściciela 2026-11-10): ukryte kwoty po rabacie opisane jako BRUTTO.
+ * Sztuczka „przed rabatem brutto, po rabacie netto” działa tylko przy sprzedaży
+ * zagranicznej (VAT 0% w UE) — sprzedaż krajowa w Polsce jej nie ma.
+ * Podmieniamy opis przy każdym przeliczeniu, bo `buildValuesToDisplay` co cykl
+ * odtwarza go z param.txt; przy edycji poprawia też opis zapisanej pozycji.
+ */
+function applyGrossAfterDiscountLabels(displayValues) {
+    if (window.grossAfterDiscount !== true || !displayValues) return;
+    for (const key of AFTER_DISCOUNT_KEYS) {
+        const row = displayValues.get(key);
+        if (!row || typeof row.param_description !== 'string') continue;
+        row.param_description = NET_TO_GROSS.reduce((text, [re, to]) => text.replace(re, to), row.param_description);
+    }
+}
+
+/**
  * ⚠️ Rejestracja w `window.subParams` i `window.lockedParams` jest KONIECZNA:
  * `createForm.js hideSub/hideLocked` przy każdym przeliczeniu przepisuje flagi
  * `sub`/`locked` WSZYSTKICH wpisów `displayValues` z tych dwóch list. Bez tego
@@ -387,6 +415,8 @@ export function applyClientDiscount(values, displayValues) {
     // się z `locked: false, sub: false`, czyli rabat wylądował wśród zwykłych,
     // widocznych wierszy.
     registerClientDiscountKeys();
+    // Też przed wyjściem przy zerowym rabacie — klienci Luxan EK zwykle rabatu nie mają.
+    applyGrossAfterDiscountLabels(displayValues);
 
     // Grupa rozliczana narzutem: łańcuch `SUB___` dostaje ceny zwykłe + narzut,
     // ZANIM cokolwiek niżej go przeczyta. Rabatu klienta grupy wtedy nie ma
@@ -628,6 +658,14 @@ const SUB_VAT_KEYS = ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO'];
  * keys to values/displayValues on those flows.
  */
 export function applyVatToGrossValue(values, displayValues) {
+    // Luxan EK z PL (`window.grossAfterDiscount`): `SUB___WARTOSC_KONCOWA` to już
+    // brutto — VAT-u nie doliczamy, a wiersze z wcześniejszego zapisu znikają.
+    if (window.grossAfterDiscount === true) {
+        delete values.WARTOSC_VAT;
+        delete values.WARTOSC_BRUTTO;
+        for (const key of SUB_VAT_KEYS) displayValues?.delete(key);
+        return;
+    }
     // Master switch (config.js `features.vat` → window.vatEnabled, injected by
     // the templates). Off: no VAT keys in values/displayValues, nothing saved.
     if (!window.vatEnabled) return;

@@ -6,8 +6,7 @@ const { loadEmployeePermissions, filterPriceData } = require('../middleware/empl
 const db = require("../db/db_helper.js");
 const { getOrderMutationBlock, getClientGroupOrderBlock } = require('../utils/orderStatusGuard');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
-const { resolveCombinedDiscountForOrder, resolveFormPricingForOrder } = require('../services/portalUsageDiscount');
-const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
+const { resolveFormPricingForOrder } = require('../services/portalUsageDiscount');
 const { currencyLocalsForOrder } = require('../services/currency');
 const adminDb = require("../db/admin/db_helper.js");
 const ownerService = require('../services/owner.js');
@@ -295,15 +294,12 @@ router.get('/:positionId/edit/', requireLogin, requirePositionAccess, loadEmploy
 
     const vatLocals = await resolveVatLocals(req, orderId);
     // Ten sam rabat co przy zakładaniu pozycji — inaczej edycja pozycji
-    // zapisałaby cenę bez rabatu (services/groupDiscount.js).
-    const { total: clientDiscountPercent, portalBonus: portalUsageDiscountPercent } =
-      await resolveCombinedDiscountForOrder(orderId);
-    // I ten sam tryb wyceny (rabat / narzut) — services/groupPriceMode.js.
-    const { mode: clientPriceMode, markupPercent: clientMarkupPercent } =
-      await resolveClientPricingForOrder(orderId);
+    // zapisałaby cenę bez rabatu (services/groupDiscount.js). I ten sam tryb
+    // wyceny (rabat / narzut) oraz opis kwot po rabacie (Luxan EK z PL — BRUTTO).
+    const pricingLocals = await resolveFormPricingForOrder(orderId);
     // I ta sama waluta cen klienta zamówienia (services/currency.js).
     const currencyLocals = await currencyLocalsForOrder(orderId);
-    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, clientPriceMode, clientMarkupPercent, ...vatLocals, ...currencyLocals })
+    return res.render('edit_position.njk', { position: result, orderId: orderId, hidePrices: req.hidePrices, ...pricingLocals, ...vatLocals, ...currencyLocals })
   }
   else {
     return res.status(400).json({

@@ -43,7 +43,7 @@ const PAGES = [
 	{ key: 'invoice_profile', href: '/invoices/profile', labelKey: 'inv:profile', description: 'dane do faktur (konto organizacji)', when: (s) => s.invoices && s.isOwner },
 	{ key: 'group_panel', href: '/group/panel', labelKey: 'group.panel_title', description: 'panel grupy: sklepy/klienci i ich zamówienia', when: (s) => s.isGroup },
 	{ key: 'group_pending', href: '/group/panel?tab=pending', labelKey: 'group.tab_pending', description: 'zamówienia sklepów czekające na zatwierdzenie', when: (s) => s.isGroup },
-	// Moduł „Serwis” (SERVICE_ENABLED) — zgłoszenia reklamacyjne; Eforek kieruje do kreatora, nigdy nie wysyła zgłoszenia.
+	// Moduł „Serwis” (SERVICE_PANEL=true) — zgłoszenia reklamacyjne; Eforek kieruje do kreatora, nigdy nie wysyła zgłoszenia.
 	{ key: 'service', href: '/service', labelKey: 'service.menu_label', description: 'serwis: zgłoszenie problemu z dostarczonym zleceniem (naprawa, reklamacja, uszkodzenie w transporcie, zapytanie o dostawę) i lista „Moje zgłoszenia”', when: (s) => s.service },
 	{ key: 'service_new', href: '/service/new', labelKey: 'service.start_new', description: 'kreator nowego zgłoszenia serwisowego (4 kroki)', when: (s) => s.service },
 	{ key: 'contact', href: '/contact', labelKey: 'site.contact', description: 'dane kontaktowe obsługi' },

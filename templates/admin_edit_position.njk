@@ -115,6 +115,8 @@
                       window.portalUsageDiscountPercent = {{ portalUsageDiscountPercent | default(0) | dump | safe }};
                       window.clientPriceMode = {{ clientPriceMode | default('discount') | dump | safe }};
                       window.clientMarkupPercent = {{ clientMarkupPercent | default(0) | dump | safe }};
+                      // Luxan EK z PL: kwoty po rabacie jako BRUTTO (pricesCalculator.js).
+                      window.grossAfterDiscount = {{ grossAfterDiscount | default(false) | dump | safe }};
                     </script>
                     {% if vatEnabled %}
                     <script>

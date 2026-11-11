@@ -73,6 +73,15 @@ function clausesOf(formula) {
 
   if (call.name === 'AND' || call.name === 'ORAZ') return call.args.flatMap(clausesOf);
 
+  // OR(WSROD(X,"a"),WSROD(X,"b")) ≡ WSROD(X,"a,b") (75: dopłaty za kolor systemu).
+  if (call.name === 'OR' && call.args.length > 1) {
+    const parts = call.args.map(clausesOf);
+    const param = parts[0].length === 1 ? parts[0][0].param : null;
+    if (param && parts.every((p) => p.length === 1 && p[0].kind === 'filter' && p[0].fn === 'WSROD' && !p[0].negated && p[0].param === param)) {
+      return [{ kind: 'filter', fn: 'WSROD', param, list: parts.map((p) => p[0].list).join(','), negated: false, text }];
+    }
+  }
+
   if (call.name === 'NOT' && call.args.length === 1) {
     const inner = clausesOf(call.args[0]);
     if (inner.length === 1 && inner[0].kind === 'filter') return [{ ...inner[0], negated: !inner[0].negated, text }];

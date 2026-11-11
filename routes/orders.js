@@ -10,8 +10,7 @@ const orderService = require('../services/orderService.js');
 const ownerService = require('../services/owner.js');
 const { getActiveGroupShopId } = require('../services/groupContext');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
-const { resolveCombinedDiscountForOrder, resolveFormPricingForOrder } = require('../services/portalUsageDiscount');
-const { resolveClientPricingForOrder } = require('../services/groupPriceMode');
+const { resolveFormPricingForOrder } = require('../services/portalUsageDiscount');
 const { currencyLocalsForOrder, formatAmount, withCurrencyLabel } = require('../services/currency');
 const { notifyFirstOrderIfApplicable } = require('../services/firstOrderMailer');
 const mailBot = require('../services/mailBot/mailBot');
@@ -34,7 +33,7 @@ const { getOrderMutationBlock, shouldRedirectFromActiveOrderView, getClientGroup
 const orderCancellation = require('../services/orderCancellation');
 const { getGroupShopSendBlock } = require('../services/groupShopSendPolicy');
 const { resolveOrderAbPolicy, resolveConfirmationRecipients, resolveStaffCopy } = require('../services/confirmationPolicy');
-const { resolveVatLocals, vatFeatureEnabled } = require('../services/vatCalculator');
+const { resolveVatLocals, vatFeatureEnabled, resolveGrossAfterDiscountForOrder } = require('../services/vatCalculator');
 const { features } = require('../config');
 const { buildOrderPriceSpec } = require('../services/priceSpec');
 const { resolveScriptsByGroup } = require('../services/priceSpec/orderContext');
@@ -983,7 +982,9 @@ async function loadPriceSpec(req, res) {
         // Kody cennika (`TruFit`, `U25PG4`) tylko dla HKL — klientowi nic nie mówią.
         showCodes: !!req.session.user?.isAdmin,
         // Specyfikacja zaawansowana (drugi przycisk): przy każdym składniku rabat i wartość po rabacie.
-        advanced: req.query.mode === 'advanced'
+        advanced: req.query.mode === 'advanced',
+        // Klient Luxan EK z PL: kwoty po rabacie to brutto (services/vatCalculator.js).
+        grossAfterDiscount: await resolveGrossAfterDiscountForOrder(orderId)
     });
     return { status: 200, spec };
 }
@@ -1210,7 +1211,9 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         // NIEZALEŻNIE od typu grupy (tak jak dziś na ekranie, `order.njk`
         // `isVatRow`), grupa-matka dopiero dla typu `client` — na jej prośbę
         // (grupa `shop` nie miała tego wcześniej ukrytego, więc nie chowamy).
-        const hideClientVat = !!res.locals.isGroupShop || isGroupClientPdf;
+        // Klient Luxan EK z PL (`subLockedGross`): po rabacie już brutto — wiersze VAT
+        // zapisane w starszych pozycjach też nie idą do PDF-u.
+        const hideClientVat = !!res.locals.isGroupShop || isGroupClientPdf || !!totalPrice.subLockedGross;
 
         if (shouldShowPrices) {
             Object.assign(sendData, buildPdfSendDataTotals({
@@ -1402,17 +1405,15 @@ router.get("/order/:orderId/new-position/", requireLogin, checkOrderOwnership, l
     // Do tego ewentualny ekstra rabat klienta (`user.extra_rabat`) — wchodzi do
     // TEGO SAMEGO procentu, żeby nie powstał drugi, równoległy tor rabatowy
     // (services/portalUsageDiscount.js); front rozdziela go z powrotem.
-    const { total: clientDiscountPercent, portalBonus: portalUsageDiscountPercent } =
-        await resolveCombinedDiscountForOrder(req.params.orderId);
     // Grupa rozliczana narzutem (`user.group_price_mode = 'markup'`): ceną klienta
     // są ceny zwykłe + narzut konta podrzędnego (services/groupPriceMode.js).
-    const { mode: clientPriceMode, markupPercent: clientMarkupPercent } =
-        await resolveClientPricingForOrder(req.params.orderId);
+    // Klient Luxan EK z PL: kwoty po rabacie opisane jako BRUTTO (`grossAfterDiscount`).
+    const pricingLocals = await resolveFormPricingForOrder(req.params.orderId);
     // Waluta cen klienta zamówienia — dopisywana do opisów parametrów kwotowych
     // (services/currency.js → formTools/currencyLabel.js).
     const currencyLocals = await currencyLocalsForOrder(req.params.orderId);
 
-    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, clientDiscountPercent, portalUsageDiscountPercent, clientPriceMode, clientMarkupPercent, ...vatLocals, ...currencyLocals });
+    res.render("form.njk", { orderId: req.params.orderId, hidePrices: req.hidePrices, ...pricingLocals, ...vatLocals, ...currencyLocals });
 });
 
 
@@ -1711,7 +1712,7 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         if (withoutPrices) log(`[ab_type] zamówienie ${id}: potwierdzenie bez cen (ab_type właściciela)`);
 
         // Potwierdzenie w dwóch formatach z jednego renderu: PDF + ten sam dokument HTML
-        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices, hasSubPrices: hasSubPricesMail, currencySymbol })
+        const { pdf, html: confirmationHtml } = await generateOrderDocuments(orderDetails, cleanOrderItems, docLang, logoPath, sendData, orderIdx, true, maxProdDays, showGoldPrices, isClientForPdf, showBothForMail, null, { withoutPrices, hasSubPrices: hasSubPricesMail, currencySymbol, hideClientVat: !!totalPrice.subLockedGross })
         // Konto biura: dane organizacji KLIENTA zlecenia (stopka maila), nie biura.
         const orgData = await db.getOrgInfo(req.session.user?.isStaff ? currentUser?.orgId : req.session.user.organization)
 

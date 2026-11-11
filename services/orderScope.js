@@ -43,7 +43,7 @@ function scopeFromRequest(req, lang) {
 		groupUserId: getActiveGroupShopId(req) || null,
 		// Ta sama reguła co menu portalu (także tryb INVOICES_ADMIN_ONLY)
 		invoices: require('./invoices/access').canAccessInvoices(u, features),
-		// Moduł „Serwis” (SERVICE_ENABLED=true|admins) — ta sama reguła co menu i router.
+		// Moduł „Serwis” (SERVICE_PANEL=true) — ta sama reguła co menu i router.
 		service: require('./serviceTickets/access').canAccessService(u, config.service),
 		cancelCtx: {
 			sessionUser: u,

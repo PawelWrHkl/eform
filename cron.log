@@ -4879,3 +4879,59 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-11-10 10:35:01 - Start ===
 === 2026-11-10 10:35:01 - Dodawanie zmian do commita ===
+[main c0a617d] Automatic commit 2026-11-10 10:35
+ 71 files changed, 21536 insertions(+), 134 deletions(-)
+ rewrite configtest/nightly.out (87%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 migrations/add_service_tickets.sql
+ create mode 100644 public/scripts/service/files.js
+ create mode 100644 public/scripts/service/ticket.js
+ create mode 100644 public/scripts/service/wizard.js
+ create mode 100644 public/styles/service.css
+ create mode 100644 routes/admin/serviceTickets.js
+ create mode 100644 routes/service.js
+ create mode 100644 services/__tests__/groupUserPassword.test.js
+ create mode 100644 services/__tests__/orderScope.test.js
+ create mode 100644 services/assistant/knowledge/60-serwis.md
+ create mode 100644 services/orderScope.js
+ create mode 100644 services/pricelists/__tests__/shop.test.js
+ create mode 100644 services/pricelists/shop.js
+ create mode 100644 services/serviceTickets/__tests__/files.test.js
+ create mode 100644 services/serviceTickets/__tests__/rules.test.js
+ create mode 100644 services/serviceTickets/__tests__/serviceTickets.test.js
+ create mode 100644 services/serviceTickets/access.js
+ create mode 100644 services/serviceTickets/exporter.js
+ create mode 100644 services/serviceTickets/files.js
+ create mode 100644 services/serviceTickets/index.js
+ create mode 100644 services/serviceTickets/mail/_base.njk
+ create mode 100644 services/serviceTickets/mail/_items.njk
+ create mode 100644 services/serviceTickets/mail/client.njk
+ create mode 100644 services/serviceTickets/mail/hkl.njk
+ create mode 100644 services/serviceTickets/mailer.js
+ create mode 100644 services/serviceTickets/repository.js
+ create mode 100644 services/serviceTickets/rules.js
+ create mode 100644 templates/admin/service/index.njk
+ create mode 100644 templates/admin/service/ticket.njk
+ create mode 100644 templates/group/shop_pricelists.njk
+ create mode 100644 templates/partials/service_report_btn.njk
+ create mode 100644 templates/service/index.njk
+ create mode 100644 templates/service/ticket.njk
+ create mode 100644 templates/service/wizard.njk
+ create mode 100755 wizualizacja efor/EFOR_E-Rechnung_Kontrakt_v1.3.pdf
+=== 2026-11-10 10:35:04 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 74.61 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 118 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 68 high, 41 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   139addb..c0a617d  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-11-10 10:35:12 - Koniec ===
+=== 2026-11-10 12:00:01 - Start ===
+=== 2026-11-10 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-11-11 10:35:01 - Start ===
+=== 2026-11-11 10:35:01 - Dodawanie zmian do commita ===

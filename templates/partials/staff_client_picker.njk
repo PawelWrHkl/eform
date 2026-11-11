@@ -1,18 +1,23 @@
-{# Wybór klienta konta biura: szybkie przyciski ostatnich klientów + combobox
-   z podpowiedziami z serwera (/staff/api/clients — tylko dozwoleni klienci).
-   Wzorzec ARIA jak „Odbiorca końcowy" w new-order.njk (orderEndClient.js),
-   uzupełniony o nawigację strzałkami. Logika: public/scripts/staff/clientPicker.js.
-   Po wyborze: przodek z `data-staff-picker-after="reload"` (formularz nowego
-   zlecenia) przeładowuje stronę, inaczej przejście na stronę biura. #}
-<div class="staff-picker" data-staff-picker>
-    <div class="staff-picker__recent" data-staff-recent role="group" aria-label="{{ __('staff.recent_clients') }}"></div>
+{# Wybór klienta konta biura: jedno pole „wpisz i wybierz” (decyzja Pawła 10.11 — bez osobnych
+   przycisków ostatnich klientów). Po kliknięciu lista: najpierw ostatnio wybierani, potem
+   pozostali dozwoleni; wpisywanie zawęża listę (/staff/api/clients — tylko dozwoleni klienci).
+   Po wyborze pole zostaje z nazwą wybranego klienta (`staffContext`), pod nim ident i organizacja.
+   Logika: public/scripts/staff/clientPicker.js. Po wyborze: przodek z
+   `data-staff-picker-after="reload"` (formularz nowego zlecenia) przeładowuje stronę,
+   inaczej przejście na stronę biura. #}
+<div class="staff-picker" data-staff-picker
+     data-current-ident="{{ staffContext.ident if staffContext else '' }}"
+     data-current-name="{{ staffContext.clientName if staffContext else '' }}">
     <div class="staff-picker__combo">
-        <input id="staff-client-input" type="text" class="form-control" role="combobox"
+        <input id="staff-client-input" type="text" class="form-control staff-picker__input" role="combobox"
                aria-expanded="false" aria-controls="staff-client-list" aria-autocomplete="list"
-               autocomplete="off" placeholder="{{ __('staff.client_search_placeholder') }}"
-               aria-label="{{ __('staff.client_label') }}" data-staff-shortcut="client">
+               autocomplete="off" spellcheck="false" placeholder="{{ __('staff.client_search_placeholder') }}"
+               aria-label="{{ __('staff.client_label') }}" aria-describedby="staff-client-meta" data-staff-shortcut="client"
+               value="{{ staffContext.clientName if staffContext else '' }}">
+        <span class="staff-picker__chevron" aria-hidden="true">▾</span>
         <ul id="staff-client-list" class="staff-picker__list" role="listbox" aria-label="{{ __('staff.client_label') }}" hidden></ul>
     </div>
+    <p id="staff-client-meta" class="staff-picker__meta staff-muted">{% if staffContext %}{{ staffContext.ident }} · {{ staffContext.organization }}{% endif %}</p>
     <p class="staff-picker__status" role="status" aria-live="polite"></p>
 </div>
 <script type="module" src="/scripts/staff/clientPicker.js?v={{ assetVersion }}"></script>

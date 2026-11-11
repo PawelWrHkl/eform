@@ -490,7 +490,7 @@
             {% elif prices and clientView and totalPrice and totalPrice.subLocked and totalPrice.subLocked != 0 %}
                     <div class="total-price d-flex justify-content-end align-items-center col-12">
                         <span class='total gold price-label col-3 text-center'>
-                            {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.subLocked | applyFactor(1) }}{{ currencySuffix | default('€') }} netto</span>
+                            {{ __('order.total_hidden') }}: <span class="pdf-val">{{ totalPrice.subLocked | applyFactor(1) }}{{ currencySuffix | default('€') }} {{ 'brutto' if totalPrice.subLockedGross else 'netto' }}</span>
                         </span>
                     </div>
                 {# VAT i brutto pod sumą klienta — jak `partials/order_vat_totals.njk` na ekranie. #}

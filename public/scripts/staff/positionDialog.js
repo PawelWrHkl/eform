@@ -96,7 +96,8 @@ window.addEventListener('message', (e) => {
 // Przechwycenie linków przed ich własnymi onclick (stopPropagation w wierszu tabeli).
 document.addEventListener('click', (e) => {
     const link = e.target.closest('a[href]');
-    if (!link) return;
+    // „Pełny formularz" w samym oknie ma prowadzić na zwykłą stronę, nie otwierać okna od nowa.
+    if (!link || link.closest('.staff-raw-dialog')) return;
     const path = new URL(link.href, window.location.origin).pathname;
     const isNew = /\/orders\/order\/\d+\/new-position\/?$/.test(path);
     const isEdit = /^\/position\/\d+\/edit\/?$/.test(path);

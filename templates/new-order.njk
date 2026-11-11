@@ -44,10 +44,8 @@
                                                 <label for="staff-client-input">{{ __('staff.client_label') }}</label>
                                             </div>
                                             <div class="col-md-9" data-staff-picker-after="reload">
-                                                {% if staffContext %}
-                                                    <p class="mb-1"><strong>{{ staffContext.clientName }}</strong>
-                                                        <span class="staff-muted">{{ staffContext.ident }} · {{ staffContext.organization }}</span></p>
-                                                {% else %}
+                                                {# Wybrany klient stoi w samym polu (partials/staff_client_picker.njk). #}
+                                                {% if not staffContext %}
                                                     <p class="staff-error mb-1" role="alert">{{ __('staff.pick_client_first') }}</p>
                                                 {% endif %}
                                                 {% include "partials/staff_client_picker.njk" %}

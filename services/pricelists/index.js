@@ -614,89 +614,104 @@ function buildTables({ model, sections, params, options, base, increase, evaluat
     const powFormula = params.POW && present(params.POW.FORMULA) ? params.POW.FORMULA : null;
     const validatorMemo = new Map();
 
-    for (const group of groups.values()) {
+    for (const sigGroup of groups.values()) {
       // Pole osi wyłączone w tej konfiguracji (73: SZEROKOSC_POTRZEBNA przy KAR) → konfigurator podaje
       // wartość neutralną i skrypt bierze pierwszy próg: oś znika z tabeli, a raport to zgłasza.
-      const groupCtx = familyContext({ base, family, domainParam, option: group.options[0], token: family.tokens[0], others, secondFabric: group.double });
+      const groupCtx = familyContext({ base, family, domainParam, option: sigGroup.options[0], token: family.tokens[0], others, secondFabric: sigGroup.double });
       const fixedDims = {};
       for (const field of [xField, yField]) {
         const p = field && params[field];
         if (p && present(p.ENABLE) && !truthy(evaluate(p.ENABLE, groupCtx))) {
           fixedDims[field] = neutralValue(p);
-          notes.push({ kind: 'axis-disabled', section: first.name, field, options: group.options.map((o) => o.VALUE) });
+          notes.push({ kind: 'axis-disabled', section: first.name, field, options: sigGroup.options.map((o) => o.VALUE) });
         }
       }
       const tx = xField && !(xField in fixedDims) ? xField : null;
       const ty = yField && !(yField in fixedDims) ? yField : null;
       const widths = tx ? thin(axisBounds(family.sections, 'x')) : [null];
       const heights = ty ? thin(axisBounds(family.sections, 'y')) : [null];
-      // Komórka istnieje, gdy choć jedna opcja tabeli przyjmie wymiar z jej przedziału:
-      // zakres = najniższe min i najwyższe max opcji, w środku kreska, gdy żadna nie pasuje.
-      const allowed = new Map();
+      // Komórka istnieje, gdy opcja przyjmie wymiar z jej przedziału. Opcje o różnych zakresach
+      // (VS1 od 12 cm, VS2 od 23 cm) dostają osobne tabele — cennik pokazuje dokładnie to,
+      // co da się zamówić (uwaga cennikowego specjalisty 10.11), a kreska zostaje tylko na
+      // warunkowym max/POW w środku zakresu.
+      const grid = [];
       widths.forEach((w, wi) => heights.forEach((h, hi) => {
         // Przy siatce rzadszej niż progi skryptu komórka to punkt siatki: sprawdzamy jej własny próg.
-        const cell = {
+        grid.push({ key: `${w}|${h}`, cell: {
           x0: tx ? (gridStep ? w * sx - 1 : wi ? widths[wi - 1] * sx : 0) : 0,
           x1: tx ? w * sx : 0,
           y0: ty ? (gridStep ? h * sy - 1 : hi ? heights[hi - 1] * sy : 0) : 0,
           y1: ty ? h * sy : 0
-        };
-        const accepts = (option, procParam) => acceptsCell({ memo: validatorMemo, option, procParam, xField: tx, yField: ty, cell, powFormula, subforms });
-        allowed.set(`${w}|${h}`, (!domainParam || group.options.some((o) => accepts(o, domainParam))) &&
-          implicit.every((lim) => lim.options.some((o) => accepts(o, lim.param))));
+        } });
       }));
+      const accepts = (option, procParam, cell) => acceptsCell({ memo: validatorMemo, option, procParam, xField: tx, yField: ty, cell, powFormula, subforms });
+      const implicitOk = grid.map(({ cell }) => implicit.every((lim) => lim.options.some((o) => accepts(o, lim.param, cell))));
+      const byRange = new Map();
+      for (const option of sigGroup.options) {
+        const mask = grid.map(({ cell }, k) => implicitOk[k] && (!domainParam || accepts(option, domainParam, cell)));
+        const key = mask.map(Number).join('');
+        if (!byRange.has(key)) byRange.set(key, { mask, options: [] });
+        byRange.get(key).options.push(option);
+      }
 
-      const cells = {};
-      const usedW = new Set();
-      const usedH = new Set();
-      family.tokens.forEach((token, t) => {
-        cells[token] = {};
-        for (const w of widths) {
-          for (const h of heights) {
-            if (!allowed.get(`${w}|${h}`)) continue;
-            const dims = { ...fixedDims };
-            if (tx) dims[tx] = w * sx;
-            if (ty) dims[ty] = h * sy;
-            const result = group.runners[t].run(dims);
-            if (result.error) {
-              notes.push({ kind: 'cell-error', section: first.name, error: result.error });
-              continue;
+      for (const range of byRange.values()) {
+        const group = { double: sigGroup.double, options: range.options };
+        // Runner liczony dla pierwszej opcji podgrupy — jej kontekst trafia do testu porównawczego.
+        group.runners = range.options[0] === sigGroup.options[0] ? sigGroup.runners : family.tokens.map((token) => cellRunner(model, familyContext({ base, family, domainParam, option: range.options[0], token, others, secondFabric: group.double }), evaluate, increase, { params, dimFields: [xField, yField].filter(Boolean) }));
+        const allowed = new Map(grid.map(({ key }, k) => [key, range.mask[k]]));
+
+        const cells = {};
+        const usedW = new Set();
+        const usedH = new Set();
+        family.tokens.forEach((token, t) => {
+          cells[token] = {};
+          for (const w of widths) {
+            for (const h of heights) {
+              if (!allowed.get(`${w}|${h}`)) continue;
+              const dims = { ...fixedDims };
+              if (tx) dims[tx] = w * sx;
+              if (ty) dims[ty] = h * sy;
+              const result = group.runners[t].run(dims);
+              if (result.error) {
+                notes.push({ kind: 'cell-error', section: first.name, error: result.error });
+                continue;
+              }
+              const amount = Number(result.amount);
+              if (!Number.isFinite(amount) || amount === 0) continue;
+              cells[token][`${w}|${h}`] = amount;
+              usedW.add(w);
+              usedH.add(h);
             }
-            const amount = Number(result.amount);
-            if (!Number.isFinite(amount) || amount === 0) continue;
-            cells[token][`${w}|${h}`] = amount;
-            usedW.add(w);
-            usedH.add(h);
           }
-        }
-      });
-      if (!usedW.size && !usedH.size) continue;
-      tables.push({
-        param: model.param,
-        sections: family.sections.map((s) => s.name),
-        domainParam,
-        limitParams: implicit.map((lim) => lim.param),
-        options: group.options.map((o) => ({ value: o.VALUE, description: o.DESCRIPTION })),
-        otherFilters,
-        doubleFabric: group.double,
-        fabricParam: family.fabricParams[0] || null,
-        priceGroups: family.tokens,
-        xField: tx,
-        yField: ty,
-        // Oś-licznik (TORY): wartości to opcje, nie centymetry.
-        xCount: !!(tx && ax && ax.count),
-        yCount: !!(ty && ay && ay.count),
-        fixedDims,
-        gridStep,
-        // Oś-wzór: wariant w tabeli i przesunięcia pozostałych (do przypisu).
-        axisVariants: [ax, ay].filter((a) => a && a.base && [tx, ty].includes(a.field)).map((a) => ({ field: a.field, base: a.base, others: a.variants })),
-        widths: widths.filter((w) => usedW.has(w)),
-        heights: heights.filter((h) => usedH.has(h)),
-        cells,
-        // Konfiguracja, z której policzono komórki (różnice względem pustego formularza) —
-        // test porównawczy uruchamia na niej prawdziwy skrypt (`cellObject`).
-        contexts: Object.fromEntries(family.tokens.map((token) => [token, familyOverrides({ family, domainParam, option: group.options[0], token, others, secondFabric: group.double })]))
-      });
+        });
+        if (!usedW.size && !usedH.size) continue;
+        tables.push({
+          param: model.param,
+          sections: family.sections.map((s) => s.name),
+          domainParam,
+          limitParams: implicit.map((lim) => lim.param),
+          options: group.options.map((o) => ({ value: o.VALUE, description: o.DESCRIPTION })),
+          otherFilters,
+          doubleFabric: group.double,
+          fabricParam: family.fabricParams[0] || null,
+          priceGroups: family.tokens,
+          xField: tx,
+          yField: ty,
+          // Oś-licznik (TORY): wartości to opcje, nie centymetry.
+          xCount: !!(tx && ax && ax.count),
+          yCount: !!(ty && ay && ay.count),
+          fixedDims,
+          gridStep,
+          // Oś-wzór: wariant w tabeli i przesunięcia pozostałych (do przypisu).
+          axisVariants: [ax, ay].filter((a) => a && a.base && [tx, ty].includes(a.field)).map((a) => ({ field: a.field, base: a.base, others: a.variants })),
+          widths: widths.filter((w) => usedW.has(w)),
+          heights: heights.filter((h) => usedH.has(h)),
+          cells,
+          // Konfiguracja, z której policzono komórki (różnice względem pustego formularza) —
+          // test porównawczy uruchamia na niej prawdziwy skrypt (`cellObject`).
+          contexts: Object.fromEntries(family.tokens.map((token) => [token, familyOverrides({ family, domainParam, option: group.options[0], token, others, secondFabric: group.double })]))
+        });
+      }
     }
   }
   return tables;
@@ -753,6 +768,8 @@ function buildItems({ model, sections, params, options, base, increase, evaluate
   for (const section of sections) {
     const clauses = section.conditions.flatMap((c) => (c.formula ? clausesOf(c.formula) : []));
     const ctx = { ...base };
+    // Pola ustawione przez warunki sekcji; `base` ma w każdym polu '' lub DEFAULT, więc nie `=== undefined`.
+    const assigned = new Set();
     const filters = [];
     for (const clause of clauses) {
       if (clause.kind === 'priceGroup') {
@@ -762,7 +779,7 @@ function buildItems({ model, sections, params, options, base, increase, evaluate
       }
       if (clause.kind === 'compare') {
         // Dopłata zależna od wymiaru (`SZEROKOSC<=1300`): konfiguracja z pasującym wymiarem.
-        if (ctx[clause.param] === undefined) ctx[clause.param] = satisfyingValue(clause);
+        if (!assigned.has(clause.param)) { ctx[clause.param] = satisfyingValue(clause); assigned.add(clause.param); }
         filters.push({ compare: true, param: clause.param, op: clause.op, value: clause.value, text: clause.text });
         continue;
       }
@@ -770,9 +787,21 @@ function buildItems({ model, sections, params, options, base, increase, evaluate
         filters.push({ raw: clause.text });
         continue;
       }
+      // Warunek na opisie (`ZAWIERA(MODEL___DESCRIPTION,"slope")`) — opcje pola, których opis go spełnia.
+      const described = /^(.+)___DESCRIPTION$/.exec(clause.param);
+      if (described && options[described[1]]) {
+        const field = described[1];
+        const matching = options[field].filter((o) => truthy(evaluate(clause.text, { [clause.param]: o.DESCRIPTION })));
+        filters.push({ param: field, options: matching.map((o) => o.VALUE), negated: clause.negated, text: clause.text });
+        if (!clause.negated && matching.length && !assigned.has(field)) {
+          Object.assign(ctx, { [field]: matching[0].VALUE, [clause.param]: matching[0].DESCRIPTION });
+          assigned.add(field);
+        }
+        continue;
+      }
       const matching = optionsMatching(clause, options[clause.param] || [], evaluate);
       filters.push({ param: clause.param, options: matching.map((o) => o.VALUE), negated: clause.negated, text: clause.text });
-      if (!clause.negated && matching.length && ctx[clause.param] === undefined) ctx[clause.param] = matching[0].VALUE;
+      if (!clause.negated && matching.length && !assigned.has(clause.param)) { ctx[clause.param] = matching[0].VALUE; assigned.add(clause.param); }
     }
 
     // Parametry liczone z wymiarów (POW) — jak w `values` konfiguratora.
@@ -1018,4 +1047,4 @@ function cellObject(pricelist, table, token, w, h) {
   return { ...baseContext(pricelist.uid, params), ...table.contexts[token], ...dims, ...derivedDims(params, dims) };
 }
 
-module.exports = { buildPricelist, applyDiscount, mapAmounts, activeVersion, readParams, readOptions, loadModel, discountedAmount, clearCaches, cellObject, resolveAxis, completeEnable, baseContext };
+module.exports = { buildPricelist, buildTables, buildItems, applyDiscount, mapAmounts, activeVersion, readParams, readOptions, loadModel, discountedAmount, clearCaches, cellObject, resolveAxis, completeEnable, baseContext };

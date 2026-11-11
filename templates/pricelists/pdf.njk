@@ -21,7 +21,7 @@
   table.grid th, table.grid td { border: 0.4pt solid var(--line); padding: 0.5mm 1mm; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   table.grid thead th { background: var(--head); font-weight: 600; text-align: center; }
   table.grid thead th.corner { white-space: normal; width: 30mm; font-size: 6.6pt; line-height: 1.25; }
-  table.grid thead tr.pg th { font-weight: 500; color: var(--muted); }
+  table.grid thead th.corner .pg { font-size: 8.4pt; font-weight: 700; color: var(--accent); }
   table.grid tbody th { background: #f5f8f9; text-align: center; font-weight: 600; }
   table.grid td.dash { color: var(--dash); text-align: center; }
   table.grid tr { break-inside: avoid; }
@@ -98,17 +98,14 @@
     <table class="grid">
       <thead>
         <tr>
-          <th class="corner" rowspan="{{ 2 if t.showGroups else 1 }}">{% if t.yLabel %}{{ t.yLabel }} ↓{% endif %}{% if t.xLabel %} / {{ t.xLabel }} →{% endif %}</th>
-          {% for w in chunk.heads %}<th colspan="{{ t.groups | length }}">{% if w %}{% if w.upTo %}{{ __('pricelist.up_to') }} {% endif %}{{ w.value }}{% if w.cm %} cm{% endif %}{% else %}—{% endif %}</th>{% endfor %}
+          <th class="corner">{% if chunk.group !== null %}<span class="pg">{{ __('pricelist.price_group_short') }} {{ chunk.group }}</span><br>{% endif %}{% if t.yLabel %}{{ t.yLabel }} ↓{% endif %}{% if t.xLabel %} / {{ t.xLabel }} →{% endif %}</th>
+          {% for w in chunk.heads %}<th>{% if w %}{{ w.value }}{% if w.cm %} cm{% endif %}{% else %}—{% endif %}</th>{% endfor %}
         </tr>
-        {% if t.showGroups %}
-        <tr class="pg">{% for w in chunk.widths %}{% for g in t.groups %}<th>{{ __('pricelist.price_group_short') }} {{ g.label }}</th>{% endfor %}{% endfor %}</tr>
-        {% endif %}
       </thead>
       <tbody>
         {% for row in chunk.rows %}
         <tr>
-          <th>{% if row.head %}{% if row.head.upTo %}{{ __('pricelist.up_to') }} {% endif %}{{ row.head.value }}{% if row.head.cm %} cm{% endif %}{% else %}—{% endif %}</th>
+          <th>{% if row.head %}{{ row.head.value }}{% if row.head.cm %} cm{% endif %}{% else %}—{% endif %}</th>
           {% for c in row.cells %}{% if c === null %}<td class="dash">—</td>{% else %}<td>{{ c }}</td>{% endif %}{% endfor %}
         </tr>
         {% endfor %}

@@ -19,7 +19,7 @@ const router = express.Router();
 
 router.use((req, res, next) => {
 	if (!req.session || !req.session.user || !req.session.user.isAdmin) return res.status(403).render('no-permission.njk');
-	if (config.service.mode === 'off') return res.status(404).render('error.njk', { message: 'Moduł Serwis jest wyłączony (SERVICE_ENABLED).' });
+	if (config.service.mode === 'off') return res.status(404).render('error.njk', { message: 'Moduł Serwis jest wyłączony (SERVICE_PANEL).' });
 	return next();
 });
 

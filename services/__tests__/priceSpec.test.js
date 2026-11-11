@@ -265,6 +265,7 @@ function build(view, opts = {}) {
     scriptsByGroup: { 39: { DOPLATA: 'param-DOPLATA-Cmul1.1.js', SUB___DOPLATA: 'param-SUB___DOPLATA-A.js' } },
     showCodes: !!opts.showCodes,
     advanced: !!opts.advanced,
+    grossAfterDiscount: !!opts.grossAfterDiscount,
     dataDir: opts.dataDir || makeDataDir(),
     now: new Date('2026-10-16T12:00:00Z')
   });
@@ -626,4 +627,16 @@ test('arkusz: pozycja specyfikacji nie jest nierozdzielna, sekcje są', () => {
   const avoids = (sel) => rules.some((r) => r.sel.includes(sel) && /break-inside:\s*avoid/.test(r.body));
   assert.equal(avoids('.price-spec__position'), false);
   for (const sel of ['.price-spec__section', '.price-spec__totals', '.price-spec__table tr']) assert.ok(avoids(sel), sel);
+});
+
+test('specyfikacja: klient LUXAN_EWA_KRAWCZYK z PL — „brutto po rabacie”, bez „netto = po rabacie” w nocie', () => {
+  const zwykly = build({ isGroupShop: true }, { advanced: true });
+  assert.equal(zwykly.t.col_after, 'Wartość netto po rabacie');
+
+  const spec = build({ isGroupShop: true }, { advanced: true, grossAfterDiscount: true });
+  assert.equal(spec.t.col_after, 'Wartość brutto po rabacie');
+  assert.equal(spec.t.total_after_discount_sum, 'Razem brutto po rabacie');
+  assert.equal(spec.t.unit_after_discount, 'Cena jednostkowa brutto po rabacie');
+  assert.doesNotMatch(spec.t.note, /netto/);
+  assert.match(spec.t.note, /EUR/);
 });

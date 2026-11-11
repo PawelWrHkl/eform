@@ -62,7 +62,13 @@ const STRINGS = {
     col_after: 'Wartość netto po rabacie',
     discounts_hidden: 'Rabaty i wartości po rabacie pokazują się po odblokowaniu cen (kłódka).',
     discount_total_only: 'Rabat udzielony na całą cenę jednostkową — bez rozbicia na składniki.',
-    note: 'Wszystkie kwoty w {currency}, bez VAT: brutto = przed rabatem, netto = po rabacie. Specyfikacja ma charakter informacyjny i pokazuje, z czego składa się cena pozycji; wiążąca jest cena w zleceniu.'
+    note: 'Wszystkie kwoty w {currency}, bez VAT: brutto = przed rabatem, netto = po rabacie. Specyfikacja ma charakter informacyjny i pokazuje, z czego składa się cena pozycji; wiążąca jest cena w zleceniu.',
+    // Klient LUXAN_EWA_KRAWCZYK z PL (`grossAfterDiscount`): sprzedaż krajowa — po rabacie też brutto.
+    unit_after_discount_gross: 'Cena jednostkowa brutto po rabacie',
+    total_after_discount_gross: 'Wartość brutto po rabacie',
+    total_after_discount_sum_gross: 'Razem brutto po rabacie',
+    col_after_gross: 'Wartość brutto po rabacie',
+    note_gross: 'Wszystkie kwoty w {currency}; ceny klienta są cenami brutto — przed rabatem i po rabacie. Specyfikacja ma charakter informacyjny i pokazuje, z czego składa się cena pozycji; wiążąca jest cena w zleceniu.'
   },
   en: {
     title: 'Price specification',
@@ -117,7 +123,12 @@ const STRINGS = {
     col_after: 'Net value after discount',
     discounts_hidden: 'Discounts and values after discount are shown once prices are unlocked (padlock).',
     discount_total_only: 'Discount granted on the whole unit price — no breakdown by component.',
-    note: 'All amounts in {currency}, excl. VAT: gross = before discount, net = after discount. This specification is for information and shows what the item price consists of; the price in the order is binding.'
+    note: 'All amounts in {currency}, excl. VAT: gross = before discount, net = after discount. This specification is for information and shows what the item price consists of; the price in the order is binding.',
+    unit_after_discount_gross: 'Gross unit price after discount',
+    total_after_discount_gross: 'Gross total after discount',
+    total_after_discount_sum_gross: 'Gross total after discount',
+    col_after_gross: 'Gross value after discount',
+    note_gross: 'All amounts in {currency}; customer prices are gross prices — before and after discount. This specification is for information and shows what the item price consists of; the price in the order is binding.'
   },
   de: {
     title: 'Preisaufstellung',
@@ -172,7 +183,12 @@ const STRINGS = {
     col_after: 'Wert netto nach Rabatt',
     discounts_hidden: 'Rabatte und Werte nach Rabatt werden nach dem Entsperren der Preise (Schloss) angezeigt.',
     discount_total_only: 'Rabatt auf den gesamten Stückpreis — ohne Aufschlüsselung nach Bestandteilen.',
-    note: 'Alle Beträge in {currency}, ohne MwSt.: brutto = vor Rabatt, netto = nach Rabatt. Die Aufstellung dient der Information und zeigt, woraus sich der Positionspreis zusammensetzt; verbindlich ist der Preis im Auftrag.'
+    note: 'Alle Beträge in {currency}, ohne MwSt.: brutto = vor Rabatt, netto = nach Rabatt. Die Aufstellung dient der Information und zeigt, woraus sich der Positionspreis zusammensetzt; verbindlich ist der Preis im Auftrag.',
+    unit_after_discount_gross: 'Stückpreis brutto nach Rabatt',
+    total_after_discount_gross: 'Wert brutto nach Rabatt',
+    total_after_discount_sum_gross: 'Gesamt brutto nach Rabatt',
+    col_after_gross: 'Wert brutto nach Rabatt',
+    note_gross: 'Alle Beträge in {currency}; Kundenpreise sind Bruttopreise — vor und nach Rabatt. Die Aufstellung dient der Information und zeigt, woraus sich der Positionspreis zusammensetzt; verbindlich ist der Preis im Auftrag.'
   },
   fr: {
     title: 'Détail du prix',
@@ -227,7 +243,12 @@ const STRINGS = {
     col_after: 'Valeur nette après remise',
     discounts_hidden: "Les remises et les valeurs après remise s'affichent après le déverrouillage des prix (cadenas).",
     discount_total_only: "Remise accordée sur l'ensemble du prix unitaire — sans détail par élément.",
-    note: 'Tous les montants en {currency}, hors TVA : brut = avant remise, net = après remise. Ce détail est fourni à titre informatif et montre la composition du prix de la position ; seul le prix de la commande fait foi.'
+    note: 'Tous les montants en {currency}, hors TVA : brut = avant remise, net = après remise. Ce détail est fourni à titre informatif et montre la composition du prix de la position ; seul le prix de la commande fait foi.',
+    unit_after_discount_gross: 'Prix unitaire brut après remise',
+    total_after_discount_gross: 'Total brut après remise',
+    total_after_discount_sum_gross: 'Total brut après remise',
+    col_after_gross: 'Valeur brute après remise',
+    note_gross: 'Tous les montants en {currency} ; les prix client sont des prix bruts — avant et après remise. Ce détail est fourni à titre informatif et montre la composition du prix de la position ; seul le prix de la commande fait foi.'
   },
   nl: {
     title: 'Prijsspecificatie',
@@ -282,7 +303,12 @@ const STRINGS = {
     col_after: 'Nettowaarde na korting',
     discounts_hidden: 'Kortingen en waarden na korting worden getoond nadat de prijzen zijn ontgrendeld (hangslot).',
     discount_total_only: 'Korting op de volledige stukprijs — zonder uitsplitsing per onderdeel.',
-    note: 'Alle bedragen in {currency}, excl. btw: bruto = vóór korting, netto = na korting. Deze specificatie is informatief en toont waaruit de positieprijs bestaat; de prijs in de order is bindend.'
+    note: 'Alle bedragen in {currency}, excl. btw: bruto = vóór korting, netto = na korting. Deze specificatie is informatief en toont waaruit de positieprijs bestaat; de prijs in de order is bindend.',
+    unit_after_discount_gross: 'Bruto stukprijs na korting',
+    total_after_discount_gross: 'Brutototaal na korting',
+    total_after_discount_sum_gross: 'Brutototaal na korting',
+    col_after_gross: 'Brutowaarde na korting',
+    note_gross: 'Alle bedragen in {currency}; klantprijzen zijn brutoprijzen — vóór en na korting. Deze specificatie is informatief en toont waaruit de positieprijs bestaat; de prijs in de order is bindend.'
   }
 };
 

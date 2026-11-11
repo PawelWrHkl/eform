@@ -425,7 +425,13 @@ async function attachRegularVatTotals(totalPrice, orderId) {
  */
 async function attachSubVatTotals(totalPrice, orderId) {
   if (!totalPrice) return totalPrice;
-  const { resolveVatRateForOrder } = require('./vatCalculator');
+  const { resolveVatRateForOrder, resolveGrossAfterDiscountForOrder } = require('./vatCalculator');
+  // Luxan EK z PL: „Razem po rabacie” to już brutto — opis „brutto”
+  // (`subLockedGross` w szablonach i `buildPdfSendDataTotals`) i bez VAT-u na wierzchu.
+  if (await resolveGrossAfterDiscountForOrder(orderId)) {
+    totalPrice.subLockedGross = true;
+    return totalPrice;
+  }
   const { vatRate, isGroup } = await resolveVatRateForOrder(orderId);
   if (typeof vatRate !== 'number') return totalPrice;
   totalPrice.vatRate = vatRate;
@@ -533,6 +539,8 @@ function buildPdfSendDataTotals({
 }) {
   const __ = translate || ((key) => key);
   const kwota = (value) => formatAmount(value, currency);
+  // Luxan EK z PL (`attachSubVatTotals` → `subLockedGross`): suma po rabacie to brutto.
+  const subLockedSuffix = totalPrice?.subLockedGross ? 'brutto' : 'netto';
   // Baza VAT sumy: `vatBase` z `attachSubVatTotals` (zlecenie grupy = suma zwykła),
   // a bez niego — ukryta suma klienta jak dawniej.
   const vatBase = totalPrice?.vatBase ?? calcSubTotals(orderItems).subLocked;
@@ -557,7 +565,7 @@ function buildPdfSendDataTotals({
       total_is_sub: true,
       total_hidden_is_sub: true,
       total_hidden: hasHidden
-        ? `${__('order.total_hidden')}: ${kwota(subTotals.subLocked)} netto` : null,
+        ? `${__('order.total_hidden')}: ${kwota(subTotals.subLocked)} ${subLockedSuffix}` : null,
       ...vatRows()
     };
   }
@@ -570,7 +578,7 @@ function buildPdfSendDataTotals({
         ? `${__('order.total')}: ${kwota(totalPrice.visible)}` : null,
       total_hidden_is_sub: true,
       total_hidden: hasHidden
-        ? `${__('order.total_hidden')}: ${kwota(subTotals.subLocked)} netto` : null,
+        ? `${__('order.total_hidden')}: ${kwota(subTotals.subLocked)} ${subLockedSuffix}` : null,
       ...vatRows()
     };
     if (withSubTotal && subTotals.subVisible && subTotals.subVisible !== 0) {

@@ -39,6 +39,7 @@ const { log } = require('../utils/logging');
 const { resolveClientDiscountForOrder, resolveClientDiscountForPosition } = require('./groupDiscount');
 const { isEnabled: isDiscountSwitchEnabled } = require('./portalUsageDiscountSwitch');
 const { resolveClientPricingForOrder } = require('./groupPriceMode');
+const { resolveGrossAfterDiscountForOrder } = require('./vatCalculator');
 
 /** Kolumna niosąca wysokość rabatu (punkty procentowe). */
 const EXTRA_DISCOUNT_COLUMN = 'extra_rabat';
@@ -204,7 +205,9 @@ async function resolveFormPricingForOrder(orderId) {
         clientDiscountPercent: total,
         portalUsageDiscountPercent: portalBonus,
         clientPriceMode: mode,
-        clientMarkupPercent: markupPercent
+        clientMarkupPercent: markupPercent,
+        // Luxan EK z PL: kwoty po rabacie to brutto (services/vatCalculator.js).
+        grossAfterDiscount: await resolveGrossAfterDiscountForOrder(orderId)
     };
 }
 

@@ -701,7 +701,7 @@
                                                                                                                 {% if discountPricesUnlocked and totalPrice.subLocked and totalPrice.subLocked != 0 %}
                                                                                                                 <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                     <span class='total gold price-label col-3 text-center'>
-                                                                                                                        {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} netto
+                                                                                                                        {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} {{ 'brutto' if totalPrice.subLockedGross else 'netto' }}
                                                                                                                     </span>
                                                                                                                 </div>
                                                                                                                 {% set vatTotalsApplyFactor = true %}
@@ -721,7 +721,7 @@
                                                                                                             {% if hasSubPriceToggle and hasSubPrices and totalPrice.subLocked and totalPrice.subLocked != 0 and prices %}
                                                                                                                 <div class="total-price d-flex justify-content-end align-items-center">
                                                                                                                     <span class='total gold price-label col-3 text-center'>
-                                                                                                                        {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} netto
+                                                                                                                        {{ __('order.total_hidden') }}: {{ totalPrice.subLocked | applyFactor(priceFactor) }}{{ currencySuffix | default('€') }} {{ 'brutto' if totalPrice.subLockedGross else 'netto' }}
                                                                                                                     </span>
                                                                                                                 </div>
                                                                                                                 {% set vatTotalsApplyFactor = true %}
