@@ -4935,3 +4935,32 @@ Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „ori
 Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
 === 2026-11-11 10:35:01 - Start ===
 === 2026-11-11 10:35:01 - Dodawanie zmian do commita ===
+[main 30b1c79] Automatic commit 2026-11-11 10:35
+ 55 files changed, 15527 insertions(+), 609 deletions(-)
+ rewrite configtest/nightly.out (62%)
+ copy configtest/{nightly.out => nightly.out.prev} (100%)
+ create mode 100644 public/scripts/staff/rawCombo.js
+ create mode 100644 scripts/serviceHklSync.js
+ create mode 100644 services/__tests__/rawCombo.test.js
+ create mode 100644 services/pricelists/__tests__/items.test.js
+ create mode 100644 services/pricelists/__tests__/layout.test.js
+ create mode 100644 services/serviceTickets/__tests__/hklAdapter.test.js
+ create mode 100644 services/serviceTickets/hklAdapter.js
+ rewrite templates/partials/staff_client_picker.njk (62%)
+=== 2026-11-11 10:35:04 - Wysyłanie do origin/main ===
+remote: warning: See https://gh.io/lfs for more information.        
+remote: warning: File import/import.log is 75.30 MB; this is larger than GitHub's recommended maximum file size of 50.00 MB        
+remote: warning: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+remote: 
+remote: GitHub found 118 vulnerabilities on PawelWrHkl/eform's default branch (4 critical, 68 high, 41 moderate, 5 low). To find out more, visit:        
+remote:      https://github.com/PawelWrHkl/eform/security/dependabot        
+remote: 
+To https://github.com/PawelWrHkl/eform.git
+   c0a617d..30b1c79  main -> main
+Gałąź „main” ustawiona na śledzenie zdalnej gałęzi „main” z „origin”.
+=== 2026-11-11 10:35:12 - Koniec ===
+=== 2026-11-11 12:00:01 - Start ===
+=== 2026-11-11 12:00:01 - Brak zdefiniowanego origin i GIT_REMOTE ===
+Brak zdalnego repozytorium do wypchnięcia. Ustaw GIT_REMOTE lub dodaj origin ręcznie.
+=== 2026-11-12 10:35:01 - Start ===
+=== 2026-11-12 10:35:01 - Dodawanie zmian do commita ===
