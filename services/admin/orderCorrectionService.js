@@ -11,7 +11,8 @@ const { formatClientLabel } = require('../../utils/formatClient');
 const { getExtraAttachments } = require('../mailBot/extraAttachments');
 const { buildItemProductionDays, recalcAndSaveProdDays } = require('../productionDays');
 const { isDemoIdent } = require('../demoMode');
-const { getProductionSendSkipClient, shouldForceProductionSend } = require('../../utils/productionSendGuard');
+const { getProductionSendSkipClient, shouldForceProductionSend, isProductionVersion } = require('../../utils/productionSendGuard');
+const config = require('../../config');
 const {
     orderHasSubPrices,
     resolveSubPricePdfView,
@@ -22,7 +23,17 @@ const {
 const { log } = require('../../utils/logging');
 const { currencyLocalsForOrder } = require('../currency');
 
-const CORRECTION_FILE_SUFFIX = '-update';
+// HKL_TCN_222.json → HKL_TCN_222_correction.json (ten sam katalog co zlecenie: FTP /orders-out/ na produkcji, lokalny out poza produkcją).
+const CORRECTION_FILE_SUFFIX = '_correction';
+
+/**
+ * Adresaci maila o korekcie: na produkcji klient (+ kopie jak przy wysyłce),
+ * poza produkcją WYŁĄCZNIE `config.correctionMailRedirect`, bez kopii.
+ */
+function resolveCorrectionMailRecipients({ production, redirect, mainRecipient, bcc }) {
+    if (production) return { to: mainRecipient, bcc };
+    return { to: String(redirect || '').trim() || null, bcc: null };
+}
 
 async function ensureCorrectionContext(req, orderId) {
     const meta = await correctionsDb.getCorrectionOrderMeta(orderId);
@@ -190,8 +201,15 @@ async function submitCorrection(req, orderId, prices) {
         extraAbMail: abPolicy.extraAbMail
     });
 
-    mailBot.sendCorrectionMail(
+    const recipients = resolveCorrectionMailRecipients({
+        production: isProductionVersion(),
+        redirect: config.correctionMailRedirect,
         mainRecipient,
+        bcc
+    });
+    if (!recipients.to) log(`Korekta ${orderId}: brak adresata maila (poza produkcją wymagany CORRECTION_MAIL_REDIRECT) — mail pominięty`);
+    else mailBot.sendCorrectionMail(
+        recipients.to,
         lang,
         pdf,
         attachments,
@@ -202,7 +220,7 @@ async function submitCorrection(req, orderId, prices) {
             orderDetails: sendData,
             organization: orgData
         },
-        bcc,
+        recipients.bcc,
         { htmlContent: confirmationHtml, abLang }
     );
 
@@ -211,7 +229,7 @@ async function submitCorrection(req, orderId, prices) {
 
     return {
         success: true,
-        message: 'Korekta wysłana. JSON na FTP (-update) i mail do klienta.',
+        message: `Korekta wysłana. Plik ${sender.fileName}.json i mail do ${recipients.to || '— (pominięty)'}.`,
         redirect: '/admin/order-corrections'
     };
 }
@@ -242,6 +260,7 @@ async function cancelCorrection(req, orderId) {
 
 module.exports = {
     CORRECTION_FILE_SUFFIX,
+    resolveCorrectionMailRecipients,
     ensureCorrectionContext,
     submitCorrection,
     cancelCorrection

@@ -58,7 +58,7 @@ function requireReportsApiAccess(req, res, next) {
     next();
 }
 
-router.use('/order-corrections', orderCorrectionsRoutes);
+if (require('../config').features.orderCorrection) router.use('/order-corrections', orderCorrectionsRoutes);
 // Zgłoszenia serwisowe (moduł „Serwis”) — routes/admin/serviceTickets.js
 router.use('/service', require('./admin/serviceTickets'));
 

@@ -126,7 +126,20 @@ module.exports = {
     // widzi konto demo); opcjonalnie `DEMO_MAX_ACTIVE` (30) i
     // `DEMO_MAX_PER_IP_HOUR` (5). Brak zmiennej = wyłączone.
     demo: envSwitch(process.env.DEMO_ENABLED),
+
+    // Korekta wysłanych zleceń przez admina (routes/admin/orderCorrections.js):
+    // kafelek w panelu admina, przycisk „Korekta” w historii, router
+    // `/admin/order-corrections`. Brak zmiennej = WŁĄCZONE (moduł działał bez
+    // flagi, a `update.sh` nie kopiuje `.env`); `ORDER_CORRECTION_ENABLED=false` wyłącza.
+    orderCorrection: String(process.env.ORDER_CORRECTION_ENABLED ?? '').trim() === ''
+      ? true
+      : envSwitch(process.env.ORDER_CORRECTION_ENABLED),
   },
+
+  // Mail „korekta zlecenia” poza produkcją (brak `PRODUCTION`) idzie WYŁĄCZNIE
+  // na te adresy, bez kopii — baza testowa ma prawdziwe adresy klientów
+  // (polecenie Pawła 12.11.2026). Na produkcji ignorowane: mail do klienta.
+  correctionMailRedirect: process.env.CORRECTION_MAIL_REDIRECT || 'pawelwr.121@gmail.com',
 
   // Alternatywy dla niedostępnej tkaniny — plik z agentai, który cron
   // wewnętrznego serwera (`scripts/syncFabricAlternatives.js`) kładzie tutaj,

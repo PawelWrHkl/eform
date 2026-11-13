@@ -253,6 +253,8 @@ app.use((req, res, next) => {
 	// i router liczą dostęp tą samą regułą (services/serviceTickets/access.js).
 	res.locals.serviceEnabled = require('./services/serviceTickets/access').canAccessService(req.session?.user, require('./config').service);
 	res.locals.isAdminSession = !!req.session?.user?.isAdmin;
+	// Korekta zleceń (ORDER_CORRECTION_ENABLED) — kafelek w panelu admina i przyciski w historii.
+	res.locals.orderCorrectionEnabled = !!features?.orderCorrection && res.locals.isAdminSession;
 	next();
 });
 

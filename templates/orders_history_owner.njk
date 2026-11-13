@@ -89,13 +89,13 @@
                             {% block mobile_order_actions %}
                                 <div class="mobile-order-actions">
                                     <button type="button" class="btn reorder-btn reorder-btn--labeled copy-order-btn stop-propagation" data-id="{{ order.id }}" onclick="event.stopPropagation()">{% include 'partials/reorder_icon.njk' %}<span>{{ __('orders.reorder') }}</span></button>
-                                    {% include 'partials/cancel_order_btn.njk' %}                                    {% if isAdmin %}
+                                    {% include 'partials/cancel_order_btn.njk' %}                                    {% if orderCorrectionEnabled %}
                                     <button class="btn btn-sm btn-warning open-correction-btn stop-propagation ms-1" data-order-id="{{ order.id }}" onclick="event.stopPropagation()" title="Korekta zlecenia">
                                         <i class="bi bi-pencil-square me-1"></i>Korekta
                                     </button>
                                     {% endif %}                                </div>
                             {% endblock %}
-                            {% block action_th %}{% if isAdmin %}<th scope="col"></th>{% endif %}{% endblock %}
+                            {% block action_th %}{% if orderCorrectionEnabled %}<th scope="col"></th>{% endif %}{% endblock %}
                             {% block extra_rows %}
                                 <td>{{ order.sent_date }}</td>
                                 <th scope="row" data-prod-status="{{ order.prod_status or '' }}">{{ __(order.prod_status) if order.prod_status else __('order.status_order_sent') }}</th>
@@ -151,7 +151,7 @@
                                     <button type="button" class="action-btn action-btn-copy reorder-btn copy-order-btn stop-propagation has-tooltip" data-id="{{ order.id }}" data-tooltip="{{ __('orders.reorder') }}" aria-label="{{ __('orders.reorder') }}" onclick="event.stopPropagation()">{% include 'partials/reorder_icon.njk' %}</button>
                                     {% include 'partials/cancel_order_btn.njk' %}
                                 </td>
-                                {% if isAdmin %}
+                                {% if orderCorrectionEnabled %}
                                 <td onclick="event.stopPropagation()">
                                     <button class="btn btn-sm btn-warning open-correction-btn stop-propagation" data-order-id="{{ order.id }}" title="Korekta zlecenia">
                                         <i class="bi bi-pencil-square me-1"></i>Korekta
@@ -169,7 +169,7 @@
                             {% block scripts %}
                                 <script type="module" src="/scripts/orders.js"></script>
                                 <script type="module" src="/scripts/orderCancel.js?v={{ assetVersion }}"></script>
-                                {% if isAdmin %}
+                                {% if orderCorrectionEnabled %}
                                 <script type="module" src="/scripts/admin/orderCorrections.js"></script>
                                 {% endif %}
                             {% endblock scripts %}

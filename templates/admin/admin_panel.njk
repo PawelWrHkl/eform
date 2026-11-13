@@ -125,6 +125,19 @@
                                             </a>
                                         </div>
                                     </div>
+                                    {% if orderCorrectionEnabled %}
+                                    <!-- Korekty zleceń (routes/admin/orderCorrections.js, ORDER_CORRECTION_ENABLED) -->
+                                    <div class="card admin-card">
+                                        <div class="card-body d-flex flex-column">
+                                            <h5 class="card-title">
+                                                <i class="bi bi-pencil-square me-2"></i>
+                                                Korekty zleceń
+                                            </h5>
+                                            <p class="card-text">Zlecenia w trakcie korekty (status „correction”), otwieranie wysłanych zleceń do korekty, wysyłka korekty</p>
+                                            <a href="/admin/order-corrections" class="btn btn-secondary mt-auto">Otwórz</a>
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                     {% if serviceEnabled %}
                                     <!-- Serwis — zgłoszenia reklamacyjne (routes/admin/serviceTickets.js) -->
                                     <div class="card admin-card">

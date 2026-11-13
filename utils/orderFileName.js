@@ -4,7 +4,7 @@
  * `<orgIdent>_<userIdent>_<orderNo><suffix>`, np. `HKL_ryver_242`.
  *
  * ⚠️ Jedno źródło prawdy dla KAŻDEGO pliku o zamówieniu: JSON-a z wysyłki
- * (`utils/saveOrdersOutput.js setJsonFileName`), korekty (`-update`) i znacznika
+ * (`utils/saveOrdersOutput.js setJsonFileName`), korekty (`_correction`) i znacznika
  * anulowania (`.cancel`, services/orderCancellation.js). Produkcja paruje te
  * pliki po nazwie, więc znacznik z inną nazwą niż wysłany JSON byłby po cichu
  * zignorowany.

@@ -36,7 +36,7 @@ if (submitBtn) {
         const orderId = submitBtn.dataset.id;
         const confirmed = await confirmPrompt({
             title: 'Wyślij korektę',
-            message: 'Korekta zostanie wysłana na FTP (plik JSON z sufiksem <strong>-update</strong>) oraz mailem do klienta z poprawionymi danymi. Kontynuować?',
+            message: 'Korekta zostanie wysłana jako plik JSON z sufiksem <strong>_correction</strong> (ten sam katalog co zlecenie) oraz mailem do klienta (poza produkcją tylko na adres testowy). Kontynuować?',
             confirmLabel: 'Wyślij korektę',
             cancelLabel: 'Anuluj',
             confirmClass: 'btn btn-warning'
