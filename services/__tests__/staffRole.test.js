@@ -91,16 +91,16 @@ test('kopia potwierdzenia dla biura: ukryte BCC; na dev/test tylko skrzynka test
     assert.equal(resolveConfirmationRecipients({ env: 'test' }).mainRecipient, 'pawel.woroniecki@hkl.eu');
 });
 
-test('mailBot: options.bcc trafia do koperty, ale nie do nagłówków widocznych dla klienta', async () => {
+test('mailBot: kopie (pozycyjna lista i options.bcc) trafiają do koperty, ale nie do nagłówków widocznych dla klienta', async () => {
     const options = buildMailOptions('klient@example.com', 'pl', Buffer.alloc(10, 0x41), [], { orderNr: '1', klient: 'X', logoPath: '/nonexistent.png' },
         'org@example.com', 'mailTemplate.njk', 'mail.subject', { htmlContent: '<p>x</p>', bcc: 'anna@hkl.eu' });
-    assert.equal(options.bcc, 'anna@hkl.eu');
-    assert.equal(options.cc, 'org@example.com');
+    assert.equal(options.bcc, 'org@example.com, anna@hkl.eu');
+    assert.equal('cc' in options, false, 'POP-14: żadnej widocznej kopii');
     const message = await new Promise((resolve, reject) => {
         new MailComposer(options).compile().build((err, msg) => (err ? reject(err) : resolve(msg.toString('binary'))));
     });
     const headers = message.split('\r\n\r\n')[0];
-    assert.match(headers, /Cc: org@example\.com/);
+    assert.doesNotMatch(headers, /org@example\.com/);
     assert.doesNotMatch(headers, /anna@hkl\.eu/);
 
     const bezKopii = buildMailOptions('k@example.com', 'pl', Buffer.alloc(1), [], { orderNr: '1', klient: 'X', logoPath: '/x.png' },

@@ -6,7 +6,7 @@
  * produkcję (`services/orderImport/sendAfterImport.js`):
  *   - `user.ab_type = without_price` → PDF bez jakichkolwiek cen,
  *   - `user.ab_lang`                 → wymuszony język PDF-a i maila,
- *   - `user.client_ab`               → potwierdzenie wprost na adres klienta,
+ *   - `user.client_ab`               → na dev/test potwierdzenie wprost na adres klienta,
  *   - `user.delivery_delay`          → dni doliczane do czasu produkcji.
  *
  * ⚠️ Dlaczego odczyt idzie po `orderId`, a nie z gotowego wiersza `user`:
@@ -99,7 +99,8 @@ async function resolveOrderAbPolicy(orderId, deps = {}) {
  *     prawdziwych klientów z lokalnego środowiska;
  *   - `client_ab` z adresem kontaktowym: głównym odbiorcą jest klient (także
  *     na dev/test — to świadoma decyzja, żeby dało się to przetestować);
- *   - produkcja bez `client_ab`: odbiorcą jest organizacja, klient w BCC.
+ *   - produkcja (POP-14, szef 2.10): w Do zawsze klient, organizacja i reszta
+ *     adresów HKL wyłącznie w BCC; bez adresu klienta mail idzie do organizacji.
  *
  * @param {Object} p
  * @param {string} [p.env] wartość `NODE_ENV`
@@ -151,14 +152,14 @@ function resolveConfirmationRecipients({
       bccList.push(SKRZYNKA_DEV);
     }
   } else {
-    mainRecipient = clientAb && confirmationEmail ? confirmationEmail : organizationEmail;
-    bccList = clientAb && confirmationEmail
-      ? [organizationEmail, organizationEmail2, extraMail, SKRZYNKA_DEV]
-      : [confirmationEmail, organizationEmail2, extraMail, SKRZYNKA_DEV];
+    // Do 1.04 klient był w BCC (kłopot z trafianiem do skrzynek), potem w DW widział
+    // adresy HKL — dlatego klient w Do, a skrzynki HKL w BCC.
+    mainRecipient = confirmationEmail || organizationEmail;
+    bccList = [organizationEmail, organizationEmail2, extraMail, SKRZYNKA_DEV];
   }
 
   bccList.push(extraAbMail);
-  bccList = bccList.filter(Boolean).flat();
+  bccList = bccList.flat().filter((a) => a && a !== mainRecipient);
   return { mainRecipient, bccList, bcc: bccList.join(', ') };
 }
 

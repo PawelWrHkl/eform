@@ -1659,8 +1659,8 @@ router.post('/send/:orderId', requireLogin, checkOrderOwnership, loadEmployeePer
         }
         // Zamówienie sklepu/klienta grupy: adres konta podrzędnego ma
         // pierwszeństwo — tak jak w torze zatwierdzania z panelu grupy.
-        // Na produkcji bez `client_ab` ląduje w BCC, przy `client_ab` jest
-        // głównym odbiorcą (services/confirmationPolicy.js).
+        // Na produkcji jest głównym odbiorcą, adresy HKL idą w BCC
+        // (services/confirmationPolicy.js, POP-14).
         if (orderShop?.email) {
             confirmationEmail = orderShop.email;
         }

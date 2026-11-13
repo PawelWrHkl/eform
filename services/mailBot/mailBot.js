@@ -27,7 +27,7 @@ function toCrlf(text) {
   return typeof text === 'string' ? text.replace(/\r\n|\r|\n/g, '\r\n') : text;
 }
 
-function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
+function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, bcc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
   // JĘZYK POTWIERDZENIA: `user.ab_lang` (przekazany przez wołającego w
   // `options.abLang`) wygrywa z językiem sesji/klienta. Dotyczy CAŁEGO maila —
   // tematu, treści szablonu i nazwy załącznika — a nie tylko dokumentu PDF.
@@ -135,20 +135,16 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
     attachments
   };
 
-  if (cc) {
-    mailOptions.cc = cc;
-  }
-  // Prawdziwe ukryte BCC (np. kopia dla konta biura, które wysłało zlecenie) —
-  // parametr `cc` wyżej trafia do klienta jako widoczna kopia.
-  if (options.bcc) {
-    mailOptions.bcc = options.bcc;
-  }
+  // POP-14: wszystkie kopie (organizacja, EXTRA_MAIL, konto biura) tylko w UDW —
+  // klient widzi w nagłówkach wyłącznie siebie (szef 2.10; DW od 1.04 pokazywało mu adresy HKL).
+  const bccAll = [bcc, options.bcc].filter(Boolean).join(', ');
+  if (bccAll) mailOptions.bcc = bccAll;
 
   return mailOptions;
 }
 
-function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
-  const mailOptions = buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer, templateVars, cc, templateName, subjectKey, options);
+function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, bcc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
+  const mailOptions = buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer, templateVars, bcc, templateName, subjectKey, options);
   return new Promise((resolve, reject) => {
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
@@ -156,11 +152,8 @@ function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars
         reject(error);
       } else {
         log('Stylizowany e-mail wysłany:', info.response, to);
-        if (cc) {
-          log('CC:', cc);
-        }
-        if (options.bcc) {
-          log('BCC:', options.bcc);
+        if (mailOptions.bcc) {
+          log('BCC:', mailOptions.bcc);
         }
         resolve(info);
       }
@@ -168,28 +161,28 @@ function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars
   });
 }
 
-function sendMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, options = {}) {
+function sendMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, bcc = null, options = {}) {
   sendMailAsync(
     to,
     lang,
     pdfBuffer,
     attachmentsBuffer,
     templateVars,
-    cc,
+    bcc,
     'mailTemplate.njk',
     'mail.subject',
     options
   ).catch(() => {});
 }
 
-function sendCorrectionMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, cc = null, options = {}) {
+function sendCorrectionMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, bcc = null, options = {}) {
   sendMailAsync(
     to,
     lang,
     pdfBuffer,
     attachmentsBuffer,
     templateVars,
-    cc,
+    bcc,
     'correctionMailTemplate.njk',
     'mail.correction_subject',
     options

@@ -111,15 +111,15 @@ test('client_ab bez adresu kontaktowego nie może zostawić maila bez odbiorcy',
   assert.equal(prod.mainRecipient, 'org@hkl.eu', 'na produkcji odbiorcą zostaje organizacja');
 });
 
-test('produkcja bez client_ab: odbiorcą organizacja, klient w BCC', () => {
+test('POP-14: produkcja bez client_ab: klient w Do, organizacja i reszta HKL w BCC', () => {
   const r = resolveConfirmationRecipients({
     env: 'production', clientAb: false, confirmationEmail: 'klient@example.nl',
     organizationEmail: 'org@hkl.eu', organizationEmail2: 'szef@hkl.eu',
     extraMail: ['extra1@hkl.eu', 'extra2@hkl.eu']
   });
-  assert.equal(r.mainRecipient, 'org@hkl.eu');
+  assert.equal(r.mainRecipient, 'klient@example.nl');
   // EXTRA_MAIL jest tablicą z .env — musi zostać spłaszczona, nie wklejona jako tablica
-  assert.deepEqual(r.bccList, ['klient@example.nl', 'szef@hkl.eu', 'extra1@hkl.eu', 'extra2@hkl.eu', PAWEL]);
+  assert.deepEqual(r.bccList, ['org@hkl.eu', 'szef@hkl.eu', 'extra1@hkl.eu', 'extra2@hkl.eu', PAWEL]);
 });
 
 test('extra_ab_mail: dodatkowy odbiorca dopisany do BCC obok pozostałych adresów', () => {
@@ -128,8 +128,8 @@ test('extra_ab_mail: dodatkowy odbiorca dopisany do BCC obok pozostałych adres�
     organizationEmail: 'org@hkl.eu', organizationEmail2: 'szef@hkl.eu',
     extraAbMail: 'wlasciciel-ab@hkl.eu'
   });
-  assert.equal(r.mainRecipient, 'org@hkl.eu');
-  assert.deepEqual(r.bccList, ['klient@example.nl', 'szef@hkl.eu', PAWEL, 'wlasciciel-ab@hkl.eu']);
+  assert.equal(r.mainRecipient, 'klient@example.nl');
+  assert.deepEqual(r.bccList, ['org@hkl.eu', 'szef@hkl.eu', PAWEL, 'wlasciciel-ab@hkl.eu']);
 });
 
 test('extra_ab_mail: brak wartości nie dodaje śmiecia do BCC', () => {
@@ -146,4 +146,27 @@ test('puste adresy nie tworzą śmieci w nagłówku BCC', () => {
     organizationEmail: 'org@hkl.eu', organizationEmail2: null, extraMail: false
   });
   assert.equal(r.bcc, PAWEL, 'bez przecinków wiodących i pustych pozycji');
+});
+
+test('POP-14: AB jak #361 — klient widzi w nagłówkach tylko siebie, kopie HKL idą w kopercie', async () => {
+  const MailComposer = require('nodemailer/lib/mail-composer');
+  const { buildMailOptions } = require('../mailBot/mailBot');
+  // Adresy organizacji HKL jak w tabeli `organization`; EXTRA_MAIL i SKRZYNKA_DEV jak w nagłówkach #361.
+  const hkl = ['ordersefor@hkl.eu', 'eforszefhkl@hkl.eu', 'e-orders@hkl.eu', PAWEL, 'biuro@hkl.eu'];
+  const { mainRecipient, bcc } = resolveConfirmationRecipients({
+    env: 'production', clientAb: false, confirmationEmail: 'info@klient.example.nl',
+    organizationEmail: hkl[0], organizationEmail2: hkl[1], extraMail: [hkl[2]]
+  });
+  // Tak jak w routes/orders.js: lista z polityki pozycyjnie, kopia konta biura w `options.bcc`.
+  const options = buildMailOptions(mainRecipient, 'nl', Buffer.alloc(10, 0x41), [],
+    { orderNr: '361', klient: 'Klient BV', logoPath: '/nonexistent.png' },
+    bcc, 'mailTemplate.njk', 'mail.subject', { htmlContent: '<p>x</p>', bcc: hkl[4] });
+  const mail = new MailComposer(options).compile();
+  const raw = await new Promise((resolve, reject) => mail.build((err, m) => (err ? reject(err) : resolve(m.toString('binary')))));
+  const headers = raw.split('\r\n\r\n')[0];
+
+  assert.match(headers, /^To: info@klient\.example\.nl$/m);
+  assert.doesNotMatch(headers, /^(Cc|Bcc):/mi);
+  assert.doesNotMatch(headers, /hkl\.eu/i, 'żaden adres HKL w nagłówkach');
+  assert.deepEqual(mail.getEnvelope().to.sort(), ['info@klient.example.nl', ...hkl].sort(), 'kopie HKL dochodzą');
 });
