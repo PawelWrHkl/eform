@@ -1,0 +1,11 @@
+{
+  "_info": "Stopka AB (POP-19). {booth} w tekście = numer stoiska. Nowa linia = \\n. Włącznik: AB_FOOTER_ENABLED w .env danego środowiska. Zmiana tego pliku działa bez restartu.",
+  "booth": "[NR STOISKA]",
+  "text": {
+    "pl": "[TREŚĆ STOPKI PL – do uzupełnienia] {booth}",
+    "en": "[TREŚĆ STOPKI EN – do uzupełnienia] {booth}",
+    "de": "[TREŚĆ STOPKI DE – do uzupełnienia] {booth}",
+    "fr": "[TREŚĆ STOPKI FR – do uzupełnienia] {booth}",
+    "nl": "[TREŚĆ STOPKI NL – do uzupełnienia] {booth}"
+  }
+}

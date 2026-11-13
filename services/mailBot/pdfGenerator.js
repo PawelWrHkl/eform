@@ -11,6 +11,7 @@ const { translateToPolish } = require('./commentTranslator');
 const { isProductionVersion, shouldForceProductionSend } = require('../../utils/productionSendGuard');
 const { pdfValueParts } = require('../../utils/pdfValueParts');
 const { applyFactor, toMoney } = require('../currency');
+const { abFooter } = require('./abFooter');
 
 function registerPdfNunjucksFilters(env) {
   env.addFilter('pdfValueParts', pdfValueParts);
@@ -217,7 +218,8 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     hideClientVat: hideClientVat,
     discountInfo: withoutPrices ? null : discountInfo,
     withoutPrices: withoutPrices,
-    currencySymbol: currencySymbol
+    currencySymbol: currencySymbol,
+    abFooter: abFooter(lang)
   };
 
   if (withoutPrices && renderContext.sendData) {
@@ -336,7 +338,8 @@ function renderOrderPdfHtml({
     clientDiscountSummary: withoutPrices ? null : clientDiscountSummary,
     hasSubPrices,
     hideClientVat,
-    withoutPrices
+    withoutPrices,
+    abFooter: abFooter(lang)
   });
 }
 

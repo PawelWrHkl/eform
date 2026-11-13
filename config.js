@@ -134,6 +134,11 @@ module.exports = {
     orderCorrection: String(process.env.ORDER_CORRECTION_ENABLED ?? '').trim() === ''
       ? true
       : envSwitch(process.env.ORDER_CORRECTION_ENABLED),
+
+    // Stopka AB ze stoiskiem HKL (POP-19, services/mailBot/abFooter.js): treść per
+    // język i nr stoiska w services/mailBot/abFooter.json. Brak zmiennej = wyłączone
+    // — włączanie per środowisko, bo `update.sh` nie kopiuje `.env`.
+    abFooter: envSwitch(process.env.AB_FOOTER_ENABLED),
   },
 
   // Mail „korekta zlecenia” poza produkcją (brak `PRODUCTION`) idzie WYŁĄCZNIE

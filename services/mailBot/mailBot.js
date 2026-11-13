@@ -6,6 +6,7 @@ const confLang = require('./conf');
 const { log } = require('../../utils/logging');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 const { resolveAbLang } = require('../abType');
+const { abFooter } = require('./abFooter');
 
 
 const transporter = nodemailer.createTransport({
@@ -47,6 +48,7 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
 
   const htmlContent = nunjucks.render(templateName, {
     ...templateVars,
+    abFooter: abFooter(mailLang),
     __
   });
 

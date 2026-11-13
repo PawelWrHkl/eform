@@ -285,6 +285,10 @@
         <div class="order-details-line">{{ __('new-order.phone') }}: {{ sendData.phone }}</div>
       </div>
     </div>
+    {# Stopka AB ze stoiskiem (POP-19) — services/mailBot/abFooter.js #}
+    {% if abFooter %}
+      <div class="ab-footer">{{ abFooter | escape | nl2br }}</div>
+    {% endif %}
   </div>
   {% block scripts %}
     <script type='module' src='/scripts/base.js'></script>
