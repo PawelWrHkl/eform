@@ -251,14 +251,21 @@
                na dalszych tylko zabiera ekran. Nie da sie go schowac przez
                `display`, bo processCommissionInput() ustawia `block` z
                priorytetem `important` - stad ta sama technika, co dla wierszy. */
-            const asortment = document.querySelector('#commission-form .asortment-inputs');
+            /* Edycja pozycji (edit_position.njk) nie ma wyboru grupy - jej
+               odpowiednikiem jest karta z nazwa pomieszczenia. */
+            const asortment = document.querySelector('#commission-form .asortment-inputs')
+                || document.querySelector('#commission-form .commission-space')?.closest('.container');
             if (asortment) this.setHidden(asortment, on && this.activeIndex > 0);
 
             /* Zapis / reset / zalaczniki pokazuja sie dopiero na ostatnim kroku
-               (podsumowanie) - jeden ekran, jedna glowna akcja. */
+               (podsumowanie) - jeden ekran, jedna glowna akcja. Pole komentarza
+               (form.js buildCommentSpace - dziecko #dynamic-form, ale nie wiersz
+               parametru) otwiera przycisk z tego samego miejsca, wiec idzie z nim. */
             const buttons = document.getElementById('buttons-space');
             const last = !on || this.activeIndex === this.steps.length - 1;
             if (buttons) this.setHidden(buttons, !last);
+            const comment = this.form.querySelector(':scope > .comment-space');
+            if (comment) this.setHidden(comment, !last);
 
             this.nav.style.display = on ? '' : 'none';
             this.pager.style.display = on ? '' : 'none';

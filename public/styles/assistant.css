@@ -408,11 +408,14 @@
 .ea-reduced-motion .ea-highlight { animation: none; }
 .ea-reduced-motion .ea-launcher { transition: none; }
 
-/* Telefon: nad dolnym paskiem nawigacji, okno na całą szerokość */
+/* Telefon: nad dolnym paskiem nawigacji, okno na całą szerokość.
+   W konfiguratorze dolnego paska nie ma (`--m-bottomnav-h: 0`), jest za to
+   pasek kroków — jego wysokość mierzy mobile/configuratorStepper.js
+   (`--m-stepper-h`); bez niej piesek i dymek zasłaniały kroki 2–5. */
 @media (max-width: 767.98px) {
-	#eform-assistant { --ea-bottom: calc(var(--m-bottomnav-h, 64px) + env(safe-area-inset-bottom, 0px) + 12px); }
+	#eform-assistant { --ea-bottom: calc(var(--m-bottomnav-h, 64px) + var(--m-stepper-h, 0px) + env(safe-area-inset-bottom, 0px) + 12px); }
 	/* Konto admina ma w tym miejscu FAB z hasłami — stajemy nad nim. */
-	#eform-assistant.ea-stacked { --ea-bottom: calc(var(--m-bottomnav-h, 64px) + env(safe-area-inset-bottom, 0px) + 84px); }
+	#eform-assistant.ea-stacked { --ea-bottom: calc(var(--m-bottomnav-h, 64px) + var(--m-stepper-h, 0px) + env(safe-area-inset-bottom, 0px) + 84px); }
 	.ea-launcher { right: 16px; padding: 12px; }
 	.ea-launcher-text { display: none; }
 	.ea-panel {
@@ -420,7 +423,7 @@
 		left: 8px;
 		width: auto;
 		max-width: none;
-		height: min(560px, calc(100vh - var(--m-bottomnav-h, 64px) - 90px));
+		height: min(560px, calc(100vh - var(--m-bottomnav-h, 64px) - var(--m-stepper-h, 0px) - 90px));
 	}
 	.ea-consultant-text { display: none; }
 }

@@ -9,13 +9,18 @@
         <link rel="stylesheet" href="/styles/mobile/slope.css">
           <link rel="stylesheet" href="/styles/mobile/components.css">
             <link rel="stylesheet" href="/styles/form_btn.css">
+            {# Mobile ETAP 1 - ten sam konfigurator co nowa pozycja (form.njk):
+               ostatnie w bloku, bo nadpisuja mobile/components.css i mobile/dialog.css.
+               Wszystko w @media (max-width: 767.98px) - desktop bez zmian. #}
+            <link rel="stylesheet" href="/styles/mobile/configurator.css?v={{ assetVersion }}">
+            <link rel="stylesheet" href="/styles/mobile/dialog-view.css?v={{ assetVersion }}">
             {% endblock head %}
             {% block key_nav %}{% endblock %}
             {% block back_link %}
               <button class="modern-back-btn" onclick="window.location.href='/orders/order/{{ orderId }}'">
               {% endblock %}
               {% block content %}
-                <form action="post" class='full-form'>
+                <form action="post" class='full-form' id="commission-form">
                   <p id="orderId" class='d-none'>{{ orderId }}</p>
                   <p id="positionId" class='d-none'>{{ position.id }}</p>
                   <div class='content'>
@@ -108,4 +113,5 @@
                     <script type='module' src="/scripts/edit_form.js"></script>
                     {# Okno pozycji konta biura (`?raw=1`): pasek zapisu i klawiatura (staff/rawForm.js). #}
                     {% if rawMode %}<script type="module" src="/scripts/staff/rawForm.js?v={{ assetVersion }}"></script>{% endif %}
+                    {% if not rawMode %}<script src="/scripts/mobile/configuratorStepper.js?v={{ assetVersion }}" defer></script>{% endif %}
                   {% endblock scripts %}
