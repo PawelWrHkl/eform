@@ -40,6 +40,7 @@ const { resolveScriptsByGroup } = require('../services/priceSpec/orderContext');
 const { renderPriceSpecPdf } = require('../services/priceSpec/pdf');
 const { translator: priceSpecTranslator } = require('../services/priceSpec/i18n');
 const { isDemoIdent } = require('../services/demoMode');
+const { normalizeSendAddress } = require('../services/sendAddress');
 
 function sentOrderPath(orderId) {
     return `/orders/history/order/${orderId}`;
@@ -308,7 +309,8 @@ router.get('/edit/:orderId', requireLogin, checkOrderOwnership, async (req, res)
         emails: emails,
         selectedEndClient,
         selectedAddrId: orderData?.delivery_address_id || null,
-        selectedMailId: orderData?.contact_info_id || null
+        selectedMailId: orderData?.contact_info_id || null,
+        sendNeutral: await db.getSendAddressNeutral(orderData?.send_address_id)
     })
 })
 
@@ -767,7 +769,8 @@ router.get("/add-order", requireLogin, async (req, res) => {
     const emails = await db.getUserMails(currentUser.userId);
     log(addr, 'USER ADDRESSES IN ADD ORDER VIEW');
 
-    res.render("new-order.njk", { addr: addr, emails: emails });
+    // POP-02: domyślny adres dostawy klienta podstawiony w nowym zleceniu.
+    res.render("new-order.njk", { addr: addr, emails: emails, selectedAddrId: (addr || []).find((a) => a.is_default)?.id || null });
 });
 
 
@@ -1903,6 +1906,16 @@ router.post('/discount-lock', requireLogin, async (req, res) => {
 });
 
 
+const SEND_ADDRESS_LABELS = { name: 'new-order.client_name', street: 'new-order.street', zip: 'new-order.zip', city: 'new-order.city', country: 'new-order.country', phone: 'new-order.phone', email: 'new-order.email' };
+
+// POP-02: adres na inny adres (klient końcowy) sprawdzony przed zapisem — błędne
+// pola wracają do klienta, zamiast trafić do PROD albo przepaść po cichu.
+function checkSendAddress(req, raw) {
+    const { value, errors } = normalizeSendAddress(raw);
+    if (!errors.length) return { value };
+    return { message: `${req.__('new-order.send_address_invalid')}: ${errors.map((f) => req.__(SEND_ADDRESS_LABELS[f])).join(', ')}` };
+}
+
 router.post('/save-order', requireLogin, async (req, res) => {
     try {
         let { commission, comment, addrId, mailId, orderSendAddress } = req.body;
@@ -1919,12 +1932,13 @@ router.post('/save-order', requireLogin, async (req, res) => {
             }
         }
 
-        let response
         let sendAddrId = null;
 
         if (orderSendAddress) {
-            response = await db.insertSendAddress(orderSendAddress);
-            sendAddrId = response
+            const checked = checkSendAddress(req, orderSendAddress);
+            if (checked.message) return res.status(400).json({ status: "error", message: checked.message });
+            sendAddrId = await db.insertSendAddress(checked.value);
+            if (!sendAddrId) return res.status(500).json({ status: "error", message: req.__('new-order.send_address_save_error') });
         }
 
         const currentUser = ownerService.getCurrentUser(req);
@@ -1983,10 +1997,18 @@ router.put('/update-order/:orderId', requireLogin, checkOrderOwnership, async (r
             return sentOrderResponse;
         }
 
+        let sendAddress = null;
+        if (orderSendAddress) {
+            const checked = checkSendAddress(req, orderSendAddress);
+            if (checked.message) return res.status(400).json({ status: "error", message: checked.message });
+            sendAddress = checked.value;
+        }
+
         const existingOrder = await db.getOrderDetails(orderId);
         let response = false;
         if (existingOrder) {
-            response = await db.updateOrderDetails(orderId, comment, commission, addrId || null, mailId || null, orderSendAddress);
+            response = await db.updateOrderDetails(orderId, comment, commission, addrId || null, mailId || null, sendAddress);
+            if (!response && sendAddress) return res.status(500).json({ status: "error", message: req.__('new-order.send_address_save_error') });
         }
         else {
             return res.status(404).json({ status: "error", message: "Nie znaleziono zamówienia" });

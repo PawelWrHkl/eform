@@ -16,7 +16,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 ["street", i18n('new-order.street')],
                 ["city", i18n('new-order.city')],
                 ["zip", i18n('new-order.zip')],
-                ["country", i18n('new-order.country')]
+                ["country", i18n('new-order.country')],
+                ["is_default", i18n('order.address_default_label'), { type: "checkbox" }]
             ], '/address/add-delivery-address', {
                 title: i18n('order.create_address'),
                 onSubmit: async (response) => {
@@ -90,6 +91,13 @@ function openAddAddressModal(inputsList = [], url, options = {}) {
             }, wrapper);
 
             inputConfig._isCountrySelect = true;
+        } else if (inputConfig.type === "checkbox") {
+            createElement("input", {
+                type: "checkbox",
+                id: inputConfig.id,
+                name: inputConfig.name,
+                class: ["form-check-input", "ms-2"]
+            }, wrapper).checked = !!Number(initialData[inputConfig.name]);
         } else {
             const inputElement = createElement("input", {
                 type: inputConfig.type,
@@ -139,6 +147,10 @@ function openAddAddressModal(inputsList = [], url, options = {}) {
 
                 const inputElement = document.getElementById(inputConfig.id);
                 if (!inputElement) {
+                    continue;
+                }
+                if (inputElement.type === "checkbox") {
+                    payload[inputConfig.name] = inputElement.checked;
                     continue;
                 }
 

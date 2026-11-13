@@ -66,12 +66,17 @@ async function syncOrderFromStatuses(userIdent, orderIdx) {
                 FROM position_statuses ps
                 WHERE ps.user_ident = ? AND ps.order_idx = ?
             ),
+            -- POP-02: ta sama reguła co w widoku zlecenia (prodStatus.js
+            -- alignStatusesToItems/BLOCKING_ORDER): blokujący status wygrywa,
+            -- a gdy wszystko wyszło — najpóźniejsza data. Dotąd lista brała
+            -- samą najpóźniejszą datę i pokazywała „wysłane” przy pozycji w backorder.
             o.prod_status = (
                 SELECT ps.status
                 FROM position_statuses ps
                 WHERE ps.user_ident = ? AND ps.order_idx = ?
                   AND ps.shipping_date IS NOT NULL
-                ORDER BY ps.shipping_date DESC
+                ORDER BY CASE ps.status WHEN '!backorder!' THEN 0 WHEN '!preparation!' THEN 1 WHEN '!production!' THEN 2 ELSE 3 END,
+                         ps.shipping_date DESC
                 LIMIT 1
             ),
             o.spedition_numbers = (

@@ -336,6 +336,8 @@ async function duplicateSendAddress(id) {
                 data.user_id,
                 data.name
             ])
+        // Kopia jedzie do tego samego klienta końcowego — z tym samym znacznikiem (POP-02).
+        if (data.neutral_shipping) await updateQuery('UPDATE send_address SET neutral_shipping = 1 WHERE id = ?', [newId[0].insertId]);
         return newId[0].insertId;
     }
     return null;

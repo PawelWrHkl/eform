@@ -28,7 +28,7 @@ async function prepareRestData() {
 		'city': document.getElementById("sendCity").value,
 		'zip': document.getElementById("sendZip").value,
 		'country': document.getElementById("sendCountry_code")?.value ?? '',
-
+		'neutral': !!document.getElementById('sendNeutral')?.checked,
 	}
 	// Konto biura: klient, dla którego wyrenderowano formularz — serwer odrzuci zapis,
 	// gdy w innej karcie wybrano już innego klienta (routes/orders.js /save-order).
@@ -128,6 +128,10 @@ async function updateOrder(orderId) {
 			body: requestBody,
 		});
 		const result = await response.json();
+		if (!response.ok && result.message) {
+			showToast('error', result.message);
+			return;
+		}
 
 		if (result.redirect) {
 			await linkEndClient(orderId);

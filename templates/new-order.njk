@@ -115,7 +115,7 @@
                                             </div>
                                             <div class="col-md-9">
                                                 <div class="d-flex align-items-center gap-2" id="address-checkbox-container">
-                                                    <input type="checkbox" class="form-check-input m-0" id="show-addresses-checkbox"/>
+                                                    <input type="checkbox" class="form-check-input m-0" id="show-addresses-checkbox" {% if selectedAddrId %}checked{% endif %}/>
                                                     <label class="form-check-label m-0" for="show-addresses-checkbox">
                                                         {% block checkbox_label %}
                                                             {{ __('new-order.chcekbox_address_label') }}
@@ -324,6 +324,14 @@
                                                                 <input class="form-control" type="text" id="sendCountry"/>
                                                                 <input type="hidden" id="sendCountry_code"/>
                                                             {% endblock send_country_input %}
+                                                        </div>
+                                                    </div>
+                                                    {# POP-02: wysyłka do klienta końcowego bez nadawcy na etykiecie → JSON `neutralShipping` #}
+                                                    <div class="row mb-3 align-items-center new-send-addr d-none">
+                                                        <div class="col-md-3"></div>
+                                                        <div class="col-md-9 d-flex align-items-center gap-2">
+                                                            <input type="checkbox" class="form-check-input m-0" id="sendNeutral" {% if sendNeutral %}checked{% endif %}/>
+                                                            <label class="form-check-label m-0 text-start" for="sendNeutral">{{ __('new-order.neutral_shipping_label') }}</label>
                                                         </div>
                                                     </div>
                                                     <!--noeeew end -->

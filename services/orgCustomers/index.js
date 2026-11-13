@@ -211,7 +211,8 @@ async function createCustomer({ organizationId, body, actorUserId = null }) {
 	await usersDb.insertUserIntousrtble(ident, pin, plainPassword);
 
 	if (values.delivery) {
-		await addressDb.insertDeliveryAddress(
+		// Adres dostawy klienta = domyślny w jego zleceniach (POP-02); adres konta zostaje fakturowym.
+		const deliveryId = await addressDb.insertDeliveryAddress(
 			{
 				name: values.delivery.name,
 				phone: values.delivery.phone_number,
@@ -222,6 +223,7 @@ async function createCustomer({ organizationId, body, actorUserId = null }) {
 			},
 			userId
 		);
+		if (deliveryId) await addressDb.setDefaultDeliveryAddress(userId, deliveryId, true);
 	}
 	if (values.user.email) {
 		await addressDb.insertMailAddress({ mail: values.user.email }, userId);

@@ -9,7 +9,17 @@ async function insertDeliveryAddress(payload, userId) {
     const query = `INSERT INTO delivery_address (user_id, name, phone_number, street, city, zip, country) VALUES (?, ?, ?, ?, ?, ?, ?)`;
     const { name, phone, street, city, zip, country } = payload;
     const result = await insertQuery(query, [userId, name, phone, street, city, zip, country]);
-    return result.insertId;
+    return result?.[0]?.insertId ?? null;
+}
+
+// POP-02: jeden domyślny adres dostawy na klienta (podstawiany w nowym zleceniu).
+// Bez zaznaczenia kolumny nie dotykamy — do migracji `is_default` zapis adresu działa jak dotąd.
+async function setDefaultDeliveryAddress(userId, addressId, isDefault, wasDefault = false) {
+    if (!isDefault && !wasDefault) return true;
+    const query = isDefault
+        ? 'UPDATE delivery_address SET is_default = (id = ?) WHERE user_id = ?'
+        : 'UPDATE delivery_address SET is_default = 0 WHERE id = ? AND user_id = ?';
+    return !!(await updateQuery(query, [addressId, userId]));
 }
 
 async function insertMailAddress(payload, userId) {
@@ -22,7 +32,8 @@ async function insertMailAddress(payload, userId) {
 async function getUserAddresses(userId, orderId = null) {
     let query;
 
-    query = `SELECT id, name, phone_number AS phone, street, city, zip, country FROM delivery_address WHERE user_id = ?`;
+    // `*` zamiast listy: `is_default` (POP-02) jest tylko po migracji.
+    query = `SELECT *, phone_number AS phone FROM delivery_address WHERE user_id = ?`;
     if (orderId) {
         query += ` AND id = (SELECT delivery_address_id FROM \`order\` WHERE id = ?)`;
     }
@@ -37,7 +48,7 @@ async function getUserMails(userId) {
 }
 
 async function getAddressById(addressId) {
-    const query = `SELECT id, name, phone_number AS phone, street, city, zip, country FROM delivery_address WHERE id = ?`;
+    const query = `SELECT *, phone_number AS phone FROM delivery_address WHERE id = ?`;
     const addresses = await selectQuery(query, [addressId]);
     return addresses[0];
 }
@@ -72,6 +83,7 @@ async function deleteMail(mailId) {
 
 module.exports = {
     insertDeliveryAddress,
+    setDefaultDeliveryAddress,
     insertMailAddress,
     getUserAddresses,
     getUserMails,

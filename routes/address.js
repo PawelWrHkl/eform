@@ -61,6 +61,9 @@ router.post("/add-delivery-address", requireLogin, async (req, res) => {
 
         const insertResult = await db.insertDeliveryAddress(payload, userId);
         log('Insert Result:', insertResult);
+        if (!insertResult || !(await db.setDefaultDeliveryAddress(userId, insertResult, !!req.body.is_default))) {
+            return res.status(500).json({ success: false, message: 'Błąd podczas zapisu adresu dostawy' });
+        }
         return res.status(200).json({
             success: true,
             message: 'Adres dostawy został zapisany',
@@ -224,6 +227,10 @@ router.put('/:id', requireLogin, addressOwnerGuard('delivery_address'), async (r
         }
 
         await db.updateAddress(req.params.id, payload);
+        const current = await db.getAddressById(req.params.id);
+        if (current && !(await db.setDefaultDeliveryAddress(current.user_id, current.id, !!req.body.is_default, !!current.is_default))) {
+            return res.status(500).json({ success: false, message: 'Błąd podczas aktualizacji adresu dostawy' });
+        }
         return res.status(200).json({
             success: true,
             message: 'Adres dostawy został zaktualizowany'

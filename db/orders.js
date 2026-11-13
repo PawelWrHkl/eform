@@ -143,8 +143,9 @@ async function updateOrderDetails(orderId, comment, commission, deliveryAddressI
         const sendAddressId = await getSendAddressId(orderId);
         if (!sendAddressId) {
             const newSendAddrId = await insertSendAddress(sendAddress);
+            if (!newSendAddrId) return false;
             query = `UPDATE \`order\` SET send_address_id = ? WHERE id = ?`;
-            await updateQuery(query, [newSendAddrId, orderId]);
+            if (!(await updateQuery(query, [newSendAddrId, orderId]))) return false;
         } else {
             query = `
                 UPDATE \`order\`
@@ -169,11 +170,27 @@ async function updateOrderDetails(orderId, comment, commission, deliveryAddressI
                 sendAddress.country,
                 orderId
             ];
-            await updateQuery(query, values);
+            if (!(await updateQuery(query, values))) return false;
+            if (!(await setSendAddressNeutral(sendAddressId, sendAddress.neutral))) return false;
         }
     }
 
     return res;
+}
+
+// `SELECT *`, nie nazwa kolumny: przed migracją POP-02 (`neutral_shipping`)
+// jawna kolumna wywróciłaby każde zapytanie, a tak brak kolumny = „nie”.
+async function getSendAddressNeutral(sendAddressId) {
+    if (!sendAddressId) return false;
+    const rows = await selectQuery('SELECT * FROM send_address WHERE id = ?', [sendAddressId]);
+    return !!rows?.[0]?.neutral_shipping;
+}
+
+// Kolumny dotykamy tylko, gdy znacznik jest albo był ustawiony — do czasu
+// migracji zwykły adres wysyłki zapisuje się jak dotąd.
+async function setSendAddressNeutral(sendAddressId, neutral) {
+    if (!neutral && !(await getSendAddressNeutral(sendAddressId))) return true;
+    return !!(await updateQuery('UPDATE send_address SET neutral_shipping = ? WHERE id = ?', [neutral ? 1 : 0, sendAddressId]));
 }
 
 
@@ -254,6 +271,7 @@ where o.id = ?`;
 
     let orderDetails = await selectQuery(orderDetailsQuery, orderId);
     orderDetails = dateUtils.humanizeData(orderDetails)[0];
+    if (orderDetails && hasSendAddress) orderDetails.neutral_shipping = await getSendAddressNeutral(orderFlags[0].send_address_id);
 
     return { orderDetails, orderItems }
 }
@@ -433,7 +451,11 @@ async function insertSendAddress(address) {
                 address['phone'],
                 address['email']])
 
-        return response[0]?.insertId;
+        // POP-02: błąd zapisu (np. telefon dłuższy niż kolumna) = null — wołający
+        // nie może wtedy zapisać zlecenia bez adresu, które pojechałoby na adres konta.
+        const id = response?.[0]?.insertId;
+        if (!id || !(await setSendAddressNeutral(id, address.neutral))) return null;
+        return id;
 
     }
 
@@ -993,6 +1015,7 @@ module.exports = {
     updateOrderComment,
     changeOrderStatus,
     insertSendAddress,
+    getSendAddressNeutral,
     getUserOrderId,
     getOrderCreatedByGroupUser,
     checkOwner,

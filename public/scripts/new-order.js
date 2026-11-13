@@ -49,7 +49,8 @@ async function openEditAddressModal() {
             ["street", i18n('new-order.street')],
             ["city", i18n('new-order.city')],
             ["zip", i18n('new-order.zip')],
-            ["country", i18n('new-order.country')]];
+            ["country", i18n('new-order.country')],
+            ["is_default", i18n('order.address_default_label'), { type: "checkbox" }]];
 
         openAddAddressModal(fields, `/address/${addrId}`, {
             title: i18n('order.edit_address'),

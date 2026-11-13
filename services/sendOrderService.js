@@ -53,6 +53,8 @@ class OrderSender {
             country: order.country,
             email: order.email,
             phone: order.phone,
+            // POP-02: wysyłka neutralna do klienta końcowego (bez nadawcy na etykiecie)
+            neutralShipping: !!order.neutral_shipping,
             // Stały adres klienta (zawsze z tabeli `user`) — niezależny od adresu dostawy
             userStreet: order.user_street || '',
             userZip: order.user_zip || '',
