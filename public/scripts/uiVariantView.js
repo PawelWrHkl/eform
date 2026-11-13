@@ -368,21 +368,8 @@ register({
         tableContainer.insertBefore(bar, tableContainer.firstChild);
         orderView.created.push(bar);
 
-        // „Dodaj kolejną pozycję” pod kartami — ten sam adres i napis, co
-        // przycisk w nagłówku (brak przycisku = oferta tylko do wglądu).
-        // ⚠️ order.njk ma DWA `#order-buttons`/`#new-order-button` (mobilny
-        // z samą ikoną i desktopowy z napisem) — bierzemy ten z napisem.
-        const addBtn = document.querySelector('#order-buttons.d-md-flex #new-order-button[href]')
-            || document.querySelector('#new-order-button.custom-order-btn[href]');
-        if (addBtn) {
-            const more = el('a', { class: 'efor-add-position efor-v2-only', href: addBtn.getAttribute('href') }, [
-                el('span', { class: 'efor-add-position__plus', 'aria-hidden': 'true', text: '+' }),
-                squash(addBtn.textContent)
-            ]);
-            const totals = tableContainer.querySelector('#total-container');
-            tableContainer.insertBefore(more, totals || null);
-            orderView.created.push(more);
-        }
+        // „Dodaj pozycję” pod listą robi teraz scripts/addPositionReach.js w obu
+        // wariantach (POP-21) — klasa `efor-add-position` daje mu tu wygląd B.
 
         // Panel „Podsumowanie” — tylko desktop (patrz whenDesktop)
         const totals = document.getElementById('total-container');

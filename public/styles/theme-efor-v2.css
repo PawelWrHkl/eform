@@ -2794,10 +2794,6 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         line-height: 1;
     }
 
-    .theme-efor-v2[data-efor-positions="table"] .efor-add-position {
-        display: none;
-    }
-
     /* ── tabela pozycji (widok „Tabela”) ── */
     .theme-efor-v2[data-efor-group="order"] .order-table {
         margin-top: 0 !important;
@@ -6128,7 +6124,6 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
     .theme-efor-v2 .efor-chooser,
     .theme-efor-v2 .efor-positions-bar,
     .theme-efor-v2 .efor-summary,
-    .theme-efor-v2 .efor-add-position,
     .theme-efor-v2 .efor-order-status {
         display: none !important;
     }

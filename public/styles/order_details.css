@@ -1401,3 +1401,122 @@ tr.link-group-row > th:first-child {
     .lm-panel { border-radius: 1rem; width: 100%; max-height: 100vh; }
 }
 
+
+/* ── POP-21: „Dodaj pozycję” na końcu listy i pływający (scripts/addPositionReach.js) ──
+   Koniec listy ma klasę `efor-add-position`, więc w B na pulpicie wygląda jak dotąd
+   (theme-efor-v2.css); tu — A i telefon (tokeny `--m-*` podmienia wariant B). */
+.add-position-end {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 52px;
+    margin: 0 0 16px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--bg-surface);
+    color: var(--text-primary) !important;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none !important;
+}
+
+.add-position-end:hover {
+    border-color: var(--color-success);
+    background: var(--bg-hover);
+}
+
+.add-position-end .efor-add-position__plus {
+    font-size: 24px;
+    font-weight: 400;
+    line-height: 1;
+}
+
+/* W <body>, nie w `.content` — tam `transform` z animacji wejścia psuje `fixed`. */
+a.add-position-fab {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 62px;            /* linia pieska asystenta, nad stałą stopką */
+    z-index: 1015;           /* nad treścią, pod paskiem wysyłki B (1020) i oknami */
+    width: max-content;
+    max-width: calc(100% - 32px);
+    margin: 0 auto;
+    gap: 8px;
+    min-height: 44px;
+    padding: 10px 22px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    box-shadow: var(--shadow-lg);
+}
+
+.add-position-fab__plus {
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 1;
+}
+
+a.add-position-fab[hidden] {
+    display: none !important;
+}
+
+.theme-efor-v2 a.action-btn.add-position-fab {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .18) !important;
+}
+
+/* Nowa pozycja po powrocie z dodawania. Karta: obwódka `outline` — tło zakrywa
+   treść karty, a `box-shadow` kart ma w stylach telefonu `!important`. */
+tr.add-position-new > td {
+    animation: addPositionFlash 3.5s ease-out;
+}
+
+.mobile-item-card.add-position-new {
+    outline: 3px solid transparent;
+    outline-offset: 2px;
+    animation: addPositionRing 3.5s ease-out;
+}
+
+@keyframes addPositionFlash {
+    0%, 45% { background-color: rgba(16, 185, 129, .28); }
+}
+
+@keyframes addPositionRing {
+    0%, 45% { outline-color: var(--color-success); }
+}
+
+@media (max-width: 767.98px) {
+    .add-position-end {
+        margin: 0 0 var(--m-gap);
+        border-color: var(--m-border);
+        border-radius: var(--m-radius);
+        background: var(--m-card);
+        color: var(--m-text) !important;
+    }
+
+    /* Okrągły „+” przy lewej krawędzi: z prawej stoi piesek z dymkiem (`.ea-pet`
+       łapie kliknięcia na całej szerokości dymka). `bottom` w A liczy skrypt (stopka). */
+    a.add-position-fab {
+        left: var(--m-gutter, 16px);
+        right: auto;
+        bottom: calc(var(--m-bottomnav-h, 64px) + env(safe-area-inset-bottom, 0px) + 12px);
+        width: 52px;
+        height: 52px;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+    }
+
+    .add-position-fab__plus {
+        font-size: 30px;
+    }
+
+    .add-position-fab__label {
+        display: none;
+    }
+
+    /* B: nad dolnym paskiem wysyłki, jak piesek */
+    .theme-efor-v2[data-efor-group="order"]:has(.send-order-actions .custom-order-btn) a.add-position-fab {
+        bottom: calc(var(--m-bottomnav-h, 64px) + env(safe-area-inset-bottom, 0px) + 84px);
+    }
+}
