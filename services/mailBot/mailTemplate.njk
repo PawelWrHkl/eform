@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ __('mail.subject') }}</title>
+    <title>{{ __('mail.correction_subject') if isCorrection else __('mail.subject') }}</title>
     <style>
       /* Universal reset for email clients */
       * {
@@ -197,7 +197,9 @@
       <tr>
         <td class="header-section">
           <img src="cid:logo_cid" alt="Logo firmy" class="logo-img"/>
-          <h1 class="header-title">{{ __('mail.order_confirm') }}</h1>
+          {# `isCorrection` — korekta wysłanego zlecenia (mailBot.sendCorrectionMail): ten sam
+             mail co potwierdzenie, inny tytuł i treść, w załączniku nowy PDF z oznaczonymi zmianami. #}
+          <h1 class="header-title">{{ __('mail.correction_title') if isCorrection else __('mail.order_confirm') }}</h1>
           <h2 class="client-name">{{ klient }}</h2>
           <div class="order-id">{{ __('history_order.title') }}
             {{ orderNr }}</div>
@@ -206,8 +208,13 @@
       <tr>
         <td class="content-section">
           <div class="comment-container">
+            {% if isCorrection %}
+            <p class="comment-text">{{ __('mail.correction_body_1', { orderNr: orderNr }) }}{% if orderDetails.commission %}
+              {{ __('mail.sent_confirmation_2_2') }} "{{ orderDetails.commission }}".{% endif %} {{ __('mail.correction_body_2') }}{% if correctionMarked %} {{ __('mail.correction_marked_note') }}{% endif %}</p>
+            {% else %}
             <p class="comment-text">{{ __('mail.sent_confirmation_2_1') }}{{ orderNr }}
               {{ __('mail.sent_confirmation_2_2') }} "{{ orderDetails.commission }}". {{ __('mail.sent_confirmation_2_3') }}</p>
+            {% endif %}
             {% if isImport %}
               <p class="comment-text" style="color:#666;font-style:italic;margin-top:12px;">{{ __('mail.import_note') }}</p>
             {% endif %}

@@ -22,7 +22,8 @@ const INVOICE_VERSIONS = Object.freeze([
       'Pod każdą pozycją, na całą szerokość tabeli, krótka specyfikacja w języku zlecenia: model, kolor, sterowanie, napęd i inne wybrane opcje (6 głównych parametrów, jak w specyfikacji ceny). Po niej nazwa własna pozycji, komisja i komentarz klienta.',
       'Nowa kolumna „Cena jedn. netto” (cena – ilość – wartość), wymagana też na fakturze VAT. Cena jednostkowa = wartość pozycji / ilość, zaokrąglona do grosza.',
       'Klient organizacji z rabatem (ceny SUB___): cena jedn. przed rabatem, rabat, cena jedn. po rabacie i wartość netto. Suma „przed rabatem” w wierszu RAZEM zniknęła (pod cenami jednostkowymi nie ma sensu).',
-      'Nowe nazwy i opisy mają faktury wystawione od wdrożenia. Wcześniejsze zachowują zapisane nazwy i opisy, kolumnę ceny jednostkowej dostają przy ponownym wydruku.'
+      'Nowe nazwy i opisy mają faktury wystawione od wdrożenia. Wcześniejsze zachowują zapisane nazwy i opisy, kolumnę ceny jednostkowej dostają przy ponownym wydruku.',
+      '13.11: wszystkie 21 faktur z Cozy (HKL → Cozy, także dzienne, i Cozy → klienci) przepisane według tej reguły na polecenie Pawła: 92 pozycje. Kwoty, numery i daty bez zmian, PDF-y podmienione na FTP i wysłane mailem do testerów. Pozostałe faktury sprzed 7.11 mają jeszcze stare nazwy.'
     ]
   },
   {

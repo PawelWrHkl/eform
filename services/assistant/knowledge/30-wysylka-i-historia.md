@@ -9,7 +9,7 @@
 - Pustej oferty (bez pozycji) nie da się wysłać.
 - Pracownik może wysyłać tylko z uprawnieniem „{{employee.can_send_orders}}”. Bez niego nie widzi przycisku wysyłki — ofertę wysyła właściciel konta albo pracownik z tym uprawnieniem.
 - Konto sklepu/klienta grupy zamiast wysyłki ma zwykle „{{group.submit_for_approval_title}}” — zamówienie czeka wtedy na zatwierdzenie przez centralę grupy.
-- Po wysłaniu zamówienia nie da się już edytować: dodawać ani zmieniać pozycji, zmieniać adresu czy nazwy. Jedyna droga zmiany: anulowanie w ciągu 24 godzin (patrz niżej) i nowe zamówienie. Zmiany po 24 godzinach → konsultant.
+- Wysłane zamówienie zmienia się przez korektę: w podglądzie zlecenia przycisk „{{order_correction.button}}” otwiera je do edycji, a „{{order_correction.submit}}” wysyła poprawioną wersję do produkcji (z mailem potwierdzającym). Klient może to zrobić, dopóki produkcja zlecenia jest poniżej 20%; od 20% korektę robi tylko obsługa HKL → konsultant.
 - Po wysłaniu zamówienie trafia do produkcji, a na adres e-mail konta przychodzi mail z potwierdzeniem przyjęcia zamówienia i PDF-em. Jeśli potwierdzenie nie dotarło → konsultant.
 - Portal nie wysyła maili o zmianach statusu produkcji, o nadaniu paczki ani o anulowaniu. Status sprawdza się w „{{base.orders_history}}”.
 
@@ -19,7 +19,7 @@
 - Ikona ciężarówki prowadzi do strony „{{termin.delivery_time}}”.
 
 ## Lista „{{base.orders_history}}” (zamówienia wysłane)
-- Kolumny m.in.: „{{orders.sent_date}}”, „{{orders.status}}”, „{{translate.delivery}}”, „{{orders.tracking_numbers}}” oraz akcje „{{orders.reorder}}” i (przez 24 h od wysłania) „{{cancel_order.button_short}}”.
+- Kolumny m.in.: „{{orders.sent_date}}”, „{{orders.status}}”, „{{translate.delivery}}”, „{{orders.tracking_numbers}}” oraz akcje „{{orders.reorder}}” i (dopóki produkcja < 20%) „{{cancel_order.button_short}}”.
 - Kliknięcie w wiersz otwiera podgląd zamówienia: przy każdej pozycji „{{order.status_label}}”, „{{order.pred_shipping_date_label}}” i „{{order.shipping_method_label}}” z numerem paczki.
 
 ## Wyszukiwanie i filtry (obie listy)
@@ -45,11 +45,11 @@
 - Kopiowania tylko części pozycji nie ma. Sposób: skopiuj całe zamówienie, a w nowej ofercie usuń zbędne pozycje koszem „{{order.delete_pos}}” i ewentualnie zmień pozostałe przez „{{order.edit_pos}}”. Przenoszenia pozycji między różnymi zamówieniami nie ma. W obrębie jednej oferty pozycję można zduplikować przyciskiem „{{order.duplicate_pos}}”.
 - Kopia zrobiona przez pracownika nie jest przypisana do niego. Pracownik bez uprawnienia „{{employee.can_see_all_orders}}” może jej potem nie widzieć na swojej liście.
 
-## Anulowanie wysłanego zlecenia (do 24 godzin)
-- Anulować można tylko zlecenie wysłane i tylko przez 24 godziny od wysłania. Później portal na to nie pozwala → konsultant.
+## Anulowanie wysłanego zlecenia (dopóki produkcja < 20%)
+- Anulować można tylko zlecenie wysłane i tylko, dopóki postęp jego produkcji jest poniżej 20%. Później portal na to nie pozwala → konsultant.
 - Anulowanie jest nieodwracalne. Anulowanego zlecenia nie da się przywrócić ani wysłać ponownie — można je tylko skopiować przyciskiem „{{orders.reorder}}”.
 - Kto może: klient, konto organizacji, grupa oraz pracownik z uprawnieniem „{{employee.can_send_orders}}”. Konto sklepu/klienta grupy nie anuluje samo — robi to centrala grupy.
-1. Na liście „{{base.orders_history}}” kliknij „{{cancel_order.button_short}}” przy zleceniu albo otwórz zlecenie i kliknij „{{cancel_order.button}}” (widać tam też, ile czasu zostało).
+1. Na liście „{{base.orders_history}}” kliknij „{{cancel_order.button_short}}” przy zleceniu albo otwórz zlecenie i kliknij „{{cancel_order.button}}”.
 2. Zaznacz „{{cancel_order.step1_checkbox}}” i kliknij „{{cancel_order.step1_continue}}” (rezygnacja: „{{cancel_order.keep_order}}”).
 3. Potwierdź „{{cancel_order.step2_confirm}}”.
 - Anulowane zlecenia są na liście „{{cancel_order.panel_link_title}}” (kafelek w „{{panel.nav_link}}”), z datą anulowania i przyciskiem „{{orders.reorder}}”.

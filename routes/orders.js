@@ -29,7 +29,7 @@ const { availabeLanguages } = require('../config');
 const { translateOrderItems } = require('../services/translationDict/itemTranslator');
 const { buildItemProductionDays, recalcAndSaveMaxProdDays, recalcAndSaveProdDays, getOrderDeliveryDelay } = require('../services/productionDays');
 const { getProductionSendSkipClient, shouldForceProductionSend } = require('../utils/productionSendGuard');
-const { getOrderMutationBlock, shouldRedirectFromActiveOrderView, getClientGroupOrderBlock, isCanceledOrder } = require('../utils/orderStatusGuard');
+const { getOrderMutationBlock, shouldRedirectFromActiveOrderView, getClientGroupOrderBlock, canEditCorrection } = require('../utils/orderStatusGuard');
 const orderCancellation = require('../services/orderCancellation');
 const { getGroupShopSendBlock } = require('../services/groupShopSendPolicy');
 const { resolveOrderAbPolicy, resolveConfirmationRecipients, resolveStaffCopy } = require('../services/confirmationPolicy');
@@ -97,7 +97,18 @@ async function rejectSentOrderMutation(res, orderId, req) {
  * przez „Zamów ponownie" (`POST /orders/copy/:orderId`).
  */
 async function rejectCanceledOrderSend(req, res, orderId) {
-    if (await isCanceledOrder(orderId)) {
+    const status = await db.getOrderStatus(orderId);
+    // Zlecenie w korekcie wysyła WYŁĄCZNIE „Wyślij korektę” (plik `_correction`,
+    // routes/orderCorrection.js) — zwykła wysyłka dałaby produkcji drugi JSON bez sufiksu.
+    if (status === 'correction') {
+        res.status(409).json({
+            success: false,
+            status: 'error',
+            message: req.__('order_correction.error_use_submit')
+        });
+        return true;
+    }
+    if (status === 'canceled') {
         res.status(409).json({
             success: false,
             status: 'error',
@@ -661,6 +672,10 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
     Object.assign(res.locals, currencyLocals);
 
     if (orderDetails?.status === 'correction' && !req.session.user?.isAdmin) {
+        // Korektę prowadzi klient / biuro (produkcja < 20% albo biuro) → edycja zlecenia.
+        if (await canEditCorrection(req.params.orderId, req.session.user)) {
+            return res.redirect(`/orders/order/${req.params.orderId}`);
+        }
         return res.status(503).render('error.njk', {
             message: 'Zamówienie jest tymczasowo niedostępne — trwa korekta administracyjna.'
         });
@@ -704,7 +719,7 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         const clientDiscountTotals = calcClientDiscountTotal(orderItems);
         totalPrice.afterClientDiscount = clientDiscountTotals.found ? clientDiscountTotals.total : null;
 
-        // Przycisk „Anuluj zlecenie" (do 24 h od wysłania) albo baner „anulowane".
+        // Przycisk „Anuluj zlecenie" (produkcja < 20%), „Korekta zlecenia" albo baner „anulowane".
         // Awaria nie może zabrać podglądu — wtedy po prostu nie ma przycisku.
         let cancellation = null;
         try {
@@ -2023,6 +2038,10 @@ router.put('/update-order/:orderId', requireLogin, checkOrderOwnership, async (r
 
 
 router.delete('/order/:orderId/delete/', requireLogin, checkOrderOwnership, async (req, res) => {
+    // Zlecenie w korekcie jest już na produkcji — usunąć go nie wolno nikomu.
+    if (await db.getOrderStatus(req.params.orderId) === 'correction') {
+        return res.status(409).json({ success: false, status: 'error', message: req.__('order_correction.error_use_submit') });
+    }
     const sentOrderResponse = await rejectSentOrderMutation(res, req.params.orderId, req);
     if (sentOrderResponse) {
         return sentOrderResponse;

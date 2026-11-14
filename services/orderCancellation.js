@@ -1,5 +1,7 @@
 /**
- * Anulowanie WYSŁANEGO zlecenia przez klienta — do 24 h od wysłania.
+ * Anulowanie WYSŁANEGO zlecenia — dopóki postęp produkcji (STATUSPROD ze
+ * status.txt, services/prodProgress.js) jest poniżej 20%. Do 13.11.2026
+ * obowiązywało okno 24 h od wysłania.
  *
  * Cykl życia zlecenia: `active` (edycja) → `sent` (wysłane, JSON na FTP
  * `/orders-out/`) → `canceled` (anulowane). Anulowania NIE DA SIĘ COFNĄĆ —
@@ -18,9 +20,7 @@
  * produkuje. W tej kolejności awaria FTP nie zmienia niczego (klient dostaje
  * błąd i może ponowić), a awaria zapisu po udanym znaczniku zostawia stan
  * „produkcja wie, eForm jeszcze nie" — ponowne kliknięcie nadpisuje ten sam
- * plik i kończy zapis. Ten sam `windowStart` idzie do sprawdzenia i do
- * `UPDATE`, więc zlecenie, które przeszło sprawdzenie, nie „przeterminuje się"
- * w trakcie wysyłania znacznika.
+ * plik i kończy zapis.
  *
  * ⚠️ Znacznik idzie na FTP zawsze, gdy działamy jako produkcja
  * (`PRODUCTION`) — także dla klientów z `ignore_mail_list.json`. Ich JSON mógł
@@ -43,7 +43,6 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const CANCELED_STATUS = 'canceled';
-const CANCELLATION_WINDOW_HOURS = 24;
 const CANCEL_MARKER_EXTENSION = '.cancel';
 const CANCEL_MARKER_DIR = 'orders-cancel';
 const TIME_ZONE = 'Europe/Warsaw';
@@ -59,6 +58,7 @@ const RESULT_MESSAGE_KEYS = {
     not_found: 'cancel_order.error_not_found',
     forbidden: 'cancel_order.error_forbidden',
     not_sent: 'cancel_order.error_not_sent',
+    // Nazwa kodu historyczna (okno 24 h) — dziś: produkcja ≥ 20%.
     window_expired: 'cancel_order.error_window_expired',
     marker_failed: 'cancel_order.error_marker',
     server_error: 'cancel_order.error_server'
@@ -83,33 +83,13 @@ function resolveDeps(deps = {}) {
     if (!resolved.env) resolved.env = process.env;
     if (!resolved.log) resolved.log = require('../utils/logging').log;
     if (!resolved.now) resolved.now = () => new Date();
+    if (!resolved.prodProgress) resolved.prodProgress = require('./prodProgress');
     return resolved;
 }
 
 /** „Teraz" jako czas ścienny w Warszawie — w tym formacie baza trzyma `sent_date`. */
 function wallClockNow(now) {
     return dayjs(now).tz(TIME_ZONE).format(DB_FORMAT);
-}
-
-/**
- * Początek okna anulowania: `now − 24 h` liczone na CZASIE ŚCIENNYM, tak jak
- * `DATE_ADD(sent_date, INTERVAL 24 HOUR)` w bazie (dayjs.utc = arytmetyka bez
- * strefy). Dzięki temu sprawdzenie, `UPDATE` i pokazany termin mówią to samo.
- */
-function cancellationWindowStart(nowWallClock) {
-    return dayjs.utc(nowWallClock).subtract(CANCELLATION_WINDOW_HOURS, 'hour').format(DB_FORMAT);
-}
-
-/** `2026-09-29 14:35:00` → `29.09.2026 14:35` (format dat w całym eFormie). */
-function formatDeadlineLabel(dbDateTime) {
-    if (!dbDateTime) return '';
-    const parsed = dayjs.utc(String(dbDateTime));
-    return parsed.isValid() ? parsed.format('DD.MM.YYYY HH:mm') : '';
-}
-
-function windowParams(deps) {
-    const now = wallClockNow(deps.now());
-    return { now, windowStart: cancellationWindowStart(now), windowHours: CANCELLATION_WINDOW_HOURS };
 }
 
 /** `HKL_ryver_242.cancel` — ta sama nazwa co wysłany `HKL_ryver_242.json`. */
@@ -145,6 +125,16 @@ function isActorBlocked(order, { sessionUser, sessionEmployee, employeePermissio
     return false;
 }
 
+/**
+ * Korekta wysłanego zlecenia (routes/orderCorrection.js): admin i biuro zawsze,
+ * pozostali jak przy anulowaniu — rola z prawem wysyłki i produkcja < 20%.
+ */
+function canCorrect(ctx, progress) {
+    const user = ctx?.sessionUser;
+    if (user?.isAdmin || user?.isStaff) return true;
+    return canRoleCancel(user, ctx?.employeePermissions) && !!progress?.allowed;
+}
+
 /** Kto anulował — do kolumny `order.canceled_by` (audyt, max 100 znaków). */
 function describeActor({ sessionUser, sessionEmployee, contextUser } = {}) {
     let label;
@@ -164,15 +154,6 @@ function describeActor({ sessionUser, sessionEmployee, contextUser } = {}) {
         label = `user:${sessionUser?.ident || sessionUser?.pin || '?'}`;
     }
     return label.slice(0, 100);
-}
-
-function isWithinWindow(state) {
-    return Number(state?.within_window) === 1;
-}
-
-function secondsLeft(value) {
-    const seconds = Number(value);
-    return Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
 }
 
 function result(status, code, extra = {}) {
@@ -227,8 +208,8 @@ async function cancelSentOrder(ctx, deps) {
     const orderId = parseInt(ctx?.orderId, 10);
     if (!Number.isFinite(orderId)) return result(404, 'not_found');
 
-    const window = windowParams(d);
-    const state = await d.db.getOrderCancellationState(orderId, window);
+    const now = wallClockNow(d.now());
+    const state = await d.db.getOrderCancellationState(orderId);
     if (!state) return result(404, 'not_found');
 
     if (isActorBlocked(state, ctx)) return result(403, 'forbidden');
@@ -236,7 +217,7 @@ async function cancelSentOrder(ctx, deps) {
     // Ponowne kliknięcie / druga karta — cel już osiągnięty, to nie błąd.
     if (state.status === CANCELED_STATUS) return result(200, 'already_canceled', { alreadyCanceled: true });
     if (state.status !== 'sent') return result(409, 'not_sent');
-    if (!isWithinWindow(state)) return result(409, 'window_expired');
+    if (!(await d.prodProgress.clientMayChange(state)).allowed) return result(409, 'window_expired');
 
     if (!state.org_ident || !state.user_ident || !state.order_idx) {
         d.log(`[orderCancellation] zlecenie ${orderId}: brak składników nazwy pliku (org=${state.org_ident}, user=${state.user_ident}, nr=${state.order_idx}) — nie anuluję`);
@@ -260,9 +241,8 @@ async function cancelSentOrder(ctx, deps) {
     }
 
     const changed = await d.db.markOrderCanceled(orderId, {
-        canceledAt: window.now,
-        canceledBy: actor,
-        windowStart: window.windowStart
+        canceledAt: now,
+        canceledBy: actor
     });
 
     if (changed === null) {
@@ -282,23 +262,26 @@ async function cancelSentOrder(ctx, deps) {
 }
 
 /**
- * Stan anulowania do podglądu wysłanego zlecenia.
- * @returns {Promise<object|null>} `{ status, canceled, cancelable, canCancel, deadlineLabel, secondsLeft, canceledAtLabel }`
+ * Stan anulowania i korekty do podglądu wysłanego zlecenia.
+ * @returns {Promise<object|null>} `{ status, canceled, cancelable, canCancel, canOpenCorrection, prodPercent, canceledAtLabel }`
  */
 async function getCancellationInfo(orderId, ctx = {}, deps) {
     const d = resolveDeps(deps);
-    const state = await d.db.getOrderCancellationState(orderId, windowParams(d));
+    const state = await d.db.getOrderCancellationState(orderId);
     if (!state) return null;
 
     const canceled = state.status === CANCELED_STATUS;
-    const cancelable = state.status === 'sent' && isWithinWindow(state);
+    const progress = state.status === 'sent' ? await d.prodProgress.clientMayChange(state) : { allowed: false, percent: null };
+    const cancelable = state.status === 'sent' && progress.allowed;
+    const correctionOn = state.status === 'sent' && !!require('../config').features.orderCorrection;
     const info = {
         status: state.status,
         canceled,
         cancelable,
         canCancel: cancelable && !isActorBlocked(state, ctx),
-        deadlineLabel: cancelable ? formatDeadlineLabel(state.cancel_deadline) : '',
-        secondsLeft: cancelable ? secondsLeft(state.seconds_left) : 0,
+        // Przycisk „Korekta zlecenia” (ORDER_CORRECTION_ENABLED, routes/orderCorrection.js).
+        canOpenCorrection: correctionOn && canCorrect(ctx, progress) && !isActorBlocked(state, ctx),
+        prodPercent: progress.percent,
         canceledAtLabel: ''
     };
     if (canceled) {
@@ -309,36 +292,38 @@ async function getCancellationInfo(orderId, ctx = {}, deps) {
 }
 
 /**
- * Dopisuje do zleceń z listy wysłanych termin anulowania (`cancelDeadlineLabel`,
- * `cancelSecondsLeft`) — tylko tym, które jeszcze da się anulować.
- * Lista jest już zawężona do zleceń, które pytający widzi (`filterOrdersByPermission`).
+ * Oznacza na liście wysłanych zlecenia, które jeszcze da się anulować
+ * (`order.cancelable = true`: wysłane, produkcja < 20%). Nazwa historyczna
+ * (dawniej termin 24 h). Lista jest już zawężona do zleceń, które pytający
+ * widzi (`filterOrdersByPermission`).
  */
 async function attachCancelDeadlines(orders, ctx = {}, deps) {
     if (!Array.isArray(orders) || orders.length === 0) return orders;
     if (!canRoleCancel(ctx.sessionUser, ctx.employeePermissions)) return orders;
 
     const d = resolveDeps(deps);
-    const rows = await d.db.getCancelableOrderDeadlines(orders.map(order => order.id), windowParams(d));
-    const byId = new Map(rows.map(row => [Number(row.id), row]));
+    const rows = await d.db.getCancelCandidates(orders.map(order => order.id));
+    const decisions = await d.prodProgress.clientMayChangeMany(rows);
+    const progressById = new Map(rows.map((row, i) => [Number(row.id), decisions[i]]));
+    const correctionOn = !!require('../config').features.orderCorrection;
     for (const order of orders) {
-        const row = byId.get(Number(order.id));
-        if (!row) continue;
-        order.cancelDeadlineLabel = formatDeadlineLabel(row.cancel_deadline);
-        order.cancelSecondsLeft = secondsLeft(row.seconds_left);
+        const progress = progressById.get(Number(order.id));
+        if (!progress) continue;
+        if (progress.allowed) order.cancelable = true;
+        // Przycisk „Korekta” (partials/cancel_order_btn.njk): admin i biuro zawsze, reszta < 20%.
+        if (correctionOn && canCorrect(ctx, progress)) order.correctable = true;
     }
     return orders;
 }
 
 module.exports = {
     CANCELED_STATUS,
-    CANCELLATION_WINDOW_HOURS,
     CANCEL_MARKER_EXTENSION,
     RESULT_MESSAGE_KEYS,
     wallClockNow,
-    cancellationWindowStart,
-    formatDeadlineLabel,
     buildCancelMarkerName,
     canRoleCancel,
+    canCorrect,
     isActorBlocked,
     describeActor,
     writeCancelMarker,

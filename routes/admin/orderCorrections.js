@@ -104,7 +104,7 @@ router.post('/:orderId/open', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Korekta możliwa tylko dla wysłanych zamówień.' });
         }
 
-        const opened = await correctionsDb.openOrderForCorrection(orderId);
+        const opened = await orderCorrectionService.openCorrection(orderId);
         if (!opened) {
             return res.status(400).json({ success: false, message: 'Nie udało się otworzyć zamówienia do korekty.' });
         }

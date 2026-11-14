@@ -10,7 +10,7 @@
   3. Zaznacz „{{employee.permissions}}” (domyślnie wszystkie są wyłączone) i kliknij „{{employee.save}}”.
 - Pracownik loguje się na tej samej stronie logowania swoim loginem i hasłem.
 - Uprawnienia można zmieniać na liście pracowników — zaznaczenie zapisuje się od razu i działa natychmiast:
-  - „{{employee.can_send_orders}}” — może wysyłać zamówienia do realizacji i anulować je w ciągu 24 h. Bez niego tworzy i edytuje oferty, ale ich nie wyśle.
+  - „{{employee.can_send_orders}}” — może wysyłać zamówienia do realizacji oraz korygować i anulować je, dopóki produkcja jest poniżej 20%. Bez niego tworzy i edytuje oferty, ale ich nie wyśle.
   - „{{employee.can_see_prices}}” — widzi ceny, sumy, rabaty i PDF z cenami.
   - „{{employee.can_see_all_orders}}” — widzi wszystkie zamówienia firmy. Bez niego widzi tylko te, które sam utworzył.
   - „{{employee.price_factor}}” — mnożnik wyświetlanych cen (np. aby pracownik widział cenę detaliczną). Działa tylko przy włączonej widoczności cen i nie zmienia zapisanych cen.

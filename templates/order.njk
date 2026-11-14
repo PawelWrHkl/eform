@@ -744,6 +744,17 @@
                                                                                                 </p>
                                                                                             {% endif %}
                                                                                             {% block send_order_btn %}
+                                                                                                    {# Zlecenie w korekcie (routes/orderCorrection.js): zamiast „Wyślij” — wysłanie
+                                                                                                       korekty (plik `_correction` + mail) albo jej wycofanie. Moduł admina nadpisuje
+                                                                                                       ten blok własnym (admin/order_corrections/workspace.njk). #}
+                                                                                                    {% if orderDetails.status == 'correction' %}
+                                                                                                        <div class="send-order-actions d-flex justify-content-end align-items-center w-100 gap-2">
+                                                                                                            <button class="btn btn-outline-danger p-2 stop-propagation" type="button" id="abort-correction-btn" data-id="{{ orderDetails.id }}"><p class="mb-0">{{ __('order_correction.abort') }}</p></button>
+                                                                                                            <button class="btn btn-warning p-2 stop-propagation" type="button" id="submit-correction-btn" data-id="{{ orderDetails.id }}"><p class="mb-0">{{ __('order_correction.submit') }}</p></button>
+                                                                                                        </div>
+                                                                                                        <script>window.correctionApiBase = '/orders/correction/{{ orderDetails.id }}';</script>
+                                                                                                        <script type="module" src="/scripts/admin/orderCorrectionWorkspace.js?v={{ assetVersion }}"></script>
+                                                                                                    {% else %}
                                                                                                 {% if not isEmployee or (employeePermissions and employeePermissions.can_send_orders) %}
                                                                                                     <div class="send-order-actions d-flex justify-content-end align-items-center w-100">
                                                                                                     {% if showProductionOrderOverride and not isGroupShop %}
@@ -811,6 +822,7 @@
                                                                                                         </button>
                                                                                                     </div>
                                                                                                 {% endif %}
+                                                                                                    {% endif %}
                                                                                             {% endblock %}
                                                                                         </div>
                                                                                     {% else %}

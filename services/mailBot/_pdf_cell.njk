@@ -7,3 +7,13 @@
 {%- set parts = (raw or '-') | pdfValueParts -%}
 <span class="pdf-val">{{ parts.val }}</span>{%- if parts.desc %} - {{ parts.desc }}{%- endif -%}
 {%- endmacro %}
+
+{# Korekta zlecenia (services/correctionDiff.js): komórka zmieniona względem stanu
+   z chwili otwarcia korekty. `chgc` dokleja klasę do istniejącego `class`, `chg` daje cały atrybut. #}
+{% macro chgc(key, item) -%}
+{%- if item.correctionChanged and key and (key in item.correctionChanged) %} chg{% endif -%}
+{%- endmacro %}
+
+{% macro chg(key, item) -%}
+{%- if item.correctionChanged and key and (key in item.correctionChanged) %} class="chg"{% endif -%}
+{%- endmacro %}

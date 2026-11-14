@@ -1,5 +1,5 @@
 /**
- * Anulowanie wysłanego zlecenia (do 24 h od wysłania) — strona przeglądarki.
+ * Anulowanie wysłanego zlecenia (dopóki produkcja < 20%) — strona przeglądarki.
  * Serwer: POST /orders/order/:orderId/cancel → services/orderCancellation.js.
  *
  * Przyciski `.cancel-order-btn` renderują:
@@ -15,14 +15,12 @@
  * `onclick="event.stopPropagation()"` (żeby klik nie otwierał wiersza), więc
  * zdarzenie nie wypłynęłoby do `document`. Tak samo robi orders.js.
  *
- * Termin w przeglądarce służy WYŁĄCZNIE wygodzie (odliczanie, ukrycie
- * przycisku po czasie) — o tym, czy wolno anulować, decyduje serwer.
+ * O tym, czy wolno anulować (postęp produkcji ze status.txt), decyduje serwer.
  */
 import { showToast } from "./components/toast.js";
 import { createInfoDialog } from "./components/htmlManipulator.js";
 import { openReorderDialog } from "./orderTools/reorder.js";
 
-const TICK_MS = 30 * 1000;
 const ERROR_TOAST_SECONDS = 6;
 const ACK_CHECKBOX_ID = 'cancel-order-ack';
 
@@ -44,16 +42,6 @@ async function translationsLoaded() {
 
 function dialogParent() {
     return document.getElementById('dialog-container') || document.body;
-}
-
-/** `5 h 12 min` / `12 min` / `< 1 min` */
-function formatTimeLeft(seconds) {
-    const h = t('cancel_order.hours_short');
-    const min = t('cancel_order.minutes_short');
-    if (seconds < 60) return `< 1 ${min}`;
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return hours > 0 ? `${hours} ${h} ${minutes} ${min}` : `${minutes} ${min}`;
 }
 
 /** „Nr 242 · „Nazwa zlecenia”” — nagłówek treści obu okien. */
@@ -157,7 +145,7 @@ async function submitCancellation(btn) {
 
         showToast('error', data.message || t('cancel_order.error_server'), ERROR_TOAST_SECONDS);
         if (data.code === 'window_expired' || data.code === 'not_sent') {
-            // Termin minął albo status zmienił się gdzie indziej — przycisk
+            // Produkcja przekroczyła 20% albo status zmienił się gdzie indziej — przycisk
             // nie ma już sensu; odświeżenie pokaże aktualny stan.
             allButtonsFor(orderId).forEach(expireButton);
             setTimeout(() => window.location.reload(), 2500);
@@ -171,54 +159,15 @@ async function submitCancellation(btn) {
     }
 }
 
-/** Po upływie okna: przycisk znika, w podglądzie pojawia się informacja. */
+/** Serwer odmówił (produkcja ≥ 20%): przycisk znika, w podglądzie pojawia się informacja. */
 function expireButton(button) {
     const notice = button.closest('[data-cancel-window]');
     if (notice) {
         notice.classList.add('is-expired');
         notice.querySelector('[data-cancel-open]')?.setAttribute('hidden', '');
-        notice.querySelector('[data-cancel-countdown]')?.setAttribute('hidden', '');
         notice.querySelector('[data-cancel-closed]')?.removeAttribute('hidden');
     }
     button.remove();
-}
-
-function startCountdowns() {
-    const notices = [...document.querySelectorAll('[data-cancel-window]')].map(el => ({
-        el,
-        deadline: Date.now() + (Number(el.dataset.secondsLeft) || 0) * 1000
-    }));
-    const listButtons = [...document.querySelectorAll('.cancel-order-btn[data-seconds-left]')].map(el => ({
-        el,
-        deadline: Date.now() + (Number(el.dataset.secondsLeft) || 0) * 1000
-    }));
-    if (notices.length === 0 && listButtons.length === 0) return;
-
-    const tick = () => {
-        const now = Date.now();
-        for (const item of notices) {
-            if (!item.el.isConnected || item.el.classList.contains('is-expired')) continue;
-            const left = Math.floor((item.deadline - now) / 1000);
-            if (left <= 0) {
-                const button = item.el.querySelector('.cancel-order-btn');
-                if (button) expireButton(button);
-                else item.el.classList.add('is-expired');
-                continue;
-            }
-            const countdown = item.el.querySelector('[data-cancel-countdown]');
-            const value = item.el.querySelector('[data-cancel-countdown-value]');
-            if (countdown && value) {
-                value.textContent = formatTimeLeft(left);
-                countdown.removeAttribute('hidden');
-            }
-        }
-        for (const item of listButtons) {
-            if (item.el.isConnected && item.deadline <= now) item.el.remove();
-        }
-    };
-
-    tick();
-    setInterval(tick, TICK_MS);
 }
 
 document.addEventListener('click', async (event) => {
@@ -239,4 +188,3 @@ document.addEventListener('click', async (event) => {
     openFirstStep(btn);
 }, true);
 
-translationsLoaded().then(startCountdowns);

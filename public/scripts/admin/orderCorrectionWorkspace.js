@@ -1,8 +1,22 @@
+/**
+ * Korekta wysłanego zlecenia — przeglądarka.
+ *  • `.open-order-correction-btn` (podgląd wysłanego, partials/order_cancellation.njk)
+ *    → POST /orders/correction/:id/open → edycja zlecenia,
+ *  • `#submit-correction-btn` / `#abort-correction-btn` (order.njk w korekcie
+ *    i moduł admina admin/order_corrections/workspace.njk) → `${correctionApiBase}/submit|cancel`.
+ * O dostępie (rola, produkcja < 20%) decyduje serwer.
+ */
 import { showToast } from '../components/toast.js';
 import { confirmPrompt } from '../components/confirmPrompt.js';
 
 const submitBtn = document.getElementById('submit-correction-btn');
 const abortBtn = document.getElementById('abort-correction-btn');
+
+async function translationsLoaded() {
+    try {
+        if (window.translationsReady) await window.translationsReady;
+    } catch (_) { /* brak tłumaczeń = klucze zamiast tekstu */ }
+}
 
 function getPrices() {
     const prices = { hiddenPrices: [], visiblePrices: [] };
@@ -17,80 +31,61 @@ function getPrices() {
     return prices;
 }
 
-async function submitCorrection(orderId) {
-    const apiBase = window.correctionApiBase || `/admin/order-corrections/${orderId}`;
-    const res = await fetch(`${apiBase}/submit`, {
+/** POST JSON; sukces → komunikat i przejście pod `redirect`, błąd → wyjątek z komunikatem serwera. */
+async function post(url, body) {
+    const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prices: getPrices() })
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        body: body ? JSON.stringify(body) : undefined
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Błąd wysyłki korekty');
-    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) throw new Error(data.message || t('order_correction.error_server'));
     return data;
 }
 
-if (submitBtn) {
-    submitBtn.addEventListener('click', async () => {
-        const orderId = submitBtn.dataset.id;
-        const confirmed = await confirmPrompt({
-            title: 'Wyślij korektę',
-            message: 'Korekta zostanie wysłana jako plik JSON z sufiksem <strong>_correction</strong> (ten sam katalog co zlecenie) oraz mailem do klienta (poza produkcją tylko na adres testowy). Kontynuować?',
-            confirmLabel: 'Wyślij korektę',
-            cancelLabel: 'Anuluj',
-            confirmClass: 'btn btn-warning'
-        });
-        if (!confirmed) return;
+async function run(buttons, confirmOptions, action) {
+    await translationsLoaded();
+    if (!(await confirmPrompt(confirmOptions))) return;
+    buttons.forEach((b) => { if (b) b.disabled = true; });
+    try {
+        const data = await action();
+        if (data.message) showToast('success', data.message);
+        setTimeout(() => { window.location.href = data.redirect || window.location.pathname; }, 900);
+    } catch (err) {
+        showToast('error', err.message || t('order_correction.error_server'), 6);
+        buttons.forEach((b) => { if (b) b.disabled = false; });
+    }
+}
 
-        submitBtn.disabled = true;
-        if (abortBtn) abortBtn.disabled = true;
-        try {
-            const data = await submitCorrection(orderId);
-            showToast(data.message || 'Korekta wysłana', 'success');
-            setTimeout(() => {
-                window.location.href = data.redirect || '/admin/order-corrections';
-            }, 1200);
-        } catch (err) {
-            showToast(err.message, 'error');
-            submitBtn.disabled = false;
-            if (abortBtn) abortBtn.disabled = false;
-        }
-    });
+const apiBase = (orderId) => window.correctionApiBase || `/admin/order-corrections/${orderId}`;
+
+document.querySelectorAll('.open-order-correction-btn').forEach((btn) => {
+    btn.addEventListener('click', () => run([btn], {
+        title: t('order_correction.open_title'),
+        message: t('order_correction.open_message'),
+        confirmLabel: t('order_correction.open_confirm'),
+        cancelLabel: t('order_correction.back'),
+        confirmClass: 'btn btn-warning'
+    }, () => post(`/orders/correction/${encodeURIComponent(btn.dataset.id)}/open`)));
+});
+
+if (submitBtn) {
+    submitBtn.addEventListener('click', () => run([submitBtn, abortBtn], {
+        title: t('order_correction.submit_title'),
+        message: t('order_correction.submit_message'),
+        confirmLabel: t('order_correction.submit'),
+        cancelLabel: t('order_correction.back'),
+        confirmClass: 'btn btn-warning'
+    }, () => post(`${apiBase(submitBtn.dataset.id)}/submit`, { prices: getPrices() })));
 }
 
 if (abortBtn) {
-    abortBtn.addEventListener('click', async () => {
-        const orderId = abortBtn.dataset.id;
-        const confirmed = await confirmPrompt({
-            title: 'Anuluj korektę',
-            message: 'Czy na pewno anulować korektę? Zamówienie wróci do statusu „wysłane” bez wysyłki nowego pliku ani maila do klienta.',
-            confirmLabel: 'Anuluj korektę',
-            cancelLabel: 'Wróć',
-            confirmClass: 'btn btn-danger'
-        });
-        if (!confirmed) return;
-
-        abortBtn.disabled = true;
-        if (submitBtn) submitBtn.disabled = true;
-        try {
-            const apiBase = window.correctionApiBase || `/admin/order-corrections/${orderId}`;
-            const res = await fetch(`${apiBase}/cancel`, {
-                method: 'POST',
-                headers: { 'Accept': 'application/json' }
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Nie udało się anulować korekty');
-            }
-            showToast(data.message || 'Korekta anulowana', 'success');
-            setTimeout(() => {
-                window.location.href = data.redirect || '/admin/order-corrections';
-            }, 800);
-        } catch (err) {
-            showToast(err.message || 'Błąd połączenia z serwerem', 'error');
-            abortBtn.disabled = false;
-            if (submitBtn) submitBtn.disabled = false;
-        }
-    });
+    abortBtn.addEventListener('click', () => run([abortBtn, submitBtn], {
+        title: t('order_correction.abort_title'),
+        message: t('order_correction.abort_message'),
+        confirmLabel: t('order_correction.abort'),
+        cancelLabel: t('order_correction.back'),
+        confirmClass: 'btn btn-danger'
+    }, () => post(`${apiBase(abortBtn.dataset.id)}/cancel`)));
 }

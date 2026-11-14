@@ -1,7 +1,8 @@
 {# Anulowanie wysłanego zlecenia (services/orderCancellation.js).
    `cancellation` przychodzi z routes/orders.js (GET /history/order/:orderId):
      • anulowane → baner „Zlecenie anulowane” z datą,
-     • w oknie 24 h i rola może anulować → termin + przycisk (public/scripts/orderCancel.js),
+     • produkcja < 20% i rola może anulować → przycisk (public/scripts/orderCancel.js),
+     • `cancellation.canOpenCorrection` → przycisk „Korekta zlecenia” (routes/orderCorrection.js),
      • w pozostałych przypadkach — nic.
    Status bierzemy też wprost z `orderDetails`, żeby baner nie zniknął, gdy
    odczyt stanu anulowania się nie powiódł (`cancellation` = null).
@@ -34,15 +35,12 @@
         </button>
     </div>
 {% elif cancellation and cancellation.canCancel %}
-    <div class="order-cancel-notice order-cancel-notice--window {{ placementClass }}" data-cancel-window data-seconds-left="{{ cancellation.secondsLeft }}">
+    <div class="order-cancel-notice order-cancel-notice--window {{ placementClass }}" data-cancel-window>
         <span class="order-cancel-notice__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </span>
         <div class="order-cancel-notice__body">
-            <p class="order-cancel-notice__title">
-                {{ __('cancel_order.deadline_label') }} <strong>{{ cancellation.deadlineLabel }}</strong>
-                <span class="order-cancel-countdown" data-cancel-countdown hidden>· {{ __('cancel_order.time_left_label') }}: <strong data-cancel-countdown-value></strong></span>
-            </p>
+            <p class="order-cancel-notice__title">{{ __('cancel_order.window_title') }}</p>
             <p class="order-cancel-notice__text" data-cancel-open>{{ __('cancel_order.window_hint') }}</p>
             <p class="order-cancel-notice__text" data-cancel-closed hidden>{{ __('cancel_order.window_closed') }}</p>
         </div>
@@ -51,4 +49,17 @@
             <span>{{ __('cancel_order.button') }}</span>
         </button>
     </div>
+{% endif %}
+{% if cancellation and cancellation.canOpenCorrection and not orderIsCanceled %}
+    <div class="order-cancel-notice order-cancel-notice--window {{ placementClass }}">
+        <div class="order-cancel-notice__body">
+            <p class="order-cancel-notice__title">{{ __('order_correction.notice_title') }}</p>
+            <p class="order-cancel-notice__text">{{ __('order_correction.notice_text') }}</p>
+        </div>
+        <button type="button" class="btn btn-warning open-order-correction-btn" data-id="{{ orderDetails.id }}">
+            <span>{{ __('order_correction.button') }}</span>
+        </button>
+    </div>
+    {# Moduł ES — dwa include'y partiala (góra/dół) wykonują go raz. #}
+    <script type="module" src="/scripts/admin/orderCorrectionWorkspace.js?v={{ assetVersion }}"></script>
 {% endif %}

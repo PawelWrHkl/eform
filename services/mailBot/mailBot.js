@@ -52,7 +52,8 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
     __
   });
 
-  const baseName = sanitizeFilename(`${__('history_order.title')}${templateVars.orderNr}.pdf`);
+  const correctionSuffix = templateVars.isCorrection ? `_${__('mail.correction_file_suffix')}` : '';
+  const baseName = sanitizeFilename(`${__('history_order.title')}${templateVars.orderNr}${correctionSuffix}.pdf`);
 
   const attachments = [
     {
@@ -178,14 +179,15 @@ function sendMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}
 }
 
 function sendCorrectionMail(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, bcc = null, options = {}) {
+  // Ten sam szablon co potwierdzenie zamówienia (`isCorrection` zmienia tytuł i treść).
   sendMailAsync(
     to,
     lang,
     pdfBuffer,
     attachmentsBuffer,
-    templateVars,
+    { ...templateVars, isCorrection: true },
     bcc,
-    'correctionMailTemplate.njk',
+    'mailTemplate.njk',
     'mail.correction_subject',
     options
   ).catch(() => {});

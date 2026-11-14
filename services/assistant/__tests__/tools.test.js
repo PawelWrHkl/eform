@@ -25,8 +25,8 @@ function deps(select, extra = {}) {
 	return {
 		select,
 		resolver,
-		attachCancelDeadlines: async (orders) => { orders.forEach((o) => { if (o.id === 2) o.cancelDeadlineLabel = '06.10.2026 14:00'; }); return orders; },
-		cancellationInfo: async () => ({ cancelable: true, deadlineLabel: '06.10.2026 14:00', canCancel: true }),
+		attachCancelDeadlines: async (orders) => { orders.forEach((o) => { if (o.id === 2) o.cancelable = true; }); return orders; },
+		cancellationInfo: async () => ({ cancelable: true, canCancel: true, prodPercent: 11 }),
 		deliveryTimes: async () => [{ product_code: 'termin.PLISY', lead_time: '7' }],
 		log: () => {},
 		...extra
@@ -75,7 +75,7 @@ test('find_orders: zapytanie w zakresie konta, filtr nazwy/numeru i dat, wynik b
 	const [sent, offer] = r.orders;
 	assert.deepEqual(sent, {
 		ref: '[[order:2]]', number: '798', name: 'Kowalski salon', kind: 'sent', created: '2026-10-01', sent: '2026-10-05',
-		production_status: 'W trakcie produkcji', shipping_date: null, parcels: ['DPD 123'], estimated_production_days: 12, can_cancel_until: '06.10.2026 14:00',
+		production_status: 'W trakcie produkcji', shipping_date: null, parcels: ['DPD 123'], estimated_production_days: 12, can_cancel: true,
 		copy: '[[action:copy:2]]'
 	});
 	assert.equal(offer.kind, 'offer');
@@ -112,7 +112,7 @@ test('get_order: pozycje ze statusem i przesyłką, anulowanie, akcja kopiowania
 		{ position: 1, room: 'Kuchnia', product: 'Plisy / VS2', status: 'W trakcie produkcji', shipping_date: '2026-10-12', parcel: 'DPD 555' },
 		{ position: 2, room: 'Salon', product: 'Rolety' }
 	]);
-	assert.deepEqual(r.cancel, { possible: true, until: '06.10.2026 14:00', this_account_can_cancel: true });
+	assert.deepEqual(r.cancel, { possible: true, this_account_can_cancel: true, production_progress_percent: 11 });
 	assert.equal(r.copy, '[[action:copy:2]]');
 	assert.deepEqual(select.calls[2].params, ['K1', '798']);
 });

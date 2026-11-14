@@ -143,7 +143,47 @@ async function getKnownUserIdents() {
 }
 
 
+/**
+ * Historia STATUSPROD (migrations/add_prod_status_history.sql, services/prodProgress.js).
+ * `rows` = `[org, user, nr, pozycja, status_prod, procent|null, first_seen_at]`;
+ * istniejący (org, user, nr, pozycja, status) zostaje z pierwszą datą.
+ * @returns {Promise<boolean>} `false` = błąd (np. tabeli jeszcze nie ma)
+ */
+async function recordProdStatusHistory(rows) {
+    for (let i = 0; i < rows.length; i += 1000) {
+        const ok = await insertQuery(
+            `INSERT IGNORE INTO prod_status_history
+             (org_ident, user_ident, order_idx, order_pos, status_prod, prod_percent, first_seen_at) VALUES ?`,
+            [rows.slice(i, i + 1000)]
+        );
+        if (!ok) return false;
+    }
+    return true;
+}
+
+/**
+ * Najwyższy procent w historii i liczba statusów bez procentu — dla zleceń `[org, user, nr]`.
+ * @returns {Promise<Array<{org_ident, user_ident, order_idx, max_percent, no_percent}>|null>} `null` = błąd bazy
+ */
+async function getProdStatusHistoryMax(keys) {
+    if (!keys.length) return [];
+    try {
+        return await strictSelect(
+            `SELECT org_ident, user_ident, order_idx, MAX(prod_percent) AS max_percent, SUM(prod_percent IS NULL) AS no_percent
+             FROM prod_status_history WHERE (org_ident, user_ident, order_idx) IN (?)
+             GROUP BY org_ident, user_ident, order_idx`,
+            [keys]
+        );
+    } catch (err) {
+        log(`[prodProgress] historia STATUSPROD niedostępna: ${err.message}`);
+        return null;
+    }
+}
+
+
 module.exports = {
+    recordProdStatusHistory,
+    getProdStatusHistoryMax,
     checkIfStatusExists,
     insertStatus,
     getUserStatuses,

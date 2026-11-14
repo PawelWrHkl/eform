@@ -22,6 +22,7 @@ const {
 } = require('../subPrices');
 const { log } = require('../../utils/logging');
 const { currencyLocalsForOrder } = require('../currency');
+const correctionDiff = require('../correctionDiff');
 
 // HKL_TCN_222.json → HKL_TCN_222_correction.json (ten sam katalog co zlecenie: FTP /orders-out/ na produkcji, lokalny out poza produkcją).
 const CORRECTION_FILE_SUFFIX = '_correction';
@@ -40,8 +41,25 @@ async function ensureCorrectionContext(req, orderId) {
     if (!meta || meta.status !== 'correction') {
         return { ok: false, status: 404, message: 'Zamówienie nie jest otwarte do korekty.' };
     }
-    await ownerService.setContextUserByIdent(req, meta.user_ident);
+    // Tylko admin przełącza się na klienta zlecenia; klient pracuje na swoim koncie,
+    // a biuro jest już w kontekście klienta (checkOrderOwnership, routes/orderCorrection.js).
+    if (req?.session?.user?.isAdmin) await ownerService.setContextUserByIdent(req, meta.user_ident);
     return { ok: true, meta };
+}
+
+/**
+ * Otwarcie korekty (`sent` → `correction`) — moduł admina i routes/orderCorrection.js.
+ * Najpierw stan pozycji „przed” (services/correctionDiff.js) — z niego PDF korekty
+ * oznacza kolorem zmiany. Nieudany zapis stanu nie blokuje korekty (PDF bez oznaczeń).
+ */
+async function openCorrection(orderId) {
+    try {
+        const { orderItems } = await db.getOrderDataToSend(orderId);
+        await correctionDiff.saveSnapshot(orderId, orderItems || []);
+    } catch (err) {
+        log(`Korekta ${orderId}: nie zapisano stanu „przed” — PDF korekty bez oznaczeń zmian:`, err?.message || err);
+    }
+    return correctionsDb.openOrderForCorrection(orderId);
 }
 
 function normalizePrices(prices) {
@@ -52,7 +70,8 @@ function normalizePrices(prices) {
 }
 
 function clearCorrectionContext(req) {
-    if (req?.session?.context_user) {
+    // Biuru kontekst klienta jest potrzebny dalej (staffGuard), klient go nie ma.
+    if (req?.session?.user?.isAdmin && req.session.context_user) {
         delete req.session.context_user;
     }
 }
@@ -116,6 +135,15 @@ async function submitCorrection(req, orderId, prices) {
             message: 'Korekta zapisana. Wysyłka FTP/mail pominięta (lista ignore).',
             redirect: '/admin/order-corrections'
         };
+    }
+
+    // Co zmieniła korekta — znaczniki na pozycjach (PDF: kolor) i lista usuniętych.
+    let correctionInfo = { marked: false, removed: [] };
+    try {
+        const before = await correctionDiff.loadSnapshot(orderId);
+        if (before) correctionInfo = correctionDiff.markItems(orderItems, correctionDiff.diffItems(before, orderItems));
+    } catch (err) {
+        log(`Korekta ${orderId}: nie udało się porównać ze stanem „przed”:`, err?.message || err);
     }
 
     const currentUser = ownerService.getCurrentUser(req);
@@ -187,9 +215,10 @@ async function submitCorrection(req, orderId, prices) {
         isClientForPdf,
         showBothForMail,
         null,
-        { withoutPrices, hasSubPrices: hasSubPricesMail, currencySymbol }
+        { withoutPrices, hasSubPrices: hasSubPricesMail, currencySymbol, correction: correctionInfo }
     );
-    const orgData = await db.getOrgInfo(req.session.user.organization);
+    // Konto biura: dane organizacji KLIENTA zlecenia (jak w routes/orders.js POST /send).
+    const orgData = await db.getOrgInfo(req.session.user?.isStaff ? currentUser?.orgId : req.session.user.organization);
 
     const extraMail = process.env.EXTRA_MAIL ? process.env.EXTRA_MAIL.split(',') : false;
     const { mainRecipient, bcc } = resolveConfirmationRecipients({
@@ -218,13 +247,15 @@ async function submitCorrection(req, orderId, prices) {
             orderNr: orderIdx,
             logoPath,
             orderDetails: sendData,
-            organization: orgData
+            organization: orgData,
+            correctionMarked: correctionInfo.marked
         },
         recipients.bcc,
         { htmlContent: confirmationHtml, abLang }
     );
 
     log(`Admin correction submitted for order ${orderId} (${orderIdx}) by ${req.session.user?.pin || '?'}`);
+    await correctionDiff.dropSnapshot(orderId);
     clearCorrectionContext(req);
 
     return {
@@ -248,7 +279,8 @@ async function cancelCorrection(req, orderId) {
         return { success: false, status: 409, message: 'Nie udało się anulować korekty — status zmienił się w międzyczasie.' };
     }
 
-    log(`Korekta zamówienia ${orderId} anulowana przez admin ${req.session.user?.pin || '?'}`);
+    log(`Korekta zamówienia ${orderId} anulowana przez ${req.session.user?.pin || '?'}`);
+    await correctionDiff.dropSnapshot(orderId);
     clearCorrectionContext(req);
 
     return {
@@ -261,6 +293,7 @@ async function cancelCorrection(req, orderId) {
 module.exports = {
     CORRECTION_FILE_SUFFIX,
     resolveCorrectionMailRecipients,
+    openCorrection,
     ensureCorrectionContext,
     submitCorrection,
     cancelCorrection

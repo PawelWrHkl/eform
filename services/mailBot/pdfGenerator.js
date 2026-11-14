@@ -219,6 +219,8 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     discountInfo: withoutPrices ? null : discountInfo,
     withoutPrices: withoutPrices,
     currencySymbol: currencySymbol,
+    // Korekta zlecenia: baner i oznaczenia zmian (services/correctionDiff.js)
+    correction: options.correction || null,
     abFooter: abFooter(lang)
   };
 
@@ -310,6 +312,7 @@ function renderOrderPdfHtml({
   // oraz podglądom — musi znać tę samą flagę, inaczej test „bez cen" przechodzi
   // na dokumencie, który w mailu wygląda inaczej.
   withoutPrices = false,
+  correction = null,
   lang = 'pl'
 }) {
   const i18n = confLang(lang);
@@ -339,6 +342,7 @@ function renderOrderPdfHtml({
     hasSubPrices,
     hideClientVat,
     withoutPrices,
+    correction,
     abFooter: abFooter(lang)
   });
 }

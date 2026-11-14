@@ -72,7 +72,8 @@ function summarize(order, resolve) {
 		out.parcels = p.slice(0, 5);
 		if (!out.shipping_date && order.max_prod_days) out.estimated_production_days = Number(order.max_prod_days);
 	}
-	if (order.cancelDeadlineLabel) out.can_cancel_until = order.cancelDeadlineLabel;
+	// Anulowanie możliwe, dopóki produkcja < 20% (services/prodProgress.js).
+	if (order.cancelable) out.can_cancel = true;
 	// Znacznik przycisku „Skopiuj zlecenie” (resolveRefs → potwierdzana akcja w czacie).
 	out.copy = `[[action:copy:${order.id}]]`;
 	return out;
@@ -235,7 +236,7 @@ async function getOrder(args, scope, d) {
 	});
 	if (order.status === 'sent') {
 		const info = await d.cancellationInfo(order.id, scope.cancelCtx);
-		if (info) out.cancel = { possible: !!info.cancelable, until: info.deadlineLabel || null, this_account_can_cancel: !!info.canCancel };
+		if (info) out.cancel = { possible: !!info.cancelable, this_account_can_cancel: !!info.canCancel, production_progress_percent: info.prodPercent ?? null };
 	}
 	return out;
 }

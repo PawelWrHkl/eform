@@ -10,6 +10,18 @@ function activeOrderPath(orderId) {
 }
 
 /**
+ * Kto edytuje zlecenie w KOREKCIE (status `correction`): admin i biuro zawsze,
+ * pozostali tylko przy produkcji < 20% (services/prodProgress.js) — ta sama
+ * reguła co otwarcie korekty (routes/orderCorrection.js). Przynależność
+ * zlecenia do konta sprawdza wcześniej `checkOrderOwnership`.
+ */
+async function canEditCorrection(orderId, sessionUser) {
+    if (sessionUser?.isAdmin || sessionUser?.isStaff) return true;
+    const state = await db.getOrderCancellationState(orderId);
+    return !!state && (await require('../services/prodProgress').clientMayChange(state)).allowed;
+}
+
+/**
  * Zamówienie ZAŁOŻONE PRZEZ KLIENTA grupy jest dla grupy typu `client`
  * (`user.group_type = 'client'`) tylko do wglądu i zatwierdzenia — grupa-matka
  * nie edytuje ani nie usuwa ani zamówienia, ani jego pozycji.
@@ -54,7 +66,7 @@ async function getOrderMutationBlock(orderId, sessionUser) {
     const status = await db.getOrderStatus(orderId);
 
     if (status === 'correction') {
-        if (sessionUser?.isAdmin) {
+        if (await canEditCorrection(orderId, sessionUser)) {
             return null;
         }
         return {
@@ -96,7 +108,7 @@ async function shouldRedirectFromActiveOrderView(orderId, sessionUser) {
         return { redirect: sentOrderPath(orderId) };
     }
 
-    if (status === 'correction' && !sessionUser?.isAdmin) {
+    if (status === 'correction' && !(await canEditCorrection(orderId, sessionUser))) {
         return { redirect: sentOrderPath(orderId) };
     }
 
@@ -118,6 +130,7 @@ async function isCanceledOrder(orderId) {
 module.exports = {
     sentOrderPath,
     activeOrderPath,
+    canEditCorrection,
     getClientGroupOrderBlock,
     getOrderMutationBlock,
     shouldRedirectFromActiveOrderView,

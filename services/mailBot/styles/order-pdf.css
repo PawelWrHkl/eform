@@ -242,6 +242,60 @@ body {
     background-color: #fafafa;
 }
 
+/* Korekta zlecenia (order-pdf.njk, services/correctionDiff.js): zmieniona komórka
+   na bursztynowo z paskiem z lewej, nowa pozycja na zielono, usunięte pod tabelą. */
+#table tbody td.chg {
+    background-color: #fff1b8 !important;
+    box-shadow: inset 3px 0 0 #e0a100;
+}
+
+#table tbody.pos--new td {
+    background-color: #e6f4ea !important;
+}
+
+.chg-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: #1e8e3e;
+    color: #fff;
+    font-size: 8px;
+    font-weight: bold;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.correction-note {
+    margin: 6px 0 10px;
+    padding: 6px 10px;
+    border-left: 4px solid #e0a100;
+    background: #fff8e1;
+    font-size: 12px;
+}
+
+.chg-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin: 0 4px 0 10px;
+    background: #fff1b8;
+    border: 1px solid #e0a100;
+    vertical-align: middle;
+}
+
+.correction-removed {
+    margin-top: 10px;
+    padding: 6px 10px;
+    border-left: 4px solid #c62828;
+    background: #fdecea;
+    font-size: 12px;
+}
+
+.correction-removed .removed-item {
+    text-decoration: line-through;
+}
+
 
 a {
     color: inherit;

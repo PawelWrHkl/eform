@@ -387,6 +387,8 @@ app.use('/film', filmRoutes);
 // Konto biura (rola `staff`): strona startowa i wybór klienta (routes/staff.js)
 app.use('/staff', require('./routes/staff'));
 app.use('/', mainRoutes);
+// Korekta wysłanego zlecenia przez klienta i biuro (ORDER_CORRECTION_ENABLED) — routes/orderCorrection.js
+if (features.orderCorrection) app.use('/orders/correction', require('./routes/orderCorrection'));
 app.use('/orders', ordersRoutes);
 app.use('/position', positionsRoutes);
 app.use('/address', addressRoutes);

@@ -20,8 +20,19 @@ require.cache[dbPath] = {
     loaded: true,
     exports: {
         getOrderStatus: async () => currentStatus,
-        getOrderCreatedByGroupUser: async () => null
+        getOrderCreatedByGroupUser: async () => null,
+        getOrderCancellationState: async () => ({ status: currentStatus, org_ident: 'HKL', user_ident: 'ryver', order_idx: 242 })
     }
+};
+
+// Postęp produkcji (status.txt) — atrapa services/prodProgress.js.
+const progressPath = require.resolve('../../services/prodProgress.js');
+let progressAllowed = false;
+require.cache[progressPath] = {
+    id: progressPath,
+    filename: progressPath,
+    loaded: true,
+    exports: { clientMayChange: async () => ({ allowed: progressAllowed, percent: progressAllowed ? 11 : 40 }) }
 };
 
 const guard = require('../orderStatusGuard');
@@ -57,6 +68,13 @@ test('dotychczasowe statusy działają jak wcześniej', async () => {
     assert.deepStrictEqual(await guard.shouldRedirectFromActiveOrderView(3100, klient), { redirect: '/orders/history/order/3100' });
 
     currentStatus = 'correction';
+    progressAllowed = false;
     assert.equal(await guard.getOrderMutationBlock(3100, admin), null, 'admin koryguje');
-    assert.ok(await guard.getOrderMutationBlock(3100, klient));
+    assert.equal(await guard.getOrderMutationBlock(3100, { userId: 9, isStaff: true }), null, 'biuro koryguje zawsze');
+    assert.ok(await guard.getOrderMutationBlock(3100, klient), 'klient: produkcja ≥ 20%');
+    assert.deepStrictEqual(await guard.shouldRedirectFromActiveOrderView(3100, klient), { redirect: '/orders/history/order/3100' });
+
+    progressAllowed = true;
+    assert.equal(await guard.getOrderMutationBlock(3100, klient), null, 'klient: produkcja < 20%');
+    assert.equal(await guard.shouldRedirectFromActiveOrderView(3100, klient), null);
 });

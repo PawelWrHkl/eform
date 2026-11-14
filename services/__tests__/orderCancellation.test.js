@@ -16,10 +16,9 @@ const {
     getCancellationInfo,
     attachCancelDeadlines,
     buildCancelMarkerName,
-    cancellationWindowStart,
     wallClockNow,
-    formatDeadlineLabel,
     canRoleCancel,
+    canCorrect,
     isActorBlocked,
     describeActor,
     RESULT_MESSAGE_KEYS
@@ -28,11 +27,10 @@ const {
 // 2026-09-28 12:00 w Warszawie (CEST = UTC+2).
 const NOW = new Date('2026-09-28T10:00:00Z');
 const NOW_WALL = '2026-09-28 12:00:00';
-const WINDOW_START = '2026-09-27 12:00:00';
 
 const klient = { userId: 7, ident: 'ryver', pin: '1234', isOwner: false, isAdmin: false };
 
-/** Zlecenie w bazie: wysłane 2 h temu (okno otwarte), nazwa pliku HKL_ryver_242. */
+/** Zlecenie w bazie: wysłane, nazwa pliku HKL_ryver_242. */
 function sentOrder(overrides = {}) {
     return {
         id: 3100,
@@ -44,19 +42,20 @@ function sentOrder(overrides = {}) {
         user_ident: 'ryver',
         org_ident: 'HKL',
         sent_at: '2026-09-28 10:00:00',
-        cancel_deadline: '2026-09-29 10:00:00',
-        within_window: 1,
-        seconds_left: 22 * 3600,
+        prod_status: null,
         ...overrides
     };
 }
 
-/** Atrapa bazy: zapamiętuje wywołania w kolejności (razem z atrapą fs/FTP). */
-function fakeWorld({ state = sentOrder(), markResult = 1, statusAfter = 'canceled', record = null, deadlines = [] } = {}) {
+/**
+ * Atrapa bazy: zapamiętuje wywołania w kolejności (razem z atrapą fs/FTP).
+ * `progress(order)` → `{ allowed, percent }` zamiast status.txt (services/prodProgress.js).
+ */
+function fakeWorld({ state = sentOrder(), markResult = 1, statusAfter = 'canceled', record = null, candidates = [], progress = () => ({ allowed: true, percent: 11 }) } = {}) {
     const calls = [];
     const db = {
-        getOrderCancellationState: async (orderId, window) => {
-            calls.push(['getOrderCancellationState', orderId, window]);
+        getOrderCancellationState: async (orderId) => {
+            calls.push(['getOrderCancellationState', orderId]);
             return typeof state === 'function' ? state() : state;
         },
         markOrderCanceled: async (orderId, data) => {
@@ -71,9 +70,9 @@ function fakeWorld({ state = sentOrder(), markResult = 1, statusAfter = 'cancele
             calls.push(['getOrderCancellationRecord', orderId]);
             return record;
         },
-        getCancelableOrderDeadlines: async (ids, window) => {
-            calls.push(['getCancelableOrderDeadlines', ids, window]);
-            return deadlines;
+        getCancelCandidates: async (ids) => {
+            calls.push(['getCancelCandidates', ids]);
+            return candidates;
         }
     };
     const files = {};
@@ -97,7 +96,11 @@ function fakeWorld({ state = sentOrder(), markResult = 1, statusAfter = 'cancele
         isProduction: () => false,
         env: { FTP_HOST: 'ftp.example', FTP_USER: 'u', FTP_PASSWORD: 'p' },
         log: (...args) => logs.push(args.join(' ')),
-        now: () => NOW
+        now: () => NOW,
+        prodProgress: {
+            clientMayChange: async (order) => progress(order),
+            clientMayChangeMany: async (orders) => orders.map(progress)
+        }
     };
     return { deps, calls, files, ftp, logs };
 }
@@ -128,18 +131,6 @@ test('„teraz" liczone w czasie warszawskim, latem i zimą', () => {
     assert.equal(wallClockNow(new Date('2026-01-28T10:00:00Z')), '2026-01-28 11:00:00');
 });
 
-test('okno anulowania zaczyna się dokładnie 24 h przed „teraz"', () => {
-    assert.equal(cancellationWindowStart(NOW_WALL), WINDOW_START);
-    // Przełom miesiąca/roku
-    assert.equal(cancellationWindowStart('2027-01-01 00:30:00'), '2026-12-31 00:30:00');
-});
-
-test('termin pokazywany w formacie eFormu', () => {
-    assert.equal(formatDeadlineLabel('2026-09-29 10:00:00'), '29.09.2026 10:00');
-    assert.equal(formatDeadlineLabel(null), '');
-    assert.equal(formatDeadlineLabel('bzdura'), '');
-});
-
 // ── Uprawnienia ──────────────────────────────────────────────────────────────
 
 test('kto może anulować: klient, owner, admin, grupa — tak; sklep grupy — nie', () => {
@@ -163,6 +154,17 @@ test('pracownik: potrzebuje can_send_orders, a bez can_see_all_orders — tylko 
 
     const wszystkie = { ...ctx, employeePermissions: { can_send_orders: true, can_see_all_orders: true } };
     assert.equal(isActorBlocked({ employee_id: 9 }, wszystkie), false);
+});
+
+test('korekta: admin i biuro zawsze, reszta tylko przy produkcji < 20% i z prawem wysyłki', () => {
+    const zablokowane = { allowed: false, percent: 40 };
+    const otwarte = { allowed: true, percent: 11 };
+    assert.equal(canCorrect({ sessionUser: { isAdmin: true } }, zablokowane), true);
+    assert.equal(canCorrect({ sessionUser: { isStaff: true } }, zablokowane), true);
+    assert.equal(canCorrect({ sessionUser: klient }, otwarte), true);
+    assert.equal(canCorrect({ sessionUser: klient }, zablokowane), false);
+    assert.equal(canCorrect({ sessionUser: { ...klient, isGroupShop: true } }, otwarte), false);
+    assert.equal(canCorrect({ sessionUser: { isEmployee: true }, employeePermissions: { can_send_orders: false } }, otwarte), false);
 });
 
 test('audyt: kto anulował', () => {
@@ -191,7 +193,7 @@ test('anulowanie poza produkcją: pusty znacznik w outputData, potem status w ba
 
     const mark = calls.find(c => c[0] === 'markOrderCanceled');
     assert.equal(mark[1], 3100);
-    assert.deepStrictEqual(mark[2], { canceledAt: NOW_WALL, canceledBy: 'user:ryver', windowStart: WINDOW_START });
+    assert.deepStrictEqual(mark[2], { canceledAt: NOW_WALL, canceledBy: 'user:ryver' });
 });
 
 test('KOLEJNOŚĆ: znacznik powstaje PRZED zmianą statusu', async () => {
@@ -199,19 +201,6 @@ test('KOLEJNOŚĆ: znacznik powstaje PRZED zmianą statusu', async () => {
     await cancelSentOrder(ctxKlienta(), deps);
     const order = calls.map(c => c[0]);
     assert.ok(order.indexOf('writeFile') < order.indexOf('markOrderCanceled'), order.join(' → '));
-});
-
-test('sprawdzenie okna i UPDATE dostają TEN SAM początek okna', async () => {
-    // Inaczej zlecenie, które przeszło sprawdzenie o 11:59:59, mogłoby „przeterminować
-    // się" w trakcie wysyłki znacznika — znacznik na FTP, status bez zmian.
-    const { deps, calls } = fakeWorld();
-    await cancelSentOrder(ctxKlienta(), deps);
-    const check = calls.find(c => c[0] === 'getOrderCancellationState')[2];
-    const mark = calls.find(c => c[0] === 'markOrderCanceled')[2];
-    assert.equal(check.windowStart, WINDOW_START);
-    assert.equal(check.now, NOW_WALL);
-    assert.equal(check.windowHours, 24);
-    assert.equal(mark.windowStart, check.windowStart);
 });
 
 test('produkcja: znacznik idzie na FTP do osobnego /orders-cancel/ pod tą samą nazwą', async () => {
@@ -305,8 +294,17 @@ test('konto demo: status w bazie bez znacznika — ani lokalnie, ani na FTP (tak
     assert.ok(calls.some(c => c[0] === 'markOrderCanceled'));
 });
 
-test('po 24 h: odmowa „minął czas"', async () => {
-    await assertRefused({ state: sentOrder({ within_window: 0, seconds_left: -60 }) }, ctxKlienta(), { status: 409, code: 'window_expired' });
+test('produkcja ≥ 20%: odmowa — także dla admina', async () => {
+    const progress = () => ({ allowed: false, percent: 20 });
+    await assertRefused({ progress }, ctxKlienta(), { status: 409, code: 'window_expired' });
+    await assertRefused({ progress }, ctxKlienta({ sessionUser: { ...klient, isAdmin: true } }), { status: 409, code: 'window_expired' });
+});
+
+test('postęp sprawdzany dla TEGO zlecenia (klucz z bazy: organizacja, klient, numer)', async () => {
+    const seen = [];
+    const { deps } = fakeWorld({ progress: (o) => { seen.push([o.org_ident, o.user_ident, o.order_idx]); return { allowed: true }; } });
+    await cancelSentOrder(ctxKlienta(), deps);
+    assert.deepStrictEqual(seen, [['HKL', 'ryver', '242']]);
 });
 
 test('zlecenie niewysłane (aktywne, do zatwierdzenia, w korekcie): odmowa', async () => {
@@ -345,7 +343,7 @@ test('każdy kod wyniku ma klucz tłumaczenia', () => {
 
 // ── Podgląd i lista ──────────────────────────────────────────────────────────
 
-test('podgląd: w oknie → przycisk z terminem i pozostałym czasem', async () => {
+test('podgląd: produkcja < 20% → przyciski anulowania i korekty', async () => {
     const { deps } = fakeWorld();
     const info = await getCancellationInfo(3100, { sessionUser: klient }, deps);
     assert.deepStrictEqual(info, {
@@ -353,45 +351,61 @@ test('podgląd: w oknie → przycisk z terminem i pozostałym czasem', async () 
         canceled: false,
         cancelable: true,
         canCancel: true,
-        deadlineLabel: '29.09.2026 10:00',
-        secondsLeft: 22 * 3600,
+        canOpenCorrection: true,
+        prodPercent: 11,
         canceledAtLabel: ''
     });
 });
 
-test('podgląd: sklep grupy widzi termin, ale bez przycisku', async () => {
+test('podgląd: produkcja ≥ 20% → klient bez przycisków, admin i biuro mają korektę', async () => {
+    const progress = () => ({ allowed: false, percent: 42 });
+    const klientInfo = await getCancellationInfo(3100, { sessionUser: klient }, fakeWorld({ progress }).deps);
+    assert.equal(klientInfo.canCancel, false);
+    assert.equal(klientInfo.canOpenCorrection, false);
+    const admin = await getCancellationInfo(3100, { sessionUser: { ...klient, isAdmin: true } }, fakeWorld({ progress }).deps);
+    assert.equal(admin.canCancel, false);
+    assert.equal(admin.canOpenCorrection, true);
+    const biuro = await getCancellationInfo(3100, { sessionUser: { ...klient, isStaff: true } }, fakeWorld({ progress }).deps);
+    assert.equal(biuro.canOpenCorrection, true);
+});
+
+test('podgląd: sklep grupy widzi, że można anulować, ale bez przycisku', async () => {
     const { deps } = fakeWorld();
     const info = await getCancellationInfo(3100, { sessionUser: { ...klient, isGroupShop: true } }, deps);
     assert.equal(info.cancelable, true);
     assert.equal(info.canCancel, false);
 });
 
-test('podgląd: po terminie — bez przycisku', async () => {
-    const { deps } = fakeWorld({ state: sentOrder({ within_window: 0, seconds_left: -5 }) });
-    const info = await getCancellationInfo(3100, { sessionUser: klient }, deps);
-    assert.equal(info.cancelable, false);
-    assert.equal(info.canCancel, false);
-    assert.equal(info.secondsLeft, 0);
-});
-
 test('podgląd anulowanego: data anulowania z bazy', async () => {
-    const { deps } = fakeWorld({ state: sentOrder({ status: 'canceled', within_window: 1 }), record: { canceled_at_label: '28.09.2026 12:00', canceled_by: 'user:ryver' } });
+    const { deps } = fakeWorld({ state: sentOrder({ status: 'canceled' }), record: { canceled_at_label: '28.09.2026 12:00', canceled_by: 'user:ryver' } });
     const info = await getCancellationInfo(3100, { sessionUser: klient }, deps);
     assert.equal(info.canceled, true);
     assert.equal(info.cancelable, false, 'anulowanego nie anuluje się drugi raz');
+    assert.equal(info.canOpenCorrection, false);
     assert.equal(info.canceledAtLabel, '28.09.2026 12:00');
 });
 
-test('lista wysłanych: termin tylko przy zleceniach, które baza uznała za możliwe do anulowania', async () => {
-    const { deps, calls } = fakeWorld({ deadlines: [{ id: 2, cancel_deadline: '2026-09-29 08:15:00', seconds_left: 3600 }] });
+test('lista wysłanych: przycisk tylko przy wysłanych zleceniach z produkcją < 20%', async () => {
+    const { deps, calls } = fakeWorld({
+        candidates: [{ id: 2, order_idx: 5 }, { id: 3, order_idx: 6 }],
+        progress: (o) => ({ allowed: o.order_idx === 5 })
+    });
     const orders = [{ id: 1 }, { id: 2 }, { id: 3 }];
     await attachCancelDeadlines(orders, { sessionUser: klient }, deps);
 
-    assert.deepStrictEqual(calls.find(c => c[0] === 'getCancelableOrderDeadlines')[1], [1, 2, 3]);
-    assert.equal(orders[0].cancelDeadlineLabel, undefined);
-    assert.equal(orders[1].cancelDeadlineLabel, '29.09.2026 08:15');
-    assert.equal(orders[1].cancelSecondsLeft, 3600);
-    assert.equal(orders[2].cancelDeadlineLabel, undefined);
+    assert.deepStrictEqual(calls.find(c => c[0] === 'getCancelCandidates')[1], [1, 2, 3]);
+    assert.equal(orders[0].cancelable, undefined, 'niewysłane / nie z bazy');
+    assert.equal(orders[1].cancelable, true);
+    assert.equal(orders[2].cancelable, undefined, 'produkcja ≥ 20%');
+    assert.equal(orders[1].correctable, true, 'klient koryguje < 20%');
+    assert.equal(orders[2].correctable, undefined, 'klient nie koryguje ≥ 20%');
+
+    for (const sessionUser of [{ ...klient, isStaff: true }, { ...klient, isAdmin: true }]) {
+        const list = [{ id: 1 }, { id: 2 }, { id: 3 }];
+        await attachCancelDeadlines(list, { sessionUser }, deps);
+        assert.deepStrictEqual(list.map(o => [o.cancelable, o.correctable]), [[undefined, undefined], [true, true], [undefined, true]],
+            'biuro i admin korygują przez cały proces, anulują jak wszyscy < 20%');
+    }
 });
 
 test('lista wysłanych: rola bez prawa anulowania nie pyta nawet bazy', async () => {
@@ -399,5 +413,5 @@ test('lista wysłanych: rola bez prawa anulowania nie pyta nawet bazy', async ()
     const orders = [{ id: 1 }];
     await attachCancelDeadlines(orders, { sessionUser: { ...klient, isGroupShop: true } }, deps);
     assert.equal(calls.length, 0);
-    assert.equal(orders[0].cancelDeadlineLabel, undefined);
+    assert.equal(orders[0].cancelable, undefined);
 });

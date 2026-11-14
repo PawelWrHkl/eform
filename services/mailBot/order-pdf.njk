@@ -1,4 +1,4 @@
-{% from "_pdf_cell.njk" import pdfCell, pdfCellBold %}
+{% from "_pdf_cell.njk" import pdfCell, pdfCellBold, chg, chgc %}
 {% block title %}{% endblock title %}
 {% block head %}
   <link rel="stylesheet" href="styles/order-pdf.css">
@@ -14,6 +14,14 @@
           <div class='header-comment'>
             <strong>{{ __('order.comment') }}:</strong>
             <span class="pdf-val">{{ orderDetails.comment }}</span>
+          </div>
+        {% endif %}
+        {# Korekta zlecenia (services/correctionDiff.js → `correction`): wersja obowiązująca,
+           zmiany względem poprzedniej oznaczone kolorem. #}
+        {% if correction %}
+          <div class="correction-note">
+            <strong>{{ __('mail.correction_title') }}</strong> — {{ __('mail.correction_pdf_note') }}
+            {% if correction.marked %}<span class="chg-swatch"></span>{{ __('mail.correction_pdf_legend') }}{% endif %}
           </div>
         {% endif %}
       </div>
@@ -39,15 +47,15 @@
              działa na grupę wierszy (`tbody`), a nie na luźne `<tr>` obok
              siebie. Kilka `<tbody>` w jednej tabeli to poprawny HTML. #}
           {% for rowObj in table.rows %}
-          <tbody class="pos{% if loop.index % 2 == 0 %} pos--alt{% endif %}">
+          <tbody class="pos{% if loop.index % 2 == 0 %} pos--alt{% endif %}{% if rowObj.item.correctionNew %} pos--new{% endif %}">
               <tr>
-                <td><span class="pdf-val">{{ globalIndex }}</span></td>
+                <td><span class="pdf-val">{{ globalIndex }}</span>{% if rowObj.item.correctionNew %}<span class="chg-badge">{{ __('mail.correction_new_position') }}</span>{% endif %}</td>
                 <td>{{ pdfCell(rowObj.item.department) }}</td>
                 <td>{{ pdfCell(rowObj.item.group_name) }}</td>
-                <td>{{ pdfCell(rowObj.item.commision) }}</td>
+                <td{{ chg('__commision', rowObj.item) }}>{{ pdfCell(rowObj.item.commision) }}</td>
                 {% for header in table.headers1 %}
                   {% if (not(header in rowObj.item.lockedParams)) %}
-                    <td>{{ pdfCell(rowObj.row.row1[header]) }}</td>
+                    <td{{ chg((table.headerKeys1[loop.index0] or '').split('||')[1], rowObj.item) }}>{{ pdfCell(rowObj.row.row1[header]) }}</td>
                   {% endif %}
                 {% endfor %}
               </tr>
@@ -66,7 +74,7 @@
                   {% set headerKey = table.headerKeys2[loop.index0] or '' %}
                   {% set isVatRow = hideClientVat and (headerKey.endsWith('||VAT') or headerKey.endsWith('||WARTOSC_VAT') or headerKey.endsWith('||WARTOSC_BRUTTO')) %}
                   {% if (not(header in rowObj.item.lockedParams)) and not isVatRow %}
-                    <td class="price" colspan="2">
+                    <td class="price{{ chgc(headerKey.split('||')[1], rowObj.item) }}" colspan="2">
                       <span class="price-label">{{ header }}:</span>
                       <b>{{ pdfCellBold(rowObj.row.row2[header]) }}</b>
                     </td>
@@ -83,7 +91,7 @@
                      z `locked: false`. #}
                   {% set isVatRow = entry.key == 'SUB___VAT' or entry.key == 'SUB___WARTOSC_VAT' or entry.key == 'SUB___WARTOSC_BRUTTO' %}
                   {% if entry.value and entry.value != '-' and entry.value != '' and not entry.locked and not isVatRow %}
-                    <td class="price" colspan="2">
+                    <td class="price{{ chgc(entry.key, rowObj.item) }}" colspan="2">
                       <span class="price-label">{{ entry.display }}:</span>
                       <b>{{ pdfCellBold(entry.value) }}</b>
                     </td>
@@ -102,7 +110,7 @@
               <tr>
                 {% for header in table.headers1 %}
                   {% if (header in rowObj.item.lockedParams) %}
-                    <td class="price" colspan="2">
+                    <td class="price{{ chgc((table.headerKeys1[loop.index0] or '').split('||')[1], rowObj.item) }}" colspan="2">
                       <span class="price-label gold">{{ header }}:</span>
                       <b>{{ pdfCellBold(rowObj.row.row1[header] or rowObj.row.row2[header]) }}</b>
                     </td>
@@ -110,7 +118,7 @@
                 {% endfor %}
                 {% for header in table.headers2 %}
                   {% if (header in rowObj.item.lockedParams) %}
-                    <td class="price" colspan="2">
+                    <td class="price{{ chgc((table.headerKeys2[loop.index0] or '').split('||')[1], rowObj.item) }}" colspan="2">
                       <span class="price-label gold">{{ header }}:</span>
                       <b>{{ pdfCellBold(rowObj.row.row1[header] or rowObj.row.row2[header]) }}</b>
                     </td>
@@ -122,7 +130,7 @@
               <tr>
                 {% for entry in rowObj.item.subParamValues %}
                   {% if entry.value and entry.value != '-' and entry.value != '' and entry.locked and not (hideClientVat and entry.key in ['SUB___VAT', 'SUB___WARTOSC_VAT', 'SUB___WARTOSC_BRUTTO']) %}
-                    <td class="price" colspan="2">
+                    <td class="price{{ chgc(entry.key, rowObj.item) }}" colspan="2">
                       <span class="price-label gold">{{ entry.display }}:</span>
                       <b>{{ pdfCellBold(entry.value) }}</b>
                     </td>
@@ -138,7 +146,7 @@
               <tr>
                 {% for entry in rowObj.item.clientDiscountValues %}
                   {% if entry.value and entry.value != '-' and entry.value != '' %}
-                    <td class="price discount" colspan="2">
+                    <td class="price discount{{ chgc(entry.key, rowObj.item) }}" colspan="2">
                       <span class="price-label discount">{{ entry.display }}:</span>
                       <b>{{ pdfCellBold(entry.value) }}</b>
                     </td>
@@ -148,7 +156,7 @@
               {% endif %}
               {% if rowObj.item.comment %}
               <tr>
-                <td class="row-comment" colspan="999"><span class="price-label">{{ __('order.comment') }}:</span> <span class="pdf-val">{{ rowObj.item.comment }}</span></td>
+                <td class="row-comment{{ chgc('__comment', rowObj.item) }}" colspan="999"><span class="price-label">{{ __('order.comment') }}:</span> <span class="pdf-val">{{ rowObj.item.comment }}</span></td>
               </tr>
               {% endif %}
               {% set globalIndex = globalIndex + 1 %}
@@ -156,6 +164,14 @@
           {% endfor %}
         </table>
       {% endfor %}
+      {% if correction and correction.removed and correction.removed.length %}
+        <div class="correction-removed">
+          <strong>{{ __('mail.correction_removed') }}:</strong>
+          {% for r in correction.removed %}
+            <span class="removed-item">{{ r.department }}{% if r.group_name %} / {{ r.group_name }}{% endif %}{% if r.commision %} — {{ r.commision }}{% endif %}</span>{% if not loop.last %}; {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
       {% if maxProdDays %}
         <div class="print-total-items">
           {{ __('order.production_time_label') }} <span class="pdf-val">{{ maxProdDays }}</span> {{ __('termin.days') }}

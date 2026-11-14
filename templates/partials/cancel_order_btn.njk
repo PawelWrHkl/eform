@@ -1,20 +1,31 @@
 {# Przycisk „Anuluj” na liście wysłanych zleceń — tylko dla zleceń, które
    `services/orderCancellation.js attachCancelDeadlines` oznaczyło jako możliwe
-   do anulowania (< 24 h od wysłania i rola ma prawo). Obsługa kliknięcia,
-   dwustopniowe potwierdzenie i ukrycie po upływie terminu:
-   public/scripts/orderCancel.js.
+   do anulowania (produkcja < 20% i rola ma prawo). Obsługa kliknięcia
+   i dwustopniowe potwierdzenie: public/scripts/orderCancel.js.
    ⚠️ `onclick="event.stopPropagation()"` — bez tego klik otworzyłby wiersz.
    Skrypt słucha w fazie przechwytywania, więc i tak dostaje zdarzenie. #}
-{% if order.cancelDeadlineLabel %}
+{% if order.cancelable %}
     <button type="button"
         class="btn order-cancel-btn order-cancel-btn--compact cancel-order-btn stop-propagation has-tooltip"
         data-id="{{ order.id }}"
         data-order-no="{{ order.order_idx }}"
         data-commission="{{ order.commision }}"
-        data-seconds-left="{{ order.cancelSecondsLeft }}"
-        data-tooltip="{{ __('cancel_order.deadline_label') }} {{ order.cancelDeadlineLabel }}"
-        aria-label="{{ __('cancel_order.button') }} — {{ __('cancel_order.deadline_label') }} {{ order.cancelDeadlineLabel }}"
+        data-tooltip="{{ __('cancel_order.button_tooltip') }}"
+        aria-label="{{ __('cancel_order.button_tooltip') }}"
         onclick="event.stopPropagation()">
         {{ __('cancel_order.button_short') }}
+    </button>
+{% endif %}
+{# „Korekta” — `order.correctable` z tego samego attachCancelDeadlines: biuro zawsze,
+   klient < 20%. Admin ma własny przycisk modułu korekt (`orderCorrectionEnabled`).
+   Kliknięcie: public/scripts/admin/orderCorrectionWorkspace.js. #}
+{% if order.correctable and not orderCorrectionEnabled %}
+    <button type="button"
+        class="btn btn-warning order-cancel-btn--compact open-order-correction-btn stop-propagation has-tooltip"
+        data-id="{{ order.id }}"
+        data-tooltip="{{ __('order_correction.button') }}"
+        aria-label="{{ __('order_correction.button') }}"
+        onclick="event.stopPropagation()">
+        {{ __('order_correction.button_short') }}
     </button>
 {% endif %}

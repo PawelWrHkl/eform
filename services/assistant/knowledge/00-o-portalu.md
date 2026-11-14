@@ -21,7 +21,7 @@ eForm to portal zamówieniowy, w którym klienci (salony, dealerzy, sklepy) konf
 - Zlecenie / zamówienie wysłane — oferta wysłana do realizacji. Nie da się jej już edytować. Lista: „{{base.orders_history}}”.
 - Pozycja — jeden skonfigurowany produkt w ofercie (np. jedna roleta do jednego okna).
 - Konfigurator — formularz, w którym wybiera się produkt i jego parametry (wymiary, tkanina, kolor, sterowanie itd.).
-- Anulowane zlecenie — wysłane zlecenie wycofane przez klienta w ciągu 24 godzin od wysłania.
+- Anulowane zlecenie — wysłane zlecenie wycofane przez klienta, zanim jego produkcja osiągnęła 20%.
 
 ## Rodzaje kont
 - Klient (salon, dealer) — loguje się swoim loginem i hasłem, ma pełny dostęp do swoich ofert i zamówień.

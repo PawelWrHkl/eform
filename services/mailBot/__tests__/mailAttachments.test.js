@@ -178,3 +178,15 @@ test('dokument załącznika jest poprawnym, domykalnym HTML-em', () => {
   // Treść faktycznie wylądowała w kontenerze przewijania, a nie poza <body>.
   assert.ok(dom.window.document.querySelector('.h-scroll .h-inner').children.length > 0);
 });
+
+test('korekta: ten sam szablon co potwierdzenie, tytuł i treść korekty, PDF z sufiksem w nazwie', () => {
+  const opts = buildMailOptions('test@example.com', 'pl', Buffer.alloc(10, 0x41), [],
+    { orderNr: '2819', klient: 'TCN', logoPath: '/nonexistent.png', orderDetails: { commission: 'Salon' }, organization: {}, isCorrection: true, correctionMarked: true },
+    null, 'mailTemplate.njk', 'mail.correction_subject', {});
+  assert.match(opts.subject, /^Korekta zamówienia #2819 - TCN/);
+  assert.match(opts.html, /Potwierdzenie korekty zamówienia/);
+  assert.match(opts.html, /korekty zamówienia nr 2819/);
+  assert.match(opts.html, /oznaczone kolorem/);
+  assert.doesNotMatch(opts.html, /Potwierdzamy otrzymanie zamówienia/);
+  assert.match(opts.attachments[0].filename, /2819_korekta\.pdf$/);
+});

@@ -305,7 +305,7 @@ async function getUserOrders(userId, limit = 10, offset = 0, sent = false, organ
                 SELECT o.id, o.user_id, o.delivery_address_id, o.commision, o.total_price, o.created_date, o.sent_date, o.organization_id, o.comment, o.status, o.send_address_id, o.order_idx, o.prod_status, o.delivery_date, o.spedition_numbers, o.max_prod_days, u.ident as user_ident, u.client_name as user_name, u.email as user_email
                 FROM \`order\` o
                 JOIN \`user\` u ON o.user_id = u.id
-                WHERE u.organization_id = ? AND o.status LIKE 'sent'
+                WHERE u.organization_id = ? AND o.status IN ('sent', 'correction')
                 ORDER BY o.sent_date DESC
                 LIMIT ? OFFSET ?
             `;
@@ -344,7 +344,7 @@ async function getUserOrders(userId, limit = 10, offset = 0, sent = false, organ
 ,e.id as emp_id, e.name, e.surname, gu.name as shop_name, gu.ident as shop_ident, o.created_by_group_user_id FROM \`order\` o 
         left join employee e on e.id = o.employee_id
         left join group_user gu on gu.id = o.group_user_id
-        WHERE o.user_id = ? ${sqlInput} and o.status like 'sent'
+        WHERE o.user_id = ? ${sqlInput} and o.status IN ('sent', 'correction')
         ORDER BY o.sent_date DESC 
         LIMIT ? OFFSET ?
     `;
@@ -407,7 +407,7 @@ async function countUserOrders(userId, sent = false, organization = false, emplo
             }
             else {
                 count = await selectQuery(
-                    "SELECT COUNT(*) as count FROM `order` o JOIN `user` u ON o.user_id = u.id WHERE u.organization_id = ? AND o.status LIKE 'sent'", organization
+                    "SELECT COUNT(*) as count FROM `order` o JOIN `user` u ON o.user_id = u.id WHERE u.organization_id = ? AND o.status IN ('sent', 'correction')", organization
                 );
             }
         } else {
@@ -419,7 +419,7 @@ async function countUserOrders(userId, sent = false, organization = false, emplo
             }
             else {
                 sql =
-                    `SELECT COUNT(*) as count FROM \`order\` WHERE user_id = ? ${sqlInput} and status like 'sent'`
+                    `SELECT COUNT(*) as count FROM \`order\` WHERE user_id = ? ${sqlInput} and status IN ('sent', 'correction')`
             }
             if (employeeId !== null) {
                 count = await selectQuery(sql, [userId, employeeId]);
@@ -879,10 +879,8 @@ async function countSearchUserOrders(userId, phrase, sent = false, employeeId = 
 
 // ── Anulowanie wysłanego zlecenia (services/orderCancellation.js) ──
 //
-// ⚠️ Czas porównujemy W BAZIE, na napisach w czasie warszawskim: `sent_date`
-// zapisuje `dateUtils.getDbTimestamp()` jako czas ścienny Europe/Warsaw, więc
-// porównanie z `new Date()` po stronie Node zależałoby od strefy procesu.
-// `now`/`windowStart` przychodzą z serwisu w tym samym formacie.
+// Od 13.11.2026 o anulowaniu decyduje postęp produkcji ze status.txt
+// (services/prodProgress.js), nie okno 24 h — baza daje tylko stan zlecenia.
 
 /**
  * Stan zlecenia potrzebny do decyzji o anulowaniu + składniki nazwy pliku.
@@ -891,19 +889,16 @@ async function countSearchUserOrders(userId, phrase, sent = false, employeeId = 
  * `org`/`user` przez JOIN dokładnie jak w `getOrderDataToSend`, z którego
  * powstaje nazwa wysłanego JSON-a.
  */
-async function getOrderCancellationState(orderId, { now, windowStart, windowHours }) {
+async function getOrderCancellationState(orderId) {
     const query = `
-        SELECT o.id, o.status, o.order_idx, o.user_id, o.employee_id, o.group_user_id,
+        SELECT o.id, o.status, o.order_idx, o.user_id, o.employee_id, o.group_user_id, o.prod_status,
                u.ident AS user_ident, org.ident AS org_ident,
-               DATE_FORMAT(o.sent_date, '%Y-%m-%d %H:%i:%s') AS sent_at,
-               DATE_FORMAT(DATE_ADD(o.sent_date, INTERVAL ? HOUR), '%Y-%m-%d %H:%i:%s') AS cancel_deadline,
-               (o.sent_date IS NOT NULL AND o.sent_date >= ?) AS within_window,
-               TIMESTAMPDIFF(SECOND, ?, DATE_ADD(o.sent_date, INTERVAL ? HOUR)) AS seconds_left
+               DATE_FORMAT(o.sent_date, '%Y-%m-%d %H:%i:%s') AS sent_at
         FROM \`order\` o
         JOIN \`user\` u ON u.id = o.user_id
         JOIN organization org ON org.id = o.organization_id
         WHERE o.id = ?`;
-    const rows = await selectQuery(query, [windowHours, windowStart, now, windowHours, orderId]);
+    const rows = await selectQuery(query, [orderId]);
     return rows?.[0] || null;
 }
 
@@ -917,34 +912,35 @@ async function getOrderCancellationRecord(orderId) {
 }
 
 /**
- * Atomowe przejście `sent` → `canceled`, TYLKO w oknie czasowym.
+ * Atomowe przejście `sent` → `canceled` (postęp produkcji sprawdza serwis —
+ * services/prodProgress.js).
  * Warunek w `WHERE` (a nie wcześniejszy SELECT) rozstrzyga wyścig dwóch
  * kliknięć i zmianę statusu w międzyczasie (np. start korekty admina).
  * ⚠️ `sent_date` zostaje NIETKNIĘTA — w przeciwieństwie do `changeOrderStatus`.
  *
  * @returns {Promise<number|null>} liczba zmienionych wierszy (0/1), `null` = błąd bazy
  */
-async function markOrderCanceled(orderId, { canceledAt, canceledBy, windowStart }) {
+async function markOrderCanceled(orderId, { canceledAt, canceledBy }) {
     const query = `
         UPDATE \`order\`
         SET status = 'canceled', canceled_at = ?, canceled_by = ?
-        WHERE id = ? AND status = 'sent' AND sent_date IS NOT NULL AND sent_date >= ?`;
-    const response = await updateQuery(query, [canceledAt, canceledBy, orderId, windowStart]);
+        WHERE id = ? AND status = 'sent'`;
+    const response = await updateQuery(query, [canceledAt, canceledBy, orderId]);
     if (!response) return null;
     return Number(response.affectedRows) || 0;
 }
 
-/** Które z podanych zleceń można jeszcze anulować (lista wysłanych). */
-async function getCancelableOrderDeadlines(orderIds, { now, windowStart, windowHours }) {
+/** Wysłane zlecenia z listy + składniki klucza w status.txt (lista wysłanych → services/prodProgress.js). */
+async function getCancelCandidates(orderIds) {
     const ids = (orderIds || []).map(id => parseInt(id, 10)).filter(Number.isFinite);
     if (ids.length === 0) return [];
     const query = `
-        SELECT id,
-               DATE_FORMAT(DATE_ADD(sent_date, INTERVAL ? HOUR), '%Y-%m-%d %H:%i:%s') AS cancel_deadline,
-               TIMESTAMPDIFF(SECOND, ?, DATE_ADD(sent_date, INTERVAL ? HOUR)) AS seconds_left
-        FROM \`order\`
-        WHERE id IN (?) AND status = 'sent' AND sent_date IS NOT NULL AND sent_date >= ?`;
-    return (await selectQuery(query, [windowHours, now, windowHours, ids, windowStart])) || [];
+        SELECT o.id, o.order_idx, o.prod_status, u.ident AS user_ident, org.ident AS org_ident
+        FROM \`order\` o
+        JOIN \`user\` u ON u.id = o.user_id
+        JOIN organization org ON org.id = o.organization_id
+        WHERE o.id IN (?) AND o.status = 'sent'`;
+    return (await selectQuery(query, [ids])) || [];
 }
 
 /**
@@ -1030,7 +1026,7 @@ module.exports = {
     getOrderCancellationState,
     getOrderCancellationRecord,
     markOrderCanceled,
-    getCancelableOrderDeadlines,
+    getCancelCandidates,
     getCanceledOrders,
     countCanceledOrders,
     submitOrderForApproval,

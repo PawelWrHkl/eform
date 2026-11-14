@@ -98,7 +98,7 @@
                             {% block action_th %}{% if orderCorrectionEnabled %}<th scope="col"></th>{% endif %}{% endblock %}
                             {% block extra_rows %}
                                 <td>{{ order.sent_date }}</td>
-                                <th scope="row" data-prod-status="{{ order.prod_status or '' }}">{{ __(order.prod_status) if order.prod_status else __('order.status_order_sent') }}</th>
+                                <th scope="row" data-prod-status="{{ order.prod_status or '' }}">{{ __(order.prod_status) if order.prod_status else __('order.status_order_sent') }}{% if order.status == 'correction' %} <span class="badge bg-warning text-dark">{{ __('order_correction.status_badge') }}</span>{% endif %}</th>
                                 <th scope="row">
                                     {% if order.delivery_date %}
                                         {{ order.delivery_date }}
@@ -169,6 +169,7 @@
                             {% block scripts %}
                                 <script type="module" src="/scripts/orders.js"></script>
                                 <script type="module" src="/scripts/orderCancel.js?v={{ assetVersion }}"></script>
+                                <script type="module" src="/scripts/admin/orderCorrectionWorkspace.js?v={{ assetVersion }}"></script>
                                 {% if orderCorrectionEnabled %}
                                 <script type="module" src="/scripts/admin/orderCorrections.js"></script>
                                 {% endif %}
