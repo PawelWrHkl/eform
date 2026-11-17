@@ -19,6 +19,7 @@ const {
   readInvoiceMailConfig,
   effectiveSince,
   assertRecipientsAllowed,
+  resolveSender,
   buildInvoiceMail,
   runInvoiceMailing
 } = require('../invoiceMailer');
@@ -33,6 +34,9 @@ const BASE_ENV = {
   MAILBOT_USER: 'test-orders@e-orders.eu',
   NODE_ENV: 'test'
 };
+const BUYER_ENV = { ...BASE_ENV, INVOICE_MAIL_REDIRECT: '', INVOICE_MAIL_TO_BUYER: 'true', INVOICE_SMTP_HKL_PASSWORD: 'tajne' };
+const COZY_SENDER = { ident: 'Cozy', email: 'factuur@maizoncozy.eu' };
+const HKL_SENDER = { ident: 'HKL', email: 'faktury@hkl.eu' };
 
 function invoiceFixture(overrides = {}) {
   return {
@@ -232,12 +236,13 @@ test('blokada: w trybie do nabywcy przepuszcza adres klienta', () => {
 // Przebieg
 // ---------------------------------------------------------------------------
 
-function fakeDeps({ pending = [], invoices = {}, sendMail, addInvoiceEvent, renderPdf } = {}) {
-  const calls = { find: [], events: [], sent: [], rendered: [], logs: [] };
+function fakeDeps({ pending = [], invoices = {}, sendMail, addInvoiceEvent, renderPdf, sender = null } = {}) {
+  const calls = { find: [], events: [], sent: [], accounts: [], rendered: [], logs: [] };
   const repository = {
     findInvoicesToMail: async (params) => { calls.find.push(params); return pending; },
     getInvoice: async (id) => invoices[id] || null,
     getIssuerProfile: async () => ({ email: 'biuro@hkl.eu' }),
+    getInvoiceSender: async () => sender,
     addInvoiceEvent: addInvoiceEvent || (async (event) => { calls.events.push(event); })
   };
   const service = {
@@ -250,7 +255,7 @@ function fakeDeps({ pending = [], invoices = {}, sendMail, addInvoiceEvent, rend
       service,
       log: (m) => calls.logs.push(m),
       now: () => new Date('2026-10-22T10:00:00Z'),
-      sendMail: sendMail || (async (message) => { calls.sent.push(message); return { messageId: `<m${calls.sent.length}@test>` }; })
+      sendMail: sendMail || (async (message, account) => { calls.sent.push(message); calls.accounts.push(account); return { messageId: `<m${calls.sent.length}@test>` }; })
     }
   };
 }
@@ -305,8 +310,9 @@ test('przebieg (tryb testowy): faktury automatu → PDF → mail tylko do Pawła
     [502, MailEvent.REDIRECTED, AUTO_ACTOR]
   ]);
   assert.deepEqual(calls.events[1].payload, {
-    mode: MailMode.REDIRECT, to: [PAWEL], intendedTo: ['inny@firma.de'], messageId: '<m2@test>'
+    mode: MailMode.REDIRECT, from: 'test-orders@e-orders.eu', to: [PAWEL], intendedTo: ['inny@firma.de'], messageId: '<m2@test>'
   });
+  assert.deepEqual(calls.accounts, [null, null], 'organizacja bez skrzynki fakturowej → skrzynka systemu');
   assert.ok(calls.logs.some((m) => /wysłano 2, błędy 0 \(tryb testowy → pawel\.woroniecki@hkl\.eu; faktury od 2026-10-22\)/.test(m)));
 });
 
@@ -328,9 +334,10 @@ test('przebieg: nieudana wysyłka → mail_failed, bez znacznika wysłania, resz
 test('przebieg (do nabywcy): bez adresu nabywcy — błąd, bez renderu PDF i bez wysyłki', async () => {
   const { calls, deps } = fakeDeps({
     pending: [{ id: 501, number: 'A', buyer_name: 'X', failures: 0 }],
-    invoices: { 501: invoiceFixture({ buyer: { name: 'X', email: null } }) }
+    invoices: { 501: invoiceFixture({ buyer: { name: 'X', email: null } }) },
+    sender: HKL_SENDER
   });
-  const cfg = readInvoiceMailConfig({ ...BASE_ENV, INVOICE_MAIL_REDIRECT: '', INVOICE_MAIL_TO_BUYER: 'true' });
+  const cfg = readInvoiceMailConfig(BUYER_ENV);
   const result = await runInvoiceMailing({ config: cfg, deps });
   assert.equal(result.failed.length, 1);
   assert.match(result.failed[0].error, /nie ma poprawnego adresu/);
@@ -339,17 +346,73 @@ test('przebieg (do nabywcy): bez adresu nabywcy — błąd, bez renderu PDF i be
   assert.equal(calls.events[0].eventType, MailEvent.FAILED);
 });
 
-test('przebieg (do nabywcy): znacznik mail_sent, adres klienta, Reply-To wystawcy', async () => {
+test('przebieg (do nabywcy): znacznik mail_sent, adres klienta, Reply-To wystawcy, nadawca = skrzynka fakturowa', async () => {
   const { calls, deps } = fakeDeps({
     pending: [{ id: 501, number: 'A', buyer_name: 'X', failures: 0 }],
-    invoices: { 501: invoiceFixture() }
+    invoices: { 501: invoiceFixture() },
+    sender: HKL_SENDER
   });
-  const cfg = readInvoiceMailConfig({ ...BASE_ENV, INVOICE_MAIL_REDIRECT: '', INVOICE_MAIL_TO_BUYER: 'true' });
+  const cfg = readInvoiceMailConfig(BUYER_ENV);
   await runInvoiceMailing({ config: cfg, deps });
   assert.equal(calls.find[0].doneEvent, MailEvent.SENT);
   assert.equal(calls.sent[0].to, 'orders@klient.nl');
   assert.equal(calls.sent[0].replyTo, 'biuro@hkl.eu');
+  assert.equal(calls.sent[0].from.address, 'faktury@hkl.eu');
+  assert.deepEqual(calls.accounts[0], { host: 'hkl.eu', user: 'faktury@hkl.eu', pass: 'tajne' });
   assert.equal(calls.events[0].eventType, MailEvent.SENT);
+  assert.equal(calls.events[0].payload.from, 'faktury@hkl.eu');
+});
+
+test('przebieg (do nabywcy): wystawca bez adresu fakturowego albo bez hasła — jak wcześniej ze skrzynki systemu', async () => {
+  for (const sender of [null, { ident: 'FENIX', email: '' }, { ident: 'Cozy', email: 'factuur@maizoncozy.eu' }]) {
+    const { calls, deps } = fakeDeps({
+      pending: [{ id: 501, number: 'A', buyer_name: 'X', failures: 0 }],
+      invoices: { 501: invoiceFixture() },
+      sender
+    });
+    const result = await runInvoiceMailing({ config: readInvoiceMailConfig(BUYER_ENV), deps });
+    assert.equal(result.sent.length, 1);
+    assert.deepEqual(calls.sent[0].from, { name: 'HKL Dekoracja Okien Sp. z o.o.', address: 'test-orders@e-orders.eu' });
+    assert.equal(calls.sent[0].to, 'orders@klient.nl');
+    assert.equal(calls.sent[0].replyTo, 'biuro@hkl.eu');
+    assert.equal(calls.accounts[0], null);
+    assert.equal(calls.events[0].eventType, MailEvent.SENT);
+    assert.equal(calls.logs.some((m) => /UWAGA: brak hasła skrzynki/.test(m)), !!(sender && sender.email));
+  }
+});
+
+test('przebieg (tryb testowy): faktura Cozy idzie z factuur@maizoncozy.eu przez jej skrzynkę, odpowiedź do skrzynki systemu', async () => {
+  const { calls, deps } = fakeDeps({
+    pending: [{ id: 501, number: '26000008', buyer_name: 'Wonen', failures: 0 }],
+    invoices: { 501: invoiceFixture({ issuerId: 1, seller: { name: 'MaizonCozy B.V.' } }) },
+    sender: COZY_SENDER
+  });
+  const cfg = readInvoiceMailConfig({ ...BASE_ENV, INVOICE_SMTP_COZY_PASSWORD: 'tajne' });
+  const result = await runInvoiceMailing({ config: cfg, deps });
+  assert.equal(result.sent.length, 1);
+  assert.deepEqual(calls.sent[0].from, { name: 'MaizonCozy B.V.', address: 'factuur@maizoncozy.eu' });
+  assert.equal(calls.sent[0].to, PAWEL);
+  assert.equal(calls.sent[0].replyTo, 'test-orders@e-orders.eu');
+  assert.deepEqual(calls.accounts[0], { host: 'maizoncozy.eu', user: 'factuur@maizoncozy.eu', pass: 'tajne' });
+  assert.ok(calls.logs.some((m) => /faktura 26000008 .* factuur@maizoncozy\.eu → pawel\.woroniecki@hkl\.eu/.test(m)));
+  assert.ok(!calls.logs.some((m) => m.includes('tajne')), 'hasło nie trafia do logu');
+});
+
+test('nadawca: skrzynka organizacji tylko z adresem i hasłem; tryb testowy bez niej — skrzynka systemu', () => {
+  const cfg = readInvoiceMailConfig({ ...BASE_ENV, INVOICE_SMTP_COZY_PASSWORD: 'tajne', INVOICE_SMTP_LUXANGMBH_PASSWORD: 'p2', INVOICE_SMTP_LUXANGMBH_HOST: 'smtp.luxan.de', INVOICE_SMTP_X_PASSWORD: '' });
+  assert.deepEqual(Object.keys(cfg.smtp).sort(), ['COZY', 'LUXANGMBH']);
+  assert.deepEqual(resolveSender(COZY_SENDER, cfg), { address: 'factuur@maizoncozy.eu', account: { host: 'maizoncozy.eu', user: 'factuur@maizoncozy.eu', pass: 'tajne' } });
+  assert.equal(resolveSender({ ident: 'LUXANGMBH', email: ' rechnung@luxan.de ' }, cfg).account.host, 'smtp.luxan.de');
+  for (const sender of [null, { ident: 'FENIX', email: '' }, { ident: 'Cozy', email: 'zły adres' }]) {
+    assert.deepEqual(resolveSender(sender, cfg), { address: 'test-orders@e-orders.eu', account: null });
+  }
+  // Adres jest, hasła brak: w teście skrzynka systemu, ale z ostrzeżeniem do logu
+  assert.deepEqual(resolveSender({ ident: 'HKL', email: 'faktury@hkl.eu' }, cfg), {
+    address: 'test-orders@e-orders.eu', account: null, warning: 'brak hasła skrzynki (organization.invoice_email_password) — nadawca systemowy zamiast faktury@hkl.eu'
+  });
+  // Hasło z bazy (17.11) wygrywa z .env.local; host z .env, gdy podany
+  assert.deepEqual(resolveSender({ ...COZY_SENDER, password: 'z-bazy' }, cfg).account, { host: 'maizoncozy.eu', user: 'factuur@maizoncozy.eu', pass: 'z-bazy' });
+  assert.deepEqual(resolveSender({ ident: 'HKL', email: 'faktury@hkl.eu', password: 'h' }, cfg).account, { host: 'hkl.eu', user: 'faktury@hkl.eu', pass: 'h' });
 });
 
 test('przebieg: dry-run tylko wypisuje — bez PDF, wysyłki i zapisów', async () => {

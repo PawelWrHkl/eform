@@ -89,8 +89,9 @@ function priceLine(params) {
 /**
  * @param {Record<string, any>} item     pozycja faktury (`repository.getInvoice`)
  * @param {Record<string, any>|undefined} source  wiersz `repository.getOrderItemsForPrint`
+ * @param {boolean} [manual]  faktura in blanco: nazwa, a pod nią opis (wiersz po wierszu), bez referencji zamówienia
  */
-function buildItem(item, source) {
+function buildItem(item, source, manual = false) {
   const params = parseParams(source && source.json_parameters);
   const meta = item.meta || {};
   const qty = num(meta.displayQuantity) || 1;
@@ -105,7 +106,9 @@ function buildItem(item, source) {
 
   return {
     pos: String(item.position),
-    lines: [ref, `${item.name} ${description}`.trim(), priceLine(params)].filter(Boolean),
+    lines: manual
+      ? [item.name, ...String(item.description || '').split(/\r?\n/)].map((t) => String(t || '').trim()).filter(Boolean)
+      : [ref, `${item.name} ${description}`.trim(), priceLine(params)].filter(Boolean),
     qty: nl.format(qty),
     catalog_price: amount(before / qty),
     price: amount(num(item.netAmount) / qty),
@@ -127,6 +130,7 @@ function buildData(invoice, orderItems, correctedNumber = '') {
   const buyer = invoice.buyer || {};
   const country = String(buyer.country || '').toUpperCase();
   const taxLines = invoice.taxLines || [];
+  const manual = invoice.priceBasis === 'manual';
 
   const notes = [];
   if (isCorrection) {
@@ -148,6 +152,11 @@ function buildData(invoice, orderItems, correctedNumber = '') {
   if (taxLines.some((t) => t.taxCategory === TaxCategory.EXPORT)) {
     notes.push('Uitvoer buiten de EU, vrijgesteld van btw (0 %, art. 146 Btw-richtlijn 2006/112/EG).');
   }
+  if (taxLines.some((t) => t.taxCategory === TaxCategory.INTRA_EU_SERVICE)) {
+    notes.push(`Btw verlegd (art. 196 Btw-richtlijn 2006/112/EG). Btw-nummer afnemer: ${buyer.vatEuId || buyer.taxId || ''}.`);
+  }
+  // Faktura in blanco / refaktura: uwagi z formularza. Zwykła faktura ma tu komentarz klienta do zamówienia — nie drukujemy.
+  if (manual && invoice.notes) notes.push(invoice.notes);
 
   return {
     watermark: '',
@@ -167,7 +176,9 @@ function buildData(invoice, orderItems, correctedNumber = '') {
     },
     items: [...(invoice.items || [])]
       .sort((a, b) => a.position - b.position)
-      .map((it) => buildItem(it, byId.get(Number(it.orderItemId)))),
+      .map((it) => buildItem(it, byId.get(Number(it.orderItemId)), manual)),
+    // Grupa cenowa tkaniny nie dotyczy faktury in blanco
+    show_price_group: !manual,
     notes,
     totals: {
       net: eur(invoice.totalNet),

@@ -72,3 +72,22 @@ test('HTML: nabywca escapowany, stopka z KvK i BTW', () => {
   assert.match(html, /KvK 93574797/);
   assert.match(html, /NL866455139B01/);
 });
+
+test('faktura in blanco (price_basis manual): nazwa, pod nią opis wiersz po wierszu, bez kolumny Prijsgroep, uwagi z formularza', () => {
+  const invoice = {
+    priceBasis: 'manual', documentType: 'invoice', number: '26000009', issueDate: '2026-11-16', dueDate: '2026-11-30',
+    buyer: { name: 'FENIX Sonnenschutz UG', country: 'DE', vatEuId: 'DE293796843' },
+    notes: 'Weiterberechnung von Kosten: DHL 4711.',
+    taxLines: [{ taxCategory: 'intra_eu_service', taxRate: 0, netAmount: 18540, taxAmount: 0 }],
+    items: [{ position: 1, name: 'Transportkosten', description: 'Spedition 12.11.2026\nLieferung EO/19', netAmount: 18540, meta: { displayQuantity: 1 } }],
+    totalNet: 18540, totalGross: 18540
+  };
+  const data = buildData(invoice, []);
+  assert.deepEqual(data.items[0].lines, ['Transportkosten', 'Spedition 12.11.2026', 'Lieferung EO/19']);
+  assert.equal(data.show_price_group, false);
+  assert.ok(data.notes.includes('Weiterberechnung von Kosten: DHL 4711.'));
+  assert.ok(data.notes.some((n) => n.startsWith('Btw verlegd')));
+  const html = renderHtml(data);
+  assert.ok(!html.includes('Prijsgroep'), 'bez kolumny grupy cenowej');
+  assert.match(html, /Transportkosten<br>Spedition 12\.11\.2026<br>Lieferung EO\/19/);
+});

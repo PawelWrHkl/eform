@@ -4,7 +4,8 @@ const correctionsDb = require('../../db/admin/orderCorrections.js');
 const ownerService = require('../owner.js');
 const orderService = require('../orderService.js');
 const mailBot = require('../mailBot/mailBot');
-const { OrderSender } = require('../sendOrderService');
+const { OrderSender, toFileItem } = require('../sendOrderService');
+const { buildOrderFileName } = require('../../utils/orderFileName');
 const { generateOrderDocuments } = require('../mailBot/pdfGenerator');
 const { resolveOrderAbPolicy, resolveConfirmationRecipients } = require('../confirmationPolicy');
 const { formatClientLabel } = require('../../utils/formatClient');
@@ -51,8 +52,11 @@ async function ensureCorrectionContext(req, orderId) {
  * Otwarcie korekty (`sent` → `correction`) — moduł admina i routes/orderCorrection.js.
  * Najpierw stan pozycji „przed” (services/correctionDiff.js) — z niego PDF korekty
  * oznacza kolorem zmiany. Nieudany zapis stanu nie blokuje korekty (PDF bez oznaczeń).
+ * @returns {Promise<boolean|'canceled'>} `'canceled'` = zlecenie anulowane (znacznik `.cancel` / produkcja)
  */
 async function openCorrection(orderId) {
+    // Anulowanego zlecenia nikt nie koryguje, także gdy eForm ma jeszcze `sent` (orderCancellation.isCanceledElsewhere).
+    if (await require('../orderCancellation').isCanceledElsewhere(orderId)) return 'canceled';
     try {
         const { orderItems } = await db.getOrderDataToSend(orderId);
         await correctionDiff.saveSnapshot(orderId, orderItems || []);
@@ -60,6 +64,24 @@ async function openCorrection(orderId) {
         log(`Korekta ${orderId}: nie zapisano stanu „przed” — PDF korekty bez oznaczeń zmian:`, err?.message || err);
     }
     return correctionsDb.openOrderForCorrection(orderId);
+}
+
+/**
+ * Stałe numery pozycji korekty (correctionDiff.planPositions): z ostatnio wysłanego
+ * pliku, a bez niego ze stanu „przed” — `order_item.orderpos` z chwili otwarcia
+ * zgadzał się z plikiem w 332 z 334 zleceń testowej (16.11.2026). Numery wracają do
+ * `order_item.orderpos`, bo po nich statusy produkcji trafiają do pozycji
+ * (prodStatus.alignStatusesToItems).
+ * @returns {Promise<{numbers: Map<number, number>, deleted: object[]}|null>} `null` = numeracja kolejna jak dotąd
+ */
+async function planCorrectionPositions(orderId, orderDetails, orderItems, before) {
+    const base = buildOrderFileName(orderDetails.org_ident, orderDetails.user_ident, orderDetails.order_idx);
+    let sent = await correctionDiff.loadSentItems([base + CORRECTION_FILE_SUFFIX, base], orderId);
+    if (!sent && before) sent = before.map((item, i) => toFileItem(item, Number(item.orderpos) || i + 1, item.prod_days));
+    if (!sent) return null;
+    const positions = correctionDiff.planPositions(sent, orderItems);
+    for (const [id, pos] of positions.numbers) await db.setPositionIdx(id, pos);
+    return positions;
 }
 
 function normalizePrices(prices) {
@@ -117,11 +139,25 @@ async function submitCorrection(req, orderId, prices) {
     const { itemProdDays } = await recalcAndSaveProdDays(orderId);
     ({ orderDetails, orderItems } = await db.getOrderDataToSend(orderId));
 
+    const before = await correctionDiff.loadSnapshot(orderId).catch((err) => {
+        log(`Korekta ${orderId}: nie odczytano stanu „przed”:`, err?.message || err);
+        return null;
+    });
+    let positions = null;
+    try {
+        positions = await planCorrectionPositions(orderId, orderDetails, orderItems, before);
+    } catch (err) {
+        log(`Korekta ${orderId}: nie ustalono numerów z produkcji:`, err?.message || err);
+    }
+    if (!positions) log(`Korekta ${orderId}: brak wysłanego pliku i stanu „przed” — pozycje numerowane kolejno`);
+
     const sender = new OrderSender(req, orderDetails, orderItems, {
         prodDays: itemProdDays,
         orgIdent: orderDetails.org_ident,
         userIdent: orderDetails.user_ident,
-        fileNameSuffix: CORRECTION_FILE_SUFFIX
+        fileNameSuffix: CORRECTION_FILE_SUFFIX,
+        positionNumbers: positions?.numbers,
+        deletedItems: positions?.deleted
     });
     const sendData = await sender.init();
     const forceProductionSend = shouldForceProductionSend(req.body?.productionOrder);
@@ -140,8 +176,7 @@ async function submitCorrection(req, orderId, prices) {
     // Co zmieniła korekta — znaczniki na pozycjach (PDF: kolor) i lista usuniętych.
     let correctionInfo = { marked: false, removed: [] };
     try {
-        const before = await correctionDiff.loadSnapshot(orderId);
-        if (before) correctionInfo = correctionDiff.markItems(orderItems, correctionDiff.diffItems(before, orderItems));
+        if (before) correctionInfo = correctionDiff.markItems(orderItems, correctionDiff.diffItems(before, orderItems), positions);
     } catch (err) {
         log(`Korekta ${orderId}: nie udało się porównać ze stanem „przed”:`, err?.message || err);
     }

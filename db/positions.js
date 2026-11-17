@@ -69,6 +69,9 @@ async function updateOrderpos(orderId, orderPos) {
 
 
 async function reindexOrderPositions(orderId) {
+    // Korekta: numery = numery z produkcji, nadaje je wysyłka korekty (correctionDiff.planPositions).
+    const [order] = await selectQuery('SELECT status FROM `order` WHERE id = ?', [orderId]) || [];
+    if (order?.status === 'correction') return 0;
 
     const query = 'SELECT id FROM order_item WHERE order_id = ? ORDER BY orderpos ASC, id ASC';
     const positions = await selectQuery(query, orderId);

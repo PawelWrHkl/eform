@@ -1,6 +1,9 @@
 /**
- * Postęp produkcji zlecenia z kolumny STATUSPROD pliku `status.txt`
- * (np. `11%Akcept.p.prod.`, `20%Wyc.sz-y/r-ki`, `100%Wyslane`, `Zafakturowane`).
+ * Postęp produkcji zlecenia z kolumny MAXSTATUSPROD pliku `status.txt` — najwyższy
+ * status, jaki pozycja osiągnęła w ERP (np. `11%Akcept.p.prod.`, `20%Wyc.sz-y/r-ki`,
+ * `100%Wyslane`, `Anulacja`). Decyzja Pawła 16.11.2026: według MAXSTATUSPROD, nie
+ * bieżącego STATUSPROD (ten bywa niższy, bo statusy się cofają). Plik bez tej
+ * kolumny (starszy eksport) → STATUSPROD.
  *
  * Zasada dla przycisków „Korekta” i „Anuluj” (Paweł + Wiktoria, 13.11.2026):
  *  • są tylko wtedy, gdy KAŻDA pozycja zlecenia ma NAJWYŻSZY % (w całej
@@ -10,8 +13,9 @@
  *    migrations/add_prod_status_history.sql),
  *  • status bez procentu („Got.do fakt.”, „Zafakturowane”, „Anulacja” = zlecenie
  *    anulowane przez produkcję) = blokada.
- * Admin i biuro korygują zawsze (services/orderCancellation.js `canCorrect`),
- * anulowanie obowiązuje wszystkich. Zastępuje dawne okno 24 h od wysłania.
+ * Admin i biuro korygują zawsze (services/orderCancellation.js `canCorrect`) — poza
+ * zleceniem anulowanym przez produkcję (`canceled`: „Anulacja” na KAŻDEJ pozycji,
+ * Wiktoria 17.11.2026); anulowanie obowiązuje wszystkich. Zastępuje dawne okno 24 h.
  */
 
 'use strict';
@@ -33,16 +37,31 @@ function orderKey(orgIdent, userIdent, orderNo) {
     return [orgIdent, userIdent, normOrderNo(orderNo)].map(v => String(v ?? '').trim().toUpperCase()).join('|');
 }
 
+/** Status pozycji, według którego decydujemy: MAXSTATUSPROD, a bez niego STATUSPROD. */
+function maxStatusProd(row) {
+    return String(row?.MAXSTATUSPROD ?? '').trim() || String(row?.STATUSPROD ?? '').trim();
+}
+
 /** Wiersze `parseStatusFile` → Map(klucz zlecenia → najwyższy %; Infinity = pozycja ze statusem bez %). */
 function buildProgressIndex(rows) {
     const index = new Map();
     for (const row of rows || []) {
         const key = orderKey(row.ORGANIZATIONIDENT, row.USERIDENT, row.ORDERNO);
-        const percent = prodPercent(row.STATUSPROD);
+        const percent = prodPercent(maxStatusProd(row));
         const value = percent === null ? Infinity : percent;
         index.set(key, Math.max(index.has(key) ? index.get(key) : -Infinity, value));
     }
     return index;
+}
+
+/** Klucze zleceń anulowanych przez produkcję: „Anulacja” na każdej pozycji w pliku (pojedyncze pozycje — nie). */
+function buildCanceledSet(rows) {
+    const all = new Map();
+    for (const row of rows || []) {
+        const key = orderKey(row.ORGANIZATIONIDENT, row.USERIDENT, row.ORDERNO);
+        all.set(key, (all.get(key) ?? true) && /^anulac/i.test(maxStatusProd(row)));
+    }
+    return new Set([...all].filter(([, canceled]) => canceled).map(([key]) => key));
 }
 
 /** Wiersze pliku → wiersze `prod_status_history` (`db/statuses.js recordProdStatusHistory`). */
@@ -54,8 +73,8 @@ function historyRows(rows, seenAt) {
             String(r.USERIDENT).trim().slice(0, 100),
             normOrderNo(r.ORDERNO).slice(0, 50),
             String(r.ORDERPOS ?? '').trim().slice(0, 50),
-            String(r.STATUSPROD ?? '').trim().slice(0, 100),
-            prodPercent(r.STATUSPROD),
+            maxStatusProd(r).slice(0, 100),
+            prodPercent(maxStatusProd(r)),
             seenAt
         ]);
 }
@@ -89,7 +108,7 @@ function decide(order, index, history = null) {
     return { allowed: highest < PROD_LOCK_PERCENT, percent };
 }
 
-let cache = { file: null, mtimeMs: null, index: null };
+let cache = { file: null, mtimeMs: null, index: null, canceled: new Set() };
 let historyWarned = false;
 
 function resolveDeps(deps = {}) {
@@ -111,7 +130,7 @@ async function recordHistory(rows, deps = {}) {
     } catch (_) { /* jak niżej */ }
     if (!historyWarned) {
         historyWarned = true;
-        d.log('[prodProgress] ⚠️ nie zapisano historii STATUSPROD (brak tabeli prod_status_history? migrations/add_prod_status_history.sql) — decyzje tylko z bieżącego pliku');
+        d.log('[prodProgress] ⚠️ nie zapisano historii MAXSTATUSPROD (brak tabeli prod_status_history? migrations/add_prod_status_history.sql) — decyzje tylko z bieżącego pliku');
     }
     return false;
 }
@@ -124,7 +143,7 @@ async function loadIndex(deps = {}) {
         if (cache.file === d.filePath && cache.mtimeMs === stat.mtimeMs) return cache.index;
         const rows = require('./prodStatus').parseStatusFile(await d.fs.readFile(d.filePath, 'utf-8'));
         const index = buildProgressIndex(rows);
-        cache = { file: d.filePath, mtimeMs: stat.mtimeMs, index };
+        cache = { file: d.filePath, mtimeMs: stat.mtimeMs, index, canceled: buildCanceledSet(rows) };
         await recordHistory(rows, deps);
         return index;
     } catch (err) {
@@ -147,11 +166,18 @@ async function loadHistory(orders, deps = {}) {
     return new Map(rows.map(r => [orderKey(r.org_ident, r.user_ident, r.order_idx), r]));
 }
 
-/** To samo dla wielu zleceń naraz (lista wysłanych) — jeden odczyt pliku i jedno zapytanie. */
+/**
+ * To samo dla wielu zleceń naraz (lista wysłanych) — jeden odczyt pliku i jedno zapytanie.
+ * `canceled` = produkcja anulowała całe zlecenie (shortcut: tylko bieżący plik — zlecenie, które z niego
+ * wypadło, tego znacznika nie ma; dołożyć historię, gdyby admin/biuro korygowali takie zlecenia).
+ */
 async function clientMayChangeMany(orders, deps = {}) {
     const index = await loadIndex(deps);
     const history = index ? await loadHistory(orders, deps) : null;
-    return (orders || []).map(order => decide(order, index, history?.get(orderKey(order?.org_ident, order?.user_ident, order?.order_idx)) || null));
+    return (orders || []).map(order => {
+        const key = orderKey(order?.org_ident, order?.user_ident, order?.order_idx);
+        return { ...decide(order, index, history?.get(key) || null), canceled: !!index && cache.canceled.has(key) };
+    });
 }
 
 /** Czy klient może jeszcze anulować / korygować to zlecenie. */
@@ -162,8 +188,10 @@ async function clientMayChange(order, deps = {}) {
 module.exports = {
     PROD_LOCK_PERCENT,
     prodPercent,
+    maxStatusProd,
     orderKey,
     buildProgressIndex,
+    buildCanceledSet,
     historyRows,
     decide,
     recordHistory,

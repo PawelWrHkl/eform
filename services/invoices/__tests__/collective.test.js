@@ -195,7 +195,8 @@ test('createCollective poziom 1: zamówienia różnych klientów jednej organiza
   const inv = repository.saved[0];
   assert.equal(inv.level, 1);
   assert.equal(inv.createdByPin, DAILY_ACTOR);
-  assert.deepEqual(inv.items.map((i) => i.orderNumber), ['KN_Wohnen · 1190', 'Matthes · 1210']);
+  assert.deepEqual(inv.items.map((i) => i.orderNumber), ['1190', '1210']);
+  assert.deepEqual(inv.items.map((i) => [i.meta.orderRef, i.meta.orderClient]), [['EO/1190/1/Zam 1190', 'KN_Wohnen – Klient'], ['EO/1210/1/Zam 1210', 'Matthes – Klient']]);
   assert.equal(inv.saleDate, '2026-11-03');
 
   const mixed = fakeRepository({ 1: org5(source(1), 'A'), 2: source(2) });
@@ -221,6 +222,9 @@ test('createFromOrder bez zmian: pozycja bez numeru zamówienia (bierze nagłów
   assert.equal(inv.orderId, 1);
   assert.equal(inv.orderRef, '201');
   assert.equal(inv.items[0].orderNumber, undefined);
+  // Referencja EO przy pozycji na każdym poziomie, klient tylko na poziomie 1
+  assert.equal(inv.items[0].meta.orderRef, 'EO/201/1/Zam 201');
+  assert.equal(inv.items[0].meta.orderClient, '');
 });
 
 /* ------------------------------------------------------------------ */

@@ -49,7 +49,7 @@ const { Readable } = require('stream');
 const defaultRepository = require('./db/repository');
 const renderer = require('./render/renderer');
 const { AUTO_ACTOR } = require('./autoInvoicing');
-const { DAILY_ACTOR } = require('./core/collective');
+const { DAILY_ACTOR, periodFor } = require('./core/collective');
 const { InvoiceLevel } = require('./core/hierarchy');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 const { log: defaultLog } = require('../../utils/logging');
@@ -188,6 +188,52 @@ async function defaultConnect(config) {
     throw err;
   }
   return client;
+}
+
+/**
+ * Plik zafakturowanych pozycji w katalogu głównym (`/invoices/zafakturowane_pozycje.tsv`):
+ * jedna linia na pozycję każdej faktury E-Form, każdy poziom, od pierwszej. Z niego automat
+ * Wiktorii stawia blokadę DSPR_NUM w PROD i porównuje faktury z PROD (mail z 16.11.2026).
+ * Cały plik od nowa w każdym przebiegu — odbiorca nie musi pamiętać, co już wczytał.
+ */
+const POSITIONS_FILE = 'zafakturowane_pozycje.tsv';
+const POSITIONS_HEADER = ['LEVEL', 'INVOICENO', 'INVOICEDATE', 'PERIODFROM', 'PERIODTO', 'DOCTYPE',
+  'ORGANIZATIONIDENT', 'USERIDENT', 'ORDERNO', 'ORDERPOS', 'QUANTITY', 'NETAMOUNT'];
+
+/**
+ * Okres faktury zbiorczej: dzienna HKL = jej dzień, tygodniowa/miesięczna = okres z klucza
+ * w nazwie zamówienia („… 2026-W42 · 5 …”, „… 2026-10 · …”) wokół daty sprzedaży (= koniec okresu).
+ * Faktura za jedno zlecenie nie ma okresu.
+ *
+ * @param {{ order_id?: number|null, created_by_pin?: string, order_name?: string, sale_date?: string }} row
+ * @returns {[string, string]}
+ */
+function collectivePeriod(row) {
+  if (row.order_id || !row.sale_date) return ['', ''];
+  if (row.created_by_pin === DAILY_ACTOR) return [row.sale_date, row.sale_date];
+  const key = /(\d{4}-W\d{2}|\d{4}-\d{2})(?![\d-])/.exec(row.order_name || '');
+  if (!key) return ['', ''];
+  const period = periodFor(row.sale_date, key[1].includes('W') ? 'weekly' : 'monthly');
+  return [period.start, period.end];
+}
+
+/**
+ * Treść pliku pozycji: TSV z nagłówkiem, UTF-8, CRLF, kwoty netto w EUR z kropką.
+ * shortcut: korekta wypisuje pozycje PO korekcie (tak je trzyma baza), nie różnicę;
+ * zmienić przy pierwszej korekcie z E-Form (PROD liczy korekty ilością ujemną).
+ *
+ * @param {Array<Record<string, any>>} rows wiersze `repository.findInvoicedPositions`
+ * @returns {Buffer}
+ */
+function buildPositionsTsv(rows) {
+  const cell = (value) => String(value ?? '').replace(/[\t\r\n]+/g, ' ').trim();
+  const lines = rows.map((r) => {
+    const [from, to] = collectivePeriod(r);
+    return [r.level, r.number, r.issue_date, from, to, r.document_type === 'correction' ? 'korekta' : 'faktura',
+      r.organization_ident, r.user_ident, r.order_idx, r.orderpos, Number(r.quantity), Number(r.net_amount).toFixed(2)]
+      .map(cell).join('\t');
+  });
+  return Buffer.from([POSITIONS_HEADER.join('\t'), ...lines].join('\r\n') + '\r\n', 'utf8');
 }
 
 /**
@@ -342,6 +388,22 @@ async function runInvoiceFtpExport({ dryRun = false, config = readInvoiceFtpConf
     closeClient();
   }
 
+  if (!dryRun && repository.findInvoicedPositions) {
+    try {
+      const rows = await repository.findInvoicedPositions();
+      if (rows.length) {
+        await uploadWithRetry({ dir: config.rootDir, fileName: POSITIONS_FILE }, buildPositionsTsv(rows));
+        result.positions = { path: path.posix.join(config.rootDir, POSITIONS_FILE), lines: rows.length };
+        log(`[invoices:ftp] plik pozycji: ${rows.length} pozycji → ${result.positions.path}`);
+      }
+    } catch (err) {
+      result.failed.push({ error: `plik pozycji: ${err.message}` });
+      log(`[invoices:ftp] BŁĄD pliku pozycji: ${err.message} — wróci w następnym przebiegu`);
+    } finally {
+      closeClient();
+    }
+  }
+
   if (pending.length >= config.maxPerRun) {
     log(`[invoices:ftp] wyczerpany limit ${config.maxPerRun} plików na przebieg (INVOICE_FTP_MAX_PER_RUN) — reszta w następnym`);
   }
@@ -360,5 +422,9 @@ module.exports = {
   invoiceFileName,
   buildRemoteTarget,
   uploadFile,
+  POSITIONS_FILE,
+  POSITIONS_HEADER,
+  collectivePeriod,
+  buildPositionsTsv,
   runInvoiceFtpExport
 };

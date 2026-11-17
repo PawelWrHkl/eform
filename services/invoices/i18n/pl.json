@@ -82,6 +82,7 @@
   "taxcat.np": "Nie podlega",
   "taxcat.zw": "Zwolniona",
   "items.order_ref": "Zamówienie",
+  "items.client": "Klient",
   "items.dimensions": "Wymiary",
   "header.delivery_date": "Data dostawy",
   "party.delivery_address": "Adres dostawy",
@@ -95,5 +96,10 @@
   "mail.attachment": "Faktura jest w załączniku w formacie PDF.",
   "mail.questions": "W razie pytań prosimy odpowiedzieć na tę wiadomość.",
   "mail.regards": "Z poważaniem",
-  "mail.auto_note": "Wiadomość wygenerowana automatycznie przez system eForm."
+  "mail.auto_note": "Wiadomość wygenerowana automatycznie przez system eForm.",
+  "blank.rebill_title": "Refaktura",
+  "blank.rebill_note": "Refaktura kosztów",
+  "blank.tpl.transport": "Transport",
+  "blank.tpl.montage": "Montaż",
+  "blank.tpl.repair": "Naprawa"
 }

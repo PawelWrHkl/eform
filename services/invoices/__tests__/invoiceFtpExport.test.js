@@ -20,6 +20,8 @@ const {
   invoiceFileName,
   buildRemoteTarget,
   uploadFile,
+  buildPositionsTsv,
+  collectivePeriod,
   runInvoiceFtpExport
 } = require('../invoiceFtpExport');
 const { AUTO_ACTOR } = require('../autoInvoicing');
@@ -437,4 +439,55 @@ test('przebieg: pusta kolejka — bez połączenia z FTP', async () => {
   });
   assert.deepEqual(result, { uploaded: [], failed: [], planned: [] });
   assert.equal(server.connects, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Plik zafakturowanych pozycji (Wiktoria, 16.11.2026: blokada DSPR_NUM i porównanie z PROD)
+// ---------------------------------------------------------------------------
+
+test('plik pozycji: nagłówek, TAB, CRLF, kwota z kropką, okres tylko przy fakturach zbiorczych', () => {
+  const rows = [
+    { level: 1, number: '2026/00811', issue_date: '2026-11-12', sale_date: '2026-11-12', order_id: 4100, created_by_pin: 'AUTO', document_type: 'invoice',
+      organization_ident: 'LUXANGMBH', user_ident: 'KN_Wohnen', order_idx: '151', orderpos: 3, quantity: '2.000', net_amount: '120.5' },
+    { level: 1, number: '2026/00812', issue_date: '2026-11-13', sale_date: '2026-11-12', order_id: null, created_by_pin: 'AUTO-DAILY', document_type: 'invoice',
+      organization_ident: 'LUXANGMBH', user_ident: 'Golser', order_idx: '9', orderpos: 1, quantity: '2.500', net_amount: '11.40' },
+    { level: 2, number: '26000008', issue_date: '2026-11-17', sale_date: '2026-11-15', order_id: null, created_by_pin: 'AUTO', order_name: 'Verzamelfactuur 2026-W46 · 3 bestellingen',
+      document_type: 'invoice', organization_ident: 'Cozy', user_ident: 'Wonen', order_idx: '19', orderpos: 2, quantity: '1.000', net_amount: '99' },
+    { level: 2, number: 'KOR/2026/11/1', issue_date: '2026-11-18', sale_date: '2026-11-18', order_id: 7, created_by_pin: 'admin', document_type: 'correction',
+      organization_ident: 'Cozy', user_ident: 'M2\tvloeren', order_idx: '6', orderpos: 1, quantity: '1', net_amount: '0' }
+  ];
+  const text = buildPositionsTsv(rows).toString('utf8');
+  const lines = text.split('\r\n');
+  assert.equal(lines[0], 'LEVEL\tINVOICENO\tINVOICEDATE\tPERIODFROM\tPERIODTO\tDOCTYPE\tORGANIZATIONIDENT\tUSERIDENT\tORDERNO\tORDERPOS\tQUANTITY\tNETAMOUNT');
+  assert.equal(lines[1], '1\t2026/00811\t2026-11-12\t\t\tfaktura\tLUXANGMBH\tKN_Wohnen\t151\t3\t2\t120.50');
+  assert.equal(lines[2], '1\t2026/00812\t2026-11-13\t2026-11-12\t2026-11-12\tfaktura\tLUXANGMBH\tGolser\t9\t1\t2.5\t11.40');
+  assert.equal(lines[3], '2\t26000008\t2026-11-17\t2026-11-09\t2026-11-15\tfaktura\tCozy\tWonen\t19\t2\t1\t99.00');
+  assert.equal(lines[4].split('\t')[5], 'korekta');
+  assert.equal(lines.length, 6, 'cztery pozycje + nagłówek + pusta po ostatnim CRLF');
+  assert.equal(lines[5], '');
+  assert.deepEqual(collectivePeriod({ order_id: null, created_by_pin: 'AUTO', order_name: 'Sammelrechnung 2026-10 · 4 Aufträge', sale_date: '2026-10-31' }), ['2026-10-01', '2026-10-31']);
+});
+
+test('przebieg: plik pozycji ląduje w katalogu głównym, cały od nowa, także bez nowych faktur', async () => {
+  const repo = fakeRepository([]);
+  repo.findInvoicedPositions = async () => [
+    { level: 2, number: '26000008', issue_date: '2026-11-17', sale_date: '2026-11-17', order_id: 1, created_by_pin: 'AUTO', document_type: 'invoice',
+      organization_ident: 'Cozy', user_ident: 'Wonen', order_idx: '19', orderpos: 1, quantity: '1.000', net_amount: '10.00' }
+  ];
+  const server = fakeFtpServer();
+  const result = await runInvoiceFtpExport({ config: readInvoiceFtpConfig(BASE_ENV), deps: { repository: repo, service: fakeService(), connect: server.connect, log: quiet } });
+  assert.deepEqual([...server.files.keys()], ['/invoices-test/zafakturowane_pozycje.tsv']);
+  assert.match(server.files.get('/invoices-test/zafakturowane_pozycje.tsv').toString(), /\r\n2\t26000008\t2026-11-17\t\t\tfaktura\tCozy\tWonen\t19\t1\t1\t10\.00\r\n$/);
+  assert.deepEqual(result.positions, { path: '/invoices-test/zafakturowane_pozycje.tsv', lines: 1 });
+  assert.equal(result.failed.length, 0);
+  assert.ok(server.clients.every((c) => c.closed));
+});
+
+test('przebieg: błąd bazy przy pliku pozycji nie wgrywa pustego pliku', async () => {
+  const repo = fakeRepository([]);
+  repo.findInvoicedPositions = async () => { throw new Error('ECONNRESET'); };
+  const server = fakeFtpServer();
+  const result = await runInvoiceFtpExport({ config: readInvoiceFtpConfig(BASE_ENV), deps: { repository: repo, service: fakeService(), connect: server.connect, log: quiet } });
+  assert.equal(server.files.size, 0);
+  assert.match(result.failed[0].error, /plik pozycji: ECONNRESET/);
 });

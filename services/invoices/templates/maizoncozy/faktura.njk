@@ -108,13 +108,13 @@ table.items tr.item:last-child { break-after: avoid; page-break-after: avoid; }
 
 <table class="items">
   <colgroup>
-    <col style="width:9.6mm"><col style="width:152.5mm"><col style="width:15.4mm"><col style="width:23.7mm">
-    <col style="width:23.7mm"><col style="width:24mm"><col style="width:20mm">
+    <col style="width:9.6mm"><col style="width:{{ '152.5mm' if show_price_group else '172.5mm' }}"><col style="width:15.4mm"><col style="width:23.7mm">
+    <col style="width:23.7mm"><col style="width:24mm">{% if show_price_group %}<col style="width:20mm">{% endif %}
   </colgroup>
   <thead><tr>
     <th class="c">Pos</th><th>Beschrijving van goederen</th><th class="c">Aantal</th>
     <th class="r">Catalogusprijs EURO</th><th class="r">Prijs EURO</th><th class="r">Bedrag EURO</th>
-    <th class="c">Prijsgroep</th>
+    {% if show_price_group %}<th class="c">Prijsgroep</th>{% endif %}
   </tr></thead>
   <tbody>
   {% for it in items %}
@@ -125,7 +125,7 @@ table.items tr.item:last-child { break-after: avoid; page-break-after: avoid; }
       <td class="r">{{ it.catalog_price }}</td>
       <td class="r b">{{ it.price }}</td>
       <td class="r b">{{ it.amount }}</td>
-      <td class="c">{{ it.price_group }}</td>
+      {% if show_price_group %}<td class="c">{{ it.price_group }}</td>{% endif %}
     </tr>
   {% endfor %}
   </tbody>

@@ -97,10 +97,22 @@
       </tr>
       {# Krótka specyfikacja (produkt, model, dodatki) na całą szerokość — w wąskiej kolumnie
          nazwy zawijała się na kilkanaście linii (2026-11-07) #}
-      {% if item.description %}
+      {# Referencja EO/idx/pozycja/commission i klient organizacji (poziom 1) przy każdej pozycji (2026-11-17) #}
+      {% set ref = item.meta.orderRef if item.meta else '' %}
+      {% set client = item.meta.orderClient if item.meta else '' %}
+      {% if item.description or ref or client %}
         <tr class="items__desc-row">
           <td></td>
-          <td colspan="{{ columns - 1 }}"><span class="items__desc">{{ item.description }}</span></td>
+          <td colspan="{{ columns - 1 }}">
+            {%- if ref or client -%}
+              <span class="items__ref">
+                {{- ref -}}
+                {%- if ref and client %} · {% endif -%}
+                {%- if client %}{{ t('items.client') }}: {{ client }}{% endif -%}
+              </span>
+            {%- endif -%}
+            <span class="items__desc">{{ item.description }}</span>
+          </td>
         </tr>
       {% endif %}
     </tbody>

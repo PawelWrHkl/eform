@@ -7,7 +7,7 @@
  * Kto (decyzja Pawła 13.11.2026, services/orderCancellation.js `canCorrect`):
  *  • admin i biuro — zawsze,
  *  • klient, owner, grupa, pracownik z `can_send_orders` — tylko gdy produkcja
- *    zlecenia jest poniżej 20% (STATUSPROD ze status.txt, services/prodProgress.js),
+ *    zlecenia jest poniżej 20% (MAXSTATUSPROD ze status.txt, services/prodProgress.js),
  *  • konto podrzędne grupy — nie (nie wysyła samo, więc i nie koryguje).
  *
  * Otwarcie zmienia status `sent` → `correction`; zlecenie edytuje się w zwykłym
@@ -57,7 +57,11 @@ router.post('/:orderId/open', checkOrderOwnership, loadEmployeePermissions, requ
     if (req.correctionState.status === 'correction') {
         return res.json({ success: true, redirect: `/orders/order/${orderId}` });
     }
-    if (req.correctionState.status !== 'sent' || !(await orderCorrectionService.openCorrection(orderId))) {
+    const opened = req.correctionState.status === 'sent' && await orderCorrectionService.openCorrection(orderId);
+    if (opened === 'canceled') {
+        return res.status(409).json({ success: false, message: req.__('cancel_order.error_order_canceled') });
+    }
+    if (!opened) {
         return res.status(409).json({ success: false, message: req.__('order_correction.error_not_sent') });
     }
     log(`[orderCorrection] zlecenie ${orderId} otwarte do korekty przez ${req.session.user?.ident || req.session.user?.pin || '?'}`);

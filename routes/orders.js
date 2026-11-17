@@ -1075,12 +1075,14 @@ router.get('/order-details/:orderId', requireLogin, checkOrderOwnership, loadEmp
         const currentUser = ownerService.getCurrentUser(req);
         const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
         const { maxProdDays } = buildItemProductionDays(cleanOrderItems, productionTimes, await getOrderDeliveryDelay(order.orderDetails.id));
+        // Nagłówki stałych kolumn Excela — te same klucze co tabela w order.njk
+        const columnLabels = ['order.department', 'order.group_name', 'order.name', 'order.comment'].map(k => req.__(k));
 
         // Ukryj dane cenowe gdy pracownik nie ma uprawnienia can_see_prices
         if (req.hidePrices) {
-            res.json({ success: true, data: { sendData, totalPrice: null, cleanOrderItems, total: null, maxProdDays, priceCurrency } });
+            res.json({ success: true, data: { sendData, totalPrice: null, cleanOrderItems, total: null, maxProdDays, priceCurrency, columnLabels } });
         } else {
-            res.json({ success: true, data: { sendData, totalPrice, cleanOrderItems, total, maxProdDays, priceCurrency } });
+            res.json({ success: true, data: { sendData, totalPrice, cleanOrderItems, total, maxProdDays, priceCurrency, columnLabels } });
         }
     } catch (error) {
         log('Error fetching order details:', error);

@@ -1173,6 +1173,143 @@ async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts =
 }
 
 /**
+ * Konto klienta jako nabywca faktury in blanco (`InvoiceService.createBlank`).
+ *
+ * @param {number} userId
+ * @returns {Promise<Record<string, any>|null>}
+ */
+async function getUserForInvoice(userId) {
+  const rows = await strictQuery(
+    'SELECT id, ident, client_name, tax_id, street, zip, city, country, email, phone, organization_id FROM `user` WHERE id = ?',
+    [Number(userId)]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Nabywcy do faktury in blanco (tylko admin): organizacje i konta klientów po nazwie
+ * albo idencie, razem do 20 wyników.
+ *
+ * @param {string} query
+ * @returns {Promise<Array<{ type: 'organization'|'user', id: number, ident: string, name: string, country: string, taxId: string, organization: string|null }>>}
+ */
+async function searchBlankBuyers(query) {
+  const like = `%${String(query || '').trim()}%`;
+  // Dwa zapytania zamiast UNION: `organization` i `user` mają różne kolacje (UNION → „Illegal mix of collations”)
+  const orgs = await strictQuery(
+    `SELECT 'organization' AS type, o.id, o.ident, o.name, o.country, o.tax_id AS taxId, NULL AS organization,
+            o.street, o.zip, o.city
+       FROM organization o WHERE o.name LIKE ? OR o.ident LIKE ? ORDER BY o.name LIMIT 10`,
+    [like, like]
+  );
+  const users = await strictQuery(
+    `SELECT 'user' AS type, u.id, u.ident, u.client_name AS name, u.country, u.tax_id AS taxId, org.ident AS organization,
+            u.street, u.zip, u.city
+       FROM \`user\` u LEFT JOIN organization org ON org.id = u.organization_id
+      WHERE u.client_name LIKE ? OR u.ident LIKE ? ORDER BY u.client_name LIMIT 10`,
+    [like, like]
+  );
+  return [...orgs, ...users];
+}
+
+/**
+ * Ostatni nabywcy faktur in blanco (do 8, bez powtórzeń): odnośnik do organizacji/konta,
+ * jeśli był, inaczej dane z faktury (wpisane ręcznie).
+ *
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function recentBlankBuyers() {
+  const rows = await strictQuery(
+    `SELECT buyer_name AS name, buyer_street AS street, buyer_zip AS zip, buyer_city AS city, buyer_country AS country,
+            buyer_tax_id AS taxId, buyer_vat_eu_id AS vatEuId, buyer_email AS email,
+            JSON_UNQUOTE(JSON_EXTRACT(compliance, '$.blank.buyer.type')) AS refType,
+            JSON_EXTRACT(compliance, '$.blank.buyer.id') AS refId
+       FROM invoice WHERE price_basis = 'manual' AND status <> 'cancelled' ORDER BY id DESC LIMIT 40`
+  );
+  const seen = new Set();
+  const out = [];
+  for (const r of rows) {
+    const key = `${String(r.name || '').toUpperCase()}|${r.country}`;
+    if (!r.name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(r.refType && r.refType !== 'null' && Number(r.refId)
+      ? { type: r.refType, id: Number(r.refId), name: r.name, country: r.country, taxId: r.vatEuId || r.taxId || '', street: r.street, zip: r.zip, city: r.city, recent: true }
+      : { type: 'manual', name: r.name, country: r.country, taxId: r.taxId || '', vatEuId: r.vatEuId || '', street: r.street, zip: r.zip, city: r.city, email: r.email || '', recent: true });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+/**
+ * Ostatnie faktury in blanco (szkice i wystawione) — lista w panelu: wznów, porzuć, „nowa na podstawie”.
+ *
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function listBlankInvoices() {
+  return strictQuery(
+    `SELECT i.id, i.number, i.status, DATE_FORMAT(i.issue_date, '%Y-%m-%d') AS issueDate, i.buyer_name AS buyerName,
+            i.total_net AS totalNet, i.total_gross AS totalGross, o.ident AS issuer, i.order_name AS orderName
+       FROM invoice i LEFT JOIN organization o ON o.id = i.organization_id
+      WHERE i.price_basis = 'manual' AND i.status <> 'cancelled'
+      ORDER BY i.id DESC LIMIT 30`
+  );
+}
+
+/**
+ * Ostatni wydany numer w serii wystawcy (bez rezerwacji) — orientacyjny numer w podglądzie.
+ *
+ * @param {{ issuerType: string, issuerId: number, level: number, year: number }} params
+ * @returns {Promise<number>}
+ */
+async function peekIssuerSequence({ issuerType, issuerId, level, year }) {
+  const key = issuerSeriesKey({ issuerType, issuerId, level });
+  const rows = await strictQuery(
+    'SELECT last_number FROM invoice_issuer_sequence WHERE issuer_type = ? AND issuer_id = ? AND level = ? AND year = ?',
+    [key.issuerType, Number(key.issuerId) || 0, Number(key.level), Number(year)]
+  );
+  return rows[0] ? Number(rows[0].last_number) : 0;
+}
+
+/**
+ * Wystawcy faktur in blanco: organizacje z profilem fakturowania (formatka, dane, seria).
+ *
+ * @returns {Promise<Array<{ id: number, ident: string, name: string }>>}
+ */
+async function listBlankIssuers() {
+  return strictQuery(
+    `SELECT o.id, o.ident, o.name FROM organization o
+       JOIN invoice_organization_profile p ON p.organization_id = o.id
+      ORDER BY o.name`
+  );
+}
+
+/**
+ * Każda pozycja każdej wystawionej faktury (bez szkiców i anulowanych), wszystkie poziomy,
+ * od pierwszej — plik `zafakturowane_pozycje.tsv` na FTP (`invoiceFtpExport.js`): z niego
+ * automat Wiktorii stawia blokadę DSPR_NUM w PROD i porównuje faktury z PROD (16.11.2026).
+ * Daty jako tekst, żeby strefa czasowa nie przesunęła dnia. Błąd bazy rzuca wyjątek —
+ * pusta lista po awarii nadpisałaby plik odbiorcy.
+ *
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findInvoicedPositions() {
+  return strictQuery(
+    `SELECT i.id, i.level, i.number, DATE_FORMAT(i.issue_date, '%Y-%m-%d') AS issue_date,
+            DATE_FORMAT(i.sale_date, '%Y-%m-%d') AS sale_date, i.order_id, i.order_name,
+            i.created_by_pin, i.document_type, org.ident AS organization_ident,
+            u.ident AS user_ident, o.order_idx, oi.orderpos, it.quantity, it.net_amount
+       FROM invoice i
+       JOIN invoice_item it ON it.invoice_id = i.id
+       LEFT JOIN organization org ON org.id = i.organization_id
+       LEFT JOIN order_item oi ON oi.id = it.order_item_id
+       LEFT JOIN \`order\` o ON o.id = oi.order_id
+       LEFT JOIN \`user\` u ON u.id = o.user_id
+      WHERE i.number IS NOT NULL AND i.status IN ('issued', 'paid', 'overdue')
+      ORDER BY i.id, it.position, it.id`
+  );
+}
+
+/**
  * Faktury czekające na wysyłkę na FTP (`invoiceFtpExport.js`) — te same warunki
  * co kolejka maili (`findInvoicesToMail`), własne zdarzenia, tylko podane
  * poziomy, plus identy do ścieżki katalogu: `organization_ident` (organizacja
@@ -1454,7 +1591,8 @@ async function getIssuerProfile({ issuerType, issuerId, level }) {
       bankAccount: org.bankAccount, currency: 'EUR', localCurrency: org.localCurrency,
       paymentDays: org.defaultPaymentDays, defaultLang: org.defaultLang,
       templateCode: org.templateCode, themeVars: org.themeVars,
-      numberPattern: '{YYYY}/{NR:5}', legalSettings: {}, footerNotes: org.footerNotes
+      // Cozy: `{"invoice":"{YY}{NR:6}"}` → 26000008, numer zgodny z PROD (Wiktoria, 16.11.2026)
+      numberPattern: org.numberPatterns.invoice || '{YYYY}/{NR:5}', legalSettings: {}, footerNotes: org.footerNotes
     };
   }
 
@@ -1492,6 +1630,28 @@ async function getIssuerProfile({ issuerType, issuerId, level }) {
   }
 
   return null;
+}
+
+/**
+ * Skrzynka, z której idą maile z fakturami wystawcy: `organization.invoice_email`
+ * (Paweł, 17.11.2026: „każda organizacja musi mieć swój adres fakturowy").
+ * Producent (poziom 1) = HKL; konto klienta (poziom 3) własnej skrzynki nie ma.
+ * Hasło skrzynki: `organization.invoice_email_password` (Paweł, 17.11.2026: „hasło w bazie,
+ * na produkcji też”). `SELECT *`, bo baza bez którejś migracji (`add_organization_invoice_email*.sql`)
+ * ma po prostu mniej kolumn — wtedy pusty adres/hasło i mail ze skrzynki systemu.
+ *
+ * @param {{ issuerType: string, issuerId: number }} issuer
+ * @returns {Promise<{ ident: string, email: string, password: string }|null>}
+ */
+async function getInvoiceSender({ issuerType, issuerId }) {
+  const { HKL_ORG_ID } = require('../../subPrices');
+  const orgId = issuerType === 'organization' ? Number(issuerId) : (issuerType === 'manufacturer' ? HKL_ORG_ID : 0);
+  if (!orgId) return null;
+  const rows = await selectQuery('SELECT * FROM organization WHERE id = ?', [orgId]);
+  const row = rows && rows[0];
+  return row
+    ? { ident: row.ident || '', email: String(row.invoice_email || '').trim(), password: String(row.invoice_email_password || '') }
+    : null;
 }
 
 /**
@@ -2029,6 +2189,7 @@ module.exports = {
   allocateIssuerSequence,
   issuerSeriesKey,
   getIssuerProfile,
+  getInvoiceSender,
   upsertIssuerProfile,
   createEndClient,
   getEndClientDefaultCountry,
@@ -2054,6 +2215,13 @@ module.exports = {
   hasLevelInvoice,
   findInvoicesToMail,
   findInvoicesForFtp,
+  findInvoicedPositions,
+  getUserForInvoice,
+  searchBlankBuyers,
+  listBlankIssuers,
+  recentBlankBuyers,
+  listBlankInvoices,
+  peekIssuerSequence,
   getOrderItemsForPrint,
   addInvoiceEvent,
   relationLevels,

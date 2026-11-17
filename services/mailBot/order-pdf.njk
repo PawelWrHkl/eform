@@ -49,7 +49,7 @@
           {% for rowObj in table.rows %}
           <tbody class="pos{% if loop.index % 2 == 0 %} pos--alt{% endif %}{% if rowObj.item.correctionNew %} pos--new{% endif %}">
               <tr>
-                <td><span class="pdf-val">{{ globalIndex }}</span>{% if rowObj.item.correctionNew %}<span class="chg-badge">{{ __('mail.correction_new_position') }}</span>{% endif %}</td>
+                <td><span class="pdf-val">{{ rowObj.item.correctionPos or globalIndex }}</span>{% if rowObj.item.correctionNew %}<span class="chg-badge">{{ __('mail.correction_new_position') }}</span>{% endif %}</td>
                 <td>{{ pdfCell(rowObj.item.department) }}</td>
                 <td>{{ pdfCell(rowObj.item.group_name) }}</td>
                 <td{{ chg('__commision', rowObj.item) }}>{{ pdfCell(rowObj.item.commision) }}</td>
@@ -168,7 +168,7 @@
         <div class="correction-removed">
           <strong>{{ __('mail.correction_removed') }}:</strong>
           {% for r in correction.removed %}
-            <span class="removed-item">{{ r.department }}{% if r.group_name %} / {{ r.group_name }}{% endif %}{% if r.commision %} — {{ r.commision }}{% endif %}</span>{% if not loop.last %}; {% endif %}
+            <span class="removed-item">{% if r.orderpos %}{{ r.orderpos }}. {% endif %}{{ r.department }}{% if r.group_name %} / {{ r.group_name }}{% endif %}{% if r.commision %} — {{ r.commision }}{% endif %}</span>{% if not loop.last %}; {% endif %}
           {% endfor %}
         </div>
       {% endif %}
@@ -301,9 +301,9 @@
         <div class="order-details-line">{{ __('new-order.phone') }}: {{ sendData.phone }}</div>
       </div>
     </div>
-    {# Stopka AB ze stoiskiem (POP-19) — services/mailBot/abFooter.js #}
+    {# Stopka AB ze stoiskiem (POP-19) — baner z _ab_footer.njk, dane z services/mailBot/abFooter.js #}
     {% if abFooter %}
-      <div class="ab-footer">{{ abFooter | escape | nl2br }}</div>
+      <div class="ab-footer">{% include "_ab_footer.njk" %}</div>
     {% endif %}
   </div>
   {% block scripts %}

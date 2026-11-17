@@ -302,14 +302,10 @@ a {
     text-decoration: none;
 }
 
-/* Stopka AB ze stoiskiem (POP-19) — niska i nierozdzielna, żeby nie dokładać strony. */
+/* Stopka AB ze stoiskiem (POP-19, _ab_footer.njk) — nierozdzielna, żeby baner nie pękł na dwie strony. */
 .ab-footer {
-    margin-top: 8px;
-    padding-top: 4px;
-    border-top: 1px solid #ccc;
-    font-size: 11px;
-    line-height: 1.3;
-    text-align: center;
+    margin: 12px auto 0;
+    max-width: 900px;
     break-inside: avoid;
     page-break-inside: avoid;
 }

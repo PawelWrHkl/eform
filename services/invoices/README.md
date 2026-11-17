@@ -572,7 +572,18 @@ z SMTP) — bez migracji. Nieudana próba = `mail_failed` z błędem; faktura wr
 kolejnym przebiegu, najwyżej 3 próby (`MAX_ATTEMPTS`). Nic starszego niż 14 dni
 (`MAX_AGE_DAYS`) nie wychodzi automatycznie, niezależnie od `SINCE`. Awaria poczty
 nie przerywa cyklu — jest częściową porażką (kod 1 `scripts/prodStatusSync.js`).
-Nadawca: skrzynka `MAILBOT_USER` (SPF/DKIM), w nazwie — wystawca faktury.
+**Nadawca = adres fakturowy wystawcy** (od 17.11.2026, v12): `organization.invoice_email`
+(migracja `migrations/add_organization_invoice_email.sql`; poziom 1 → wiersz HKL),
+wysyłka przez skrzynkę tej organizacji — hasło w `organization.invoice_email_password`
+(migracja `migrations/add_organization_invoice_email_password.sql`; Paweł 17.11: „hasło
+w bazie, na produkcji też”), zapasowo `INVOICE_SMTP_<IDENT>_PASSWORD` w `.env.local`
+(ident wielkimi literami, np. `INVOICE_SMTP_COZY_PASSWORD`) i opcjonalnie `_HOST` (domyślnie
+domena adresu; port 587, STARTTLS wymuszony, certyfikat sprawdzany). Hasła nie wpisuj
+do plików w gicie (migracje, `.env`). Brak adresu albo hasła: jak wcześniej skrzynka `MAILBOT_USER`
+w obu trybach (Paweł 17.11: „póki nie ma uzupełnionego niech idzie jak wcześniej”);
+adres bez hasła → `UWAGA` w logu. W trybie testowym przy nadawcy
+organizacji Reply-To = `MAILBOT_USER`, żeby odpowiedź testera nie trafiła do
+organizacji. Nadawca jest w znaczniku (`payload.from`) i w logu.
 
 ⚠️ Przejście z trybu testowego na „do nabywcy": przesuń `INVOICE_MAIL_SINCE` na
 dzień przełączenia — tryby mają osobne znaczniki (`mail_redirected` nie blokuje
@@ -812,6 +823,29 @@ Zasady:
 ⚠️ `HKL.pdf` jest **pionowa** i ma nietypowy rozmiar 282×398 mm (A4 w skali ~134%), a faktura
 jest pozioma: treść zajmuje górne ~40% strony, a przy druku na A4 całość zmniejsza się do ~75%.
 Do rozważenia: pozioma formatka HKL w formacie A4 jak COZY/LUXANGMBH.
+
+## Faktura in blanco / refaktura (`InvoiceService.createBlank`, 2026-11-16)
+
+Faktura bez zamówienia, tylko dla admina: panel `/invoices/blank` (`templates/owner/invoice_blank.njk`, `public/scripts/owner/invoice_blank.js`), API `POST /api/v1/invoices/blank` (walidacja w `http/routes.js:parseBlankRequest`) i `GET /api/v1/invoices/search/buyers?q=` (organizacje + konta klientów).
+
+- **Wystawca**: organizacja z profilem fakturowania (`repository.listBlankIssuers`). Faktura dostaje poziom 2, więc ma serię, profil i formatkę jak faktury tej organizacji z zamówień.
+- **Nabywca**: organizacja (`getOrganizationProfile`), konto klienta (`getUserForInvoice`) albo dane wpisane ręcznie (`buyer_type = 'manual'`).
+- **Pozycje**: ilość × cena jedn. netto (kalkulator liczy wartość), towar albo usługa. Usługa zmienia regułę VAT (`taxRules`), np. reverse charge dla firm z UE.
+- **Oznaczenia na dokumencie**: `price_basis = 'manual'`, `order_id = NULL`. Refaktura dopisuje do uwag `blank.rebill_note` z dokumentem źródłowym, a w nagłówku `blank.rebill_title` (i18n dokumentu, 5 języków).
+- **Przebieg**: szkic (bez numeru) → podgląd `/invoices/:id/view` → `POST /:id/issue`. Ponowny podgląd porzuca poprzedni szkic (`draft` → `cancelled`).
+- **`issue()`**: dla faktur v2 (z wystawcą) bierze numer z serii wystawcy (`allocateIssuerSequence` + `numberPattern` profilu), jak `createInvoice`. Korekty i inne typy zostają przy starym liczniku.
+- **Bez automatycznej wysyłki**: mailer i FTP biorą tylko dokumenty automatu (`AUTO`, `AUTO-DAILY`). Pozycje faktury in blanco trafiają za to do `zafakturowane_pozycje.tsv`, bez ORDERNO/ORDERPOS.
+
+### Formularz v10 (2026-11-16)
+
+- **`POST /api/v1/invoices/blank/preview`** — `InvoiceService.previewBlank` (= `buildBlank` bez zapisu, VIES tylko przy `checkVies`). Zwraca kwoty per stawka, kategorie VAT z notą w języku dokumentu, język i ORIENTACYJNY numer (`repository.peekIssuerSequence`, nic nie rezerwuje). Błędy formularza dają `valid: false` z `fieldErrors: [{ field, code }]`, a panel tłumaczy `blank_err_<code>`.
+- **`POST /blank/vies`** → `checkVatId`.
+- **`GET /blank/list`** → `listBlankInvoices`: 30 ostatnich szkiców i wystawionych.
+- **`GET /search/buyers?recent=1`** → `recentBlankBuyers`.
+- **Wznawianie i kopiowanie**: dane formularza (dokument refaktury, uwagi, termin, odnośnik nabywcy) leżą w `invoice.compliance.blank`, bez DDL. Z nich korzystają `?draft=<id>` (wznowienie) i `?from=<id>` (nowa na podstawie).
+- **Szablony pozycji**: `blank.tpl.*` w i18n dokumentu (5 języków), etykiety w `panel.json`.
+- **Język szablonu**: według kraju nabywcy, mapa `core/language.js` przekazana do strony.
+- **Wystawienie**: niezmieniony szkic idzie przez `/:id/issue`, zmieniony jest porzucany i zastępowany `POST /blank {issue:true}`.
 
 ## Punkty rozszerzeń
 

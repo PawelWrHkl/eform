@@ -340,7 +340,10 @@ export async function generateForm(
 
 
     if (paramName.startsWith('SUB___')) {
-      if (canUserSeeSubPrices() && !isParamLocked(paramName, displayValues)) {
+      // ENABLE i FORMROW jak przy polach zwykłych niżej — edycja pozycji nie odpala przeliczenia,
+      // więc bez tego zostawały np. SUB___DOPLATA_EL bez RODZAJ=EL (Luxan 2026-11-16).
+      if (canUserSeeSubPrices() && !isParamLocked(paramName, displayValues)
+        && isEnabled(param.ENABLE, values, paramName) && param.FORMROW != '0') {
         enabledParams[paramName] = true;
         div.style.display = 'grid';
         if (editFlag) {

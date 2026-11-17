@@ -82,6 +82,7 @@
   "taxcat.np": "Nicht steuerbar",
   "taxcat.zw": "Steuerfrei",
   "items.order_ref": "Auftrag",
+  "items.client": "Kunde",
   "items.dimensions": "Maße",
   "header.delivery_date": "Leistungsdatum",
   "party.delivery_address": "Lieferadresse",
@@ -95,5 +96,10 @@
   "mail.attachment": "Die Rechnung ist als PDF-Datei angehängt.",
   "mail.questions": "Bei Fragen antworten Sie bitte einfach auf diese Nachricht.",
   "mail.regards": "Mit freundlichen Grüßen",
-  "mail.auto_note": "Diese Nachricht wurde automatisch von eForm erstellt."
+  "mail.auto_note": "Diese Nachricht wurde automatisch von eForm erstellt.",
+  "blank.rebill_title": "Weiterberechnung",
+  "blank.rebill_note": "Weiterberechnung von Kosten",
+  "blank.tpl.transport": "Transportkosten",
+  "blank.tpl.montage": "Montage",
+  "blank.tpl.repair": "Reparatur"
 }

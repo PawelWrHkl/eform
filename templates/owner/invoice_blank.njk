@@ -1,0 +1,209 @@
+{#
+  Faktura in blanco / refaktura (tylko admin, `GET /invoices/blank`, wznowienie: `?draft=<id>`,
+  kopia: `?from=<id>`). Kroki formularza po lewej, podsumowanie liczone przez serwer
+  (`POST /api/v1/invoices/blank/preview`, bez zapisu) po prawej. Szkic powstaje dopiero przy
+  „Podgląd PDF”, numer przy „Wystaw”. Logika: `/scripts/owner/invoice_blank.js`.
+  Wszystkie teksty z `L` (`services/invoices/i18n/panel.json`, pl/en/de).
+#}
+{% extends "base.njk" %}
+
+{% block title %}{{ L.blank_title }}{% endblock title %}
+
+{% block head %}
+  <link rel="stylesheet" href="/styles/orders.css">
+  <link rel="stylesheet" href="/styles/invoices.css?v={{ assetVersion }}">
+  <style>
+    .inv-blank { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: 1rem; align-items: start; }
+    .inv-blank__side { position: sticky; top: 1rem; }
+    @media (max-width: 1100px) { .inv-blank { grid-template-columns: 1fr; } .inv-blank__side { position: static; } }
+    .inv-blank .inv-card { margin-bottom: 1rem; }
+    .inv-blank-step-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+    .inv-blank-state { font-size: .8rem; padding: .1rem .5rem; border-radius: 999px; background: #fdecea; color: #a12a1f; }
+    .inv-blank-state.is-ok { background: #e7f6ec; color: #1d6b39; }
+    .inv-blank-lines { width: 100%; table-layout: fixed; }
+    .inv-blank-lines input, .inv-blank-lines select, .inv-blank-lines textarea { width: 100%; font: inherit; box-sizing: border-box; }
+    .inv-blank-lines input[type=checkbox] { width: auto; }
+    .inv-blank-lines textarea { resize: vertical; }
+    .inv-blank-lines td, .inv-blank-lines th { vertical-align: top; padding: .3rem .35rem; }
+    .inv-blank-lines col.c-qty { width: 4.6rem; } .inv-blank-lines col.c-unit { width: 5.2rem; } .inv-blank-lines col.c-price { width: 6.6rem; }
+    .inv-blank-lines col.c-svc { width: 5rem; } .inv-blank-lines col.c-net { width: 5.4rem; }
+    table.inv-table.inv-blank-lines thead th { white-space: normal !important; line-height: 1.2; letter-spacing: 0; }
+    .inv-blank-desc .inv-blank-line-actions { justify-content: flex-end; }
+    .inv-blank-lines tbody.inv-blank-line + tbody.inv-blank-line tr:first-child td { border-top: 1px solid #e6e6e6; }
+    .inv-blank-lines tr.inv-blank-desc td { border-top: none; padding-top: 0; }
+    .inv-blank-lines .num { text-align: right; white-space: nowrap; }
+    .inv-blank-lines .c { text-align: center; }
+    .inv-blank-line-actions { display: flex; gap: .25rem; }
+    .inv-blank-line-actions button { padding: .2rem .45rem; min-width: 1.9rem; }
+    .inv-blank-err { display: block; color: #a12a1f; font-size: .8rem; margin-top: .2rem; }
+    [aria-invalid="true"] { border-color: #c0392b !important; box-shadow: 0 0 0 1px #c0392b33; }
+    .inv-blank-check { display: flex; align-items: center; gap: .5rem; margin: .75rem 0; cursor: pointer; }
+    .inv-blank-check input { width: auto; margin: 0; }
+    .inv-blank-buyer-card { border: 1px solid #e3e3e3; border-radius: 8px; padding: .75rem 1rem; margin-top: .5rem; display: flex; justify-content: space-between; gap: 1rem; }
+    .inv-blank-buyer-card .muted, .inv-blank-muted { color: #6b6b6b; font-size: .85rem; }
+    .inv-blank-vies { font-size: .85rem; margin-left: .5rem; }
+    .inv-blank-sum dl { display: grid; grid-template-columns: 1fr auto; gap: .25rem .75rem; margin: 0; }
+    .inv-blank-sum dt { color: #6b6b6b; font-weight: 400; } .inv-blank-sum dd { margin: 0; text-align: right; }
+    .inv-blank-sum .total { font-size: 1.15rem; font-weight: 700; border-top: 1px solid #ddd; padding-top: .35rem; }
+    .inv-blank-sum ul { padding-left: 1.1rem; margin: .5rem 0 0; }
+    .inv-blank-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+    .inv-blank-actions .inv-btn { flex: 1 1 auto; text-align: center; }
+    .inv-blank-preview { width: 100%; height: 75vh; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+    .inv-blank-issued { font-size: 1.1rem; font-weight: 700; }
+    #eform-assistant .ea-pet { display: none !important; } /* piesek nie może zasłaniać przycisków formularza */
+  </style>
+{% endblock head %}
+
+{% block key_nav %}window.location.href='/invoices'{% endblock %}
+
+{% block back_link %}
+  <button class="modern-back-btn" onclick="window.location.href='/invoices'">
+{% endblock %}
+
+{% block content %}
+  <div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card">
+      <div class="inv-topbar">
+        <div>
+          <h2 class="fw-bold header mb-1">{{ L.blank_title }}</h2>
+          <div class="inv-subtitle">{{ L.blank_intro }}</div>
+        </div>
+        <div class="inv-topbar__actions">
+          <a class="inv-btn inv-btn--ghost" href="/invoices">{{ L.back }}</a>
+        </div>
+      </div>
+
+      <div class="inv-blank">
+        <form id="inv-blank-form" autocomplete="off" novalidate>
+          {# ---------- 1. Wystawca ---------- #}
+          <section class="inv-card" data-step="issuer">
+            <div class="inv-blank-step-head"><h3 class="inv-card__title">{{ L.blank_step_issuer }}</h3><span class="inv-blank-state" data-state-for="issuer"></span></div>
+            <label class="inv-field" for="inv-blank-issuer"><span class="inv-label">{{ L.blank_issuer }}</span>
+              <select name="issuerOrganizationId" id="inv-blank-issuer" data-field="issuer">
+                {% for o in issuers %}<option value="{{ o.id }}">{{ o.name }} ({{ o.ident }})</option>{% endfor %}
+              </select></label>
+          </section>
+
+          {# ---------- 2. Nabywca ---------- #}
+          <section class="inv-card" data-step="buyer">
+            <div class="inv-blank-step-head"><h3 class="inv-card__title">{{ L.blank_step_buyer }}</h3><span class="inv-blank-state" data-state-for="buyer"></span></div>
+            <div id="inv-blank-buyer-search">
+              <label class="inv-field inv-field--wide inv-combo" for="inv-blank-buyer-q"><span class="inv-label">{{ L.blank_buyer_search }}</span>
+                <input type="text" id="inv-blank-buyer-q" class="inv-combo__input" data-field="buyer" role="combobox"
+                       aria-expanded="false" aria-controls="inv-blank-buyer-list" aria-autocomplete="list">
+                <div class="inv-combo__list" id="inv-blank-buyer-list" role="listbox"></div>
+              </label>
+            </div>
+            <div class="inv-blank-buyer-card" id="inv-blank-buyer-card" hidden>
+              <div><strong id="inv-blank-buyer-name"></strong><div class="muted" id="inv-blank-buyer-meta"></div>
+                <div><span class="muted" id="inv-blank-buyer-vat"></span>
+                  <button type="button" class="inv-btn inv-btn--ghost" id="inv-blank-buyer-vies" hidden>{{ L.blank_vies_check }}</button>
+                  <span class="inv-blank-vies" id="inv-blank-buyer-vies-result" aria-live="polite"></span></div></div>
+              <button type="button" class="inv-btn inv-btn--ghost" id="inv-blank-buyer-change">{{ L.blank_buyer_change }}</button>
+            </div>
+            <label class="inv-blank-check"><input type="checkbox" id="inv-blank-manual"> {{ L.blank_buyer_manual }}</label>
+            <div class="inv-grid" id="inv-blank-manual-fields" hidden>
+              <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.name }}</span><input name="b_name" data-field="b_name" maxlength="200"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.street }}</span><input name="b_street" maxlength="200"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.zip }}</span><input name="b_zip" maxlength="20"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.city }}</span><input name="b_city" maxlength="100"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.country }}</span><input name="b_country" data-field="b_country" maxlength="2" placeholder="DE" autocapitalize="characters"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.vat_eu_id }}</span><input name="b_vatEuId" data-field="b_vatEuId" maxlength="40" placeholder="DE293796843">
+                <span><button type="button" class="inv-btn inv-btn--ghost mt-1" id="inv-blank-manual-vies">{{ L.blank_vies_check }}</button>
+                <span class="inv-blank-vies" id="inv-blank-manual-vies-result" aria-live="polite"></span></span></label>
+              <label class="inv-field"><span class="inv-label">{{ L.tax_id }}</span><input name="b_taxId" maxlength="40"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.email }}</span><input name="b_email" data-field="b_email" type="email" maxlength="200"></label>
+            </div>
+          </section>
+
+          {# ---------- 3. Pozycje ---------- #}
+          <section class="inv-card" data-step="items">
+            <div class="inv-blank-step-head"><h3 class="inv-card__title">{{ L.blank_step_items }}</h3><span class="inv-blank-state" data-state-for="items"></span></div>
+            <div class="inv-table-wrap">
+              {# Każda pozycja to osobny <tbody>: wiersz z danymi + wiersz z opisem na całą szerokość #}
+              <table class="inv-table inv-blank-lines" id="inv-blank-lines">
+                <colgroup><col><col class="c-qty"><col class="c-unit"><col class="c-price"><col class="c-svc"><col class="c-net"></colgroup>
+                <thead><tr>
+                  <th>{{ L.blank_item_name }}</th><th>{{ L.blank_qty }}</th><th>{{ L.blank_unit }}</th>
+                  <th>{{ L.blank_price }}</th><th class="c">{{ L.blank_service }}</th><th class="num">{{ L.blank_net }}</th>
+                </tr></thead>
+              </table>
+            </div>
+            <div class="inv-blank-actions" style="justify-content:flex-start">
+              <button type="button" class="inv-btn inv-btn--ghost" id="inv-blank-add" style="flex:0 0 auto">{{ L.blank_add_item }}</button>
+              <select id="inv-blank-template" aria-label="{{ L.blank_add_from_template }}" style="flex:0 0 auto;width:auto">
+                <option value="">{{ L.blank_add_from_template }}</option>
+                {% for key in ['transport', 'montage', 'repair', 'rebill', 'other'] %}<option value="{{ key }}">{{ L['blank_tpl_' + key] }}</option>{% endfor %}
+              </select>
+            </div>
+          </section>
+
+          {# ---------- 4. Warunki ---------- #}
+          <section class="inv-card" data-step="terms">
+            <div class="inv-blank-step-head"><h3 class="inv-card__title">{{ L.blank_step_terms }}</h3><span class="inv-blank-state" data-state-for="terms"></span></div>
+            <div class="inv-grid">
+              <label class="inv-field"><span class="inv-label">{{ L.blank_sale_date }}</span><input type="date" name="saleDate" data-field="saleDate" value="{{ today }}"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.blank_delivery_date }}</span><input type="date" name="deliveryDate" data-field="deliveryDate" value="{{ today }}"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.blank_payment_days }}</span><input type="number" name="paymentDays" data-field="paymentDays" min="0" max="365" inputmode="numeric"></label>
+              <label class="inv-field"><span class="inv-label">{{ L.blank_lang }}</span>
+                <select name="lang">
+                  <option value="">{{ L.blank_lang_auto }}</option>
+                  {% for code in ['pl', 'en', 'de', 'nl', 'fr'] %}<option value="{{ code }}">{{ code | upper }}</option>{% endfor %}
+                </select></label>
+            </div>
+            <label class="inv-blank-check"><input type="checkbox" name="rebill" id="inv-blank-rebill"> {{ L.blank_rebill }}</label>
+            <div class="inv-grid">
+              <label class="inv-field inv-field--wide" id="inv-blank-rebill-source" hidden><span class="inv-label">{{ L.blank_rebill_source }}</span><input name="rebillSource" maxlength="200"></label>
+              <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.blank_notes }}</span><textarea name="notes" maxlength="1000" rows="2"></textarea></label>
+            </div>
+          </section>
+        </form>
+
+        {# ---------- 5. Podsumowanie (serwer) ---------- #}
+        <aside class="inv-blank__side">
+          <section class="inv-card inv-blank-sum" aria-live="polite">
+            <h3 class="inv-card__title">{{ L.blank_summary }}</h3>
+            <div id="inv-blank-sum-body"><p class="inv-blank-muted">{{ L.blank_summary_empty }}</p></div>
+            <div id="inv-blank-missing"></div>
+            <div class="inv-blank-actions" id="inv-blank-actions">
+              <button type="button" class="inv-btn inv-btn--ghost" id="inv-blank-preview-btn" disabled>{{ L.blank_preview_pdf }}</button>
+              <button type="button" class="inv-btn inv-btn--primary" id="inv-blank-issue" disabled>{{ L.blank_issue }}</button>
+            </div>
+            <div id="inv-blank-done" hidden>
+              <p class="inv-blank-issued" id="inv-blank-issued"></p>
+              <p class="inv-blank-muted">{{ L.blank_issued_note }}</p>
+              <div class="inv-blank-actions">
+                <a class="inv-btn inv-btn--primary" id="inv-blank-pdf-done">{{ L.blank_pdf }}</a>
+                <a class="inv-btn inv-btn--ghost" id="inv-blank-view-done" target="_blank" rel="noopener">{{ L.blank_open_preview }}</a>
+                <a class="inv-btn inv-btn--ghost" href="/invoices/blank">{{ L.blank_new }}</a>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <section class="inv-card" id="inv-blank-result" hidden>
+        <div class="inv-blank-step-head">
+          <h3 class="inv-card__title">{{ L.blank_preview_pdf }} <span class="inv-blank-muted" id="inv-blank-result-note"></span></h3>
+          <a class="inv-btn inv-btn--ghost" id="inv-blank-pdf">{{ L.blank_pdf }}</a>
+        </div>
+        <iframe class="inv-blank-preview mt-2" id="inv-blank-frame" title="{{ L.blank_preview_pdf }}"></iframe>
+      </section>
+
+      <section class="inv-card">
+        <h3 class="inv-card__title">{{ L.blank_list_title }}</h3>
+        <div class="inv-table-wrap"><table class="inv-table">
+          <thead><tr><th>{{ L.blank_col_number }}</th><th>{{ L.blank_col_date }}</th><th>{{ L.blank_col_issuer }}</th><th>{{ L.blank_col_buyer }}</th><th class="num">{{ L.blank_col_gross }}</th><th></th></tr></thead>
+          <tbody id="inv-blank-list"><tr><td colspan="6" class="inv-blank-muted">…</td></tr></tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+
+  <script type="application/json" id="inv-labels">{{ L | dump | safe }}</script>
+  <script type="application/json" id="inv-blank-config">{{ { lang: panelLang, templates: itemTemplates, langByCountry: langByCountry, fallbackLang: fallbackLang, today: today } | dump | safe }}</script>
+{% endblock content %}
+
+{% block scripts %}
+  <script type="module" src="/scripts/owner/invoice_blank.js?v={{ assetVersion }}"></script>
+{% endblock scripts %}

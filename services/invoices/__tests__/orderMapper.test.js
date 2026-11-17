@@ -70,7 +70,7 @@ test('nazwa pozycji: zawsze produkt (dział – grupa), nazwa własna nie zastę
   assert.equal(buildItemName({}), 'Pozycja zamówienia');
 });
 
-test('opis pozycji: krótka specyfikacja z opisu parametrów, potem nazwa własna, referencja i komentarz', () => {
+test('opis pozycji: krótka specyfikacja z opisu parametrów, potem nazwa własna i komentarz (commission w referencji EO)', () => {
   const desc = buildItemDescription(
     {
       name: 'Bad / EG',
@@ -85,12 +85,12 @@ test('opis pozycji: krótka specyfikacja z opisu parametrów, potem nazwa własn
     },
     { MODEL: 'I25SD', KOLOR: '764-25', SZEROKOSC: 624, ILOSC: 2 }
   );
-  assert.match(desc, /^MODEL: I25SD – EUROPA 25mm · KOLOR: 764-25 – PG #0 · Bad \/ EG · DS\.R\.01 B3 · montaż od wewnątrz$/);
+  assert.match(desc, /^MODEL: I25SD – EUROPA 25mm · KOLOR: 764-25 – PG #0 · Bad \/ EG · montaż od wewnątrz$/);
   assert.doesNotMatch(desc, /624|ILOŚĆ/, 'wymiary i ilość mają własne kolumny');
-  assert.equal(buildItemDescription({ name: '273030', commision: '273030' }, {}), '273030', 'nazwa własna = referencja → raz');
+  assert.equal(buildItemDescription({ name: '273030', comment: '273030' }, {}), '273030', 'nazwa własna = komentarz → raz');
 });
 
-test('opis pozycji bez opisu parametrów (stare zlecenia): kody wybranych parametrów, referencja i komentarz', () => {
+test('opis pozycji bez opisu parametrów (stare zlecenia): kody wybranych parametrów i komentarz', () => {
   const desc = buildItemDescription(
     { commision: 'Salon okno 1', comment: 'montaż od wewnątrz' },
     { SZEROKOSC: 1232, WYSOKOSC: 1500, MODEL: 'AO30', KOLOR: '2002-P20', DODATKI: '-' }
@@ -99,7 +99,7 @@ test('opis pozycji bez opisu parametrów (stare zlecenia): kody wybranych parame
   assert.doesNotMatch(desc, /1232×1500/);
   assert.match(desc, /MODEL: AO30/);
   assert.match(desc, /KOLOR: 2002-P20/);
-  assert.match(desc, /Salon okno 1/);
+  assert.doesNotMatch(desc, /Salon okno 1/, 'commission pozycji jest w referencji EO');
   assert.match(desc, /montaż od wewnątrz/);
   assert.doesNotMatch(desc, /DODATKI/, 'wartości "-" są pomijane');
 });

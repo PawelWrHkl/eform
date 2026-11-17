@@ -29,6 +29,13 @@
  *   INVOICE_MAIL_BCC=ksiegowosc@x      opcjonalnie: ukryta kopia maili do nabywców
  *   INVOICE_MAIL_MAX_PER_RUN=50        bezpiecznik na jeden przebieg
  *
+ * NADAWCA = adres fakturowy wystawcy (`organization.invoice_email`; poziom 1 → HKL),
+ * wysyłka przez jego skrzynkę: hasło `organization.invoice_email_password`, zapasowo
+ * `INVOICE_SMTP_<IDENT>_PASSWORD` z `.env.local` (+ opcjonalnie `_HOST`, domyślnie
+ * domena adresu) — `resolveSender`. Bez adresu i hasła jak
+ * wcześniej skrzynka systemu (MAILBOT_USER) w obu trybach (Paweł, 17.11.2026: „z tego
+ * adresu powinien być wysyłany mail do klienta" / „póki nie ma uzupełnionego niech idzie jak wcześniej").
+ *
  * ⚠️ Przejście z trybu testowego na „do nabywcy": przesuń `INVOICE_MAIL_SINCE`
  * na dzień przełączenia. Tryby mają osobne znaczniki (`mail_redirected` nie
  * blokuje `mail_sent`), więc stara data rozesłałaby klientom faktury, które
@@ -88,7 +95,7 @@ function environmentLabel(env) {
 
 /**
  * @param {Record<string, string|undefined>} [env]
- * @returns {{ enabled: boolean, active: boolean, mode: string|null, since: string|null, redirect: string[], bcc: string[], maxPerRun: number, from: string, envLabel: string, problems: string[] }}
+ * @returns {{ enabled: boolean, active: boolean, mode: string|null, since: string|null, redirect: string[], bcc: string[], maxPerRun: number, from: string, smtp: Record<string, { pass: string, host: string }>, envLabel: string, problems: string[] }}
  */
 function readInvoiceMailConfig(env = process.env) {
   const enabled = String(env.INVOICE_MAIL_ENABLED).toLowerCase() === 'true';
@@ -109,6 +116,12 @@ function readInvoiceMailConfig(env = process.env) {
 
   const maxPerRun = Number(env.INVOICE_MAIL_MAX_PER_RUN);
   const from = String(env.MAILBOT_USER || '').trim();
+  // Skrzynki fakturowe organizacji: INVOICE_SMTP_COZY_PASSWORD → smtp.COZY
+  const smtp = {};
+  for (const [name, value] of Object.entries(env)) {
+    const m = /^INVOICE_SMTP_([A-Z0-9_]+)_PASSWORD$/.exec(name);
+    if (m && value) smtp[m[1]] = { pass: String(value), host: String(env[`INVOICE_SMTP_${m[1]}_HOST`] || '').trim() };
+  }
 
   if (enabled) {
     if (!since) problems.push(`INVOICE_MAIL_SINCE musi być datą RRRR-MM-DD (jest: „${rawSince}")`);
@@ -129,9 +142,31 @@ function readInvoiceMailConfig(env = process.env) {
     bcc: bcc.valid,
     maxPerRun: Number.isInteger(maxPerRun) && maxPerRun > 0 ? maxPerRun : DEFAULT_MAX_PER_RUN,
     from,
+    smtp,
     envLabel: environmentLabel(env),
     problems
   };
+}
+
+/**
+ * Nadawca maila z fakturą: skrzynka fakturowa wystawcy — adres i hasło z bazy
+ * (`organization.invoice_email[_password]`), hasło zapasowo z `.env.local`
+ * (`INVOICE_SMTP_<IDENT>_PASSWORD`, tam też opcjonalny `_HOST`). Póki nie jest
+ * uzupełniona — jak wcześniej skrzynka systemu.
+ *
+ * @param {{ ident: string, email: string, password?: string }|null} sender  `repository.getInvoiceSender`
+ * @param {ReturnType<typeof readInvoiceMailConfig>} config
+ * @returns {{ address: string, account: { host: string, user: string, pass: string }|null, warning?: string }}
+ */
+function resolveSender(sender, config) {
+  const email = sender ? parseEmailList(sender.email).valid[0] || '' : '';
+  const key = sender ? String(sender.ident || '').toUpperCase().replace(/[^A-Z0-9]+/g, '_') : '';
+  const env = (config.smtp && config.smtp[key]) || {};
+  const pass = (sender && sender.password) || env.pass;
+  if (email && pass) return { address: email, account: { host: env.host || email.split('@')[1], user: email, pass } };
+  return email
+    ? { address: config.from, account: null, warning: `brak hasła skrzynki (organization.invoice_email_password) — nadawca systemowy zamiast ${email}` }
+    : { address: config.from, account: null };
 }
 
 /** Wszystkie adresy z pól adresowych wiadomości (nodemailer: string „a, b" albo tablica). */
@@ -203,10 +238,11 @@ const TEXT_TEMPLATE = `{% if redirect %}TRYB TESTOWY ({{ redirect.envLabel }}) �
  * @param {Record<string, any>} params.invoice   wynik `repository.getInvoice`
  * @param {{ buffer: Buffer }|null} params.pdf   `null` = bez załącznika (podgląd)
  * @param {string} [params.issuerEmail]          adres wystawcy (Reply-To)
+ * @param {string} [params.from]                 nadawca z `resolveSender` (domyślnie skrzynka systemu)
  * @param {ReturnType<typeof readInvoiceMailConfig>} params.config
  * @returns {{ message: Record<string, any>, to: string[], intendedTo: string[] }}
  */
-function buildInvoiceMail({ invoice, pdf, issuerEmail = '', config }) {
+function buildInvoiceMail({ invoice, pdf, issuerEmail = '', from = '', config }) {
   const lang = invoice.lang || 'pl';
   const env = renderer.createEnvironment({ lang, currency: invoice.currency, localCurrency: invoice.localCurrency });
   const t = renderer.createTranslator(lang);
@@ -226,8 +262,8 @@ function buildInvoiceMail({ invoice, pdf, issuerEmail = '', config }) {
   const to = redirect ? [...config.redirect] : intendedTo;
 
   const message = {
-    // Nadawca to skrzynka systemu (SPF/DKIM), w nazwie wystawca faktury
-    from: { name: sellerName || 'eForm', address: config.from },
+    // Nadawca: skrzynka fakturowa wystawcy albo systemu (SPF/DKIM), w nazwie wystawca faktury
+    from: { name: sellerName || 'eForm', address: from || config.from },
     to: to.join(', '),
     subject: redirect
       ? `[${redirect.envLabel} · do klienta: ${redirect.intendedTo || 'brak adresu'}] ${subject}`
@@ -249,23 +285,33 @@ function buildInvoiceMail({ invoice, pdf, issuerEmail = '', config }) {
   // do wystawcy (np. innej organizacji), a kopia — do księgowości.
   if (!redirect && replyTo) message.replyTo = replyTo;
   if (!redirect && config.bcc.length) message.bcc = config.bcc.join(', ');
+  // Nadawca = skrzynka organizacji: odpowiedź testera idzie do skrzynki systemu, jak dotąd
+  if (redirect && message.from.address !== config.from) message.replyTo = config.from;
 
   return { message, to, intendedTo };
 }
 
-let transporter = null;
-function defaultSendMail(message) {
-  if (!transporter) {
-    // Ten sam serwer i konto co pozostałe maile systemu (`mailBot/mailBot.js`)
-    transporter = nodemailer.createTransport({
-      host: 'serwer2560216.home.pl',
-      port: 587,
-      secure: false,
-      auth: { user: process.env.MAILBOT_USER, pass: process.env.MAILBOT_PASSWORD },
-      tls: { rejectUnauthorized: false }
-    });
+const transporters = new Map();
+/**
+ * @param {Record<string, any>} message
+ * @param {{ host: string, user: string, pass: string }|null} [account]  `null` = skrzynka systemu
+ */
+function defaultSendMail(message, account = null) {
+  const key = account ? account.user : '';
+  if (!transporters.has(key)) {
+    transporters.set(key, nodemailer.createTransport(account
+      // Skrzynka fakturowa organizacji: STARTTLS obowiązkowy, certyfikat sprawdzany (hasło nie idzie otwartym tekstem)
+      ? { host: account.host, port: 587, secure: false, requireTLS: true, auth: { user: account.user, pass: account.pass } }
+      // Ten sam serwer i konto co pozostałe maile systemu (`mailBot/mailBot.js`)
+      : {
+        host: 'serwer2560216.home.pl',
+        port: 587,
+        secure: false,
+        auth: { user: process.env.MAILBOT_USER, pass: process.env.MAILBOT_PASSWORD },
+        tls: { rejectUnauthorized: false }
+      }));
   }
-  return transporter.sendMail(message);
+  return transporters.get(key).sendMail(message);
 }
 
 /**
@@ -324,18 +370,19 @@ async function runInvoiceMailing({ dryRun = false, config = readInvoiceMailConfi
         ? await repository.getIssuerProfile({ issuerType: invoice.issuerType, issuerId: invoice.issuerId, level: invoice.level })
         : null;
       const issuerEmail = (issuer && issuer.email) || '';
+      const sender = resolveSender(await repository.getInvoiceSender({ issuerType: invoice.issuerType, issuerId: invoice.issuerId }), config);
 
       // Adresat znany przed renderem PDF — bez adresu nie ma po co uruchamiać Chromium
-      const preview = buildInvoiceMail({ invoice, pdf: null, issuerEmail, config });
+      const preview = buildInvoiceMail({ invoice, pdf: null, issuerEmail, from: sender.address, config });
       if (!preview.to.length) throw new Error('nabywca nie ma poprawnego adresu e-mail (invoice.buyer_email)');
 
       service = service || getService();
       const pdf = await service.renderPdf(row.id);
-      const { message, to, intendedTo } = buildInvoiceMail({ invoice, pdf, issuerEmail, config });
+      const { message, to, intendedTo } = buildInvoiceMail({ invoice, pdf, issuerEmail, from: sender.address, config });
       assertRecipientsAllowed(message, config);
-      const info = await sendMail(message);
+      const info = await sendMail(message, sender.account);
 
-      const payload = { mode: config.mode, to, intendedTo, messageId: (info && info.messageId) || null };
+      const payload = { mode: config.mode, from: sender.address, to, intendedTo, messageId: (info && info.messageId) || null };
       try {
         await repository.addInvoiceEvent({ invoiceId: row.id, eventType: doneEvent, actorPin: AUTO_ACTOR, payload });
       } catch (err) {
@@ -343,8 +390,9 @@ async function runInvoiceMailing({ dryRun = false, config = readInvoiceMailConfi
         log(`[invoices:mail] UWAGA — ${label}: mail wysłany, ale nie zapisano znacznika (${err.message}); może pójść ponownie`);
       }
       result.sent.push({ invoiceId: row.id, number: row.number, to, intendedTo });
-      log(`[invoices:mail] ${label} → ${to.join(', ')}`
-        + (config.mode === MailMode.REDIRECT ? ` (nabywca: ${intendedTo.join(', ') || 'brak adresu'})` : ''));
+      log(`[invoices:mail] ${label} ${sender.address} → ${to.join(', ')}`
+        + (config.mode === MailMode.REDIRECT ? ` (nabywca: ${intendedTo.join(', ') || 'brak adresu'})` : '')
+        + (sender.warning ? ` — UWAGA: ${sender.warning}` : ''));
     } catch (err) {
       result.failed.push({ invoiceId: row.id, number: row.number, error: err.message });
       log(`[invoices:mail] BŁĄD — ${label}: ${err.message} (próba ${Number(row.failures || 0) + 1}/${MAX_ATTEMPTS})`);
@@ -374,6 +422,7 @@ module.exports = {
   readInvoiceMailConfig,
   effectiveSince,
   assertRecipientsAllowed,
+  resolveSender,
   buildInvoiceMail,
   runInvoiceMailing
 };

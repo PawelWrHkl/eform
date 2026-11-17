@@ -28,6 +28,9 @@ test('wzorce: podstawianie znaczników', () => {
     formatNumber({ pattern: '{TYPE}-{YY}{MM}{DD}-{NR:3}', sequence: 3, isoDate: '2026-08-05', typeCode: 'advance' }),
     'advance-260805-003'
   );
+  // Cozy: 8 cyfr jak w PROD (Wiktoria, 16.11.2026), licznik roczny
+  assert.equal(formatNumber({ pattern: '{YY}{NR:6}', sequence: 8, isoDate: '2026-11-16' }), '26000008');
+  assert.equal(resolvePeriodKey('{YY}{NR:6}', '2026-11-16'), '2026');
 });
 
 test('okres licznika wynika ze wzorca, nie z założenia', () => {

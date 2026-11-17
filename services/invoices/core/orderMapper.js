@@ -165,9 +165,10 @@ function buildItemDescription(item, params) {
     }
   }
 
-  // Nazwa własna bywa tą samą wartością co referencja klienta („273030 · 273030")
+  // Nazwa własna bywa tą samą wartością co komentarz. Commission pozycji jest
+  // w referencji EO/… nad opisem (`main.js`, 2026-11-17), nie tutaj.
   const seen = new Set();
-  for (const extra of [item.name, item.commision, item.comment]) {
+  for (const extra of [item.name, item.comment]) {
     const text = String(extra || '').trim();
     if (!text || seen.has(text.toUpperCase())) continue;
     seen.add(text.toUpperCase());

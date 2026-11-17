@@ -105,6 +105,28 @@ function getLevel(level) {
 }
 
 /**
+ * Sprzedawca z profilu wystawcy — także dla faktury in blanco (`InvoiceService.createBlank`),
+ * która nie ma kontekstu zamówienia.
+ *
+ * @param {Record<string, any>} issuerProfile
+ * @returns {Party & { registry?: Record<string, string> }}
+ */
+function sellerFromIssuerProfile(issuerProfile) {
+  return {
+    name: issuerProfile?.name || '',
+    taxId: issuerProfile?.taxId || '',
+    vatEuId: issuerProfile?.vatEuId || '',
+    street: issuerProfile?.street || '',
+    zip: issuerProfile?.zip || '',
+    city: issuerProfile?.city || '',
+    country: String(issuerProfile?.country || '').toUpperCase().slice(0, 2),
+    email: issuerProfile?.email || '',
+    phone: issuerProfile?.phone || '',
+    registry: issuerProfile?.registryNumbers || {}
+  };
+}
+
+/**
  * Buduje strony transakcji dla danego poziomu.
  *
  * Dane wystawcy pochodzą z jego profilu (`invoice_issuer_profile`) — to on
@@ -122,19 +144,7 @@ function resolveParties({ level, issuerProfile, context }) {
   const def = getLevel(level);
   const ctx = context || {};
 
-  /** @type {Party & { registry?: Record<string, string> }} */
-  const seller = {
-    name: issuerProfile?.name || '',
-    taxId: issuerProfile?.taxId || '',
-    vatEuId: issuerProfile?.vatEuId || '',
-    street: issuerProfile?.street || '',
-    zip: issuerProfile?.zip || '',
-    city: issuerProfile?.city || '',
-    country: String(issuerProfile?.country || '').toUpperCase().slice(0, 2),
-    email: issuerProfile?.email || '',
-    phone: issuerProfile?.phone || '',
-    registry: issuerProfile?.registryNumbers || {}
-  };
+  const seller = sellerFromIssuerProfile(issuerProfile);
 
   let buyerSource;
   switch (def.buyerType) {
@@ -259,5 +269,6 @@ module.exports = {
   LEVELS,
   getLevel,
   resolveParties,
+  sellerFromIssuerProfile,
   allowedLevelsForSession
 };

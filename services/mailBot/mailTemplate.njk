@@ -228,10 +228,10 @@
           </div>
         </td>
       </tr>
-      {# Stopka AB ze stoiskiem (POP-19) — services/mailBot/abFooter.js; style inline, bo klienci poczty gubią <style>. #}
+      {# Stopka AB ze stoiskiem (POP-19) — baner z _ab_footer.njk, dane z services/mailBot/abFooter.js. #}
       {% if abFooter %}
       <tr>
-        <td class="ab-footer" style="padding:16px 20px;border-top:1px solid #e9ecef;color:#333333;font-size:13px;line-height:1.5;text-align:center;">{{ abFooter | escape | nl2br }}</td>
+        <td class="ab-footer" style="padding:0;">{% include "_ab_footer.njk" %}</td>
       </tr>
       {% endif %}
       <tr>

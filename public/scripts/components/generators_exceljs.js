@@ -245,7 +245,8 @@ class ExcelJSGenerator {
     _processCleanTable(table) {
         
         const nonLockedHeaders = table.headers1.filter(h => !table.locked || !table.locked.includes(h));
-        const headers = ['#', ...nonLockedHeaders, 'Oddział', 'Grupa', 'Komisja', 'Komentarz'];
+        const labels = this.orderData?.columnLabels || ['Oddział', 'Grupa', 'Komisja', 'Komentarz'];
+        const headers = ['#', ...nonLockedHeaders, ...labels];
         this.combinedData.push(headers);
         this.headerRows.push(this.combinedData.length - 1);
 

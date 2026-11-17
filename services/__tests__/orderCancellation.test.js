@@ -164,6 +164,10 @@ test('korekta: admin i biuro zawsze, reszta tylko przy produkcji < 20% i z prawe
     assert.equal(canCorrect({ sessionUser: klient }, otwarte), true);
     assert.equal(canCorrect({ sessionUser: klient }, zablokowane), false);
     assert.equal(canCorrect({ sessionUser: { ...klient, isGroupShop: true } }, otwarte), false);
+    // Wiktoria 17.11.2026: zlecenia anulowanego przez produkcję nie koryguje nikt.
+    const anulowane = { allowed: false, percent: null, canceled: true };
+    assert.equal(canCorrect({ sessionUser: { isAdmin: true } }, anulowane), false);
+    assert.equal(canCorrect({ sessionUser: { isStaff: true } }, anulowane), false);
     assert.equal(canCorrect({ sessionUser: { isEmployee: true }, employeePermissions: { can_send_orders: false } }, otwarte), false);
 });
 
@@ -414,4 +418,28 @@ test('lista wysłanych: rola bez prawa anulowania nie pyta nawet bazy', async ()
     await attachCancelDeadlines(orders, { sessionUser: { ...klient, isGroupShop: true } }, deps);
     assert.equal(calls.length, 0);
     assert.equal(orders[0].cancelable, undefined);
+});
+
+
+// ── Anulowane, choć eForm ma `sent` (Frank_Tovornik 34, 17.11.2026) ─────────
+
+test('korekta anulowanego: znacznik .cancel (nowy i stary katalog), produkcja; znacznik sprzed wysyłki się nie liczy', async () => {
+    const out = '/mnt/eform/datatest/out';
+    const check = async ({ markers = {}, state = sentOrder(), progress } = {}) => {
+        const { deps, logs } = fakeWorld({ state, progress });
+        deps.fs.stat = async (file) => {
+            if (!(file in markers)) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+            return { mtime: new Date(markers[file]) };
+        };
+        return { canceled: await cancellation.isCanceledElsewhere(3100, deps), logs };
+    };
+    const name = 'HKL_ryver_242.cancel';
+    assert.equal((await check()).canceled, false, 'brak znacznika, produkcja nie anulowała');
+    const nowy = await check({ markers: { [`${out}/orders-cancel/${name}`]: '2026-10-27T10:03:00Z' } });
+    assert.equal(nowy.canceled, true);
+    assert.match(nowy.logs.join('\n'), /korekta odrzucona/);
+    assert.equal((await check({ markers: { [`${out}/${name}`]: '2026-10-27T10:03:00Z' } })).canceled, true, 'znacznik sprzed 31.10 obok JSON-a');
+    assert.equal((await check({ markers: { [`${out}/${name}`]: '2026-09-01T10:00:00Z' } })).canceled, false, 'znacznik starszy niż wysyłka (inne środowisko)');
+    assert.equal((await check({ progress: () => ({ allowed: false, percent: null, canceled: true }) })).canceled, true, 'produkcja anulowała');
+    assert.equal((await check({ state: sentOrder({ status: 'canceled' }), progress: () => ({ canceled: true }) })).canceled, false, 'anulowane w eFormie pilnuje status');
 });

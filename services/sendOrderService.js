@@ -26,6 +26,48 @@ function resolveItemProdDays(item, prodDaysByItemId) {
     return item?.prod_days;
 }
 
+/** Pozycja w `items` pliku zlecenia; `orderpos` = numer pozycji dla produkcji. */
+function toFileItem(item, orderpos, prodDays) {
+    const rawObj = item.json_parameters;
+
+    const sortedFilteredObj = Object.keys(rawObj)
+        .sort()
+        .reduce((acc, key) => {
+            acc[key] = rawObj[key];
+            return acc;
+        }, {});
+
+
+    // Rabat eForma (rabat klienta + 1% za korzystanie z serwisu) — klucz
+    // pojawia się TYLKO wtedy, gdy pozycja go ma, żeby nie zaśmiecać
+    // JSON-a zerami u wszystkich pozostałych klientów. Sam rabat jest
+    // już wliczony w ceny w `parameters`; to informacja dla odbiorcy,
+    // skąd wzięła się różnica wobec cennika.
+    const eforRabat = resolveItemClientDiscount(item);
+
+    return {
+        posid: item?.id ?? 0,
+        orderpos,
+        product: item?.asortment_group_number,
+        department: item?.department ?? '',
+        product_description: item?.group_name ?? '',
+        commission: item?.commision ?? "",
+        ...(eforRabat ? { efor_rabat: eforRabat.percent } : {}),
+        // Szacowany termin produkcji POZYCJI (dni) — dokładnie ta sama
+        // liczba, którą klient widzi w wierszu „Termin produkcji" pod
+        // pozycją. Źródłem jest wynik `recalcAndSaveProdDays()`
+        // (`services/productionDays.js`) przekazany przez tor wysyłki
+        // w `options.prodDays`; kolumna `order_item.prod_days` to tylko
+        // zapas, bo na bazie bez migracji (produkcja) jej nie ma.
+        // `null` = brak czasu dla grupy asortymentowej.
+        prod_days: normalizeProdDays(prodDays),
+        parameters: sortedFilteredObj,
+        comment: item.comment,
+        asortment: item.asrotment_group_number,
+        link_group: item?.link_group ?? null
+    };
+}
+
 class OrderSender {
 
     constructor(req, order, orderItems, options = {}) {
@@ -66,53 +108,18 @@ class OrderSender {
             items: []
 
         }
+        // Korekta: stałe numery z produkcji i usunięte pozycje (services/correctionDiff.js planPositions).
+        const numbers = options.positionNumbers || null;
         let idx = 1;
         for (let item of orderItems) {
-            this.attachSlopePhoto(item, idx);
+            const pos = numbers?.get(Number(item.id)) ?? idx;
+            this.attachSlopePhoto(item, pos);
 
-
-            const rawObj = item.json_parameters;
-
-            const sortedFilteredObj = Object.keys(rawObj)
-                .sort()
-                .reduce((acc, key) => {
-                    acc[key] = rawObj[key];
-                    return acc;
-                }, {});
-
-
-            // Rabat eForma (rabat klienta + 1% za korzystanie z serwisu) — klucz
-            // pojawia się TYLKO wtedy, gdy pozycja go ma, żeby nie zaśmiecać
-            // JSON-a zerami u wszystkich pozostałych klientów. Sam rabat jest
-            // już wliczony w ceny w `parameters`; to informacja dla odbiorcy,
-            // skąd wzięła się różnica wobec cennika.
-            const eforRabat = resolveItemClientDiscount(item);
-
-            this.data.items.push({
-                posid: item?.id ?? 0,
-                orderpos: idx,
-                product: item?.asortment_group_number,
-                department: item?.department ?? '',
-                product_description: item?.group_name ?? '',
-                commission: item?.commision ?? "",
-                ...(eforRabat ? { efor_rabat: eforRabat.percent } : {}),
-                // Szacowany termin produkcji POZYCJI (dni) — dokładnie ta sama
-                // liczba, którą klient widzi w wierszu „Termin produkcji" pod
-                // pozycją. Źródłem jest wynik `recalcAndSaveProdDays()`
-                // (`services/productionDays.js`) przekazany przez tor wysyłki
-                // w `options.prodDays`; kolumna `order_item.prod_days` to tylko
-                // zapas, bo na bazie bez migracji (produkcja) jej nie ma.
-                // `null` = brak czasu dla grupy asortymentowej.
-                prod_days: normalizeProdDays(resolveItemProdDays(item, options.prodDays)),
-                parameters: sortedFilteredObj,
-                comment: item.comment,
-                asortment: item.asrotment_group_number,
-                link_group: item?.link_group ?? null
-            })
+            this.data.items.push(toFileItem(item, pos, resolveItemProdDays(item, options.prodDays)));
 
             this.shortItems.push({
                 posid: item?.id ?? 0,
-                orderpos: idx,
+                orderpos: pos,
                 product: item?.asortment_group_number,
                 product_description: item?.group_name ?? '',
                 commission: item?.commision ?? "",
@@ -120,9 +127,16 @@ class OrderSender {
             })
             this.orderPositions.push({
                 posId: item?.id ?? null,
-                orderPos: item?.orderpos ?? idx
+                orderPos: numbers ? pos : (item?.orderpos ?? idx)
             });
             idx++;
+        }
+        if (numbers) {
+            // Usunięta pozycja zostaje w pliku korekty (Wiktoria 16.11.2026), kolejność = numer z produkcji.
+            this.data.items.push(...(options.deletedItems || []).map((item) => ({ ...item, deleted: true })));
+            const byPos = (a, b) => a.orderpos - b.orderpos;
+            this.data.items.sort(byPos);
+            this.shortItems.sort(byPos);
         }
         this.ordersManagerInstance = new ordersManager();
         const pathOverrides = {
@@ -275,4 +289,4 @@ class OrderSender {
 }
 
 
-module.exports = { OrderSender };
+module.exports = { OrderSender, toFileItem };

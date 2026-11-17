@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { prodPercent, buildProgressIndex, historyRows, decide, loadIndex, clientMayChange, clientMayChangeMany, PROD_LOCK_PERCENT } = require('../prodProgress');
+const { prodPercent, maxStatusProd, buildProgressIndex, buildCanceledSet, historyRows, decide, loadIndex, clientMayChange, clientMayChangeMany, PROD_LOCK_PERCENT } = require('../prodProgress');
 const { parseStatusFile } = require('../prodStatus');
 
 const FILE = [
@@ -51,6 +51,35 @@ test('pliku nie da się odczytać → nie wolno', async () => {
     assert.equal(decide(order(), idx).allowed, false);
 });
 
+// ── MAXSTATUSPROD (decyzja 16.11.2026) ──────────────────────────────────────
+
+const FILE_MAX = [
+    'ORGANIZATIONIDENT\tUSERIDENT\tORDERNO\tORDERPOS\tSTATUS\tSHIPPINGDATE\tPARCELCODE\tSTATUSPROD\tMAXSTATUSPROD',
+    'HKL\tTCN\t300\t1\t!production!\t\t\t11%Akcept.p.prod.\t11%Akcept.p.prod.',
+    'HKL\tTCN\t300\t2\t!production!\t\t\t15%Przes.term.wys.\t17%Dost.komp.',
+    'HKL\tTCN\t301\t1\t!production!\t\t\t11%Akcept.p.prod.\t11%Akcept.p.prod.',
+    'HKL\tTCN\t301\t2\t!production!\t\t\t11%Akcept.p.prod.\t22%Wyc.plast.',
+    'HKL\tTCN\t302\t1\t!sent!\t\t\t100%Wyslane\tAnulacja'
+].join('\r\n');
+
+test('MAXSTATUSPROD: decyduje najwyższy status pozycji, nie bieżący STATUSPROD', () => {
+    const idx = buildProgressIndex(parseStatusFile(FILE_MAX));
+    assert.deepEqual(decide(order({ order_idx: 300 }), idx), { allowed: true, percent: 17 });
+    assert.deepEqual(decide(order({ order_idx: 301 }), idx), { allowed: false, percent: 22 }, 'teraz 11%, ale było 22%');
+    assert.equal(decide(order({ order_idx: 302 }), idx).allowed, false, 'MAX = Anulacja (bez %)');
+});
+
+test('MAXSTATUSPROD: pusty albo brak kolumny (starszy plik) → STATUSPROD', () => {
+    assert.equal(maxStatusProd({ STATUSPROD: '11%Akcept.p.prod.', MAXSTATUSPROD: '' }), '11%Akcept.p.prod.');
+    assert.equal(maxStatusProd({ STATUSPROD: '11%Akcept.p.prod.' }), '11%Akcept.p.prod.');
+    assert.equal(maxStatusProd({ STATUSPROD: '11%Akcept.p.prod.', MAXSTATUSPROD: '22%Wyc.plast.' }), '22%Wyc.plast.');
+});
+
+test('MAXSTATUSPROD: historia zapisuje najwyższy status pozycji', () => {
+    const h = historyRows(parseStatusFile(FILE_MAX), '2026-11-16 12:00:00');
+    assert.deepEqual(h[3], ['HKL', 'TCN', '301', '2', '22%Wyc.plast.', 22, '2026-11-16 12:00:00']);
+});
+
 // ── Historia (statusy się cofają) ───────────────────────────────────────────
 
 test('historia: choć raz ≥ 20% → blokada na stałe, nawet gdy plik pokazuje teraz mniej', () => {
@@ -96,10 +125,29 @@ test('lista: nowa wersja pliku zapisuje historię, decyzja łączy plik i histor
     const res = await clientMayChangeMany([order(), order({ order_idx: 999, prod_status: null })], deps);
     assert.equal(calls.record, 6);
     assert.deepEqual(calls.keys, [['HKL', 'TCN', '222'], ['HKL', 'TCN', '999']]);
-    assert.deepEqual(res, [{ allowed: false, percent: 40 }, { allowed: true, percent: null }]);
+    assert.deepEqual(res, [{ allowed: false, percent: 40, canceled: false }, { allowed: true, percent: null, canceled: false }]);
 });
 
 test('historia niedostępna (przed migracją): decyzja z samego pliku', async () => {
     const { deps } = fakeDeps({ history: null, record: false });
-    assert.deepEqual(await clientMayChange(order(), deps), { allowed: true, percent: 15 });
+    assert.deepEqual(await clientMayChange(order(), deps), { allowed: true, percent: 15, canceled: false });
+});
+
+
+// ── Zlecenie anulowane przez produkcję (Wiktoria 17.11.2026) ────────────────
+
+const FILE_ANUL = [
+    'ORGANIZATIONIDENT\tUSERIDENT\tORDERNO\tORDERPOS\tSTATUS\tSHIPPINGDATE\tPARCELCODE\tSTATUSPROD\tMAXSTATUSPROD',
+    'LuxanGmbH\tKN\t70\t1\t!sent!\t\t\t100%Wyslane\t100%Wyslane',
+    'LuxanGmbH\tKN\t70\t2\t!sent!\t\t\tAnulacja\tAnulacja',
+    'HKL\tRyver\t239\t1\t!sent!\t\t\tAnulacja\tAnulacja',
+    'HKL\tRyver\t239\t2\t!sent!\t\t\t11%Akcept.p.prod.\tAnulacja'
+].join('\r\n');
+
+test('anulowane przez produkcję = „Anulacja” na każdej pozycji; pojedyncza pozycja — nie', async () => {
+    const canceled = buildCanceledSet(parseStatusFile(FILE_ANUL));
+    assert.deepEqual([...canceled], ['HKL|RYVER|239']);
+    const deps = { ...fakeDeps().deps, filePath: '/fake/anul.txt', fs: { stat: async () => ({ mtimeMs: Math.random() }), readFile: async () => FILE_ANUL } };
+    const res = await clientMayChangeMany([order({ user_ident: 'Ryver', order_idx: 239 }), order({ org_ident: 'LUXANGMBH', user_ident: 'KN', order_idx: 70 })], deps);
+    assert.deepEqual(res.map((r) => r.canceled), [true, false], 'klucz bez wielkości liter (LuxanGmbH = LUXANGMBH)');
 });

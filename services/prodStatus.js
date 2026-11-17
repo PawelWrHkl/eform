@@ -10,8 +10,8 @@ const STATUS_FILE = path.join(usersPath, 'status.txt');
 
 /**
  * `status.txt` → tablica wierszy `{ ORGANIZATIONIDENT, USERIDENT, ORDERNO,
- * ORDERPOS, STATUS, SHIPPINGDATE, PARCELCODE, STATUSPROD }` (nazwy kolumn z nagłówka;
- * STATUSPROD — postęp produkcji, services/prodProgress.js).
+ * ORDERPOS, STATUS, SHIPPINGDATE, PARCELCODE, STATUSPROD, MAXSTATUSPROD }` (nazwy kolumn
+ * z nagłówka; MAXSTATUSPROD — najwyższy postęp produkcji pozycji, services/prodProgress.js).
  *
  * Kolumny rozdziela tabulator; gdy linia go nie ma, dzielimy po białych
  * znakach (stary format pliku). ⚠️ Ident klienta potrafi zawierać spację
@@ -174,7 +174,7 @@ async function syncAllProdStatuses({ dryRun = false, full = false, filePath = ST
         statusDb.getKnownUserIdents()
     ]);
     const fileRows = parseStatusFile(content);
-    // Historia STATUSPROD (services/prodProgress.js) — co godzinę także bez ruchu w portalu.
+    // Historia MAXSTATUSPROD (services/prodProgress.js) — co godzinę także bez ruchu w portalu.
     if (!dryRun) await require('./prodProgress').recordHistory(fileRows, { statusDb, log: logger });
     const diff = diffStatuses(fileRows, dbRows, idents);
     const orders = full ? diff.allOrders : diff.orders;

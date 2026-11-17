@@ -82,6 +82,7 @@
   "taxcat.np": "Non soumis",
   "taxcat.zw": "Exonéré",
   "items.order_ref": "Commande",
+  "items.client": "Client",
   "items.dimensions": "Dimensions",
   "header.delivery_date": "Date de livraison",
   "party.delivery_address": "Adresse de livraison",
@@ -95,5 +96,10 @@
   "mail.attachment": "La facture est jointe au format PDF.",
   "mail.questions": "Pour toute question, il vous suffit de répondre à ce message.",
   "mail.regards": "Cordialement",
-  "mail.auto_note": "Ce message a été généré automatiquement par eForm."
+  "mail.auto_note": "Ce message a été généré automatiquement par eForm.",
+  "blank.rebill_title": "Refacturation",
+  "blank.rebill_note": "Refacturation de frais",
+  "blank.tpl.transport": "Frais de transport",
+  "blank.tpl.montage": "Installation",
+  "blank.tpl.repair": "Réparation"
 }

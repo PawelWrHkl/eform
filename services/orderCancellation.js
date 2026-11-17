@@ -1,5 +1,5 @@
 /**
- * Anulowanie WYSŁANEGO zlecenia — dopóki postęp produkcji (STATUSPROD ze
+ * Anulowanie WYSŁANEGO zlecenia — dopóki postęp produkcji (MAXSTATUSPROD ze
  * status.txt, services/prodProgress.js) jest poniżej 20%. Do 13.11.2026
  * obowiązywało okno 24 h od wysłania.
  *
@@ -128,11 +128,37 @@ function isActorBlocked(order, { sessionUser, sessionEmployee, employeePermissio
 /**
  * Korekta wysłanego zlecenia (routes/orderCorrection.js): admin i biuro zawsze,
  * pozostali jak przy anulowaniu — rola z prawem wysyłki i produkcja < 20%.
+ * Zlecenia anulowanego przez produkcję (`progress.canceled`) nie koryguje nikt.
  */
 function canCorrect(ctx, progress) {
     const user = ctx?.sessionUser;
+    if (progress?.canceled) return false;
     if (user?.isAdmin || user?.isStaff) return true;
     return canRoleCancel(user, ctx?.employeePermissions) && !!progress?.allowed;
+}
+
+/**
+ * Zlecenie anulowane, choć w eFormie wciąż `sent` — korekta niedozwolona (Wiktoria
+ * 17.11.2026, Frank_Tovornik 34 anulowane 27.10, a korekta przeszła):
+ *  • jest znacznik `.cancel`, ale zapis statusu po nim się nie udał (np. produkcja
+ *    przed migracją `canceled_at` z 30.10.2026; ponowne „Anuluj” dokańcza zapis),
+ *  • produkcja anulowała wszystkie pozycje (prodProgress `canceled`).
+ * Znacznik starszy niż wysyłka się nie liczy (katalog `out` testu dzielą środowiska).
+ */
+async function isCanceledElsewhere(orderId, deps) {
+    const d = resolveDeps(deps);
+    const state = await d.db.getOrderCancellationState(orderId);
+    if (!state || state.status !== 'sent') return false;
+    const name = buildCancelMarkerName({ orgIdent: state.org_ident, userIdent: state.user_ident, orderNo: state.order_idx });
+    // Do 31.10.2026 znacznik leżał obok JSON-a, potem w `orders-cancel/`.
+    for (const file of [path.join(d.outputData, CANCEL_MARKER_DIR, name), path.join(d.outputData, name)]) {
+        const stat = await d.fs.stat(file).catch(() => null);
+        if (stat && wallClockNow(stat.mtime) >= String(state.sent_at || '')) {
+            d.log(`[orderCancellation] zlecenie ${orderId} ma znacznik ${file}, a status 'sent' — korekta odrzucona`);
+            return true;
+        }
+    }
+    return !!(await d.prodProgress.clientMayChange(state)).canceled;
 }
 
 /** Kto anulował — do kolumny `order.canceled_by` (audyt, max 100 znaków). */
@@ -324,6 +350,7 @@ module.exports = {
     buildCancelMarkerName,
     canRoleCancel,
     canCorrect,
+    isCanceledElsewhere,
     isActorBlocked,
     describeActor,
     writeCancelMarker,

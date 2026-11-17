@@ -82,6 +82,7 @@
   "taxcat.np": "Not subject",
   "taxcat.zw": "Exempt",
   "items.order_ref": "Order",
+  "items.client": "Customer",
   "items.dimensions": "Dimensions",
   "header.delivery_date": "Delivery date",
   "party.delivery_address": "Delivery address",
@@ -95,5 +96,10 @@
   "mail.attachment": "The invoice is attached as a PDF file.",
   "mail.questions": "If you have any questions, simply reply to this message.",
   "mail.regards": "Kind regards",
-  "mail.auto_note": "This message was generated automatically by eForm."
+  "mail.auto_note": "This message was generated automatically by eForm.",
+  "blank.rebill_title": "Re-invoice",
+  "blank.rebill_note": "Re-invoicing of costs",
+  "blank.tpl.transport": "Transport costs",
+  "blank.tpl.montage": "Installation",
+  "blank.tpl.repair": "Repair"
 }

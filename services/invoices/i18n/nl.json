@@ -82,6 +82,7 @@
   "taxcat.np": "Niet belast",
   "taxcat.zw": "Vrijgesteld",
   "items.order_ref": "Bestelling",
+  "items.client": "Klant",
   "items.dimensions": "Afmetingen",
   "header.delivery_date": "Leveringsdatum",
   "party.delivery_address": "Afleveradres",
@@ -95,5 +96,10 @@
   "mail.attachment": "De factuur is als pdf-bestand bijgevoegd.",
   "mail.questions": "Heeft u vragen? Beantwoord dan gewoon dit bericht.",
   "mail.regards": "Met vriendelijke groet",
-  "mail.auto_note": "Dit bericht is automatisch gegenereerd door eForm."
+  "mail.auto_note": "Dit bericht is automatisch gegenereerd door eForm.",
+  "blank.rebill_title": "Doorberekening",
+  "blank.rebill_note": "Doorberekening van kosten",
+  "blank.tpl.transport": "Transportkosten",
+  "blank.tpl.montage": "Montage",
+  "blank.tpl.repair": "Reparatie"
 }

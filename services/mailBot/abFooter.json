@@ -1,11 +1,38 @@
 {
-  "_info": "Stopka AB (POP-19). {booth} w tekście = numer stoiska. Nowa linia = \\n. Włącznik: AB_FOOTER_ENABLED w .env danego środowiska. Zmiana tego pliku działa bez restartu.",
-  "booth": "[NR STOISKA]",
+  "_info": "Stopka AB (POP-19) — baner targowy w mailu i PDF/HTML. booth = numer stoiska, image = plik obok (pusty = bez zdjęcia). Teksty per język. Włącznik: AB_FOOTER_ENABLED w .env danego środowiska. Zmiana tego pliku działa bez restartu.",
+  "booth": "XX",
+  "company": "HKL DEKORACJA OKIEN Sp. z o.o.",
+  "image": "abFooter.jpg",
   "text": {
-    "pl": "[TREŚĆ STOPKI PL – do uzupełnienia] {booth}",
-    "en": "[TREŚĆ STOPKI EN – do uzupełnienia] {booth}",
-    "de": "[TREŚĆ STOPKI DE – do uzupełnienia] {booth}",
-    "fr": "[TREŚĆ STOPKI FR – do uzupełnienia] {booth}",
-    "nl": "[TREŚĆ STOPKI NL – do uzupełnienia] {booth}"
+    "pl": {
+      "label": "Targi · luty 2027",
+      "title": "Spotkajmy się na targach!",
+      "subtitle": "Zapraszamy na stoisko HKL — pokażemy nowości w osłonach okiennych i porozmawiamy o współpracy.",
+      "boothLabel": "Stoisko"
+    },
+    "en": {
+      "label": "Trade fair · February 2027",
+      "title": "Meet us at the trade fair!",
+      "subtitle": "Visit the HKL stand — discover what is new in window coverings and let's talk about working together.",
+      "boothLabel": "Stand"
+    },
+    "de": {
+      "label": "Messe · Februar 2027",
+      "title": "Besuchen Sie uns auf der Messe!",
+      "subtitle": "Wir freuen uns auf Sie am HKL-Stand — mit Neuheiten im Sonnenschutz und Zeit für ein persönliches Gespräch.",
+      "boothLabel": "Stand"
+    },
+    "fr": {
+      "label": "Salon · février 2027",
+      "title": "Rendez-vous au salon !",
+      "subtitle": "Venez nous voir sur le stand HKL — nos nouveautés en protections solaires et un moment pour échanger.",
+      "boothLabel": "Stand"
+    },
+    "nl": {
+      "label": "Beurs · februari 2027",
+      "title": "Bezoek ons op de beurs!",
+      "subtitle": "Kom langs op de HKL-stand — ontdek onze nieuwigheden in raamdecoratie en praat met ons over samenwerking.",
+      "boothLabel": "Stand"
+    }
   }
 }

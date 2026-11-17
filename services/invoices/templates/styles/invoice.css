@@ -257,9 +257,16 @@ body {
     font-weight: 600;
 }
 
+.items__ref {
+    display: block;
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
 .items__desc {
     display: block;
     margin-top: 0;
+    white-space: pre-line; /* opis faktury in blanco może mieć kilka wierszy */
     font-size: 0.9em;
     color: var(--ink-soft);
 }

@@ -6,7 +6,7 @@ const confLang = require('./conf');
 const { log } = require('../../utils/logging');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 const { resolveAbLang } = require('../abType');
-const { abFooter } = require('./abFooter');
+const { abFooter, IMAGE_CID } = require('./abFooter');
 
 
 const transporter = nodemailer.createTransport({
@@ -46,9 +46,10 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
     autoescape: true
   });
 
+  const footer = abFooter(mailLang, 'cid');
   const htmlContent = nunjucks.render(templateName, {
     ...templateVars,
-    abFooter: abFooter(mailLang),
+    abFooter: footer,
     __
   });
 
@@ -109,6 +110,11 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
     });
   } else {
     log('Plik logo nie istnieje:', templateVars.logoPath);
+  }
+
+  // Zdjęcie stopki AB (POP-19) — inline jak logo, bo zewnętrzne obrazki klienci poczty blokują.
+  if (footer?.imagePath) {
+    attachments.push({ filename: 'hkl-targi.jpg', path: footer.imagePath, cid: IMAGE_CID });
   }
 
   if (attachmentsBuffer && Array.isArray(attachmentsBuffer)) {

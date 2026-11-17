@@ -32,6 +32,7 @@
         <div class="inv-topbar__actions">
           <a class="inv-btn inv-btn--ghost" href="/invoices/end-clients">{{ L.end_clients }}</a>
           {% if admin %}
+            <a class="inv-btn inv-btn--primary" href="/invoices/blank">{{ L.blank_link }}</a>
             <a class="inv-btn inv-btn--ghost" href="/invoices/changes">{{ L.changes_link }} · v{{ invoiceVersion }}</a>
           {% endif %}
           {# Ustawienia fakturowania organizacji to narzędzie ownera #}

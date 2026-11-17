@@ -44,6 +44,7 @@ const { InvoiceService, DocumentType, InvoiceStatus } = require('../main');
 const repository = require('../db/repository');
 const { organizationIdFromSession, belongsToSessionOrganization, scopeFromSession, canAccessInvoice, canAccessOrder, canIssueAtLevel } = require('./session');
 const { log } = require('../../../utils/logging');
+const { looksLikeVatEuId } = require('../core/taxRules');
 
 const router = express.Router();
 const service = new InvoiceService();
@@ -129,6 +130,140 @@ router.post('/from-order/:orderId', requireLogin, async (req, res) => {
     return res.status(201).json({ success: true, id: result.id, number: result.number, invoice: result.invoice });
   } catch (err) {
     return sendError(res, err, `POST /from-order/${orderId}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Faktura in blanco / refaktura (tylko admin) — `InvoiceService.createBlank`; opis pozycji do 1000 znaków (VARCHAR(1000))
+// ---------------------------------------------------------------------------
+
+const BLANK_UNITS = ['szt', 'usl', 'kpl', 'm2', 'mb', 'godz'];
+const BLANK_LANGS = ['', 'pl', 'en', 'de', 'nl', 'fr'];
+const isoDayOrEmpty = (v) => v == null || v === '' || /^\d{4}-\d{2}-\d{2}$/.test(String(v));
+const text = (v, max) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim().slice(0, max) : '');
+
+/**
+ * Walidacja żądania faktury in blanco — granica zaufania: przeglądarka może przysłać wszystko.
+ * `errors` — teksty dla API/logu, `fieldErrors` — kod błędu przy polu (panel tłumaczy
+ * `blank_err_<code>` w swoim języku i pokazuje przy właściwym polu).
+ *
+ * @param {Record<string, any>} body
+ * @returns {{ errors: string[], fieldErrors: Array<{ field: string, code: string }>, params: Record<string, any> }}
+ */
+function parseBlankRequest(body = {}) {
+  const errors = [];
+  const fieldErrors = [];
+  const fail = (field, code, message) => { errors.push(message); fieldErrors.push({ field, code }); };
+  const issuerOrganizationId = toId(body.issuerOrganizationId);
+  if (!issuerOrganizationId) fail('issuer', 'issuer', 'Wybierz wystawcę');
+
+  const b = body.buyer || {};
+  let buyer = null;
+  if (b.type === 'organization' || b.type === 'user') {
+    if (!toId(b.id)) fail('buyer', 'buyer', 'Wybierz nabywcę z listy');
+    buyer = { type: b.type, id: toId(b.id) };
+  } else if (b.type === 'manual') {
+    buyer = { type: 'manual', name: text(b.name, 200), street: text(b.street, 200), zip: text(b.zip, 20), city: text(b.city, 100),
+      country: text(b.country, 60).toUpperCase(), taxId: text(b.taxId, 40), vatEuId: text(b.vatEuId, 40).replace(/[\s.-]/g, '').toUpperCase(), email: text(b.email, 200) };
+    if (!buyer.name) fail('b_name', 'buyer_name', 'Podaj nazwę nabywcy');
+    if (!/^[A-Z]{2}$/.test(buyer.country)) fail('b_country', 'buyer_country', 'Kraj nabywcy: dwie litery, np. DE');
+    if (buyer.vatEuId && !looksLikeVatEuId(buyer.vatEuId)) fail('b_vatEuId', 'buyer_vat', 'Numer VAT-UE: prefiks kraju i cyfry, np. DE293796843');
+    if (buyer.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyer.email)) fail('b_email', 'buyer_email', 'Nieprawidłowy e-mail nabywcy');
+  } else {
+    fail('buyer', 'buyer', 'Wybierz nabywcę albo wpisz jego dane');
+  }
+
+  const rawItems = Array.isArray(body.items) ? body.items : [];
+  if (!rawItems.length || rawItems.length > 100) fail('items', 'items', 'Faktura musi mieć od 1 do 100 pozycji');
+  const items = rawItems.slice(0, 100).map((it, i) => {
+    const quantity = Number(String(it?.quantity ?? '').replace(',', '.'));
+    const unitPriceNet = Number(String(it?.unitPriceNet ?? '').replace(/\s/g, '').replace(',', '.'));
+    const item = { name: text(it?.name, 200), description: text(it?.description, 1000), quantity, unitPriceNet,
+      unit: BLANK_UNITS.includes(it?.unit) ? it.unit : 'szt', isService: it?.isService === true };
+    if (!item.name) fail(`items.${i}.name`, 'item_name', `Pozycja ${i + 1}: brak nazwy`);
+    if (!(quantity > 0 && quantity <= 1e6 && Number.isInteger(Math.round(quantity * 1e6) / 1e3))) fail(`items.${i}.quantity`, 'item_qty', `Pozycja ${i + 1}: ilość większa od zera, do 3 miejsc po przecinku`);
+    if (!(Number.isFinite(unitPriceNet) && Math.abs(unitPriceNet) <= 1e7 && Number.isInteger(Math.round(unitPriceNet * 1e6) / 1e4))) fail(`items.${i}.unitPriceNet`, 'item_price', `Pozycja ${i + 1}: cena netto w EUR, do 2 miejsc po przecinku`);
+    return item;
+  });
+
+  for (const key of ['saleDate', 'deliveryDate']) if (!isoDayOrEmpty(body[key])) fail(key, 'date', `Nieprawidłowa data: ${key}`);
+  const paymentDays = body.paymentDays === '' || body.paymentDays == null ? undefined : Number(body.paymentDays);
+  if (paymentDays !== undefined && !(Number.isInteger(paymentDays) && paymentDays >= 0 && paymentDays <= 365)) fail('paymentDays', 'payment_days', 'Termin płatności: od 0 do 365 dni');
+  const lang = BLANK_LANGS.includes(body.lang) ? body.lang : '';
+
+  return {
+    errors,
+    fieldErrors,
+    params: {
+      issuerOrganizationId, buyer, items,
+      saleDate: body.saleDate || undefined, deliveryDate: body.deliveryDate || undefined, paymentDays,
+      lang: lang || undefined, notes: text(body.notes, 1000),
+      rebillSource: body.rebill === true ? text(body.rebillSource, 200) : null
+    }
+  };
+}
+
+const adminOnly = (req, res) => {
+  if (req.session?.user?.isAdmin) return false;
+  res.status(403).json({ success: false, message: 'Faktura in blanco: tylko admin' });
+  return true;
+};
+
+router.post('/blank', requireLogin, async (req, res) => {
+  if (adminOnly(req, res)) return undefined;
+  const { errors, fieldErrors, params } = parseBlankRequest(req.body);
+  if (errors.length) return res.status(400).json({ success: false, message: errors.join(' · '), fieldErrors });
+  try {
+    const result = await service.createBlank({ ...params, issue: req.body?.issue === true, createdByPin: req.session?.user?.pin });
+    return res.status(201).json({ success: true, id: result.id, number: result.number });
+  } catch (err) {
+    return sendError(res, err, 'POST /blank');
+  }
+});
+
+// Podsumowanie bez zapisu — panel woła je w trakcie wypełniania (błędy formularza to `valid: false`, nie 400)
+router.post('/blank/preview', requireLogin, async (req, res) => {
+  if (adminOnly(req, res)) return undefined;
+  const { errors, fieldErrors, params } = parseBlankRequest(req.body);
+  if (errors.length) return res.json({ success: true, valid: false, errors, fieldErrors });
+  try {
+    const summary = await service.previewBlank({ ...params, checkVies: req.body?.checkVies === true });
+    return res.json({ success: true, valid: true, summary });
+  } catch (err) {
+    log(`[invoices] POST /blank/preview: ${err.message}`);
+    return res.json({ success: true, valid: false, errors: [err.message], fieldErrors: [] });
+  }
+});
+
+router.post('/blank/vies', requireLogin, async (req, res) => {
+  if (adminOnly(req, res)) return undefined;
+  const vatEuId = text(req.body?.vatEuId, 40).replace(/[\s.-]/g, '').toUpperCase();
+  if (!looksLikeVatEuId(vatEuId)) return res.json({ success: true, checked: false, valid: false, reason: 'format' });
+  try {
+    return res.json({ success: true, ...(await service.checkVatId(vatEuId, text(req.body?.country, 2))) });
+  } catch (err) {
+    return sendError(res, err, 'POST /blank/vies');
+  }
+});
+
+router.get('/blank/list', requireLogin, async (req, res) => {
+  if (adminOnly(req, res)) return undefined;
+  try {
+    return res.json({ success: true, items: await repository.listBlankInvoices() });
+  } catch (err) {
+    return sendError(res, err, 'GET /blank/list');
+  }
+});
+
+router.get('/search/buyers', requireLogin, async (req, res) => {
+  if (adminOnly(req, res)) return undefined;
+  try {
+    if (req.query?.recent === '1') return res.json({ success: true, items: await repository.recentBlankBuyers() });
+    const q = text(req.query?.q, 60);
+    if (q.length < 2) return res.json({ success: true, items: [] });
+    return res.json({ success: true, items: await repository.searchBlankBuyers(q) });
+  } catch (err) {
+    return sendError(res, err, 'GET /search/buyers');
   }
 });
 
@@ -709,3 +844,4 @@ router.get('/:id/pdf', requireLogin, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.parseBlankRequest = parseBlankRequest;

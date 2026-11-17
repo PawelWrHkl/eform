@@ -61,7 +61,9 @@
                                                         <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
                                                     </button>
                                                 {% endif %}
-                                                {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient and (not hasSubPriceToggle or showCatalogPrices) %}
+                                                {# Kłódka także przy wyłączonych cenach HKL (2026-11-16, oferty Luxan): po otwarciu
+                                                   order_prices.njk i PDF pokazują wtedy cenę katalogową + złotą cenę zakupu klienta, bez HKL. #}
+                                                {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient %}
                                                 <button id="unlockBtn" class="btn">
                                                     <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
                                                 {% endif %}
@@ -152,7 +154,8 @@
                                                                             <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
                                                                         </button>
                                                                     {% endif %}
-                                                                    {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient and (not hasSubPriceToggle or showCatalogPrices) %}
+                                                                    {# Kłódka bez włączania cen HKL — jak w wersji na telefon wyżej. #}
+                                                                    {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient %}
                                                                     <button id="unlockBtn" class="btn">
                                                                         <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
                                                                     {% endif %}
@@ -743,6 +746,8 @@
                                                                                                     {% if staffAudit.updatedBy %} · {{ __('staff.audit_updated') }}: {{ staffAudit.updatedBy }}{% endif %}
                                                                                                 </p>
                                                                                             {% endif %}
+                                                                                            {# Korekta: kolejność i numery pozycji jak w produkcji — przesunięcie zamienia `id` pozycji (db/positions.js). #}
+                                                                                            {% if orderDetails.status == 'correction' %}<style>.position-controls .btn.move-up-btn, .position-controls .btn.move-down-btn { display: none !important; }</style>{% endif %}
                                                                                             {% block send_order_btn %}
                                                                                                     {# Zlecenie w korekcie (routes/orderCorrection.js): zamiast „Wyślij” — wysłanie
                                                                                                        korekty (plik `_correction` + mail) albo jej wycofanie. Moduł admina nadpisuje

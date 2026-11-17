@@ -6,11 +6,15 @@
  * `outputData/order-corrections/<id>.json`; wysyłka porównuje go z bieżącymi
  * pozycjami (`diffItems`) i usuwa plik. Brak pliku (korekta otwarta przed
  * 13.11.2026) = PDF bez oznaczeń.
+ *
+ * Numery pozycji korekty (`loadSentItems` + `planPositions`): z ostatnio
+ * wysłanego pliku, a gdy go nie ma — ze stanu „przed” (`order_item.orderpos`).
  */
 
 'use strict';
 
 const path = require('path');
+const { log } = require('../utils/logging');
 
 function resolveDeps(deps = {}) {
     return {
@@ -45,6 +49,45 @@ async function loadSnapshot(orderId, deps) {
 async function dropSnapshot(orderId, deps) {
     const d = resolveDeps(deps);
     await d.fs.unlink(snapshotPath(orderId, d.outputData)).catch(() => {});
+}
+
+/**
+ * Pozycje z pliku, który ostatnio poszedł do produkcji — pierwszy z `fileNames`
+ * (bez `.json`: poprzednia korekta, potem zlecenie) należący do tego zlecenia.
+ * Katalog `out` na teście jest wspólny kilku środowisk, stąd sprawdzenie `orderid`;
+ * uszkodzony plik traktujemy jak brak.
+ * @returns {Promise<object[]|null>}
+ */
+async function loadSentItems(fileNames, orderId, deps) {
+    const d = resolveDeps(deps);
+    for (const name of fileNames) {
+        let data;
+        try {
+            data = JSON.parse(await d.fs.readFile(path.join(d.outputData, `${name}.json`), 'utf-8'));
+        } catch (err) {
+            if (err.code !== 'ENOENT') log(`Korekta ${orderId}: pominięto plik ${name}.json:`, err.message);
+            continue;
+        }
+        if (Number(data?.orderid) === Number(orderId) && Array.isArray(data.items)) return data.items;
+    }
+    return null;
+}
+
+/**
+ * Stałe numery pozycji w pliku korekty (Wiktoria, 16.11.2026): pozycja zachowuje
+ * numer, z którym poszła do produkcji, nowa dostaje kolejny wolny (nigdy numer
+ * usuniętej), a usunięta zostaje w pliku (`deleted`). Czysta funkcja.
+ * @param {object[]} sentItems `items` ostatnio wysłanego pliku (`posid`, `orderpos`)
+ * @param {object[]} items bieżące pozycje (`order_item`, kolejność bazy)
+ * @returns {{ numbers: Map<number, number>, deleted: object[] }}
+ */
+function planPositions(sentItems, items) {
+    const sent = (sentItems || []).filter(item => Number(item.orderpos) > 0);
+    const sentPos = new Map(sent.map(item => [Number(item.posid), Number(item.orderpos)]));
+    let next = Math.max(0, ...sentPos.values()) + 1;
+    const numbers = new Map((items || []).map(item => [Number(item.id), sentPos.get(Number(item.id)) ?? next++]));
+    const deleted = sent.filter(item => !numbers.has(Number(item.posid)));
+    return { numbers, deleted };
 }
 
 function parseDesc(raw) {
@@ -107,15 +150,19 @@ function diffItems(before, after) {
  * Znaczniki na pozycjach (te same obiekty trafiają do `cleanOrderItems` → `rowObj.item`)
  * + dane do PDF-u (`options.correction` w pdfGenerator.generateOrderDocuments).
  */
-function markItems(items, diff) {
+function markItems(items, diff, positions) {
+    // `positions` (planPositions): numer pozycji w PDF-ie = numer z produkcji, także przy usuniętych.
+    const deletedPos = new Map((positions?.deleted || []).map(item => [Number(item.posid), Number(item.orderpos)]));
     for (const item of items || []) {
         const id = Number(item.id);
         item.correctionNew = diff.added.has(id);
         item.correctionChanged = diff.changed.get(id) || [];
+        item.correctionPos = positions?.numbers.get(id) ?? null;
     }
     return {
         marked: diff.added.size > 0 || diff.changed.size > 0 || diff.removed.length > 0,
         removed: diff.removed.map(item => ({
+            orderpos: deletedPos.get(Number(item.id)) ?? null,
             department: item.department || '',
             group_name: item.group_name || '',
             commision: item.commision || ''
@@ -123,4 +170,4 @@ function markItems(items, diff) {
     };
 }
 
-module.exports = { saveSnapshot, loadSnapshot, dropSnapshot, displayMap, diffItems, markItems };
+module.exports = { saveSnapshot, loadSnapshot, dropSnapshot, loadSentItems, planPositions, displayMap, diffItems, markItems };

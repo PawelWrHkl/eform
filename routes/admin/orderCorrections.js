@@ -105,6 +105,9 @@ router.post('/:orderId/open', async (req, res) => {
         }
 
         const opened = await orderCorrectionService.openCorrection(orderId);
+        if (opened === 'canceled') {
+            return res.status(409).json({ success: false, message: req.__('cancel_order.error_order_canceled') });
+        }
         if (!opened) {
             return res.status(400).json({ success: false, message: 'Nie udało się otworzyć zamówienia do korekty.' });
         }

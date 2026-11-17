@@ -578,6 +578,28 @@ router.get('/changes', requireLogin, (req, res) => {
   return res.render('owner/invoice_changes.njk', { L, panelLang: lang, versions: INVOICE_VERSIONS });
 });
 
+// Faktura in blanco / refaktura (tylko admin, 16.11.2026): formularz, podgląd szkicu, wystawienie
+router.get('/blank', requireLogin, async (req, res) => {
+  if (!req.session.user?.isAdmin) return res.status(403).send('Brak dostępu');
+  const { lang, L } = labelsFor(req);
+  res.locals.owner = !!req.session.user?.isOwner;
+  res.locals.admin = true;
+  try {
+    const issuers = await repository.listBlankIssuers();
+    // Szablony pozycji: nazwa w KAŻDYM języku dokumentu (wybór zależy od kraju nabywcy) — i18n dokumentu, nie kod
+    const { createTranslator } = require('../render/renderer');
+    const itemTemplates = Object.fromEntries(['pl', 'en', 'de', 'nl', 'fr'].map((code) => {
+      const t = createTranslator(code);
+      return [code, { transport: t('blank.tpl.transport'), montage: t('blank.tpl.montage'), repair: t('blank.tpl.repair'), rebill: t('blank.rebill_note') }];
+    }));
+    const { LANGUAGE_BY_BUYER_COUNTRY, FALLBACK_LANGUAGE } = require('../core/language');
+    return res.render('owner/invoice_blank.njk', { L, panelLang: lang, issuers, itemTemplates, langByCountry: LANGUAGE_BY_BUYER_COUNTRY, fallbackLang: FALLBACK_LANGUAGE, today: new Date().toISOString().slice(0, 10) });
+  } catch (err) {
+    log(`[invoices] panel GET /blank: ${err.message}`);
+    return res.status(500).send('Błąd ładowania formularza');
+  }
+});
+
 router.get('/:id/view', requireLogin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).send('Nieprawidłowy identyfikator');

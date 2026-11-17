@@ -662,6 +662,9 @@ router.post('/:id/move-up', requireLogin, async (req, res) => {
     if (sentOrderResponse) {
       return sentOrderResponse;
     }
+    if (await db.getOrderStatus(position.order_id) === 'correction') {
+      return res.status(409).json({ success: false, message: res.__('order_correction.error_no_reorder') });
+    }
 
     const result = await db.movePositionUp(positionId);
 
@@ -688,6 +691,9 @@ router.post('/:id/move-down', requireLogin, async (req, res) => {
     const sentOrderResponse = await rejectSentOrderMutation(res, position.order_id, req);
     if (sentOrderResponse) {
       return sentOrderResponse;
+    }
+    if (await db.getOrderStatus(position.order_id) === 'correction') {
+      return res.status(409).json({ success: false, message: res.__('order_correction.error_no_reorder') });
     }
 
     const result = await db.movePositionDown(positionId);
@@ -716,6 +722,10 @@ router.post('/:id/set-idx', requireLogin, async (req, res) => {
     const sentOrderResponse = await rejectSentOrderMutation(res, position.order_id, req);
     if (sentOrderResponse) {
       return sentOrderResponse;
+    }
+    // Korekta: numer z produkcji zostaje (correctionDiff.planPositions) — widok go nie przestawia.
+    if (await db.getOrderStatus(position.order_id) === 'correction') {
+      return res.json({ success: true, message: 'Position index kept (correction)' });
     }
 
     const result = await db.setPositionIdx(positionId, idx);

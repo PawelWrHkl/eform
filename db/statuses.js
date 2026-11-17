@@ -144,7 +144,8 @@ async function getKnownUserIdents() {
 
 
 /**
- * Historia STATUSPROD (migrations/add_prod_status_history.sql, services/prodProgress.js).
+ * Historia postępu pozycji — MAXSTATUSPROD, w starszym pliku STATUSPROD
+ * (migrations/add_prod_status_history.sql, services/prodProgress.js).
  * `rows` = `[org, user, nr, pozycja, status_prod, procent|null, first_seen_at]`;
  * istniejący (org, user, nr, pozycja, status) zostaje z pierwszą datą.
  * @returns {Promise<boolean>} `false` = błąd (np. tabeli jeszcze nie ma)

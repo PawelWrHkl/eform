@@ -270,6 +270,225 @@ class InvoiceService {
   }
 
   /**
+   * Faktura in blanco (bez zamówienia) — także refaktura kosztów, np. transportu
+   * Cozy → FENIX (prośba z 16.11.2026). Wystawcą jest organizacja (seria, profil i
+   * formatka jak przy jej fakturach z zamówień, poziom 2), nabywcą organizacja, konto
+   * klienta albo dane wpisane ręcznie. Pozycje dowolne: ilość × cena jedn. netto,
+   * towar albo usługa — o stawce VAT decyduje para krajów (`core/taxRules.js`), jak wszędzie.
+   *
+   * @param {Object} params
+   * @param {number} params.issuerOrganizationId
+   * @param {{ type: 'organization'|'user'|'manual', id?: number, name?: string, street?: string, zip?: string, city?: string, country?: string, taxId?: string, vatEuId?: string, email?: string }} params.buyer
+   * @param {Array<{ name: string, description?: string, quantity: number, unit?: string, unitPriceNet: number, isService?: boolean }>} params.items
+   * @param {string} [params.saleDate]
+   * @param {string} [params.deliveryDate]
+   * @param {number} [params.paymentDays]
+   * @param {string} [params.lang]
+   * @param {string} [params.notes]
+   * @param {string|null} [params.rebillSource]  refaktura: dokument źródłowy kosztu (`null` = zwykła faktura)
+   * @param {boolean} [params.issue=false]
+   * @param {boolean} [params.skipVies]
+   * @param {string} [params.createdByPin]
+   * @returns {Promise<{ id: number, number: string|null, invoice: object }>}
+   */
+  async buildBlank(params) {
+    const level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER;
+    const issuerId = Number(params.issuerOrganizationId);
+    const issuerProfile = await this.repository.getIssuerProfile({ issuerType: hierarchy.IssuerType.ORGANIZATION, issuerId, level });
+    const profile = await this.repository.getOrganizationProfile(issuerId);
+    if (!issuerProfile || !profile) throw new Error(`Wystawca (organizacja ${issuerId}) nie istnieje`);
+    const seller = hierarchy.sellerFromIssuerProfile(issuerProfile);
+
+    const b = params.buyer || {};
+    let buyer;
+    if (b.type === 'organization') {
+      const org = await this.repository.getOrganizationProfile(Number(b.id));
+      if (!org) throw new Error(`Nabywca (organizacja ${b.id}) nie istnieje`);
+      buyer = { ...org.seller, registry: {} };
+    } else if (b.type === 'user') {
+      const user = await this.repository.getUserForInvoice(Number(b.id));
+      if (!user) throw new Error(`Nabywca (konto ${b.id}) nie istnieje`);
+      buyer = { name: user.client_name || '', taxId: user.tax_id || '', vatEuId: user.tax_id || '', street: user.street || '', zip: user.zip || '',
+        city: user.city || '', country: user.country || '', email: user.email || '', phone: user.phone || '', registry: {} };
+    } else if (b.type === 'manual') {
+      buyer = { name: b.name || '', taxId: b.taxId || '', vatEuId: b.vatEuId || '', street: b.street || '', zip: b.zip || '',
+        city: b.city || '', country: b.country || '', email: b.email || '', phone: '', registry: {} };
+    } else {
+      throw new Error('Nieprawidłowy nabywca — wymaga typu organization, user albo manual');
+    }
+    buyer.country = String(buyer.country || '').trim().toUpperCase().slice(0, 2);
+    if (!buyer.name || !buyer.country) {
+      const err = new Error(`Brak nazwy albo kraju nabywcy (${buyer.name || '—'}) — bez kraju nie da się ustalić VAT.`);
+      err.code = COUNTRY_MISSING_ERROR_CODE;
+      throw err;
+    }
+
+    const currency = DOCUMENT_CURRENCY;
+    const issueDate = todayIso(this.now());
+    const saleDate = toIsoDay(params.saleDate) || issueDate;
+    const deliveryDate = toIsoDay(params.deliveryDate) || saleDate;
+    const paymentDays = Number.isInteger(params.paymentDays) ? params.paymentDays : (issuerProfile.paymentDays ?? profile.defaultPaymentDays);
+    const dueDate = addDays(issueDate, paymentDays);
+    const lang = language.documentLanguage(params.lang, buyer.country);
+
+    const vies = await this.verifyBuyerVatId(buyer, seller, { skip: params.skipVies === true });
+    const rawItems = (params.items || []).map((it) => {
+      const quantity = Number(it.quantity);
+      const unit = Object.values(Unit).includes(it.unit) ? it.unit : (it.isService ? Unit.SERVICE : Unit.PIECE);
+      const tax = taxRules.resolveTaxTreatment({ seller, buyer, opts: { isService: it.isService === true, vatEuVerified: vies.verified } });
+      return {
+        name: String(it.name || '').trim(),
+        description: String(it.description || '').trim(),
+        unit,
+        quantity,
+        unitPriceNetMinor: money.toMinor(Number(it.unitPriceNet), currency),
+        taxRate: tax.taxRate,
+        taxCategory: tax.taxCategory,
+        meta: { displayQuantity: quantity, displayUnit: unit, isService: it.isService === true, blank: true }
+      };
+    });
+    if (!rawItems.length || rawItems.some((it) => !it.name || !(it.quantity > 0))) {
+      throw new Error('Faktura in blanco wymaga co najmniej jednej pozycji z nazwą i ilością większą od zera');
+    }
+
+    let exchangeRate = null;
+    const localCurrency = issuerProfile.localCurrency || profile.localCurrency;
+    if (currency !== localCurrency) {
+      try {
+        exchangeRate = await this.currency.getRate(currency, localCurrency, saleDate);
+      } catch (err) {
+        this.log(`[invoices] in blanco: brak kursu ${currency}/${localCurrency} na ${saleDate}: ${err.message}`);
+      }
+    }
+    const computed = new InvoiceCalculator({ currency, localCurrency, exchangeRate }).calculate(rawItems, { advanceSettled: 0 });
+    if (computed.totalNet <= 0) throw new Error('Faktura in blanco musi mieć dodatnią wartość netto');
+
+    const t = renderer.createTranslator(lang);
+    const rebillSource = params.rebillSource == null ? null : String(params.rebillSource).trim();
+    const invoice = {
+      organizationId: profile.organizationId,
+      deliveryAddress: null,
+      level,
+      issuerType: hierarchy.IssuerType.ORGANIZATION,
+      issuerId,
+      priceBasis: 'manual',
+      priceBasisReason: rebillSource === null ? 'faktura in blanco' : 'refaktura kosztów',
+      buyerType: b.type === 'manual' ? 'manual' : b.type,
+      buyerEndClientId: null,
+      deliveryDate,
+      compliance: {
+        ...compliance.buildComplianceContext({ seller, buyer, taxLines: computed.taxLines, legalSettings: issuerProfile.legalSettings, currency, localCurrency, deliveryDate }),
+        // Dane formularza do wznowienia szkicu i „nowa na podstawie” (`/invoices/blank?from=`)
+        blank: {
+          rebillSource,
+          notes: String(params.notes || '').trim(),
+          paymentDays,
+          buyer: b.type === 'manual' ? null : { type: b.type, id: Number(b.id) }
+        }
+      },
+      allocations: null,
+      documentType: DocumentType.INVOICE,
+      status: params.issue ? InvoiceStatus.ISSUED : InvoiceStatus.DRAFT,
+      issueDate,
+      saleDate,
+      dueDate,
+      currency,
+      localCurrency,
+      exchangeRate: exchangeRate || undefined,
+      seller,
+      buyer,
+      buyerUserId: b.type === 'user' ? Number(b.id) : null,
+      buyerGroupUserId: null,
+      buyerVatEuVerified: vies.verified,
+      viesCheckedAt: vies.checkedAt,
+      viesValid: vies.checked ? vies.verified : null,
+      paymentMethod: profile.defaultPaymentMethod,
+      numberPattern: issuerProfile.numberPattern || '{YYYY}/{NR:5}',
+      items: computed.items,
+      taxLines: computed.taxLines,
+      totalNet: computed.totalNet,
+      totalTax: computed.totalTax,
+      totalGross: computed.totalGross,
+      totalTaxLocal: computed.totalTaxLocal,
+      advanceSettled: computed.advanceSettled,
+      amountDue: computed.amountDue,
+      clientDiscount: null,
+      orderId: null,
+      orderRef: '',
+      orderName: rebillSource === null ? '' : t('blank.rebill_title'),
+      lang,
+      templateCode: templates.pickTemplateCode(issuerProfile.templateCode, profile.templateCode),
+      notes: [rebillSource === null ? '' : `${t('blank.rebill_note')}${rebillSource ? `: ${rebillSource}` : ''}.`, String(params.notes || '').trim()]
+        .filter(Boolean).join(' '),
+      legalNotes: [...new Set(computed.taxLines.map((l) => l.legalNoteKey).filter(Boolean))],
+      orgCode: profile.orgCode,
+      createdByPin: params.createdByPin
+    };
+
+    return invoice;
+  }
+
+  /**
+   * Zapis faktury in blanco (szkic albo od razu wystawiona) — `buildBlank` + `createInvoice`.
+   *
+   * @param {Parameters<InvoiceService['buildBlank']>[0]} params
+   * @returns {Promise<{ id: number, number: string|null, invoice: object }>}
+   */
+  async createBlank(params) {
+    const invoice = await this.buildBlank(params);
+    const saved = await this.repository.createInvoice(invoice, { assignNumber: params.issue === true });
+    invoice.id = saved.id;
+    invoice.number = saved.number;
+    return { id: saved.id, number: saved.number, invoice };
+  }
+
+  /**
+   * Podsumowanie faktury in blanco BEZ zapisu (panel liczy je na bieżąco): kwoty per stawka,
+   * rodzaj opodatkowania z notą prawną w języku dokumentu, język i ORIENTACYJNY numer
+   * (podgląd licznika, nic nie rezerwuje — kto inny może wystawić wcześniej). VIES tylko na żądanie.
+   *
+   * @param {Parameters<InvoiceService['buildBlank']>[0] & { checkVies?: boolean }} params
+   */
+  async previewBlank(params) {
+    const invoice = await this.buildBlank({ ...params, issue: false, skipVies: params.checkVies !== true });
+    const t = renderer.createTranslator(invoice.lang);
+    const major = (minor) => money.toMajor(minor, invoice.currency);
+    let expectedNumber = null;
+    if (this.repository.peekIssuerSequence) {
+      const last = await this.repository.peekIssuerSequence({ issuerType: invoice.issuerType, issuerId: invoice.issuerId, level: invoice.level, year: Number(invoice.issueDate.slice(0, 4)) });
+      expectedNumber = formatNumber({ pattern: invoice.numberPattern, sequence: Number(last || 0) + 1, isoDate: invoice.issueDate, orgCode: invoice.orgCode });
+    }
+    return {
+      lang: invoice.lang,
+      currency: invoice.currency,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      expectedNumber,
+      seller: { name: invoice.seller.name, country: invoice.seller.country },
+      buyer: { name: invoice.buyer.name, country: invoice.buyer.country, vatEuId: invoice.buyer.vatEuId || invoice.buyer.taxId || '' },
+      vies: { checked: !!invoice.viesCheckedAt, valid: invoice.viesValid },
+      items: invoice.items.map((it) => ({ net: major(it.netAmount), taxRate: it.taxRate, taxCategory: it.taxCategory })),
+      taxLines: invoice.taxLines.map((l) => ({
+        taxCategory: l.taxCategory, taxRate: l.taxRate, net: major(l.netAmount), tax: major(l.taxAmount), gross: major(l.grossAmount),
+        legalNote: l.legalNoteKey ? t(l.legalNoteKey) : ''
+      })),
+      totals: { net: major(invoice.totalNet), tax: major(invoice.totalTax), gross: major(invoice.totalGross) },
+      warnings: (invoice.compliance && invoice.compliance.warnings) || []
+    };
+  }
+
+  /**
+   * Sprawdzenie numeru VAT-UE w VIES na żądanie z formularza in blanco.
+   *
+   * @param {string} vatEuId
+   * @param {string} [country]
+   */
+  async checkVatId(vatEuId, country) {
+    const result = await this.vies.check(String(vatEuId || ''), String(country || '').toUpperCase());
+    return { checked: !!result.checked, valid: result.valid === true, name: result.name || '', address: result.address || '', reason: result.reason || '' };
+  }
+
+  /**
    * Zamówienie, które wolno fakturować — z pozycjami i wysłane do klienta.
    *
    * @param {number} orderId
@@ -477,19 +696,33 @@ class InvoiceService {
     }
 
     // Faktura zbiorcza: pozycje wszystkich zamówień, każda z numerem SWOJEGO
-    // zamówienia (kolumna „Zamówienie" w tabeli pozycji, `invoice_item.order_number`)
-    let rawItems = sources.flatMap((s) => orderMapper.mapOrderItemsToInvoiceItems({
-      orderItems: s.orderItems,
-      resolveTax,
-      currency,
-      useSubPrices: priceBasis.useSubPrices,
-      useListPrices: priceBasis.useListPrices === true,
-      retailValueByItemId
-    }).map((item) => (collective ? {
-      ...item,
-      orderNumber: [level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? s.user.ident : '', String(s.order.order_idx || s.order.id)]
-        .filter(Boolean).join(' · ')
-    } : item)));
+    // zamówienia (kolumna „Zamówienie" w tabeli pozycji, `invoice_item.order_number`).
+    // Każda pozycja każdej faktury niesie referencję jak na wzorze Cozy
+    // (`EO/idx/pozycja/commission zlecenia-commission pozycji`), a na poziomie 1 także
+    // klienta organizacji (uwaga 2026-11-17) — wiersz nad opisem w `items_table.njk`.
+    // Zapisywana w `meta` przy wystawieniu, więc wystawione faktury się nie zmieniają.
+    let rawItems = sources.flatMap((s) => {
+      const idx = String(s.order.order_idx || s.order.id);
+      const orderClient = level === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION
+        ? [s.user.ident, orderMapper.mapParties(s).buyer.name].filter(Boolean).join(' – ')
+        : '';
+      return orderMapper.mapOrderItemsToInvoiceItems({
+        orderItems: s.orderItems,
+        resolveTax,
+        currency,
+        useSubPrices: priceBasis.useSubPrices,
+        useListPrices: priceBasis.useListPrices === true,
+        retailValueByItemId
+      }).map((item, i) => {
+        const row = s.orderItems[i]; // mapper zwraca pozycje 1:1, w tej samej kolejności
+        const commission = [s.order.commision, row.commision].map((v) => String(v || '').trim()).filter(Boolean).join('-');
+        return {
+          ...item,
+          ...(collective ? { orderNumber: idx } : {}),
+          meta: { ...item.meta, orderClient, orderRef: `EO/${idx}/${row.orderpos || i + 1}/${commission}` }
+        };
+      });
+    });
 
 
     let requestedAllocations = null;
@@ -801,14 +1034,29 @@ class InvoiceService {
     statuses.assertTransition(invoice.status, InvoiceStatus.ISSUED);
 
     const profile = await this.repository.getOrganizationProfile(invoice.organizationId);
+    // Faktura v2 (z wystawcą) bierze numer z SERII WYSTAWCY — tej samej co przy wystawieniu od
+    // razu (`repository.createInvoice`). Stary licznik organizacji dałby np. Cozy 26000001,
+    // numer już użyty w PROD (2026-11-16). Korekty i inne typy bez zmian.
+    const issuerSeries = !!invoice.issuerType
+      && (invoice.documentType === DocumentType.INVOICE || invoice.documentType === DocumentType.FINAL);
+    const issuerProfile = issuerSeries
+      ? await this.repository.getIssuerProfile({ issuerType: invoice.issuerType, issuerId: invoice.issuerId || 0, level: invoice.level || 2 })
+      : null;
     const numbering = new NumberingService({
-      allocateSequence: (p) => this.repository.allocateSequence(p)
+      allocateSequence: issuerSeries
+        ? ({ periodKey }) => this.repository.allocateIssuerSequence({
+          issuerType: invoice.issuerType,
+          issuerId: invoice.issuerId || 0,
+          level: invoice.level || 2,
+          year: Number(String(periodKey).slice(0, 4))
+        })
+        : (p) => this.repository.allocateSequence(p)
     });
     const allocated = await numbering.next({
       organizationId: invoice.organizationId,
       documentType: invoice.documentType,
       isoDate: invoice.issueDate,
-      pattern: profile?.numberPatterns?.[invoice.documentType],
+      pattern: issuerSeries ? (issuerProfile?.numberPattern || '{YYYY}/{NR:5}') : profile?.numberPatterns?.[invoice.documentType],
       orgCode: profile?.orgCode
     });
 

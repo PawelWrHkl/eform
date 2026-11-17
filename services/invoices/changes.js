@@ -13,6 +13,70 @@
 /** @type {Array<{ version: number, date: string, env: 'produkcja'|'test', title: string, changes: string[] }>} */
 const INVOICE_VERSIONS = Object.freeze([
   {
+    version: 12,
+    date: '2026-11-17',
+    env: 'produkcja',
+    title: 'Mail z fakturą z adresu fakturowego organizacji',
+    changes: [
+      'Każda organizacja ma w bazie swój adres fakturowy (nowa kolumna organization.invoice_email). Cozy: factuur@maizoncozy.eu, pozostałe jeszcze puste.',
+      'Robot wysyła mail z fakturą z adresu wystawcy przez jego własną skrzynkę (Cozy → klient z factuur@maizoncozy.eu, HKL → organizacja z adresu HKL). Hasło skrzynki jest w bazie przy organizacji (decyzja Pawła 17.11: „hasło w bazie, na produkcji też”), zapasowo w pliku .env.local; nigdy w gicie.',
+      'Dopóki organizacja nie ma uzupełnionego adresu i hasła, mail idzie jak wcześniej ze skrzynki systemu, także przy przyszłej wysyłce do klientów (decyzja Pawła 17.11). Gdy adres jest, a hasła brak, w logu pojawia się ostrzeżenie.',
+      'Odbiorcy bez zmian (tylko testerzy). Odpowiedź testera trafia do skrzynki systemu, nie do organizacji.',
+      'Treść i wygląd faktur bez zmian.'
+    ]
+  },
+  {
+    version: 11,
+    date: '2026-11-17',
+    env: 'produkcja',
+    title: 'Referencja EO i klient przy każdej pozycji',
+    changes: [
+      'Każda pozycja każdej faktury z zamówienia (proforma, zaliczkowa, końcowa, VAT, zbiorcza, dzienna) ma pod nazwą referencję jak na wzorze Cozy: EO/numer zlecenia/pozycja/commission zlecenia-commission pozycji, np. „EO/273266/1/DANKERS-273266”. Dotyczy faktur HKL → organizacja, HKL → klient i organizacja → klient.',
+      'HKL → organizacja (np. Luxan): w tym samym wierszu klient organizacji (konto, które złożyło zlecenie: ident i nazwa), np. „Klient: Matthes – Lamellen und Jalousienreinigung Matthes”.',
+      'Commission pozycji nie powtarza się już w szarym opisie, bo jest w referencji. Kolumna „Zamówienie” zostaje; na fakturach dziennych poziomu 1 ma sam numer (klient ma własny wiersz).',
+      'Dotyczy faktur wystawionych od tej wersji. Starsze trzeba by przepisać osobno.'
+    ]
+  },
+  {
+    version: 10,
+    date: '2026-11-16',
+    env: 'produkcja',
+    title: 'Faktura in blanco: wygodniejszy formularz, podsumowanie na żywo, szkice, języki',
+    changes: [
+      'Formularz w krokach (wystawca, nabywca, pozycje, warunki). Przy każdym kroku widać, czego brakuje, a błąd pojawia się przy konkretnym polu, w języku panelu (pl, en, de).',
+      'Podsumowanie liczy się na bieżąco po stronie serwera, bez zapisu: kwoty netto/VAT/brutto, rodzaj opodatkowania (krajowa, odwrotne obciążenie, WDT, eksport) z notą prawną, język dokumentu i orientacyjny numer faktury. Szkic powstaje dopiero przy „Podgląd PDF”.',
+      'Nabywca: podpowiedzi z adresem i numerem VAT, „ostatnio wybierani”, karta nabywcy, przycisk „Sprawdź w VIES”, kontrola formatu numeru VAT-UE i e-maila.',
+      'Pozycje: gotowe szablony (Transport, Montaż, Naprawa, Refaktura kosztów) z nazwą w języku dokumentu, duplikowanie, kolejność, Enter = nowa pozycja, przecinek dziesiętny. Opis pod nazwą, do 1000 znaków.',
+      'Lista ostatnich faktur in blanco: wznowienie albo porzucenie szkicu, PDF, „Nowa na podstawie” (nabywca i pozycje bez dat i numeru). Po wystawieniu: numer, PDF, podgląd, „Nowa faktura”.',
+      'Bez zmian w numeracji, VAT i automacie faktur. Nadal tylko admin, bez automatycznej wysyłki mailem i na FTP.'
+    ]
+  },
+  {
+    version: 9,
+    date: '2026-11-16',
+    env: 'produkcja',
+    title: 'Faktura in blanco i refaktura (bez zamówienia)',
+    changes: [
+      'Nowe narzędzie admina: panel faktur → „Faktura in blanco” (/invoices/blank). Wystawca to organizacja z formatką (HKL, Luxan GmbH, Cozy). Nabywca: organizacja, konto klienta albo dane wpisane ręcznie. Pozycje dowolne: nazwa, opis, ilość, jednostka, cena jedn. netto, towar albo usługa.',
+      'Numer z serii wystawcy, jak przy fakturach z zamówień (Cozy: 26000009…, HKL: 2026/…). VAT według krajów stron, np. usługa NL → DE dla firmy: 0 % z dopiskiem „Btw verlegd”. Język według kraju nabywcy albo wybrany.',
+      'Refaktura kosztów (np. transport Cozy → FENIX): zaznaczenie „Refaktura” dopisuje na fakturze „Weiterberechnung von Kosten: <dokument źródłowy>” (w języku dokumentu) i takie oznaczenie w nagłówku.',
+      'Najpierw szkic z podglądem (bez numeru, można poprawić), potem „Wystaw”. Wystawionej faktury nie da się anulować, tylko skorygować.',
+      'Poprawka: szkic faktury wystawiany z panelu bierze numer z serii wystawcy. Wcześniej brał stary licznik organizacji, więc u Cozy dałby 26000001, numer już użyty w PROD.',
+      'Wzór MaizonCozy: dopisek o odwrotnym obciążeniu przy usługach dla firm z UE i uwagi z faktur in blanco. Zwykłe faktury Cozy z zamówień bez zmian.',
+      'Po uwagach Pawła (16.11): na wzorze Cozy opis pozycji pod nazwą (wiersz po wierszu) i bez kolumny „Prijsgroep”. PDF do pobrania już z podglądu szkicu. Opis pozycji w formularzu jako większe pole, do 1000 znaków.'
+    ]
+  },
+  {
+    version: 8,
+    date: '2026-11-16',
+    env: 'produkcja',
+    title: 'Numeracja faktur Cozy → klient jak w PROD: 26000008',
+    changes: [
+      'Faktury Cozy dla jej klientów mają 8-cyfrowy numer jak w PROD (rok 2-cyfrowy + 6 cyfr licznika). Pierwsza faktura z E-Form: 26000008, kolejne 26000009… Inny numer automat Wiktorii odrzuca. Od tej faktury PROD nie wystawia już faktur Cozy (mail Wiktorii z 16.11).',
+      'Wzorzec w profilu organizacji (invoice_organization_profile.number_patterns = {"invoice":"{YY}{NR:6}"}), licznik Cozy przestawiony z 8 na 7. Testowe faktury 2026/00001–00008 zostały ze starymi numerami. HKL i Luxan GmbH bez zmian (2026/00001).'
+    ]
+  },
+  {
     version: 7,
     date: '2026-11-07',
     env: 'produkcja',
