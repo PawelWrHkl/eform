@@ -30,4 +30,21 @@ function canAccessInvoices(sessionUser, feats = require('../../config').features
   return true;
 }
 
-module.exports = { canAccessInvoices };
+/**
+ * Ręczna edycja faktur z zamówień (Paweł, 17.11.2026): admin i biuro (`staff`) — świadomy
+ * wyjątek od „biuro nie dostaje faktur” (prompt biura, pkt E), tylko dla edycji
+ * (`/invoices/edit…`, `/api/v1/invoices/edit…`). Niezależna od INVOICES_ADMIN_ONLY.
+ * Zakres biura (jego klienci) i „opłacona — tylko admin” sprawdza trasa.
+ *
+ * @param {{ isAdmin?: boolean, isStaff?: boolean, isGroupShop?: boolean }|null|undefined} sessionUser
+ * @param {{ invoices?: boolean }} [feats]
+ * @returns {boolean}
+ */
+function canEditInvoices(sessionUser, feats = require('../../config').features || {}) {
+  if (!feats.invoices) return false;
+  const user = sessionUser || {};
+  if (user.isGroupShop) return false;
+  return !!(user.isAdmin || user.isStaff);
+}
+
+module.exports = { canAccessInvoices, canEditInvoices };

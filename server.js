@@ -17,7 +17,7 @@ const adminRoutes = require('./routes/admin');
 const addressRoutes = require('./routes/address');
 const invoiceRoutes = require('./services/invoices/http/routes');
 const invoicePanelRoutes = require('./services/invoices/http/panel');
-const { canAccessInvoices } = require('./services/invoices/access');
+const { canAccessInvoices, canEditInvoices } = require('./services/invoices/access');
 const orgCustomersRoutes = require('./routes/orgCustomers');
 const clientTermsRoutes = require('./routes/clientTerms');
 const userPanelRoutes = require('./routes/userPanel');
@@ -422,6 +422,8 @@ function requireInvoicesAccess(req, res, next) {
 	// każda trasa modułu go ma, a admin po wygaśnięciu sesji ma trafić na
 	// logowanie, nie na „Brak dostępu".
 	if (!sessionUser || canAccessInvoices(sessionUser, features)) return next();
+	// Edycja faktur: także biuro (services/invoices/access.js canEditInvoices) — tylko trasy /edit…
+	if (/^\/edit(\/|$)/.test(req.path) && canEditInvoices(sessionUser, features)) return next();
 	if (req.accepts('html') && !req.xhr) {
 		return res.status(403).render('error.njk', { message: 'Brak dostępu' });
 	}

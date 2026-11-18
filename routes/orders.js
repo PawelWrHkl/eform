@@ -732,6 +732,14 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         // Audyt biura (kto założył / ostatnio zmienił) — tylko biuro i admin; nigdy w PDF ani mailu.
         if (req.session.user?.isStaff || req.session.user?.isAdmin) {
             res.locals.staffAudit = (await staffAudit.getStaffAudit([orderDetails.id]))[orderDetails.id] || null;
+            // Edycja faktury (admin i biuro, 17.11.2026) — linki z modułu faktur (services/invoices/orderLinks.js)
+            if (features?.invoices) {
+                try {
+                    res.locals.invoiceEditLinks = await require('../services/invoices/orderLinks').invoiceEditLinks(req, orderDetails.id);
+                } catch (err) {
+                    log(`[invoices] linki edycji faktury, zlecenie ${orderDetails.id}: ${err.message}`);
+                }
+            }
         }
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render("order_sent_prices.njk",
@@ -874,6 +882,14 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         // Audyt biura (kto założył / ostatnio zmienił) — tylko biuro i admin; nigdy w PDF ani mailu.
         if (req.session.user?.isStaff || req.session.user?.isAdmin) {
             res.locals.staffAudit = (await staffAudit.getStaffAudit([orderDetails.id]))[orderDetails.id] || null;
+            // Edycja faktury (admin i biuro, 17.11.2026) — linki z modułu faktur (services/invoices/orderLinks.js)
+            if (features?.invoices) {
+                try {
+                    res.locals.invoiceEditLinks = await require('../services/invoices/orderLinks').invoiceEditLinks(req, orderDetails.id);
+                } catch (err) {
+                    log(`[invoices] linki edycji faktury, zlecenie ${orderDetails.id}: ${err.message}`);
+                }
+            }
         }
         if (req.session.user?.showPrices || req.session.user?.showPricesOnce) {
             res.render('order_prices.njk', {

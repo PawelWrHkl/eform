@@ -6437,3 +6437,9 @@ Call log:
 [2026-11-17T02:54:10.359Z] ConfiguratorTester (kopiowanie): limit czasu — wykonano 18 z 24 przypadków wygenerowanych
 [2026-11-17T02:54:10.435Z] ConfiguratorTester (kopiowanie): koniec: 27 przypadków (14 z błędami, 5 pominiętych), 98 kopii/kontroli, 16398 porównań pól, 51.5 min
 [2026-11-17T02:54:11.509Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (94 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as CFEEF2B1DAC | id <ffdf6cc6-235f-7435-0b35-658c2f061ca9@e-orders.eu>
+[2026-11-18T01:00:03.234Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-11-04)
+[2026-11-18T01:00:51.126Z] ConfiguratorTester: przebieg przerwany globalnie — page.goto: Timeout 45000ms exceeded.
+Call log:
+  - navigating to "http://localhost:8000/user/auth/login?pin=admin&password=eforszef123", waiting until "load"
+
+[2026-11-18T01:03:04.284Z] ConfiguratorTester mailer: failed to send email: queryA ETIMEOUT serwer2560216.home.pl

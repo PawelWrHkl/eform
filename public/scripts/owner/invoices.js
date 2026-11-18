@@ -779,7 +779,35 @@ function initProfileForm() {
   });
 }
 
+/**
+ * „Przelicz dzienne ponownie” (admin): spóźnione zlecenia → do faktury dziennej swojego dnia.
+ */
+function initDailyRecalc() {
+  const btn = document.getElementById('inv-daily-recalc');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const ok = await confirmPrompt({ title: L.daily_recalc, message: L.daily_recalc_confirm, confirmLabel: L.daily_recalc });
+    if (!ok) return;
+    btn.disabled = true;
+    try {
+      const r = await api('/api/v1/invoices/daily/recalculate', { method: 'POST', body: '{}' });
+      if (r.failed && r.failed.length) {
+        showToast('error', `${L.daily_recalc_failed}: ${r.failed.map((f) => `${f.period} — ${f.error}`).join(' · ')}`, 10);
+      }
+      const n = (r.recalculated || []).length;
+      const m = (r.created || []).length;
+      if (n || m) showToast('success', L.daily_recalc_done.replace('{n}', String(n)).replace('{m}', String(m)), 6);
+      else if (!(r.failed && r.failed.length)) showToast('success', L.daily_recalc_none, 4);
+    } catch (err) {
+      showToast('error', `${L.error || 'Error'}: ${err.message}`, 6);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  initDailyRecalc();
   initClientSelect();
   initCreateForm();
   initOrdersWindow();

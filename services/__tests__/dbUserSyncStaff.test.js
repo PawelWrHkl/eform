@@ -14,7 +14,8 @@ test('synchronizacja contractors.txt nie usuwa i nie nadpisuje kont biura (rola 
     const baza = [
         { pin: '1001', ident: 'KLIENT_A', name: 'A', password: 'x', role: null },
         { pin: 'anna', ident: 'STAFF_ANNA', name: 'Anna', password: '$2a$12$hash', role: 'staff' },
-        { pin: 'stary', ident: 'USUNIETY', name: 'Stary', password: 'z', role: null }
+        { pin: 'stary', ident: 'USUNIETY', name: 'Stary', password: 'z', role: null },
+        { pin: 'szef', ident: 'ADMIN_RECZNY', name: 'Szef', password: 'h', role: 'Admin' }
     ];
     const diff = compareClients(plik, baza);
     assert.deepEqual(diff.toRemove.map((c) => c.ident), ['USUNIETY'], 'znika tylko klient spoza pliku');

@@ -13,6 +13,34 @@
 /** @type {Array<{ version: number, date: string, env: 'produkcja'|'test', title: string, changes: string[] }>} */
 const INVOICE_VERSIONS = Object.freeze([
   {
+    version: 14,
+    date: '2026-11-17',
+    env: 'produkcja',
+    title: 'Ręczna edycja faktur z zamówień (admin i biuro)',
+    changes: [
+      'Admin i biuro mogą edytować fakturę z zamówienia: dopisać lub usunąć pozycję, zmienić nazwę, opis, ilość, jednostkę, cenę, uwagi, daty i termin płatności — także w istniejących pozycjach. Numeru nie da się zmienić.',
+      'Zamówienie jeszcze w produkcji: edycja przygotowuje fakturę. Po wysyłce (!sent!) automat wystawia właśnie tę wersję, nakładając zmiany na aktualne zamówienie; mail i FTP jak zawsze, klient dostaje wersję po edycji. Te same zmiany trafiają do faktury dziennej i zbiorczej z tym zamówieniem.',
+      'Jeśli zamówienie zmieni się w pozycji, którą ktoś ręcznie poprawił, automat faktury nie wystawi — oznacza ją „do przejrzenia”, a edytor pokazuje, którą pozycję sprawdzić.',
+      'Faktura już wystawiona: zmiana w miejscu, ten sam numer, bez maila do klienta (biuro pisze samo); PDF na FTP jest podmieniany. Opłaconą poprawia tylko admin; faktury z korektą, anulowanej i częściowej nie da się edytować.',
+      'Każda zmiana jest w historii faktury (kto, kiedy, co przed i po); na liście faktur znaczek „edytowana”. „Przelicz dzienne ponownie” nie rusza dziennej poprawionej ręcznie.',
+      'Wejścia: przyciski „Faktura…” w widoku zamówienia (biuro i admin) i „Edytuj” na liście faktur (admin). Biuro edytuje tylko faktury swoich klientów.',
+      'Wyszukiwarka faktur admina (panel faktur → „Szukaj”): wszystkie organizacje naraz — po kliencie, commission, numerze faktury albo zamówienia, z podglądem, PDF i edycją. Wcześniej panel pokazywał tylko organizację wybraną w „Wybierz organizację”, więc np. faktury Cozy → klient nie było widać z HKL.',
+      'Poprawka 17.11 15:31 (uwaga Pawła): pole opisu w edytorze pokazuje 1:1 to, co jest na fakturze. Na wzorze Cozy to opis z zamówienia i linia cen (np. „MODEL=…,STOF=…” i „LIJSTPRIJS…”), a nie lista parametrów. Nowe faktury Cozy zapisują w pozycji dokładnie ten tekst; wydruk się nie zmienia.'
+    ]
+  },
+  {
+    version: 13,
+    date: '2026-11-17',
+    env: 'produkcja',
+    title: 'Faktura dzienna zaraz po północy; HKL → Maizon tylko dzienna, numery od 26000001',
+    changes: [
+      'Faktura dzienna powstaje w pierwszym przebiegu po północy: za 16.11 już 17.11 (wcześniej dzień zapasu, czyli dopiero 18.11).',
+      'Za ten sam dzień nie powstaje druga faktura dzienna. Jeśli status zlecenia dojdzie później, admin klika w panelu faktur „Przelicz dzienne ponownie”. Zlecenie trafia wtedy do tej samej faktury, która zachowuje numer i datę wystawienia, a PDF idzie ponownie mailem i na FTP.',
+      'HKL → MaizonCozy: od teraz tylko faktura dzienna, bez faktur per zlecenie, we własnej numeracji 8 cyfr jak w PROD. Pierwsza to 26000001 (16.11: M2/6 + Wonen/19), potem 26000002… (decyzja Wiktorii i Pawła 17.11). Pozostałe organizacje bez zmian (testowo, seria HKL 2026/…).',
+      'Testowe faktury per zlecenie HKL → Maizon 2026/00818 i 2026/00819 (te same dwa zlecenia) usunięte z bazy i z FTP.'
+    ]
+  },
+  {
     version: 12,
     date: '2026-11-17',
     env: 'produkcja',

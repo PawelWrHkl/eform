@@ -119,6 +119,8 @@ test('seria numeracji: jedna na firmę — HKL na poziomach 1 i 2 z jednego licz
   // Organizacja sprzedająca odbiorcy końcowemu (poziom 4) liczy w tej samej serii co na poziomie 2
   assert.deepEqual(issuerSeriesKey({ issuerType: 'organization', issuerId: 5, level: 4 }), { issuerType: 'organization', issuerId: 5, level: 2 });
   assert.deepEqual(issuerSeriesKey({ issuerType: 'user', issuerId: 77, level: 3 }), { issuerType: 'user', issuerId: 77, level: 3 });
+  // Producent z id organizacji-nabywcy = osobna seria HKL dla niej (Cozy 17.11.2026: 26000001…)
+  assert.deepEqual(issuerSeriesKey({ issuerType: 'manufacturer', issuerId: 1, level: 1 }), { issuerType: 'manufacturer', issuerId: 1, level: 1 });
 
   const calls = [];
   const conn = { query: async (sql, params) => { calls.push(params); return [{ insertId: calls.length }]; } };

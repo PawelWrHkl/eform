@@ -91,3 +91,18 @@ test('faktura in blanco (price_basis manual): nazwa, pod nią opis wiersz po wie
   assert.ok(!html.includes('Prijsgroep'), 'bez kolumny grupy cenowej');
   assert.match(html, /Transportkosten<br>Spedition 12\.11\.2026<br>Lieferung EO\/19/);
 });
+
+test('opis pozycji 1:1: edytor dostaje dokładnie to, co drukuje wzór Cozy (stare i nowe pozycje, edycja)', () => {
+  const { printedDescription, buildData } = require('../render/maizonCozy');
+  const source = { id: 9, orderpos: 1, commision: 'POS', order_idx: '6', order_commision: 'M2X', json_parameters: { OPIS_POZYCJI: 'Plissé EOS, wit,[object Object]', SUB___CENA: 120, SUB___CENA___TITLE: 'Prijs' } };
+  const item = { position: 1, orderItemId: 9, name: 'PLISSE EOS', description: 'MODEL: EOS · KLEUR: wit', netAmount: 12000, meta: { displayQuantity: 1 } };
+  const text = printedDescription(item, source);
+  assert.equal(text, 'Plissé EOS, wit\nPrijs=120', 'stara pozycja: OPIS_POZYCJI bez [object Object] + ceny SUB');
+  const lines = (it) => buildData({ items: [it], lang: 'nl', currency: 'EUR', notes: '', priceBasis: 'list' }, [source], '').items[0].lines;
+  assert.deepEqual(lines(item), ['EO/6/1/M2X-POS', 'PLISSE EOS Plissé EOS, wit', 'Prijs=120']);
+  // Nowa pozycja z zapisanym opisem (buildDocument) drukuje się identycznie
+  assert.deepEqual(lines({ ...item, description: text, meta: { ...item.meta, printedDescription: true } }), lines(item));
+  // Opis zmieniony w edytorze: nazwa, a pod nią dokładnie tekst z pola
+  assert.deepEqual(lines({ ...item, description: 'Mój opis\nDrugi wiersz', meta: { ...item.meta, edited: ['description'] } }),
+    ['EO/6/1/M2X-POS', 'PLISSE EOS', 'Mój opis', 'Drugi wiersz']);
+});

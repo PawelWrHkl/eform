@@ -26,6 +26,14 @@ const SCHEDULES = Object.freeze(['weekly', 'monthly']);
 const COLLECTIVE_GRACE_DAYS = 1;
 
 /**
+ * Faktura dzienna BEZ zapasu: dzień wysyłki zamyka się o północy i dzienna powstaje
+ * w pierwszym przebiegu następnego dnia (Paweł, 17.11.2026: „jak kończy się 16.11
+ * i zaczyna 17.11, to robisz fakturę dzienną”). Zlecenie, którego status dojdzie
+ * później, dołącza do niej przycisk „Przelicz dzienne ponownie” w panelu admina.
+ */
+const DAILY_GRACE_DAYS = 0;
+
+/**
  * @param {unknown} value
  * @returns {'weekly'|'monthly'|null} `null` = standard (faktura za każde zlecenie)
  */
@@ -126,19 +134,31 @@ const DAILY_ACTOR = 'AUTO-DAILY';
 const byText = (a, b) => String(a || '').localeCompare(String(b || ''), undefined, { sensitivity: 'base', numeric: true });
 
 /**
+ * Kolejność zleceń na fakturze dziennej: klienci alfabetycznie, u klienta zlecenia po kolei.
+ * @param {Array<{ id: number, user_id?: number, user_ident?: string, order_idx?: string }>} orders
+ * @returns {number[]} id zleceń
+ */
+function sortDailyOrders(orders) {
+  return [...orders]
+    .sort((a, b) => byText(a.user_ident, b.user_ident) || a.user_id - b.user_id
+      || byText(a.order_idx, b.order_idx) || a.id - b.id)
+    .map((r) => Number(r.id));
+}
+
+/**
  * Zlecenia wysłane przez HKL → faktury dzienne (wiersze `repository.findDailyCandidates`).
  *
  * Poziom 1 (HKL → organizacja): jedna faktura na organizację i dzień wysyłki ze
  * zleceń WSZYSTKICH jej klientów, ułożonych klientami alfabetycznie, a u klienta
  * zleceniami po kolei. Poziom 2 (HKL → klient HKL): jedna faktura na klienta
  * (i sklep grupowy) i dzień. Dzień bez wysyłek nie daje faktury. Dzień zamyka
- * się z tym samym zapasem co okresy zbiorcze (`COLLECTIVE_GRACE_DAYS`).
+ * się o północy (`DAILY_GRACE_DAYS`).
  *
  * @param {Array<{ id: number, level: number, order_idx?: string, organization_id: number, organization_ident?: string, user_id: number, user_ident?: string, group_user_id?: number|null, delivery_date: Date|string }>} rows
  * @param {{ todayIso: string, graceDays?: number }} opts
  * @returns {Array<{ level: number, userId: number|null, userIdent: string|null, groupUserId: number|null, schedule: 'daily', period: object, orderIds: number[] }>}
  */
-function groupDailyCandidates(rows, { todayIso, graceDays = COLLECTIVE_GRACE_DAYS }) {
+function groupDailyCandidates(rows, { todayIso, graceDays = DAILY_GRACE_DAYS }) {
   const groups = new Map();
   for (const row of rows || []) {
     const day = toIsoDay(row.delivery_date);
@@ -153,6 +173,7 @@ function groupDailyCandidates(rows, { todayIso, graceDays = COLLECTIVE_GRACE_DAY
         level,
         userId: level === 1 ? null : Number(row.user_id),
         userIdent: (level === 1 ? row.organization_ident : row.user_ident) || null,
+        organizationId: Number(row.organization_id),
         groupUserId,
         schedule: 'daily',
         period,
@@ -164,10 +185,7 @@ function groupDailyCandidates(rows, { todayIso, graceDays = COLLECTIVE_GRACE_DAY
   return [...groups.values()]
     .map(({ rows: orders, ...group }) => ({
       ...group,
-      orderIds: orders
-        .sort((a, b) => byText(a.user_ident, b.user_ident) || a.user_id - b.user_id
-          || byText(a.order_idx, b.order_idx) || a.id - b.id)
-        .map((r) => Number(r.id))
+      orderIds: sortDailyOrders(orders)
     }))
     .sort((a, b) => byText(a.period.start, b.period.start) || a.level - b.level || byText(a.userIdent, b.userIdent));
 }
@@ -175,10 +193,12 @@ function groupDailyCandidates(rows, { todayIso, graceDays = COLLECTIVE_GRACE_DAY
 module.exports = {
   SCHEDULES,
   COLLECTIVE_GRACE_DAYS,
+  DAILY_GRACE_DAYS,
   DAILY_ACTOR,
   normalizeSchedule,
   periodFor,
   isPeriodClosed,
   groupCollectiveCandidates,
-  groupDailyCandidates
+  groupDailyCandidates,
+  sortDailyOrders
 };

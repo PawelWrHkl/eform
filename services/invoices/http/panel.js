@@ -324,7 +324,8 @@ function decorateInvoices(rows, lang) {
     dueFmt: money.format(money.toMinor(r.amount_due, r.currency), r.currency, lang),
     issueDateFmt: formatDate(r.issue_date, lang),
     dueDateFmt: formatDate(r.due_date, lang),
-    isAuto: r.created_by_pin === AUTO_ACTOR || r.created_by_pin === DAILY_ACTOR
+    isAuto: r.created_by_pin === AUTO_ACTOR || r.created_by_pin === DAILY_ACTOR,
+    isEdited: !!Number(r.manual_edit)
   }));
 }
 
@@ -599,6 +600,49 @@ router.get('/blank', requireLogin, async (req, res) => {
     return res.status(500).send('Błąd ładowania formularza');
   }
 });
+
+// Wyszukiwarka faktur admina — wszystkie organizacje, po kliencie, commission, numerze (17.11.2026)
+const SEARCH_LIMIT = 100;
+router.get('/search', requireLogin, async (req, res) => {
+  if (!req.session.user?.isAdmin) return res.status(403).send('Brak dostępu');
+  const { lang, L } = labelsFor(req);
+  res.locals.owner = !!req.session.user?.isOwner;
+  res.locals.admin = true;
+  const q = String(req.query.q || '').trim().slice(0, 100);
+  try {
+    const rows = q.length >= 2 ? await repository.searchInvoices({ q, limit: SEARCH_LIMIT + 1 }) : [];
+    return res.render('owner/invoice_search.njk', {
+      L, q, searched: q.length >= 2, truncated: rows.length > SEARCH_LIMIT,
+      results: decorateInvoices(rows.slice(0, SEARCH_LIMIT), lang).map((r) => ({ ...r, levelLabel: L[`level_${r.level}`] || `#${r.level}` }))
+    });
+  } catch (err) {
+    log(`[invoices] panel GET /search: ${err.message}`);
+    return res.status(500).send('Błąd wyszukiwania faktur');
+  }
+});
+
+// Edytor faktury z zamówienia (admin i biuro, 17.11.2026): formularz v10 w trybie edycji.
+// Dane i uprawnienia (zakres biura, „opłacona — tylko admin”) bierze z /api/v1/invoices/edit/context.
+function renderInvoiceEditor(req, res, target) {
+  const { canEditInvoices } = require('../access');
+  if (!canEditInvoices(req.session.user)) return res.status(403).send('Brak dostępu');
+  const { lang, L } = labelsFor(req);
+  res.locals.owner = !!req.session.user?.isOwner;
+  res.locals.admin = !!req.session.user?.isAdmin;
+  const { createTranslator } = require('../render/renderer');
+  const itemTemplates = Object.fromEntries(['pl', 'en', 'de', 'nl', 'fr'].map((code) => {
+    const t = createTranslator(code);
+    return [code, { transport: t('blank.tpl.transport'), montage: t('blank.tpl.montage'), repair: t('blank.tpl.repair'), rebill: t('blank.rebill_note') }];
+  }));
+  const { LANGUAGE_BY_BUYER_COUNTRY, FALLBACK_LANGUAGE } = require('../core/language');
+  return res.render('owner/invoice_blank.njk', {
+    L, panelLang: lang, issuers: [], itemTemplates, langByCountry: LANGUAGE_BY_BUYER_COUNTRY, fallbackLang: FALLBACK_LANGUAGE,
+    today: new Date().toISOString().slice(0, 10), edit: { target }
+  });
+}
+
+router.get('/edit/order/:orderId', requireLogin, (req, res) => renderInvoiceEditor(req, res, { orderId: Number(req.params.orderId), level: Number(req.query.level) || 2 }));
+router.get('/edit/:id', requireLogin, (req, res) => renderInvoiceEditor(req, res, { invoiceId: Number(req.params.id) }));
 
 router.get('/:id/view', requireLogin, async (req, res) => {
   const id = Number(req.params.id);

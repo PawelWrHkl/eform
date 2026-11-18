@@ -15,6 +15,8 @@ import { confirmPrompt } from '/scripts/components/confirmPrompt.js';
 const json = (id) => { try { return JSON.parse(document.getElementById(id).textContent || '{}'); } catch { return {}; } };
 const L = json('inv-labels');
 const CFG = json('inv-blank-config');
+// Tryb edycji faktury z zamówienia (admin i biuro, 17.11.2026): `/invoices/edit/:id`, `/invoices/edit/order/:id?level=N`
+const EDIT = CFG.edit || null;
 const UNITS = ['szt', 'usl', 'kpl', 'm2', 'mb', 'godz'];
 const SERVICE_TEMPLATES = new Set(['transport', 'montage', 'repair', 'rebill']);
 const $ = (id) => document.getElementById(id);
@@ -33,7 +35,9 @@ const state = {
   summary: null,      // ostatnia odpowiedź serwera
   touched: new Set(), // pola, przy których wolno już pokazać błąd
   showAll: false,     // po próbie podglądu/wystawienia pokazujemy wszystkie błędy
-  issued: false
+  issued: false,
+  edit: null,         // kontekst edycji z serwera (tryb edycji)
+  target: EDIT ? EDIT.target : null
 };
 
 async function api(url, options = {}) {
@@ -51,6 +55,7 @@ const el = (tag, props = {}, ...children) => { const n = Object.assign(document.
 
 /** Język dokumentu: wybrany ręcznie, inaczej według kraju nabywcy (ta sama reguła co serwer, `core/language.js`). */
 function docLang() {
+  if (EDIT && state.edit) return state.edit.lang;
   if (form.elements.lang.value) return form.elements.lang.value;
   const country = ($('inv-blank-manual').checked ? form.elements.b_country.value : state.buyer?.country || '').trim().toUpperCase();
   return (CFG.langByCountry || {})[country] || state.summary?.lang || CFG.fallbackLang || 'en';
@@ -75,6 +80,7 @@ function addLine(values = {}, { focus = false, after = null } = {}) {
   const unit = cell(el('select', { name: 'unit' }));
   unit.setAttribute('aria-label', tr('blank_unit'));
   UNITS.forEach((u) => unit.append(new Option(tr(`blank_unit_${u}`, u), u)));
+  if (values.unit && !UNITS.includes(values.unit)) unit.append(new Option(values.unit, values.unit));
   unit.value = values.unit || 'szt';
   const price = cell(el('input', { name: 'unitPriceNet', inputMode: 'decimal', className: 'num', placeholder: '0,00',
     value: values.unitPriceNet != null && values.unitPriceNet !== '' ? (typeof values.unitPriceNet === 'number' ? plain.format(values.unitPriceNet) : values.unitPriceNet) : '' }));
@@ -86,7 +92,7 @@ function addLine(values = {}, { focus = false, after = null } = {}) {
   const actions = el('div', { className: 'inv-blank-line-actions' },
     lineButton(tr('blank_move_up'), '↑', () => { if (line.previousElementSibling?.matches('tbody')) line.parentNode.insertBefore(line, line.previousElementSibling); changed(); }),
     lineButton(tr('blank_move_down'), '↓', () => { if (line.nextElementSibling) line.parentNode.insertBefore(line.nextElementSibling, line); changed(); }),
-    lineButton(tr('blank_duplicate'), '⧉', () => { addLine(readLine(line), { after: line, focus: true }); }),
+    lineButton(tr('blank_duplicate'), '⧉', () => { addLine({ ...readLine(line), orderItemId: null }, { after: line, focus: true }); }),
     lineButton(tr('blank_remove'), '×', () => { line.remove(); if (!lineRows().length) addLine(); changed(); }));
   const desc = el('textarea', { name: 'description', maxLength: 1000, rows: 2, value: values.description || '', placeholder: tr('blank_item_desc_hint', tr('blank_item_desc')) });
   desc.setAttribute('aria-label', tr('blank_item_desc'));
@@ -95,6 +101,11 @@ function addLine(values = {}, { focus = false, after = null } = {}) {
   line.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') { e.preventDefault(); addLine({}, { after: line, focus: true }); }
   });
+  if (values.orderItemId) {
+    // Pozycja z zamówienia: bez zmiany ilości i ceny zostaje jej wartość co do grosza (cenniki progowe)
+    Object.assign(line.dataset, { orderItemId: String(values.orderItemId), baseQty: String(values.quantity), basePrice: String(values.unitPriceNet), baseValue: String(values.valueNet) });
+    name.title = tr('edit_from_order');
+  }
   if (after) after.after(line); else $('inv-blank-lines').append(line);
   if (focus) name.focus();
   changed();
@@ -103,7 +114,8 @@ function addLine(values = {}, { focus = false, after = null } = {}) {
 
 function readLine(row) {
   const f = (n) => row.querySelector(`[name="${n}"]`);
-  return { name: f('name').value.trim(), description: f('description').value.trim(), quantity: f('quantity').value.trim(),
+  return { orderItemId: row.dataset.orderItemId ? Number(row.dataset.orderItemId) : null,
+    name: f('name').value.trim(), description: f('description').value.trim(), quantity: f('quantity').value.trim(),
     unit: f('unit').value, unitPriceNet: f('unitPriceNet').value.trim(), isService: f('isService').checked };
 }
 const lineRows = () => [...$('inv-blank-lines').tBodies];
@@ -242,6 +254,17 @@ $('inv-blank-manual-vies').addEventListener('click', () => viesCheck(form.elemen
 
 function payload() {
   const f = form.elements;
+  if (EDIT) {
+    return {
+      target: state.target,
+      lines: lineRows().map(readLine).map((l) => ({ ...l, quantity: parseNum(l.quantity), unitPriceNet: parseNum(l.unitPriceNet) })),
+      saleDate: f.saleDate.value,
+      deliveryDate: f.deliveryDate.value,
+      paymentDays: f.paymentDays.value,
+      notes: f.notes.value,
+      version: state.edit ? state.edit.version : null
+    };
+  }
   const manual = $('inv-blank-manual').checked;
   return {
     issuerOrganizationId: Number(f.issuerOrganizationId.value),
@@ -265,7 +288,9 @@ let previewSeq = 0;
 function changed() {
   for (const row of lineRows()) {
     const l = readLine(row);
-    const net = parseNum(l.quantity) * parseNum(l.unitPriceNet);
+    const d = row.dataset;
+    const unchanged = d.baseValue && parseNum(l.quantity) === Number(d.baseQty) && parseNum(l.unitPriceNet) === Number(d.basePrice);
+    const net = unchanged ? Number(d.baseValue) : parseNum(l.quantity) * parseNum(l.unitPriceNet);
     row.querySelector('.inv-blank-net').textContent = Number.isFinite(net) && l.unitPriceNet ? money.format(Math.round(net * 100) / 100) : '';
   }
   if (state.issued) return;
@@ -277,7 +302,7 @@ async function refreshSummary() {
   const seq = ++previewSeq;
   $('inv-blank-sum-body').querySelector('.inv-blank-muted')?.replaceChildren(tr('blank_summary_calc'));
   try {
-    const r = await api('/api/v1/invoices/blank/preview', { method: 'POST', body: JSON.stringify(payload()) });
+    const r = await api(EDIT ? '/api/v1/invoices/edit/preview' : '/api/v1/invoices/blank/preview', { method: 'POST', body: JSON.stringify(payload()) });
     if (seq !== previewSeq) return; // nowsze żądanie już poszło
     state.summary = r.valid ? r.summary : null;
     renderErrors(r.valid ? [] : r.fieldErrors || [], r.valid ? [] : r.errors || []);
@@ -339,10 +364,12 @@ function renderErrors(fieldErrors, otherErrors) {
 function renderSummary() {
   const body = $('inv-blank-sum-body');
   const s = state.summary;
+  if (EDIT) $('inv-edit-save').disabled = !s;
   if (!s) { body.replaceChildren(el('p', { className: 'inv-blank-muted', textContent: tr('blank_summary_empty') })); return; }
+  if (EDIT) renderConflicts(s.conflicts || []);
   const dl = el('dl');
   const row = (k, v, cls = '') => dl.append(el('dt', { className: cls, textContent: k }), el('dd', { className: cls, textContent: v }));
-  row(tr('blank_expected_number'), s.expectedNumber || '—');
+  row(tr(EDIT ? 'edit_number' : 'blank_expected_number'), s.expectedNumber || (EDIT ? tr('edit_number_later') : '—'));
   row(tr('blank_doc_lang'), String(s.lang).toUpperCase());
   // Stawka tylko przy krajowej/obniżonej — etykiety 0 % (WDT, odwrotne obciążenie, eksport) już ją zawierają
   for (const l of s.taxLines) row(`${tr(`blank_tax_${l.taxCategory}`, l.taxCategory)}${['standard', 'reduced'].includes(l.taxCategory) ? ` ${l.taxRate} %` : ''}`, `${money.format(l.net)} + ${money.format(l.tax)}`);
@@ -350,7 +377,7 @@ function renderSummary() {
   row(tr('blank_total_tax'), `${money.format(s.totals.tax)} ${s.currency}`);
   row(tr('blank_total_gross'), `${money.format(s.totals.gross)} ${s.currency}`, 'total');
   const notes = [...new Set(s.taxLines.map((l) => l.legalNote).filter(Boolean)), ...(s.warnings || [])];
-  body.replaceChildren(dl, el('p', { className: 'inv-blank-muted', textContent: tr('blank_expected_hint') }),
+  body.replaceChildren(dl, el('p', { className: 'inv-blank-muted', textContent: tr(EDIT ? 'edit_hint' : 'blank_expected_hint') }),
     ...(notes.length ? [el('ul', {}, ...notes.map((n) => el('li', { className: 'inv-blank-muted', textContent: n })))] : []));
   for (const [i, it] of s.items.entries()) {
     const cell = lineRows()[i]?.querySelector('.inv-blank-net');
@@ -534,7 +561,93 @@ async function prefill(id, asDraft) {
   changed();
 }
 
+/* ------------------------------------------------------------------ */
+/* Edycja faktury z zamówienia (admin i biuro)                          */
+/* ------------------------------------------------------------------ */
+
+function renderConflicts(conflicts = []) {
+  const box = $('inv-edit-conflicts');
+  if (!box) return;
+  box.hidden = !conflicts.length;
+  box.replaceChildren(...(conflicts.length
+    ? [el('div', { textContent: tr('edit_conflicts') }),
+      el('ul', { className: 'inv-edit-conflicts' }, ...conflicts.map((c) => el('li', { textContent: `#${c.orderItemId}: ${tr(`edit_conflict_${c.reason}`, c.reason)}` })))]
+    : []));
+}
+
+function renderHistory(items = []) {
+  const card = $('inv-edit-history-card');
+  if (!card) return;
+  card.hidden = !items.length;
+  $('inv-edit-history').replaceChildren(...items.map((h) => el('li', {
+    textContent: [h.at, tr(`edit_ev_${h.type}`, h.type), h.actorPin ? `${h.actorPin}${h.payload && h.payload.role ? ` (${h.payload.role})` : ''}` : ''].filter(Boolean).join(' · ')
+  })));
+}
+
+function applyEditContext(ctx) {
+  state.edit = ctx;
+  state.target = ctx.invoiceId ? { invoiceId: ctx.invoiceId } : { orderId: ctx.orderId, level: ctx.level };
+  const prepared = ctx.mode === 'prepared';
+  $('inv-page-title').textContent = prepared ? tr('edit_title_prepared') : `${tr('edit_title')} ${ctx.number || ''}`.trim();
+  $('inv-page-intro').textContent = tr(prepared ? 'edit_intro_prepared' : 'edit_intro_document');
+  $('inv-edit-heading').textContent = ctx.number ? `${tr('edit_number')} ${ctx.number}` : tr('edit_title_prepared');
+  $('inv-edit-status').textContent = tr(`edit_status_${ctx.status}`, ctx.status);
+  // Kroki 1–2 (wystawca, nabywca) są w edycji ukryte — nagłówki bez numerów
+  document.querySelector('[data-step="items"] .inv-card__title').textContent = tr('blank_items');
+  document.querySelector('[data-step="terms"] .inv-card__title').textContent = tr('blank_dates');
+  $('inv-edit-parties').textContent = `${ctx.seller.name} → ${ctx.buyer.name}`;
+  $('inv-edit-meta').textContent = [ctx.orderRef ? `${tr('edit_order')} ${ctx.orderRef}` : '', `${ctx.currency} · ${String(ctx.lang || '').toUpperCase()}`].filter(Boolean).join(' · ');
+  renderConflicts(ctx.conflicts || []);
+  const f = form.elements;
+  f.saleDate.value = ctx.saleDate || '';
+  f.deliveryDate.value = ctx.deliveryDate || '';
+  f.paymentDays.value = ctx.paymentDays ?? '';
+  f.notes.value = ctx.notes || '';
+  lineRows().forEach((r) => r.remove());
+  (ctx.lines && ctx.lines.length ? ctx.lines : [{}]).forEach((l) => addLine(l));
+  const pdf = $('inv-edit-pdf');
+  pdf.hidden = !ctx.invoiceId;
+  if (ctx.invoiceId) pdf.href = `/api/v1/invoices/edit/${ctx.invoiceId}/pdf`;
+  renderHistory(ctx.history || []);
+  changed();
+}
+
+async function loadEdit() {
+  const t = state.target || {};
+  const q = new URLSearchParams(t.invoiceId ? { invoiceId: t.invoiceId } : { orderId: t.orderId, level: t.level });
+  const r = await api(`/api/v1/invoices/edit/context?${q}`);
+  applyEditContext(r.context);
+}
+
+if (EDIT) {
+  $('inv-edit-save').addEventListener('click', async () => {
+    const btn = $('inv-edit-save');
+    btn.disabled = true;
+    state.showAll = true;
+    try {
+      const r = await api('/api/v1/invoices/edit/save', { method: 'POST', body: JSON.stringify(payload()) });
+      showToast('success', tr(r.mode === 'prepared' ? 'edit_saved_prepared' : 'edit_saved_document'), 6);
+      state.target = { invoiceId: r.id };
+      await loadEdit();
+    } catch (err) {
+      showToast('error', err.message, 8);
+      if (err.body && err.body.fieldErrors) renderErrors(err.body.fieldErrors, []);
+    } finally {
+      btn.disabled = !state.summary;
+    }
+  });
+}
+
 (async () => {
+  if (EDIT) {
+    try {
+      await loadEdit();
+    } catch (err) {
+      showToast('error', err.message, 8);
+      $('inv-page-intro').textContent = err.message;
+    }
+    return;
+  }
   const params = new URLSearchParams(location.search);
   const draft = Number(params.get('draft'));
   const from = Number(params.get('from'));

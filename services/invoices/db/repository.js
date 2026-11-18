@@ -177,18 +177,85 @@ async function upsertOrganizationProfile(organizationId, patch) {
 }
 
 /**
+ * Pozycje faktury (zapis nowej faktury i edycji wystawionej).
+ * @returns {Promise<Map<number, number>>} `order_item_id` → `invoice_item.id`
+ */
+async function insertInvoiceItems(conn, invoiceId, invoice, cur) {
+  const idByOrderItem = new Map();
+  for (const item of invoice.items || []) {
+    const [itemResult] = await conn.query(
+      `INSERT INTO invoice_item (
+         invoice_id, position, name, description, unit, quantity, unit_price_net,
+         discount_percent, net_amount, tax_category, tax_rate, tax_amount, gross_amount,
+         order_item_id, order_number, width_mm, height_mm, meta
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        invoiceId, item.position, item.name, item.description || null, item.unit,
+        item.meta?.displayQuantity ?? item.quantity,
+        money.toMajor(item.unitPriceNet, cur), item.discountPercent || 0,
+        money.toMajor(item.netAmount, cur), item.taxCategory, item.taxRate,
+        money.toMajor(item.taxAmount, cur), money.toMajor(item.grossAmount, cur),
+        item.orderItemId ?? null,
+        // Wymogi specyfikacji: pozycja faktury niesie numer oryginalnego
+        // zamówienia i wymiary (szerokość × wysokość dla rolet/firan).
+        item.orderNumber || invoice.orderRef || null,
+        item.meta?.widthMm ?? null, item.meta?.heightMm ?? null,
+        item.meta ? JSON.stringify(item.meta) : null
+      ]
+    );
+    if (item.orderItemId) idByOrderItem.set(Number(item.orderItemId), Number(itemResult.insertId));
+  }
+  return idByOrderItem;
+}
+
+/** Podsumowanie VAT faktury (zapis nowej faktury i edycji wystawionej). */
+async function insertTaxLines(conn, invoiceId, taxLines, cur) {
+  for (const line of taxLines || []) {
+    await conn.query(
+      `INSERT INTO invoice_tax_line (invoice_id, tax_category, tax_rate, net_amount, tax_amount, gross_amount, legal_note_key)
+       VALUES (?,?,?,?,?,?,?)`,
+      [
+        invoiceId, line.taxCategory, line.taxRate,
+        money.toMajor(line.netAmount, cur), money.toMajor(line.taxAmount, cur), money.toMajor(line.grossAmount, cur),
+        line.legalNoteKey || null
+      ]
+    );
+  }
+}
+
+/**
  * Zapis kompletnego dokumentu (nagłówek + pozycje + podsumowanie VAT) w jednej
  * transakcji. Numer jest nadawany TUTAJ, w tej samej transakcji co insert —
  * inaczej awaria między rezerwacją numeru a zapisem zostawiłaby dziurę w numeracji.
  *
- * @param {Invoice & { orgCode?: string, numberPattern?: string, createdByPin?: string }} invoice
- * @param {{ assignNumber?: boolean }} [opts]
+ * `opts.replaceId` („Przelicz dzienne ponownie”): stara wersja faktury znika w TEJ SAMEJ
+ * transakcji (pozycje, VAT, zdarzenia — kaskadą), a nowa przejmuje jej numer z `invoice.number`.
+ *
+ * @param {Invoice & { orgCode?: string, numberPattern?: string, numberSeries?: { issuerType: string, issuerId: number, level: number }|null, createdByPin?: string }} invoice
+ * @param {{ assignNumber?: boolean, replaceId?: number|null }} [opts]
  * @returns {Promise<{ id: number, number: string|null }>}
  */
 async function createInvoice(invoice, opts = {}) {
   const { NumberingService } = require('../core/numbering');
 
   return withTransaction(async (conn) => {
+    // Historia (utworzenie, przygotowanie, edycje) przechodzi na nową wersję; znaczniki
+    // maila i FTP nie — nowa wersja idzie kanałami od nowa (przeliczona dzienna, wystawiony szkic)
+    let carriedEvents = [];
+    if (opts.replaceId) {
+      [carriedEvents] = await conn.query(
+        `SELECT event_type, from_status, to_status, actor_pin, payload, created_at FROM invoice_event
+          WHERE invoice_id = ? AND event_type NOT LIKE 'mail\\_%' AND event_type NOT LIKE 'ftp\\_%' ORDER BY id`,
+        [Number(opts.replaceId)]
+      );
+      const [del] = await conn.query('DELETE FROM invoice WHERE id = ?', [Number(opts.replaceId)]);
+      if (!del.affectedRows) {
+        // Ktoś podmienił albo usunął tę wersję w międzyczasie (dwa zapisy naraz)
+        const err = new Error('Ktoś zapisał tę fakturę w międzyczasie — odśwież i spróbuj jeszcze raz.');
+        err.code = 'INVOICE_EDIT_CONFLICT';
+        throw err;
+      }
+    }
     let number = invoice.number || null;
 
     if (!number && opts.assignNumber) {
@@ -198,9 +265,7 @@ async function createInvoice(invoice, opts = {}) {
       const numbering = new NumberingService({
         allocateSequence: useIssuerSeries
           ? ({ periodKey }) => allocateIssuerSequence({
-            issuerType: invoice.issuerType,
-            issuerId: invoice.issuerId || 0,
-            level: invoice.level || 2,
+            ...(invoice.numberSeries || { issuerType: invoice.issuerType, issuerId: invoice.issuerId || 0, level: invoice.level || 2 }),
             year: Number(String(periodKey).slice(0, 4))
           }, conn)
           : (params) => allocateSequence(params, conn)
@@ -329,32 +394,15 @@ async function createInvoice(invoice, opts = {}) {
     );
     const invoiceId = Number(header.insertId);
 
-    /** `order_item_id` → `invoice_item.id`, potrzebne do zapisu alokacji. */
-    const invoiceItemIdByOrderItem = new Map();
-
-    for (const item of invoice.items || []) {
-      const [itemResult] = await conn.query(
-        `INSERT INTO invoice_item (
-           invoice_id, position, name, description, unit, quantity, unit_price_net,
-           discount_percent, net_amount, tax_category, tax_rate, tax_amount, gross_amount,
-           order_item_id, order_number, width_mm, height_mm, meta
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          invoiceId, item.position, item.name, item.description || null, item.unit,
-          item.meta?.displayQuantity ?? item.quantity,
-          money.toMajor(item.unitPriceNet, cur), item.discountPercent || 0,
-          money.toMajor(item.netAmount, cur), item.taxCategory, item.taxRate,
-          money.toMajor(item.taxAmount, cur), money.toMajor(item.grossAmount, cur),
-          item.orderItemId ?? null,
-          // Wymogi specyfikacji: pozycja faktury niesie numer oryginalnego
-          // zamówienia i wymiary (szerokość × wysokość dla rolet/firan).
-          item.orderNumber || invoice.orderRef || null,
-          item.meta?.widthMm ?? null, item.meta?.heightMm ?? null,
-          item.meta ? JSON.stringify(item.meta) : null
-        ]
+    for (const e of carriedEvents) {
+      await conn.query(
+        'INSERT INTO invoice_event (invoice_id, event_type, from_status, to_status, actor_pin, payload, created_at) VALUES (?,?,?,?,?,?,?)',
+        [invoiceId, e.event_type, e.from_status, e.to_status, e.actor_pin, e.payload == null ? null : (typeof e.payload === 'string' ? e.payload : JSON.stringify(e.payload)), e.created_at]
       );
-      if (item.orderItemId) invoiceItemIdByOrderItem.set(Number(item.orderItemId), Number(itemResult.insertId));
     }
+
+    /** `order_item_id` → `invoice_item.id`, potrzebne do zapisu alokacji. */
+    const invoiceItemIdByOrderItem = await insertInvoiceItems(conn, invoiceId, invoice, cur);
 
     // Alokacje partii ilości — po zapisie pozycji, bo potrzebują ich ID
     for (const line of validatedAllocations || []) {
@@ -370,17 +418,7 @@ async function createInvoice(invoice, opts = {}) {
       );
     }
 
-    for (const line of invoice.taxLines || []) {
-      await conn.query(
-        `INSERT INTO invoice_tax_line (invoice_id, tax_category, tax_rate, net_amount, tax_amount, gross_amount, legal_note_key)
-         VALUES (?,?,?,?,?,?,?)`,
-        [
-          invoiceId, line.taxCategory, line.taxRate,
-          money.toMajor(line.netAmount, cur), money.toMajor(line.taxAmount, cur), money.toMajor(line.grossAmount, cur),
-          line.legalNoteKey || null
-        ]
-      );
-    }
+    await insertTaxLines(conn, invoiceId, invoice.taxLines, cur);
 
     await conn.query(
       `INSERT INTO invoice_event (invoice_id, event_type, to_status, actor_pin, payload)
@@ -567,6 +605,7 @@ async function listInvoices({ organizationId, status, documentType, orderId, buy
             i.level, i.issuer_type, i.issuer_id,
             -- 'AUTO' = dokument wystawiony przez automat (autoInvoicing.js)
             i.created_by_pin,
+            JSON_EXTRACT(i.compliance, '$.manualEdit') IS NOT NULL AS manual_edit,
             -- Numer i nazwa zamówienia do rozeznania na liście.
             -- ⚠️ COALESCE ze złączeniem: dokumenty sprzed dodania kolumn
             -- (snapshot) mają je puste, więc dla nich bierzemy dane wprost
@@ -1080,16 +1119,17 @@ const AUTO_LEVEL_SQL = Object.freeze({
  *    że ktoś zajął się zamówieniem ręcznie — automat wystawiałby ją od nowa co
  *    godzinę; zaliczka wymaga faktury końcowej, którą wystawia człowiek.
  *
- * @param {{ level: number, since: string, organizationIds?: number[], excludeOrganizationId?: number|null, limit?: number }} params
+ * @param {{ level: number, since: string, organizationIds?: number[], excludeOrganizationId?: number|null, excludeOrganizationIds?: number[], limit?: number }} params
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function findAutoInvoiceCandidates({ level, since, organizationIds = [], excludeOrganizationId = null, limit = 100 }) {
+async function findAutoInvoiceCandidates({ level, since, organizationIds = [], excludeOrganizationId = null, excludeOrganizationIds = [], limit = 100 }) {
   const levelSql = AUTO_LEVEL_SQL[Number(level)];
   if (levelSql === undefined) throw new Error(`Automat nie obsługuje poziomu ${level}`);
   const values = [since];
   let filters = '';
   if (organizationIds.length) { filters += ' AND o.organization_id IN (?)'; values.push(organizationIds); }
-  if (excludeOrganizationId) { filters += ' AND o.organization_id <> ?'; values.push(Number(excludeOrganizationId)); }
+  const excluded = [excludeOrganizationId, ...excludeOrganizationIds].map(Number).filter(Boolean);
+  if (excluded.length) { filters += ' AND o.organization_id NOT IN (?)'; values.push(excluded); }
   // Klient z fakturowaniem niestandardowym (tygodniowe/miesięczne) dostaje
   // fakturę ZBIORCZĄ za okres (`findCollectiveCandidates`), nie za każde zlecenie
   const scheduleSql = Number(level) === 2 && (await supportsInvoiceSchedule())
@@ -1461,6 +1501,276 @@ async function findDailyCandidates({ level, since, organizationIds = [] }) {
 }
 
 /**
+ * Ręczne zmiany faktury dla zamówienia i relacji (`core/manualEdit.js`): najnowszy
+ * nieanulowany dokument tego zamówienia z nakładką — przygotowany szkic albo
+ * wystawiona faktura per zlecenie. Faktura dzienna/zbiorcza (`order_id` NULL) nakładki
+ * nie niesie, tylko ją stosuje. `strictQuery`: bez nakładki faktura wyszłaby bez zmian.
+ *
+ * @param {{ orderId: number, level: number }} params
+ * @returns {Promise<{ invoiceId: number, status: string, manualEdit: Record<string, any> }|null>}
+ */
+async function findManualOverlay({ orderId, level }) {
+  const rows = await strictQuery(
+    `SELECT id, status, compliance FROM invoice
+      WHERE order_id = ? AND level = ? AND status <> 'cancelled'
+        AND JSON_EXTRACT(compliance, '$.manualEdit.overlay') IS NOT NULL
+      ORDER BY id DESC LIMIT 1`,
+    [Number(orderId), Number(level)]
+  );
+  const row = rows[0];
+  const manualEdit = row ? (parseJsonColumn(row.compliance) || {}).manualEdit : null;
+  return manualEdit && manualEdit.overlay ? { invoiceId: Number(row.id), status: row.status, manualEdit } : null;
+}
+
+/**
+ * Szkic przygotowany ręcznie dla zamówienia i relacji (przed !sent!).
+ * @returns {Promise<{ id: number, compliance: Record<string, any> }|null>}
+ */
+async function findPreparedDraft({ orderId, level }) {
+  const rows = await strictQuery(
+    `SELECT id, compliance FROM invoice
+      WHERE order_id = ? AND level = ? AND status = 'draft'
+        AND JSON_UNQUOTE(JSON_EXTRACT(compliance, '$.manualEdit.prepared')) = 'true'
+      ORDER BY id DESC LIMIT 1`,
+    [Number(orderId), Number(level)]
+  );
+  return rows[0] ? { id: Number(rows[0].id), compliance: parseJsonColumn(rows[0].compliance) || {} } : null;
+}
+
+/**
+ * Przygotowane szkice, których zamówienie doszło do !sent! — automat wystawia je
+ * zamiast budować fakturę od zera. Bez relacji, w których faktury per zlecenie nie ma:
+ * HKL → organizacja „tylko dzienna” (`excludeOrganizationIds`) i klient z fakturą
+ * tygodniową/miesięczną — tam nakładkę stosuje faktura dzienna/zbiorcza.
+ *
+ * @param {{ since: string, excludeOrganizationIds?: number[], limit?: number }} params
+ */
+async function findPreparedDraftsReady({ since, excludeOrganizationIds = [], limit = 100 }) {
+  const scheduleSql = (await supportsInvoiceSchedule())
+    ? "AND (i.level <> 2 OR u.invoice_schedule IS NULL OR u.invoice_schedule NOT IN ('weekly', 'monthly'))"
+    : '';
+  const excluded = excludeOrganizationIds.map(Number).filter(Boolean);
+  return strictQuery(
+    `SELECT i.id, i.order_id, i.level, o.order_idx, o.organization_id, u.ident AS user_ident,
+            EXISTS (SELECT 1 FROM invoice_event e WHERE e.invoice_id = i.id AND e.event_type = 'manual_review') AS review
+       FROM invoice i
+       JOIN \`order\` o ON o.id = i.order_id
+       JOIN \`user\` u ON u.id = o.user_id
+      WHERE i.status = 'draft'
+        AND JSON_UNQUOTE(JSON_EXTRACT(i.compliance, '$.manualEdit.prepared')) = 'true'
+        AND o.status = 'sent' AND o.prod_status = '!sent!' AND o.delivery_date >= ?
+        AND NOT EXISTS (
+              SELECT 1 FROM position_statuses ps
+               WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
+                 AND ps.status <> '!sent!')
+        ${excluded.length ? 'AND (i.level <> 1 OR o.organization_id NOT IN (?))' : ''}
+        ${scheduleSql}
+      ORDER BY i.id
+      LIMIT ?`,
+    [since, ...(excluded.length ? [excluded] : []), Number(limit)]
+  );
+}
+
+/**
+ * Wyszukiwarka faktur admina we WSZYSTKICH organizacjach (prośba Pawła 17.11.2026: panel
+ * działa w kontekście jednej organizacji, więc np. Cozy → M2 nie było widać z HKL).
+ * Szuka po numerze, nabywcy (nazwa, ident), numerze i nazwie (commission) zamówienia
+ * z nagłówka, a dla dziennej/zbiorczej także po zamówieniach i klientach pozycji.
+ *
+ * @param {{ q: string, limit?: number }} params
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function searchInvoices({ q, limit = 100 }) {
+  const term = String(q || '').trim();
+  if (term.length < 2) return [];
+  const like = `%${term.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+  return strictQuery(
+    `SELECT i.id, i.number, i.level, i.status, i.document_type, i.currency, i.total_net, i.total_gross, i.amount_due,
+            i.issue_date, i.due_date, i.seller_name, i.buyer_name, i.order_ref, i.order_name, i.created_by_pin,
+            JSON_EXTRACT(i.compliance, '$.manualEdit') IS NOT NULL AS manual_edit, bu.ident AS buyer_ident
+       FROM invoice i
+       LEFT JOIN \`user\` bu ON bu.id = i.buyer_user_id
+      WHERE i.number LIKE ? OR i.buyer_name LIKE ? OR bu.ident LIKE ? OR i.order_ref LIKE ? OR i.order_name LIKE ?
+         OR EXISTS (SELECT 1 FROM invoice_item ii
+                      JOIN order_item oi ON oi.id = ii.order_item_id
+                      JOIN \`order\` o ON o.id = oi.order_id
+                      JOIN \`user\` ou ON ou.id = o.user_id
+                     WHERE ii.invoice_id = i.id
+                       AND (o.commision LIKE ? OR oi.commision LIKE ? OR o.order_idx LIKE ? OR ou.ident LIKE ? OR ou.client_name LIKE ?))
+      ORDER BY i.id DESC
+      LIMIT ?`,
+    [like, like, like, like, like, like, like, like, like, like, Number(limit)]
+  );
+}
+
+/** Strony zamówienia do wejść edytora faktury (`orderLinks.js`). */
+async function getOrderRelations(orderId) {
+  const rows = await strictQuery(
+    `SELECT o.organization_id, org.ident AS org_ident, u.ident AS user_ident
+       FROM \`order\` o JOIN \`user\` u ON u.id = o.user_id JOIN organization org ON org.id = o.organization_id
+      WHERE o.id = ?`,
+    [Number(orderId)]
+  );
+  return rows[0] ? { organizationId: Number(rows[0].organization_id), orgIdent: rows[0].org_ident || '', userIdent: rows[0].user_ident || '' } : null;
+}
+
+/**
+ * Wystawiona faktura zamówienia w relacji — najpierw per zlecenie, potem dzienna/zbiorcza
+ * z jego pozycjami (edytor otwiera ją zamiast nowego przygotowania).
+ */
+async function findOrderInvoiceForEdit({ orderId, level }) {
+  const rows = await strictQuery(
+    `SELECT i.id FROM invoice i
+      WHERE i.level = ? AND i.status NOT IN ('cancelled', 'draft') AND i.document_type IN ('invoice', 'final')
+        AND (i.order_id = ? OR EXISTS (SELECT 1 FROM invoice_item ii JOIN order_item oi ON oi.id = ii.order_item_id
+                                        WHERE ii.invoice_id = i.id AND oi.order_id = ?))
+      ORDER BY (i.order_id IS NULL), i.id DESC
+      LIMIT 1`,
+    [Number(level), Number(orderId), Number(orderId)]
+  );
+  return rows[0] ? Number(rows[0].id) : null;
+}
+
+/** Co blokuje edycję w miejscu: korekta/dokument powiązany, alokacje częściowego fakturowania. */
+async function getEditBlockers(invoiceId) {
+  const [row] = await strictQuery(
+    `SELECT (SELECT COUNT(*) FROM invoice r WHERE r.corrected_invoice_id = ? OR r.parent_invoice_id = ?) AS related,
+            (SELECT COUNT(*) FROM invoice_item_allocation a WHERE a.invoice_id = ?) AS allocations`,
+    [Number(invoiceId), Number(invoiceId), Number(invoiceId)]
+  );
+  return { related: Number(row.related), allocations: Number(row.allocations) };
+}
+
+/** Zamówienia na fakturze (nagłówek albo pozycje — dzienna/zbiorcza ma ich wiele). */
+async function getInvoiceOrderIds(invoiceId) {
+  const rows = await strictQuery(
+    `SELECT DISTINCT oi.order_id AS id FROM invoice_item ii JOIN order_item oi ON oi.id = ii.order_item_id WHERE ii.invoice_id = ?
+     UNION SELECT order_id AS id FROM invoice WHERE id = ? AND order_id IS NOT NULL`,
+    [Number(invoiceId), Number(invoiceId)]
+  );
+  return [...new Set(rows.map((r) => Number(r.id)).filter(Boolean))];
+}
+
+/** Historia faktury do panelu edycji (utworzenie, przygotowanie, edycje, przegląd). */
+async function getInvoiceHistory(invoiceId) {
+  const rows = await strictQuery(
+    `SELECT event_type, actor_pin, payload, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') AS at
+       FROM invoice_event
+      WHERE invoice_id = ? AND event_type IN ('created', 'issued', 'prepared', 'edited', 'manual_review')
+      ORDER BY id`,
+    [Number(invoiceId)]
+  );
+  return rows.map((r) => ({ type: r.event_type, actorPin: r.actor_pin, at: r.at, payload: parseJsonColumn(r.payload) || {} }));
+}
+
+/**
+ * Edycja faktury w miejscu (decyzja Pawła 17.11.2026): ten sam numer, nowe pozycje,
+ * podsumowanie VAT, sumy, uwagi i daty w JEDNEJ transakcji. Blokada równoległej
+ * edycji: `compliance.manualEdit.version`. Wpis `edited` niesie pełny zrzut poprzedniej
+ * wersji. `reuploadFtp`: znacznik `ftp_uploaded` → `ftp_uploaded_rN`, więc eksport
+ * podmieni PDF na FTP; znaczników maila nie ruszamy — klient nie dostaje nic.
+ *
+ * @param {number} invoiceId
+ * @param {Record<string, any>} invoice  nowa treść (items, taxLines, sumy w groszach, notes, daty, compliance)
+ * @param {{ expectedVersion?: number|null, actorPin?: string|null, eventType?: string, eventPayload?: object, reuploadFtp?: boolean }} opts
+ * @returns {Promise<{ id: number, version: number }>}
+ */
+async function updateInvoiceContent(invoiceId, invoice, { expectedVersion = null, actorPin = null, eventType = 'edited', eventPayload = {}, reuploadFtp = false } = {}) {
+  return withTransaction(async (conn) => {
+    const [[row]] = await conn.query('SELECT id, currency, local_currency, compliance FROM invoice WHERE id = ? FOR UPDATE', [Number(invoiceId)]);
+    if (!row) throw new Error(`Faktura ${invoiceId} nie istnieje`);
+    const stored = parseJsonColumn(row.compliance) || {};
+    const version = Number((stored.manualEdit && stored.manualEdit.version) || 0);
+    if (expectedVersion != null && Number(expectedVersion) !== version) {
+      const err = new Error('Ktoś zapisał tę fakturę w międzyczasie — odśwież edytor i nanieś zmiany jeszcze raz.');
+      err.code = 'INVOICE_EDIT_CONFLICT';
+      throw err;
+    }
+    const cur = row.currency;
+    await conn.query('DELETE FROM invoice_item WHERE invoice_id = ?', [Number(invoiceId)]);
+    await conn.query('DELETE FROM invoice_tax_line WHERE invoice_id = ?', [Number(invoiceId)]);
+    await insertInvoiceItems(conn, Number(invoiceId), invoice, cur);
+    await insertTaxLines(conn, Number(invoiceId), invoice.taxLines, cur);
+    const compliance = {
+      ...stored,
+      ...(invoice.compliance || {}),
+      manualEdit: { ...(stored.manualEdit || {}), ...((invoice.compliance && invoice.compliance.manualEdit) || {}), version: version + 1 }
+    };
+    await conn.query(
+      `UPDATE invoice SET total_net = ?, total_tax = ?, total_gross = ?, total_tax_local = ?, amount_due = ?,
+              notes = ?, sale_date = ?, delivery_date = ?, due_date = ?, legal_notes = ?, compliance = ?
+        WHERE id = ?`,
+      [
+        money.toMajor(invoice.totalNet, cur), money.toMajor(invoice.totalTax, cur), money.toMajor(invoice.totalGross, cur),
+        invoice.totalTaxLocal == null ? null : money.toMajor(invoice.totalTaxLocal, row.local_currency),
+        money.toMajor(invoice.amountDue ?? invoice.totalGross, cur),
+        invoice.notes || null, invoice.saleDate, invoice.deliveryDate || null, invoice.dueDate,
+        invoice.legalNotes ? JSON.stringify(invoice.legalNotes) : null, JSON.stringify(compliance), Number(invoiceId)
+      ]
+    );
+    await conn.query(
+      'INSERT INTO invoice_event (invoice_id, event_type, actor_pin, payload) VALUES (?, ?, ?, ?)',
+      [Number(invoiceId), eventType, actorPin, JSON.stringify(eventPayload)]
+    );
+    if (reuploadFtp) {
+      const [[n]] = await conn.query("SELECT COUNT(*) AS c FROM invoice_event WHERE invoice_id = ? AND event_type LIKE 'ftp\\_uploaded\\_r%'", [Number(invoiceId)]);
+      await conn.query("UPDATE invoice_event SET event_type = ? WHERE invoice_id = ? AND event_type = 'ftp_uploaded'", [`ftp_uploaded_r${Number(n.c) + 1}`, Number(invoiceId)]);
+    }
+    return { id: Number(invoiceId), version: version + 1 };
+  });
+}
+
+/**
+ * Organizacje, którym HKL wystawia TYLKO fakturę dzienną, we własnej serii:
+ * `invoice_organization_profile.number_patterns.hkl_daily` (Cozy od 17.11.2026,
+ * `{YY}{NR:6}` → 26000001). Automat nie robi im faktur per zlecenie poziomu 1.
+ * `strictQuery`: błąd ma zatrzymać automat — inaczej powstałyby faktury per zlecenie.
+ *
+ * @returns {Promise<number[]>}
+ */
+async function findHklDailyOrganizationIds() {
+  const rows = await strictQuery('SELECT organization_id, number_patterns FROM invoice_organization_profile');
+  return rows.filter((r) => (parseJsonColumn(r.number_patterns) || {}).hkl_daily).map((r) => Number(r.organization_id));
+}
+
+/**
+ * Faktury dzienne nabywcy za dzień (bez anulowanych) — automat nie wystawia drugiej,
+ * spóźnione zlecenia dołącza „Przelicz dzienne ponownie”. Poziom 1: nabywca =
+ * organizacja (`invoice.organization_id`), poziom 2: klient HKL i sklep grupowy.
+ *
+ * @param {{ level: number, organizationId: number, userId?: number|null, groupUserId?: number|null, day: string }} params
+ * @returns {Promise<Array<{ id: number, number: string|null, status: string, issueDate: string, related: number, orders: Array<{ id: number, order_idx: string, user_id: number, user_ident: string }> }>>}
+ */
+async function findDailyInvoices({ level, organizationId, userId = null, groupUserId = null, day }) {
+  const lvl = Number(level);
+  const rows = await strictQuery(
+    `SELECT i.id, i.number, i.status, DATE_FORMAT(i.issue_date, '%Y-%m-%d') AS issue_date,
+            JSON_UNQUOTE(JSON_EXTRACT(i.compliance, '$.manualEdit.edited')) AS edited,
+            (SELECT COUNT(*) FROM invoice r WHERE r.corrected_invoice_id = i.id OR r.parent_invoice_id = i.id) AS related
+       FROM invoice i
+      WHERE i.created_by_pin = '${DAILY_ACTOR}' AND i.level = ? AND i.sale_date = ? AND i.organization_id = ?
+        ${lvl === 1 ? '' : 'AND i.buyer_user_id = ? AND COALESCE(i.buyer_group_user_id, 0) = ?'}
+        AND i.status <> 'cancelled'
+      ORDER BY i.id`,
+    lvl === 1 ? [lvl, day, Number(organizationId)] : [lvl, day, Number(organizationId), Number(userId), Number(groupUserId) || 0]
+  );
+  const result = [];
+  for (const r of rows) {
+    const orders = await strictQuery(
+      `SELECT DISTINCT o.id, o.order_idx, o.user_id, u.ident AS user_ident
+         FROM invoice_item ii
+         JOIN order_item oi ON oi.id = ii.order_item_id
+         JOIN \`order\` o ON o.id = oi.order_id
+         JOIN \`user\` u ON u.id = o.user_id
+        WHERE ii.invoice_id = ?`,
+      [r.id]
+    );
+    result.push({ id: Number(r.id), number: r.number, status: r.status, issueDate: r.issue_date, related: Number(r.related), edited: r.edited === 'true', orders });
+  }
+  return result;
+}
+
+/**
  * Faktury zaliczkowe wystawione do danego zamówienia — potrzebne, żeby faktura
  * końcowa mogła je odliczyć (`InvoiceCalculator.settleAdvances`).
  *
@@ -1497,6 +1807,9 @@ async function getAdvanceInvoicesForOrder(orderId) {
  */
 function issuerSeriesKey({ issuerType, issuerId, level }) {
   if (issuerType === 'manufacturer') {
+    // Producent ma zawsze id 0. Id ≠ 0 = osobna seria HKL dla organizacji-nabywcy
+    // (`number_patterns.hkl_daily`, Cozy od 17.11.2026: 26000001…) — patrz `invoice.numberSeries`
+    if (Number(issuerId)) return { issuerType, issuerId: Number(issuerId), level: 1 };
     const { HKL_ORG_ID } = require('../../subPrices');
     return { issuerType: 'organization', issuerId: Number(HKL_ORG_ID), level: 2 };
   }
@@ -2236,6 +2549,18 @@ module.exports = {
   updateStatus,
   listInvoices,
   getAdvanceInvoicesForOrder,
+  findHklDailyOrganizationIds,
+  findDailyInvoices,
+  findManualOverlay,
+  findPreparedDraft,
+  findPreparedDraftsReady,
+  getInvoiceOrderIds,
+  getInvoiceHistory,
+  getEditBlockers,
+  getOrderRelations,
+  searchInvoices,
+  findOrderInvoiceForEdit,
+  updateInvoiceContent,
   getOrderInvoiceSource,
   getTemplate,
   listTemplates,

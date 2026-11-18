@@ -45,6 +45,8 @@ const repository = require('../db/repository');
 const { organizationIdFromSession, belongsToSessionOrganization, scopeFromSession, canAccessInvoice, canAccessOrder, canIssueAtLevel } = require('./session');
 const { log } = require('../../../utils/logging');
 const { looksLikeVatEuId } = require('../core/taxRules');
+const { canEditInvoices } = require('../access');
+const staffAccess = require('../../staffAccess');
 
 const router = express.Router();
 const service = new InvoiceService();
@@ -205,9 +207,142 @@ function parseBlankRequest(body = {}) {
 
 const adminOnly = (req, res) => {
   if (req.session?.user?.isAdmin) return false;
-  res.status(403).json({ success: false, message: 'Faktura in blanco: tylko admin' });
+  res.status(403).json({ success: false, message: 'Tylko admin' });
   return true;
 };
+
+// ---------------------------------------------------------------------------
+// Ręczna edycja faktur z zamówień — admin i biuro (Paweł, 17.11.2026)
+// ---------------------------------------------------------------------------
+
+/**
+ * Linie z edytora (te same reguły i kody błędów co faktura in blanco).
+ * @returns {{ errors: string[], fieldErrors: Array<{ field: string, code: string }>, params: Record<string, any> }}
+ */
+function parseEditRequest(body = {}) {
+  const errors = [];
+  const fieldErrors = [];
+  const fail = (field, code, message) => { errors.push(message); fieldErrors.push({ field, code }); };
+  const t = body.target || {};
+  const target = toId(t.invoiceId) ? { invoiceId: toId(t.invoiceId) } : (toId(t.orderId) ? { orderId: toId(t.orderId), level: Number(t.level) } : null);
+  if (!target) fail('target', 'target', 'Brak faktury albo zamówienia do edycji');
+  const rawLines = Array.isArray(body.lines) ? body.lines : [];
+  if (!rawLines.length || rawLines.length > 300) fail('items', 'items', 'Faktura musi mieć od 1 do 300 pozycji');
+  const lines = rawLines.slice(0, 300).map((it, i) => {
+    const quantity = Number(String(it?.quantity ?? '').replace(',', '.'));
+    const unitPriceNet = Number(String(it?.unitPriceNet ?? '').replace(/\s/g, '').replace(',', '.'));
+    const line = { orderItemId: toId(it?.orderItemId), name: text(it?.name, 200), description: text(it?.description, 1000), quantity, unitPriceNet,
+      unit: BLANK_UNITS.includes(it?.unit) ? it.unit : 'szt', isService: it?.isService === true };
+    if (!line.name) fail(`items.${i}.name`, 'item_name', `Pozycja ${i + 1}: brak nazwy`);
+    if (!(quantity > 0 && quantity <= 1e6 && Number.isInteger(Math.round(quantity * 1e6) / 1e3))) fail(`items.${i}.quantity`, 'item_qty', `Pozycja ${i + 1}: ilość większa od zera, do 3 miejsc po przecinku`);
+    if (!(Number.isFinite(unitPriceNet) && Math.abs(unitPriceNet) <= 1e7 && Number.isInteger(Math.round(unitPriceNet * 1e6) / 1e4))) fail(`items.${i}.unitPriceNet`, 'item_price', `Pozycja ${i + 1}: cena netto w EUR, do 2 miejsc po przecinku`);
+    return line;
+  });
+  for (const key of ['saleDate', 'deliveryDate']) if (!isoDayOrEmpty(body[key])) fail(key, 'date', `Nieprawidłowa data: ${key}`);
+  const paymentDays = body.paymentDays === '' || body.paymentDays == null ? undefined : Number(body.paymentDays);
+  if (paymentDays !== undefined && !(Number.isInteger(paymentDays) && paymentDays >= 0 && paymentDays <= 365)) fail('paymentDays', 'payment_days', 'Termin płatności: od 0 do 365 dni');
+  return {
+    errors,
+    fieldErrors,
+    params: {
+      target, lines, notes: body.notes == null ? undefined : text(body.notes, 2000),
+      saleDate: body.saleDate || undefined, deliveryDate: body.deliveryDate || undefined, paymentDays,
+      version: body.version == null || body.version === '' ? null : Number(body.version)
+    }
+  };
+}
+
+/**
+ * Kto może edytować TĘ fakturę: admin wszystko; biuro tylko faktury, których wszystkie
+ * zamówienia są jego klientów, nie opłacone i nie bez zamówienia (decyzje 17.11.2026).
+ * @returns {Promise<{ pin: string|null, role: 'admin'|'staff', isAdmin: boolean }|null>} null = odpowiedź już wysłana
+ */
+async function editAccess(req, res, target) {
+  const user = req.session?.user;
+  const deny = (status, message) => { res.status(status).json({ success: false, message }); return null; };
+  if (!canEditInvoices(user)) return deny(403, 'Edycja faktur: tylko admin i biuro');
+  const actor = { pin: user.pin || null, role: user.isAdmin ? 'admin' : 'staff', isAdmin: !!user.isAdmin };
+  if (actor.isAdmin) return actor;
+  let orderIds = [];
+  if (target && target.invoiceId) {
+    const invoice = await service.repository.getInvoice(target.invoiceId);
+    if (!invoice) return deny(404, 'Nie znaleziono faktury');
+    if (invoice.status === 'paid') return deny(403, 'Faktura opłacona — poprawia ją tylko admin');
+    orderIds = await service.repository.getInvoiceOrderIds(target.invoiceId);
+  } else if (target && target.orderId) {
+    orderIds = [target.orderId];
+  }
+  if (!orderIds.length) return deny(403, 'Faktura bez zamówienia — edytuje ją admin');
+  for (const id of orderIds) {
+    if (!(await staffAccess.canAccessOrder(user.userId, id))) return deny(403, 'Zamówienie spoza Twoich klientów');
+  }
+  return actor;
+}
+
+const editTargetFromQuery = (q) => (toId(q.invoiceId) ? { invoiceId: toId(q.invoiceId) } : { orderId: toId(q.orderId), level: Number(q.level) });
+
+router.get('/edit/context', requireLogin, async (req, res) => {
+  const target = editTargetFromQuery(req.query);
+  const actor = await editAccess(req, res, target);
+  if (!actor) return undefined;
+  try {
+    return res.json({ success: true, context: await service.editContext(target), actor: { role: actor.role } });
+  } catch (err) {
+    return sendError(res, err, 'GET /edit/context');
+  }
+});
+
+// Podsumowanie bez zapisu (błędy formularza = `valid: false`, nie 400 — jak w fakturze in blanco)
+router.post('/edit/preview', requireLogin, async (req, res) => {
+  const { errors, fieldErrors, params } = parseEditRequest(req.body);
+  if (errors.length) return res.json({ success: true, valid: false, errors, fieldErrors });
+  const actor = await editAccess(req, res, params.target);
+  if (!actor) return undefined;
+  try {
+    return res.json({ success: true, valid: true, summary: await service.previewEdit(params) });
+  } catch (err) {
+    return sendError(res, err, 'POST /edit/preview');
+  }
+});
+
+router.post('/edit/save', requireLogin, async (req, res) => {
+  const { errors, fieldErrors, params } = parseEditRequest(req.body);
+  if (errors.length) return res.status(400).json({ success: false, message: errors.join(' · '), fieldErrors });
+  const actor = await editAccess(req, res, params.target);
+  if (!actor) return undefined;
+  try {
+    return res.json({ success: true, ...(await service.saveEdit({ ...params, actor })) });
+  } catch (err) {
+    if (err && err.code === 'INVOICE_EDIT_CONFLICT') return res.status(409).json({ success: false, message: err.message });
+    return sendError(res, err, 'POST /edit/save');
+  }
+});
+
+router.get('/edit/:id/pdf', requireLogin, async (req, res) => {
+  const id = toId(req.params.id);
+  const actor = await editAccess(req, res, { invoiceId: id });
+  if (!actor) return undefined;
+  try {
+    const { buffer, filename } = await service.renderPdf(id);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${filename}"` });
+    return res.send(buffer);
+  } catch (err) {
+    return sendError(res, err, 'GET /edit/:id/pdf');
+  }
+});
+
+// „Przelicz dzienne ponownie” (Paweł 17.11.2026): zlecenia, które doszły po fakturze dziennej
+// za swój dzień, trafiają do tej samej faktury z tym samym numerem (`autoInvoicing.js`)
+router.post('/daily/recalculate', requireLogin, async (req, res) => {
+  if (adminOnly(req, res)) return undefined;
+  try {
+    const { recalculateDailyInvoices } = require('../autoInvoicing');
+    const result = await recalculateDailyInvoices({ deps: { service } });
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return sendError(res, err, 'POST /daily/recalculate');
+  }
+});
 
 router.post('/blank', requireLogin, async (req, res) => {
   if (adminOnly(req, res)) return undefined;
@@ -845,3 +980,4 @@ router.get('/:id/pdf', requireLogin, async (req, res) => {
 
 module.exports = router;
 module.exports.parseBlankRequest = parseBlankRequest;
+module.exports.parseEditRequest = parseEditRequest;

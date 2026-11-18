@@ -1,0 +1,100 @@
+{#
+  Wyszukiwarka faktur admina (`GET /invoices/search?q=`) — WSZYSTKIE organizacje: numer faktury,
+  klient (nabywca albo klient zamówienia na pozycjach), commission i numer zamówienia
+  (`repository.searchInvoices`). Panel faktur działa w kontekście jednej organizacji, więc bez
+  tego faktur np. Cozy → M2 nie było widać z HKL (17.11.2026). Teksty z `L` (panel.json).
+#}
+{% extends "base.njk" %}
+
+{% block title %}{{ L.search_title }}{% endblock title %}
+
+{% block head %}
+  <link rel="stylesheet" href="/styles/orders.css">
+  <link rel="stylesheet" href="/styles/invoices.css?v={{ assetVersion }}">
+{% endblock head %}
+
+{% block key_nav %}window.location.href='/invoices'{% endblock %}
+
+{% block back_link %}
+  <button class="modern-back-btn" onclick="window.location.href='/invoices'">
+{% endblock %}
+
+{% block content %}
+  <div class="content center-content">
+    <div class="container my-5 w-100 mobile-rm-card">
+      <div class="inv-topbar">
+        <div>
+          <h2 class="fw-bold header mb-1">{{ L.search_title }}</h2>
+          <div class="inv-subtitle">{{ L.search_hint }}</div>
+        </div>
+        <div class="inv-topbar__actions">
+          <a class="inv-btn inv-btn--ghost" href="/invoices">{{ L.back }}</a>
+        </div>
+      </div>
+
+      <section class="inv-card">
+        <form class="inv-search-form inv-search-form--wide" action="/invoices/search" method="get" role="search">
+          <input type="search" name="q" value="{{ q }}" minlength="2" maxlength="100" placeholder="{{ L.search_placeholder }}" aria-label="{{ L.search_title }}" autofocus>
+          <button type="submit" class="inv-btn inv-btn--primary">{{ L.search_btn }}</button>
+        </form>
+      </section>
+
+      {% if searched %}
+        <section class="inv-card">
+          {% if results.length %}
+            <div class="inv-table-wrap">
+              <table class="inv-table">
+                <thead>
+                  <tr>
+                    <th>{{ L.number }}</th>
+                    <th>{{ L.issue_date }}</th>
+                    <th>{{ L.search_col_parties }}</th>
+                    <th>{{ L.search_col_order }}</th>
+                    <th class="ta-r">{{ L.net }}</th>
+                    <th class="ta-r">{{ L.gross }}</th>
+                    <th>{{ L.status }}</th>
+                    <th>{{ L.actions }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for inv in results %}
+                    <tr>
+                      <td class="inv-nowrap">
+                        {{- inv.number if inv.number else '—' -}}
+                        {% if inv.isAuto %} <span class="inv-tag inv-tag--auto" title="{{ L.auto_badge_title }}">{{ L.auto_badge }}</span>{% endif %}
+                        {% if inv.isEdited %} <span class="inv-tag">{{ L.edit_badge }}</span>{% endif %}
+                        <span class="inv-order-ref">{{ inv.levelLabel }}</span>
+                      </td>
+                      <td class="inv-nowrap">{{ inv.issueDateFmt }}</td>
+                      <td class="inv-order-name" title="{{ inv.seller_name }} → {{ inv.buyer_name }}">
+                        {{- inv.seller_name }} → {{ inv.buyer_name -}}
+                        {% if inv.buyer_ident %}<span class="inv-order-ref">{{ inv.buyer_ident }}</span>{% endif %}
+                      </td>
+                      <td class="inv-order-name" title="{{ inv.order_name }}">
+                        {{- inv.order_name if inv.order_name else '—' -}}
+                        {% if inv.order_ref %}<span class="inv-order-ref">{{ inv.order_ref }}</span>{% endif %}
+                      </td>
+                      <td class="ta-r inv-nowrap">{{ inv.netFmt }}</td>
+                      <td class="ta-r inv-nowrap">{{ inv.grossFmt }}</td>
+                      <td><span class="inv-status inv-status--{{ inv.status }}">{{ inv.status }}</span></td>
+                      <td class="inv-actions">
+                        <a class="inv-link" href="/invoices/{{ inv.id }}/view" target="_blank" rel="noopener">{{ L.preview }}</a>
+                        <a class="inv-link" href="/api/v1/invoices/{{ inv.id }}/pdf?download=1">{{ L.pdf }}</a>
+                        {% if inv.status != 'cancelled' and (inv.document_type == 'invoice' or inv.document_type == 'final') %}
+                          <a class="inv-link" href="/invoices/edit/{{ inv.id }}">{{ L.edit_link }}</a>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% if truncated %}<p class="inv-subtitle mt-2">{{ L.search_truncated }}</p>{% endif %}
+          {% else %}
+            <p class="inv-subtitle">{{ L.search_empty }}</p>
+          {% endif %}
+        </section>
+      {% endif %}
+    </div>
+  </div>
+{% endblock content %}

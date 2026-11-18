@@ -7,7 +7,7 @@
 #}
 {% extends "base.njk" %}
 
-{% block title %}{{ L.blank_title }}{% endblock title %}
+{% block title %}{{ L.edit_title if edit else L.blank_title }}{% endblock title %}
 
 {% block head %}
   <link rel="stylesheet" href="/styles/orders.css">
@@ -51,6 +51,11 @@
     .inv-blank-preview { width: 100%; height: 75vh; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
     .inv-blank-issued { font-size: 1.1rem; font-weight: 700; }
     #eform-assistant .ea-pet { display: none !important; } /* piesek nie może zasłaniać przycisków formularza */
+    /* Edycja faktury z zamówienia (admin i biuro) */
+    .inv-edit-from-order { font-size: .75rem; color: #6b6b6b; display: block; margin-top: .15rem; }
+    .inv-edit-conflicts { margin: .5rem 0 0; padding-left: 1.1rem; }
+    .inv-edit-history { margin: 0; padding-left: 1.1rem; }
+    .inv-edit-history li { margin: .2rem 0; }
   </style>
 {% endblock head %}
 
@@ -65,18 +70,26 @@
     <div class="container my-5 w-100 mobile-rm-card">
       <div class="inv-topbar">
         <div>
-          <h2 class="fw-bold header mb-1">{{ L.blank_title }}</h2>
-          <div class="inv-subtitle">{{ L.blank_intro }}</div>
+          <h2 class="fw-bold header mb-1" id="inv-page-title">{{ L.edit_title if edit else L.blank_title }}</h2>
+          <div class="inv-subtitle" id="inv-page-intro">{{ '' if edit else L.blank_intro }}</div>
         </div>
         <div class="inv-topbar__actions">
-          <a class="inv-btn inv-btn--ghost" href="/invoices">{{ L.back }}</a>
+          <a class="inv-btn inv-btn--ghost" href="{{ '/invoices' if admin else 'javascript:history.back()' }}">{{ L.back }}</a>
         </div>
       </div>
 
       <div class="inv-blank">
         <form id="inv-blank-form" autocomplete="off" novalidate>
+          {% if edit %}
+          {# ---------- Edycja faktury z zamówienia: strony i stan (dane z /api/v1/invoices/edit/context) ---------- #}
+          <section class="inv-card" data-step="parties">
+            <div class="inv-blank-step-head"><h3 class="inv-card__title" id="inv-edit-heading">…</h3><span class="inv-blank-state is-ok" id="inv-edit-status"></span></div>
+            <div class="inv-blank-buyer-card"><div><strong id="inv-edit-parties"></strong><div class="muted" id="inv-edit-meta"></div></div></div>
+            <div class="inv-blank-err" id="inv-edit-conflicts" hidden></div>
+          </section>
+          {% endif %}
           {# ---------- 1. Wystawca ---------- #}
-          <section class="inv-card" data-step="issuer">
+          <section class="inv-card" data-step="issuer"{% if edit %} hidden{% endif %}>
             <div class="inv-blank-step-head"><h3 class="inv-card__title">{{ L.blank_step_issuer }}</h3><span class="inv-blank-state" data-state-for="issuer"></span></div>
             <label class="inv-field" for="inv-blank-issuer"><span class="inv-label">{{ L.blank_issuer }}</span>
               <select name="issuerOrganizationId" id="inv-blank-issuer" data-field="issuer">
@@ -85,7 +98,7 @@
           </section>
 
           {# ---------- 2. Nabywca ---------- #}
-          <section class="inv-card" data-step="buyer">
+          <section class="inv-card" data-step="buyer"{% if edit %} hidden{% endif %}>
             <div class="inv-blank-step-head"><h3 class="inv-card__title">{{ L.blank_step_buyer }}</h3><span class="inv-blank-state" data-state-for="buyer"></span></div>
             <div id="inv-blank-buyer-search">
               <label class="inv-field inv-field--wide inv-combo" for="inv-blank-buyer-q"><span class="inv-label">{{ L.blank_buyer_search }}</span>
@@ -145,13 +158,13 @@
               <label class="inv-field"><span class="inv-label">{{ L.blank_sale_date }}</span><input type="date" name="saleDate" data-field="saleDate" value="{{ today }}"></label>
               <label class="inv-field"><span class="inv-label">{{ L.blank_delivery_date }}</span><input type="date" name="deliveryDate" data-field="deliveryDate" value="{{ today }}"></label>
               <label class="inv-field"><span class="inv-label">{{ L.blank_payment_days }}</span><input type="number" name="paymentDays" data-field="paymentDays" min="0" max="365" inputmode="numeric"></label>
-              <label class="inv-field"><span class="inv-label">{{ L.blank_lang }}</span>
+              <label class="inv-field"{% if edit %} hidden{% endif %}><span class="inv-label">{{ L.blank_lang }}</span>
                 <select name="lang">
                   <option value="">{{ L.blank_lang_auto }}</option>
                   {% for code in ['pl', 'en', 'de', 'nl', 'fr'] %}<option value="{{ code }}">{{ code | upper }}</option>{% endfor %}
                 </select></label>
             </div>
-            <label class="inv-blank-check"><input type="checkbox" name="rebill" id="inv-blank-rebill"> {{ L.blank_rebill }}</label>
+            <label class="inv-blank-check"{% if edit %} hidden{% endif %}><input type="checkbox" name="rebill" id="inv-blank-rebill"> {{ L.blank_rebill }}</label>
             <div class="inv-grid">
               <label class="inv-field inv-field--wide" id="inv-blank-rebill-source" hidden><span class="inv-label">{{ L.blank_rebill_source }}</span><input name="rebillSource" maxlength="200"></label>
               <label class="inv-field inv-field--wide"><span class="inv-label">{{ L.blank_notes }}</span><textarea name="notes" maxlength="1000" rows="2"></textarea></label>
@@ -165,10 +178,16 @@
             <h3 class="inv-card__title">{{ L.blank_summary }}</h3>
             <div id="inv-blank-sum-body"><p class="inv-blank-muted">{{ L.blank_summary_empty }}</p></div>
             <div id="inv-blank-missing"></div>
-            <div class="inv-blank-actions" id="inv-blank-actions">
+            <div class="inv-blank-actions" id="inv-blank-actions"{% if edit %} hidden{% endif %}>
               <button type="button" class="inv-btn inv-btn--ghost" id="inv-blank-preview-btn" disabled>{{ L.blank_preview_pdf }}</button>
               <button type="button" class="inv-btn inv-btn--primary" id="inv-blank-issue" disabled>{{ L.blank_issue }}</button>
             </div>
+            {% if edit %}
+            <div class="inv-blank-actions">
+              <button type="button" class="inv-btn inv-btn--primary" id="inv-edit-save" disabled>{{ L.edit_save }}</button>
+              <a class="inv-btn inv-btn--ghost" id="inv-edit-pdf" target="_blank" rel="noopener" hidden>{{ L.blank_pdf }}</a>
+            </div>
+            {% endif %}
             <div id="inv-blank-done" hidden>
               <p class="inv-blank-issued" id="inv-blank-issued"></p>
               <p class="inv-blank-muted">{{ L.blank_issued_note }}</p>
@@ -190,7 +209,13 @@
         <iframe class="inv-blank-preview mt-2" id="inv-blank-frame" title="{{ L.blank_preview_pdf }}"></iframe>
       </section>
 
-      <section class="inv-card">
+      {% if edit %}
+      <section class="inv-card" id="inv-edit-history-card" hidden>
+        <h3 class="inv-card__title">{{ L.edit_history }}</h3>
+        <ol class="inv-edit-history" id="inv-edit-history"></ol>
+      </section>
+      {% endif %}
+      <section class="inv-card"{% if edit %} hidden{% endif %}>
         <h3 class="inv-card__title">{{ L.blank_list_title }}</h3>
         <div class="inv-table-wrap"><table class="inv-table">
           <thead><tr><th>{{ L.blank_col_number }}</th><th>{{ L.blank_col_date }}</th><th>{{ L.blank_col_issuer }}</th><th>{{ L.blank_col_buyer }}</th><th class="num">{{ L.blank_col_gross }}</th><th></th></tr></thead>
@@ -201,7 +226,7 @@
   </div>
 
   <script type="application/json" id="inv-labels">{{ L | dump | safe }}</script>
-  <script type="application/json" id="inv-blank-config">{{ { lang: panelLang, templates: itemTemplates, langByCountry: langByCountry, fallbackLang: fallbackLang, today: today } | dump | safe }}</script>
+  <script type="application/json" id="inv-blank-config">{{ { lang: panelLang, templates: itemTemplates, langByCountry: langByCountry, fallbackLang: fallbackLang, today: today, edit: edit or null } | dump | safe }}</script>
 {% endblock content %}
 
 {% block scripts %}

@@ -708,9 +708,22 @@ OBOK faktur per zlecenie jedną fakturę za dzień wysyłki (`order.delivery_dat
 | 1 HKL → organizacja | organizacja (Luxan GmbH, Cozy…) | organizację i dzień | klienci alfabetycznie (`user.ident`), u klienta zlecenia po kolei (`order_idx`), w zleceniu pozycje |
 | 2 HKL → klient HKL | konto klienta (i sklep grupowy) | klienta i dzień | zlecenia po kolei, w zleceniu pozycje |
 
-- Dzień bez wysyłek nie daje faktury. Dzień zamyka się z tym samym zapasem co okresy
-  zbiorcze (`COLLECTIVE_GRACE_DAYS` = 1), więc za poniedziałek faktura powstaje w środę
-  po północy; spóźniony status dostaje drugą fakturę za ten dzień.
+- Dzień bez wysyłek nie daje faktury. Od 17.11.2026 (v13, Paweł: „jak kończy się 16.11
+  i zaczyna 17.11, to robisz fakturę dzienną”) dzień zamyka się o północy
+  (`DAILY_GRACE_DAYS` = 0): za poniedziałek faktura powstaje we wtorek o 00:05.
+- Druga dzienna za ten sam dzień NIE powstaje (`repository.findDailyInvoices`; automat loguje
+  „czeka N … Przelicz dzienne ponownie”). Spóźnione zlecenie dołącza przycisk admina
+  **„Przelicz dzienne ponownie”** w panelu faktur (`POST /api/v1/invoices/daily/recalculate`,
+  `autoInvoicing.recalculateDailyInvoices`): nowa wersja tej samej faktury — ten sam numer
+  i data wystawienia, stara wersja usunięta w tej samej transakcji (`createInvoice`
+  `opts.replaceId`). Nowy rekord nie ma znaczników, więc mail i FTP idą ponownie (FTP nadpisuje
+  plik). Faktury opłaconej, z korektą albo kilku dziennych za jeden dzień przycisk nie rusza.
+- **Organizacja „tylko dzienna”** — `invoice_organization_profile.number_patterns.hkl_daily`
+  (Cozy od 17.11.2026 = `{YY}{NR:6}`, decyzja Wiktorii i Pawła): HKL nie wystawia jej faktur per
+  zlecenie poziomu 1 (`findAutoInvoiceCandidates` `excludeOrganizationIds`, wykluczenie w SQL,
+  żeby czekające zlecenia nie zjadały limitu przebiegu), a jej faktury poziomu 1 (invoice/final)
+  liczą we WŁASNEJ serii: licznik `invoice_issuer_sequence` (`manufacturer`, id organizacji, 1, rok),
+  `main.js:hklSeries`. Pierwsza faktura HKL → Maizon: 26000001 (dzienna za 16.11).
 - Dokument: `createCollective` (poziom 1 — zlecenia różnych klientów jednej organizacji,
   przy pozycji `KLIENT · numer`), autor `created_by_pin = 'AUTO-DAILY'`
   (`core/collective.js:DAILY_ACTOR`), seria numeracji wystawcy ta sama co faktur per zlecenie.
@@ -722,6 +735,59 @@ OBOK faktur per zlecenie jedną fakturę za dzień wysyłki (`order.delivery_dat
   `<katalog>/dzienne/hkl-organizacja/<ORG>/` i `<katalog>/dzienne/organizacja-klient/HKL/<KLIENT>/`.
 - `INVOICE_DAILY_SINCE=RRRR-MM-DD` — dni wysyłki od tej daty; puste = wyłączone. Działa w
   ramach automatu (`INVOICE_AUTOGEN_ENABLED`, poziomy z `INVOICE_AUTOGEN_LEVELS`).
+
+## Ręczna edycja faktur z zamówień (v14, admin i biuro)
+
+Decyzje Pawła 17.11.2026 (prompt + AskUserQuestion): edytują admin i biuro (`staff`, tylko
+w zakresie swoich klientów — `services/staffAccess.js canAccessOrder`, wszystkie zamówienia
+faktury); wszystko jest do edycji, także istniejące pozycje (nazwa, opis, ilość, jednostka,
+cena, usługa), uwagi, daty, termin — nigdy numer. Opłaconą poprawia tylko admin.
+
+- **Zamówienie przed !sent!** → tryb „prepared”: szkic (`status = draft`,
+  `compliance.manualEdit.prepared = true`) z **nakładką** (`core/manualEdit.js`): różnica między
+  pozycjami zbudowanymi z zamówienia a linią edytora — kolejność, zmienione pola po
+  `order_item_id`, usunięte pozycje, linie ręczne, nagłówek (uwagi, daty, termin). Nakładkę
+  stosuje KAŻDE budowanie dokumentu z tego zamówienia w tej relacji (`buildDocument` →
+  `resolveManualOverlays`/`applyManualOverlays`, źródło `repository.findManualOverlay`): faktura
+  per zlecenie, dzienna, zbiorcza, „Przelicz dzienne ponownie”. Po !sent! automat
+  (`findPreparedDraftsReady`) wystawia szkic: przebudowa z aktualnego zamówienia + nakładka,
+  `created_by_pin = AUTO` (mail i FTP jak zawsze), `createInvoice opts.replaceId` (historia
+  przechodzi na nową wersję, znaczniki maila/FTP nie). Relacje bez faktur per zlecenie
+  (HKL → organizacja `hkl_daily`, klient tygodniowy/miesięczny) — nakładkę stosuje dzienna/zbiorcza.
+- **Konflikt**: ruszona pozycja, której odcisk (`nazwa|opis|ilość|jedn.|wartość`) w zamówieniu
+  się zmienił albo która zniknęła → `INVOICE_MANUAL_EDIT_CONFLICT`, bez wystawienia, zdarzenie
+  `manual_review` (raz), log „do przejrzenia”, edytor pokazuje pozycje. Nieruszone i nowe pozycje
+  zamówienia przechodzą same (nowe na koniec).
+- **Faktura wystawiona** → tryb „document”: `repository.updateInvoiceContent` w jednej
+  transakcji (pozycje, VAT, sumy, uwagi, daty), blokada wersji `compliance.manualEdit.version`,
+  zdarzenie `edited` z pełnym zrzutem poprzedniej wersji i różnicą. Bez maila (znaczniki maila
+  nietknięte), FTP podmieniany (`ftp_uploaded` → `ftp_uploaded_rN`). Faktura per zlecenie
+  zapisuje też nakładkę względem zamówienia — dzienna zbudowana później powtórzy zmiany.
+  Dzienna edytowana ręcznie (`manualEdit.edited`) → „Przelicz dzienne ponownie” odmawia.
+  Blokady: anulowana, z korektą/dokumentem powiązanym, częściowa (alokacje).
+- Wartość: pozycja to 1 × pełna wartość (jak `orderMapper`); bez zmiany ilości i ceny jedn.
+  zostaje wartość co do grosza (cenniki progowe). Linia ręczna: VAT z `taxRules` jak reszta
+  faktury (usługa/towar). Zamówienie bez cen da się przygotować (`allowZeroTotal` w edytorze),
+  automat 0,00 nie wystawi.
+- **Wejścia**: widok zamówienia — linki „Faktura HKL → …” / „Faktura dla klienta”
+  (`orderLinks.js`, biuro i admin, etykiety z `i18n/panel.json`); lista faktur — „Edytuj”
+  (admin) i znaczek „edytowana”. Edytor = formularz v10 w trybie edycji
+  (`/invoices/edit/:id`, `/invoices/edit/order/:id?level=N`, `invoice_blank.{njk,js}`).
+- **API** (`http/routes.js`, `editAccess`): `GET /edit/context`, `POST /edit/preview`,
+  `POST /edit/save` (409 przy nieaktualnej wersji), `GET /edit/:id/pdf`. Dostęp:
+  `access.canEditInvoices` (admin albo staff, niezależnie od `INVOICES_ADMIN_ONLY`) + wyjątek
+  w `server.js requireInvoicesAccess` tylko dla ścieżek `/edit…`. ⚠️ Roli staff nie ma jeszcze
+  na produkcji.
+
+### Wyszukiwarka faktur admina (`GET /invoices/search?q=`)
+
+Panel faktur działa w kontekście JEDNEJ organizacji (`session.organizationIdFromSession` — dla
+admina wybór z „Wybierz organizację”), więc z HKL nie było widać np. Cozy → M2 (26000009,
+17.11.2026). Wyszukiwarka (formularz w panelu, tylko admin) szuka we wszystkich organizacjach:
+numer faktury, nabywca (nazwa, ident), numer i commission zamówienia z nagłówka, a dla
+dziennej/zbiorczej także zamówienia, commission pozycji i klienci pozycji
+(`repository.searchInvoices`, `%`/`_` dosłownie, min. 2 znaki, 100 wyników). Wyniki z linkami
+„Podgląd”, „PDF” i „Edytuj” (admin ma dostęp do każdej faktury — `session.canAccessInvoice`).
 
 ## Okno zamówień (widok klienta, poziom 2)
 

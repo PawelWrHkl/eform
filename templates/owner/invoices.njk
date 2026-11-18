@@ -32,7 +32,12 @@
         <div class="inv-topbar__actions">
           <a class="inv-btn inv-btn--ghost" href="/invoices/end-clients">{{ L.end_clients }}</a>
           {% if admin %}
+            <form class="inv-search-form" action="/invoices/search" method="get" role="search">
+              <input type="search" name="q" minlength="2" maxlength="100" placeholder="{{ L.search_placeholder }}" aria-label="{{ L.search_title }}">
+              <button type="submit" class="inv-btn inv-btn--ghost">{{ L.search_btn }}</button>
+            </form>
             <a class="inv-btn inv-btn--primary" href="/invoices/blank">{{ L.blank_link }}</a>
+            <button type="button" class="inv-btn inv-btn--ghost" id="inv-daily-recalc">{{ L.daily_recalc }}</button>
             <a class="inv-btn inv-btn--ghost" href="/invoices/changes">{{ L.changes_link }} · v{{ invoiceVersion }}</a>
           {% endif %}
           {# Ustawienia fakturowania organizacji to narzędzie ownera #}

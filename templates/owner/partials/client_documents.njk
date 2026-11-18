@@ -115,6 +115,7 @@
                     <td class="inv-nowrap">
                       {{- inv.number if inv.number else '—' -}}
                       {% if inv.isAuto %} <span class="inv-tag inv-tag--auto" title="{{ L.auto_badge_title }}">{{ L.auto_badge }}</span>{% endif %}
+                      {% if inv.isEdited %} <span class="inv-tag">{{ L.edit_badge }}</span>{% endif %}
                     </td>
                     <td>{{ inv.document_type }}</td>
                     <td class="inv-order-name" title="{{ inv.order_name }}">
@@ -138,6 +139,9 @@
                     <td class="inv-actions">
                       <a class="inv-link" href="/invoices/{{ inv.id }}/view" target="_blank" rel="noopener">{{ L.preview }}</a>
                       <a class="inv-link" href="/api/v1/invoices/{{ inv.id }}/pdf?download=1">{{ L.pdf }}</a>
+                      {% if admin and inv.status != 'cancelled' and (inv.document_type == 'invoice' or inv.document_type == 'final') %}
+                        <a class="inv-link" href="/invoices/edit/{{ inv.id }}">{{ L.edit_link }}</a>
+                      {% endif %}
                       {% if inv.status == 'draft' %}
                         <button class="inv-link inv-link--action" data-action="issue" data-id="{{ inv.id }}">{{ L.issue }}</button>
                       {% endif %}

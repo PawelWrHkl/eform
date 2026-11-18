@@ -101,6 +101,8 @@ function compareClients(fileClients, allDbClients) {
   const identsInFile = new Set(fileClients.map(c => (c.ident || '').toUpperCase()));
 
   const toRemove = dbClients.filter(client => {
+    // Konta admina zakładane ręcznie w bazie — nie ma ich w contractors.txt.
+    if (String(client.role || '').toLowerCase() === 'admin') return false;
     const pin = (client.pin || '').toUpperCase();
     const ident = (client.ident || '').toUpperCase();
     return !pinsInFile.has(pin) && !identsInFile.has(ident);

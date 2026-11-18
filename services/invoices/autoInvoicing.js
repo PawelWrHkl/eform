@@ -18,6 +18,17 @@
  * wystawia jedną fakturę za dzień wysyłki — organizacji (poziom 1, zlecenia
  * wszystkich jej klientów) i każdemu klientowi HKL (poziom 2). Autor `DAILY_ACTOR`;
  * nie blokują faktur per zlecenie; mail jak reszta automatu, FTP w `dzienne/`.
+ * Od 17.11.2026 (Paweł): dzień zamyka się o północy — dzienna powstaje w pierwszym
+ * przebiegu następnego dnia — i nie powstaje druga za ten sam dzień: zlecenie ze
+ * spóźnionym statusem dołącza przycisk „Przelicz dzienne ponownie” w panelu admina
+ * (`recalculateDailyInvoices`). Organizacja z `number_patterns.hkl_daily` (Cozy) dostaje
+ * od HKL TYLKO fakturę dzienną, we własnej serii (`{YY}{NR:6}` → 26000001…).
+ *
+ * RĘCZNA EDYCJA (admin i biuro, 17.11.2026): szkic przygotowany przed !sent! automat
+ * wystawia po !sent! zamiast budować fakturę od zera — nakładka ręcznych zmian
+ * (`core/manualEdit.js`) nakłada się na aktualne zamówienie, mail i FTP jak zawsze.
+ * Nakładkę stosuje też faktura dzienna i zbiorcza. Nakładka niepasująca do zamówienia
+ * (ruszona pozycja zmieniona albo usunięta) → „do przejrzenia”, bez wystawienia.
  *
  * Konfiguracja (`.env`, domyślnie WYŁĄCZONE — brak zmiennej = nic się nie dzieje):
  *   INVOICE_AUTOGEN_ENABLED=true        włącznik
@@ -42,16 +53,25 @@
  */
 
 const { InvoiceService, DocumentType, ZERO_TOTAL_ERROR_CODE, NO_LETTERHEAD_ERROR_CODE } = require('./main');
+const { MANUAL_EDIT_CONFLICT_CODE } = require('./core/manualEdit');
 const defaultRepository = require('./db/repository');
 const { InvoiceLevel } = require('./core/hierarchy');
 const { HKL_ORG_ID } = require('./core/pricing');
 const { features } = require('../../config');
-const { groupCollectiveCandidates, groupDailyCandidates, DAILY_ACTOR } = require('./core/collective');
+const { groupCollectiveCandidates, groupDailyCandidates, sortDailyOrders, DAILY_ACTOR } = require('./core/collective');
 const { todayIso } = require('./core/dates');
 const { log: defaultLog } = require('../../utils/logging');
 
 /** `created_by_pin` dokumentów automatu — po nim panel oznacza je na liście. */
 const AUTO_ACTOR = 'AUTO';
+
+/** Poziomy faktur dziennych HKL: 1 (organizacja) i 2 (klient HKL). */
+const DAILY_LEVELS = [InvoiceLevel.MANUFACTURER_TO_ORGANIZATION, InvoiceLevel.ORGANIZATION_TO_USER];
+
+/** Nabywca faktury dziennej (`repository.findDailyInvoices`): organizacja albo klient HKL i sklep grupowy. */
+const dailyBuyer = (group) => ({
+  level: group.level, organizationId: group.organizationId, userId: group.userId, groupUserId: group.groupUserId, day: group.period.key
+});
 
 /** Poziomy, które automat obsługuje — wszystkie relacje handlowe. */
 const SUPPORTED_LEVELS = [
@@ -152,13 +172,13 @@ function readAutoInvoiceConfig(env = process.env, { invoicesEnabled = !!features
  * @param {boolean} [opts.dryRun=false] tylko wypisz kandydatów, nic nie wystawiaj
  * @param {ReturnType<typeof readAutoInvoiceConfig>} [opts.config]
  * @param {Object} [opts.deps] `{ repository, service, log, now }` — podmiana w testach
- * @returns {Promise<{ skipped?: string, created: object[], failed: object[], skippedZero: object[], skippedNoLetterhead: object[], planned: object[], skippedExisting: number }>}
+ * @returns {Promise<{ skipped?: string, created: object[], failed: object[], skippedZero: object[], skippedNoLetterhead: object[], waitingRecalc: object[], waitingReview: object[], planned: object[], skippedExisting: number }>}
  */
 async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig(), deps = {} } = {}) {
   const repository = deps.repository || defaultRepository;
   const log = deps.log || defaultLog;
   const now = deps.now || (() => new Date());
-  const result = { created: [], failed: [], skippedZero: [], skippedNoLetterhead: [], planned: [], skippedExisting: 0 };
+  const result = { created: [], failed: [], skippedZero: [], skippedNoLetterhead: [], waitingRecalc: [], waitingReview: [], planned: [], skippedExisting: 0 };
 
   if (config.problems.length) {
     config.problems.forEach((p) => log(`[invoices:auto] konfiguracja: ${p}`));
@@ -170,6 +190,62 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
 
   const service = deps.service || new InvoiceService({ repository, log });
   let budget = config.maxPerRun;
+  // HKL → organizacja „tylko dzienna” (`number_patterns.hkl_daily`): bez faktur per zlecenie poziomu 1
+  const hklDailyOrgs = config.levels.includes(InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) && repository.findHklDailyOrganizationIds
+    ? await repository.findHklDailyOrganizationIds()
+    : [];
+
+  // Szkice przygotowane ręcznie (admin/biuro), których zamówienie doszło do !sent!:
+  // wystawiamy TĘ wersję — nakładka na aktualne zamówienie, autor AUTO (mail i FTP jak zawsze)
+  if (repository.findPreparedDraftsReady) {
+    const ready = await repository.findPreparedDraftsReady({ since: config.since, excludeOrganizationIds: hklDailyOrgs, limit: budget });
+    for (const d of ready) {
+      const level = Number(d.level);
+      if (budget <= 0) break;
+      if (!config.levels.includes(level) || (config.organizationIds.length && !config.organizationIds.includes(Number(d.organization_id)))) continue;
+      budget--;
+      const label = `przygotowana ręcznie (szkic #${d.id}) — zamówienie ${d.order_idx} (id ${d.order_id}, ${d.user_ident}), poziom ${level}`;
+      if (dryRun) {
+        result.planned.push({ orderId: Number(d.order_id), level, prepared: true });
+        log(`[invoices:auto] DRY-RUN: wystawiłbym — ${label}`);
+        continue;
+      }
+      try {
+        const draft = await repository.getInvoice(Number(d.id));
+        const meta = (draft && draft.compliance && draft.compliance.manualEdit) || {};
+        const created = await service.createFromOrder({
+          orderId: Number(d.order_id),
+          level,
+          documentType: DocumentType.INVOICE,
+          issue: config.issue,
+          createdByPin: AUTO_ACTOR,
+          requireLetterhead: true,
+          replaceId: Number(d.id),
+          manualEdit: { ...meta, issuedAt: now().toISOString() }
+        });
+        result.created.push({ orderId: Number(d.order_id), level, invoiceId: created.id, number: created.number, prepared: true });
+        log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
+      } catch (err) {
+        if (err && err.code === MANUAL_EDIT_CONFLICT_CODE) {
+          result.waitingReview.push({ invoiceId: Number(d.id), orderId: Number(d.order_id), level, label: `${d.order_idx} (szkic #${d.id}, ${d.user_ident})` });
+          if (!Number(d.review)) {
+            await repository.addInvoiceEvent({ invoiceId: Number(d.id), eventType: 'manual_review', actorPin: AUTO_ACTOR, payload: { conflicts: err.conflicts || [] } });
+          }
+          continue;
+        }
+        if (err && err.code === ZERO_TOTAL_ERROR_CODE) {
+          result.skippedZero.push({ orderId: Number(d.order_id), level, label: `${d.order_idx} (id ${d.order_id}, ${d.user_ident}, poziom ${level})` });
+          continue;
+        }
+        if (err && err.code === NO_LETTERHEAD_ERROR_CODE) {
+          result.skippedNoLetterhead.push({ orderId: Number(d.order_id), level, issuer: err.issuerName || '', label: `${d.order_idx} (id ${d.order_id}, ${d.user_ident}, poziom ${level})` });
+          continue;
+        }
+        result.failed.push({ orderId: Number(d.order_id), level, error: err.message });
+        log(`[invoices:auto] BŁĄD — ${label}: ${err.message}`);
+      }
+    }
+  }
 
   for (const level of config.levels) {
     if (budget <= 0) break;
@@ -179,6 +255,7 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
       organizationIds: config.organizationIds,
       // HKL nie sprzedaje sam sobie — poziom 1 dotyczy wyłącznie innych organizacji
       excludeOrganizationId: level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? HKL_ORG_ID : null,
+      excludeOrganizationIds: level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? hklDailyOrgs : [],
       limit: budget
     });
 
@@ -232,7 +309,7 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
       .map((g) => ({ ...g, level: InvoiceLevel.ORGANIZATION_TO_USER, actor: AUTO_ACTOR })));
   }
   if (config.dailySince && budget > 0 && repository.findDailyCandidates) {
-    for (const level of [InvoiceLevel.MANUFACTURER_TO_ORGANIZATION, InvoiceLevel.ORGANIZATION_TO_USER].filter((lv) => config.levels.includes(lv))) {
+    for (const level of DAILY_LEVELS.filter((lv) => config.levels.includes(lv))) {
       const rows = await repository.findDailyCandidates({ level, since: config.dailySince, organizationIds: config.organizationIds });
       groups.push(...groupDailyCandidates(rows, { todayIso: todayIso(now()) }).map((g) => ({ ...g, actor: DAILY_ACTOR })));
     }
@@ -240,13 +317,20 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
 
   for (const group of groups) {
     if (budget <= 0) break;
-    budget--;
     const { level } = group;
     const daily = group.actor === DAILY_ACTOR;
     const kind = daily ? { daily: true } : { collective: true };
     const what = daily ? `faktura dzienna HKL ${group.period.key} (poziom ${level})` : `faktura zbiorcza ${group.period.key} (${group.schedule})`;
     const label = `${what} — ${daily && level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? 'organizacja' : 'klient'} ${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')}`;
     const short = `${daily ? 'dzienna' : 'zbiorcza'} ${group.period.key} (${group.userIdent || group.userId}, zamówienia ${group.orderIds.join(', ')})`;
+
+    // Dzienna za ten dzień już jest — drugiej nie wystawiamy, spóźnione zlecenia
+    // dołącza „Przelicz dzienne ponownie” (`recalculateDailyInvoices`)
+    if (daily && repository.findDailyInvoices && (await repository.findDailyInvoices(dailyBuyer(group))).length) {
+      result.waitingRecalc.push({ level, period: group.period.key, orderIds: group.orderIds, label: short });
+      continue;
+    }
+    budget--;
 
     if (dryRun) {
       result.planned.push({ ...kind, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level });
@@ -277,6 +361,10 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
       log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
     } catch (err) {
       const failed = { ...kind, userId: group.userId, period: group.period.key, orderIds: group.orderIds, level };
+      if (err && err.code === MANUAL_EDIT_CONFLICT_CODE) {
+        result.waitingReview.push({ ...failed, label: short });
+        continue;
+      }
       if (err && err.code === ZERO_TOTAL_ERROR_CODE) {
         result.skippedZero.push({ ...failed, label: short });
         continue;
@@ -297,6 +385,14 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
     log(`[invoices:auto] pominięto ${result.skippedZero.length} — zerowa wartość netto, nic do zafakturowania `
       + `(uzupełnij ceny pozycji albo wystaw dokument ręcznie): ${result.skippedZero.map((s) => s.label).join('; ')}`);
   }
+  if (result.waitingReview.length) {
+    log(`[invoices:auto] do przejrzenia ${result.waitingReview.length} — ręczna edycja faktury nie pasuje do zmienionego zamówienia; `
+      + `otwórz edytor faktury i zapisz ponownie: ${result.waitingReview.map((w) => w.label).join('; ')}`);
+  }
+  if (result.waitingRecalc.length) {
+    log(`[invoices:auto] czeka ${result.waitingRecalc.length} — zlecenia doszły po fakturze dziennej za swój dzień; `
+      + `dołączy je „Przelicz dzienne ponownie” w panelu faktur: ${result.waitingRecalc.map((w) => w.label).join('; ')}`);
+  }
   const waitingByIssuer = new Map();
   for (const s of result.skippedNoLetterhead) waitingByIssuer.set(s.issuer, [...(waitingByIssuer.get(s.issuer) || []), s.label]);
   for (const [issuer, labels] of waitingByIssuer) {
@@ -308,9 +404,72 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
   return result;
 }
 
+/**
+ * „Przelicz dzienne ponownie” — przycisk w panelu faktur admina (Paweł, 17.11.2026:
+ * „jak coś dojdzie potem, to przycisk … przelicz dzienne ponownie i tyle”). Zlecenie,
+ * którego status doszedł po wystawieniu dziennej za jego dzień, trafia do TEJ SAMEJ
+ * faktury: ten sam numer i data wystawienia, nowa treść (stara wersja znika w jednej
+ * transakcji). Nowa wersja to nowy rekord bez znaczników, więc mail i FTP pójdą
+ * ponownie (FTP nadpisze plik). Dzień bez dziennej dostaje ją od razu, jak w automacie.
+ * Nie rusza faktury opłaconej albo z korektą ani kilku dziennych za ten sam dzień.
+ *
+ * @param {Object} [opts]
+ * @param {ReturnType<typeof readAutoInvoiceConfig>} [opts.config]
+ * @param {Object} [opts.deps] `{ repository, service, log, now }`
+ * @returns {Promise<{ skipped?: string, recalculated: object[], created: object[], failed: object[] }>}
+ */
+async function recalculateDailyInvoices({ config = readAutoInvoiceConfig(), deps = {} } = {}) {
+  const repository = deps.repository || defaultRepository;
+  const log = deps.log || defaultLog;
+  const now = deps.now || (() => new Date());
+  const result = { recalculated: [], created: [], failed: [] };
+  if (!config.active || !config.dailySince) return { ...result, skipped: config.active ? 'daily-disabled' : 'config' };
+
+  const service = deps.service || new InvoiceService({ repository, log });
+  for (const level of DAILY_LEVELS.filter((lv) => config.levels.includes(lv))) {
+    const rows = await repository.findDailyCandidates({ level, since: config.dailySince, organizationIds: config.organizationIds });
+    for (const group of groupDailyCandidates(rows, { todayIso: todayIso(now()) })) {
+      const label = `dzienna ${group.period.key}, poziom ${level} (${group.userIdent || group.userId})`;
+      try {
+        const existing = await repository.findDailyInvoices(dailyBuyer(group));
+        if (existing.length > 1) {
+          throw new Error(`za ten dzień są ${existing.length} faktury dzienne (${existing.map((e) => e.number).join(', ')}) — połącz ręcznie`);
+        }
+        const old = existing[0] || null;
+        if (old && (old.status !== 'issued' || old.related)) {
+          throw new Error(`faktura ${old.number} ${old.related ? 'ma korektę' : `ma status ${old.status}`} — przelicz ręcznie`);
+        }
+        // Zmiany zrobione w samej fakturze dziennej (edytor) przebudowa by skasowała;
+        // zmiany zamówień (nakładki) przebudowa stosuje sama
+        if (old && old.edited) {
+          throw new Error(`faktura ${old.number} była edytowana ręcznie — dopisz zlecenie w edytorze faktury`);
+        }
+        const late = rows.filter((r) => group.orderIds.includes(Number(r.id)));
+        const orderIds = old ? sortDailyOrders([...old.orders, ...late]) : group.orderIds;
+        const created = await service.createCollective({
+          orderIds,
+          period: group.period,
+          level,
+          issue: old ? true : config.issue,
+          createdByPin: DAILY_ACTOR,
+          requireLetterhead: true,
+          replace: old ? { id: old.id, number: old.number, issueDate: old.issueDate } : null
+        });
+        (old ? result.recalculated : result.created).push({ level, period: group.period.key, orderIds, invoiceId: created.id, number: created.number });
+        log(`[invoices:auto] ${old ? 'przeliczona' : 'wystawiona'} ${label}: ${created.number || `szkic #${created.id}`}, zamówienia ${orderIds.join(', ')}`);
+      } catch (err) {
+        result.failed.push({ level, period: group.period.key, orderIds: group.orderIds, error: err.message });
+        log(`[invoices:auto] BŁĄD przeliczenia — ${label}: ${err.message}`);
+      }
+    }
+  }
+  return result;
+}
+
 module.exports = {
   AUTO_ACTOR,
   SUPPORTED_LEVELS,
   readAutoInvoiceConfig,
-  runAutoInvoicing
+  runAutoInvoicing,
+  recalculateDailyInvoices
 };

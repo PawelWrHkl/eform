@@ -10,7 +10,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { periodFor, isPeriodClosed, groupCollectiveCandidates, groupDailyCandidates, normalizeSchedule, DAILY_ACTOR } = require('../core/collective');
-const { runAutoInvoicing, readAutoInvoiceConfig, AUTO_ACTOR } = require('../autoInvoicing');
+const { runAutoInvoicing, recalculateDailyInvoices, readAutoInvoiceConfig, AUTO_ACTOR } = require('../autoInvoicing');
 const { addDays } = require('../core/dates');
 
 const quiet = () => {};
@@ -82,13 +82,20 @@ test('groupDailyCandidates: poziom 1 — organizacja i dzień, klienci alfabetyc
     l1(7, 'Matthes', '1221', '2026-11-03', { organization_id: 1, organization_ident: 'Cozy' }),
     l1(8, 'Matthes', '1230', '2026-11-05') // dzień jeszcze otwarty
   ];
-  const groups = groupDailyCandidates(rows, { todayIso: '2026-11-06' });
+  const groups = groupDailyCandidates(rows, { todayIso: '2026-11-05' });
   assert.deepEqual(groups.map((g) => [g.level, g.userIdent, g.period.key, g.orderIds]), [
     [1, 'Cozy', '2026-11-03', [7]],
     [1, 'LUXANGMBH', '2026-11-03', [4, 5, 2, 3, 1]],
     [1, 'LUXANGMBH', '2026-11-04', [6]]
   ]);
   assert.equal(groups[1].userId, null, 'nabywcą jest organizacja');
+  assert.equal(groups[1].organizationId, 5);
+});
+
+test('groupDailyCandidates: dzień zamyka się o północy — dzienna w pierwszym przebiegu następnego dnia (17.11.2026)', () => {
+  const rows = [{ id: 1, level: 1, organization_id: 1, organization_ident: 'Cozy', user_id: 2, user_ident: 'Wonen', order_idx: '19', delivery_date: '2026-11-16' }];
+  assert.equal(groupDailyCandidates(rows, { todayIso: '2026-11-16' }).length, 0, 'w trakcie dnia wysyłki jeszcze nie');
+  assert.deepEqual(groupDailyCandidates(rows, { todayIso: '2026-11-17' }).map((g) => [g.userIdent, g.period.key, g.orderIds]), [['Cozy', '2026-11-16', [1]]]);
 });
 
 test('groupDailyCandidates: poziom 2 — klient HKL (i sklep grupowy) i dzień', () => {
@@ -202,6 +209,39 @@ test('createCollective poziom 1: zamówienia różnych klientów jednej organiza
   const mixed = fakeRepository({ 1: org5(source(1), 'A'), 2: source(2) });
   await assert.rejects(service(mixed).createCollective({ orderIds: [1, 2], level: 1, period: SEPT }), /jednej organizacji/);
   assert.equal(mixed.saved.length, 0);
+});
+
+test('createCollective poziom 1: organizacja z number_patterns.hkl_daily (Cozy) — własna seria HKL {YY}{NR:6}, reszta w serii HKL', async () => {
+  const cozy = (s, ident) => ({ ...s, order: { ...s.order, organization_id: 1 }, organization: { id: 1, name: 'MaizonCozy B.V.', country: 'NL' }, user: { ...s.user, ident } });
+  const day = { key: '2026-11-16', start: '2026-11-16', end: '2026-11-16' };
+  const opts = [];
+  const withPatterns = (patterns) => {
+    const repository = fakeRepository({ 1: cozy(source(1, { idx: '6', userId: 31 }), 'M2'), 2: cozy(source(2, { idx: '19', userId: 30 }), 'Wonen') });
+    const profile = repository.getOrganizationProfile;
+    repository.getOrganizationProfile = async (id) => ({ ...(await profile(id)), numberPatterns: patterns });
+    const create = repository.createInvoice;
+    repository.createInvoice = async (invoice, o) => { opts.push({ ...o, number: invoice.number }); return create(invoice, o); };
+    return repository;
+  };
+
+  const own = withPatterns({ invoice: '{YY}{NR:6}', hkl_daily: '{YY}{NR:6}' });
+  await service(own).createCollective({ orderIds: [1, 2], level: 1, period: day, createdByPin: DAILY_ACTOR });
+  assert.equal(own.saved[0].numberPattern, '{YY}{NR:6}');
+  assert.deepEqual(own.saved[0].numberSeries, { issuerType: 'manufacturer', issuerId: 1, level: 1 });
+  assert.deepEqual(opts[0], { assignNumber: true, replaceId: null, number: null });
+
+  // Bez hkl_daily (Luxan itd.) — seria HKL jak dotąd; wzorzec Cozy-wystawcy („invoice”) nie przecieka na poziom 1
+  const hkl = withPatterns({ invoice: '{YY}{NR:6}' });
+  await service(hkl).createCollective({ orderIds: [1, 2], level: 1, period: day, createdByPin: DAILY_ACTOR });
+  assert.equal(hkl.saved[0].numberPattern, '{YYYY}/{NR:5}');
+  assert.equal(hkl.saved[0].numberSeries, null);
+
+  // Przeliczenie: ten sam numer i data wystawienia, stara wersja podmieniona w tej samej transakcji
+  const again = withPatterns({ hkl_daily: '{YY}{NR:6}' });
+  await service(again).createCollective({ orderIds: [1, 2], level: 1, period: day, createdByPin: DAILY_ACTOR, replace: { id: 70, number: '26000001', issueDate: '2026-11-17' } });
+  assert.deepEqual(opts[2], { assignNumber: true, replaceId: 70, number: '26000001' });
+  assert.equal(again.saved[0].issueDate, '2026-11-17');
+  assert.equal(again.saved[0].saleDate, '2026-11-16');
 });
 
 test('createCollective: długa lista zamówień mieści się w order_ref (64 znaki)', async () => {
@@ -427,4 +467,84 @@ test('status wysyłki do poniedziałku zdąży na fakturę tygodnia; spóźniony
     ['2026-W41', [1, 2], '2026-10-13'],
     ['2026-W41', [3], '2026-10-15']
   ], 'wystawionej faktury się nie zmienia — spóźnione zlecenie dostaje drugą za swój tydzień');
+});
+
+/* ------------------------------------------------------------------ */
+/* Dzienne od 17.11.2026: bez drugiej za ten sam dzień, przeliczenie   */
+/* przyciskiem, HKL → Cozy tylko dzienna                               */
+/* ------------------------------------------------------------------ */
+
+const dailyConfig = () => readAutoInvoiceConfig({ INVOICE_AUTOGEN_ENABLED: 'true', INVOICE_AUTOGEN_SINCE: '2026-01-01', INVOICE_DAILY_SINCE: '2026-11-01', INVOICE_AUTOGEN_LEVELS: '1' }, { invoicesEnabled: true });
+const lateM2 = { id: 12, level: 1, organization_id: 1, organization_ident: 'Cozy', user_id: 31, user_ident: 'M2', order_idx: '6', delivery_date: '2026-11-16' };
+const issuedDaily = (extra = {}) => ({ id: 70, number: '26000001', status: 'issued', issueDate: '2026-11-17', related: 0, orders: [{ id: 11, order_idx: '19', user_id: 30, user_ident: 'Wonen' }], ...extra });
+
+test('automat: dzienna za ten dzień już jest — druga NIE powstaje, zlecenie czeka na „Przelicz dzienne ponownie”', async () => {
+  const calls = [];
+  const logs = [];
+  const buyers = [];
+  const repository = {
+    async findAutoInvoiceCandidates() { return []; },
+    async findDailyCandidates() { return [lateM2]; },
+    async findDailyInvoices(b) { buyers.push(b); return [issuedDaily()]; }
+  };
+  const result = await runAutoInvoicing({
+    config: dailyConfig(),
+    deps: { repository, service: { createCollective: async (p) => { calls.push(p); return { id: 1 }; } }, log: (m) => logs.push(m), now: () => new Date(2026, 10, 17, 9, 5) }
+  });
+  assert.equal(calls.length, 0);
+  assert.deepEqual(buyers, [{ level: 1, organizationId: 1, userId: null, groupUserId: null, day: '2026-11-16' }]);
+  assert.equal(result.waitingRecalc.length, 1);
+  assert.ok(logs.some((m) => /czeka 1 .*Przelicz dzienne ponownie.*dzienna 2026-11-16 \(Cozy, zamówienia 12\)/.test(m)));
+});
+
+test('automat: HKL → organizacja z hkl_daily nie dostaje faktur per zlecenie (wykluczenie w zapytaniu, nie po fakcie)', async () => {
+  const queries = [];
+  const repository = {
+    async findHklDailyOrganizationIds() { return [1]; },
+    async findAutoInvoiceCandidates(p) { queries.push(p); return []; }
+  };
+  await runAutoInvoicing({ config: dailyConfig(), deps: { repository, service: {}, log: quiet, now: () => new Date(2026, 10, 17) } });
+  assert.equal(queries[0].level, 1);
+  assert.deepEqual(queries[0].excludeOrganizationIds, [1]);
+});
+
+test('przelicz dzienne: spóźnione zlecenie trafia do tej samej faktury — ten sam numer i data, klienci alfabetycznie', async () => {
+  const calls = [];
+  const repository = {
+    async findDailyCandidates() { return [lateM2]; },
+    async findDailyInvoices() { return [issuedDaily()]; }
+  };
+  const svc = { createCollective: async (p) => { calls.push(p); return { id: 71, number: p.replace ? p.replace.number : 'NOWY' }; } };
+  const result = await recalculateDailyInvoices({ config: dailyConfig(), deps: { repository, service: svc, log: quiet, now: () => new Date(2026, 10, 18, 10, 0) } });
+  assert.deepEqual(calls.map((c) => [c.level, c.orderIds, c.period.key, c.createdByPin, c.issue]), [[1, [12, 11], '2026-11-16', DAILY_ACTOR, true]]);
+  assert.deepEqual(calls[0].replace, { id: 70, number: '26000001', issueDate: '2026-11-17' });
+  assert.deepEqual(result.recalculated.map((r) => r.number), ['26000001']);
+  assert.equal(result.failed.length, 0);
+});
+
+test('przelicz dzienne: dzień bez dziennej dostaje nową; opłaconej, z korektą albo podwójnej nie rusza', async () => {
+  const run = async (existing) => {
+    const calls = [];
+    const repository = { async findDailyCandidates() { return [lateM2]; }, async findDailyInvoices() { return existing; } };
+    const svc = { createCollective: async (p) => { calls.push(p); return { id: 72, number: '26000002' }; } };
+    const result = await recalculateDailyInvoices({ config: dailyConfig(), deps: { repository, service: svc, log: quiet, now: () => new Date(2026, 10, 18) } });
+    return { calls, result };
+  };
+  const fresh = await run([]);
+  assert.deepEqual(fresh.calls.map((c) => [c.orderIds, c.replace]), [[[12], null]]);
+  assert.equal(fresh.result.created.length, 1);
+
+  for (const [existing, reason] of [
+    [[issuedDaily({ status: 'paid' })], /ma status paid/],
+    [[issuedDaily({ related: 1 })], /ma korektę/],
+    [[issuedDaily({ edited: true })], /edytowana ręcznie/],
+    [[issuedDaily(), issuedDaily({ id: 80, number: '2026/00820' })], /połącz ręcznie/]
+  ]) {
+    const { calls, result } = await run(existing);
+    assert.equal(calls.length, 0);
+    assert.match(result.failed[0].error, reason);
+  }
+
+  const off = await recalculateDailyInvoices({ config: readAutoInvoiceConfig({ INVOICE_AUTOGEN_ENABLED: 'true', INVOICE_AUTOGEN_SINCE: '2026-01-01' }, { invoicesEnabled: true }), deps: { repository: {}, service: {}, log: quiet } });
+  assert.equal(off.skipped, 'daily-disabled');
 });

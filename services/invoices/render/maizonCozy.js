@@ -86,29 +86,57 @@ function priceLine(params) {
   ].join(',');
 }
 
+/** Nazwa albo opis pozycji zmienione ręcznie w edytorze faktury. */
+const isEditedText = (meta) => Array.isArray(meta.edited) && (meta.edited.includes('name') || meta.edited.includes('description'));
+
+/**
+ * Opis pozycji DOKŁADNIE tak, jak drukuje go wzór (bez nazwy i referencji EO) — jedno źródło
+ * dla wzoru, zapisu pozycji (`InvoiceService.buildDocument`) i edytora faktury (Paweł 17.11.2026:
+ * „opis na fakturze musi być 1 do 1 to samo co w polu edycji”). Linia ręczna, opis zmieniony
+ * ręcznie i opis zapisany już w tej postaci (`meta.printedDescription`) — z faktury; starsze
+ * pozycje — `OPIS_POZYCJI` z parametrów zamówienia, a pod nim ceny SUB.
+ *
+ * @param {Record<string, any>} item
+ * @param {Record<string, any>|undefined} source  wiersz `repository.getOrderItemsForPrint` (albo `order_item`)
+ * @param {boolean} [manual]
+ * @returns {string} wiersze rozdzielone `\n`
+ */
+function printedDescription(item, source, manual = false) {
+  const meta = item.meta || {};
+  if (manual || meta.manual || isEditedText(meta) || meta.printedDescription || !source) return String(item.description || '');
+  const params = parseParams(source.json_parameters);
+  // Podformularz slopów trafia do opisu jako „[object Object]" (błąd skryptu grupy) — pomijamy
+  const description = String(params.OPIS_POZYCJI || item.description || '')
+    .split(',').filter((part) => !part.includes('[object Object]')).join(',');
+  return [description, priceLine(params)].filter(Boolean).join('\n');
+}
+
 /**
  * @param {Record<string, any>} item     pozycja faktury (`repository.getInvoice`)
  * @param {Record<string, any>|undefined} source  wiersz `repository.getOrderItemsForPrint`
  * @param {boolean} [manual]  faktura in blanco: nazwa, a pod nią opis (wiersz po wierszu), bez referencji zamówienia
  */
 function buildItem(item, source, manual = false) {
-  const params = parseParams(source && source.json_parameters);
   const meta = item.meta || {};
+  // Linia dopisana ręcznie w edytorze (17.11.2026) drukuje się jak faktura in blanco
+  if (meta.manual || (!item.orderItemId && !manual && !item.orderNumber)) manual = true;
+  const params = manual ? {} : parseParams(source && source.json_parameters);
+  // Pozycja zamówienia z ręcznie zmienioną nazwą/opisem: nazwa w osobnym wierszu, opis pod nią
+  const edited = isEditedText(meta);
+  const text = printedDescription(item, source, manual).split(/\r?\n/).map((t) => t.trim()).filter(Boolean);
   const qty = num(meta.displayQuantity) || 1;
   const before = num(meta.priceBeforeDiscountMinor) || num(item.netAmount);
 
   const ref = source
     ? `EO/${source.order_idx}/${source.orderpos || item.position}/${[source.order_commision, source.commision].map((s) => String(s || '').trim()).filter(Boolean).join('-')}`
     : (item.orderNumber ? `EO/${item.orderNumber}` : '');
-  // Podformularz slopów trafia do opisu jako „[object Object]" (błąd skryptu grupy) — pomijamy
-  const description = String(params.OPIS_POZYCJI || item.description || '')
-    .split(',').filter((part) => !part.includes('[object Object]')).join(',');
-
   return {
     pos: String(item.position),
     lines: manual
-      ? [item.name, ...String(item.description || '').split(/\r?\n/)].map((t) => String(t || '').trim()).filter(Boolean)
-      : [ref, `${item.name} ${description}`.trim(), priceLine(params)].filter(Boolean),
+      ? [String(item.name || '').trim(), ...text].filter(Boolean)
+      : edited
+        ? [ref, String(item.name || '').trim(), ...text].filter(Boolean)
+        : [ref, `${item.name} ${text[0] || ''}`.trim(), ...text.slice(1)].filter(Boolean),
     qty: nl.format(qty),
     catalog_price: amount(before / qty),
     price: amount(num(item.netAmount) / qty),
@@ -220,4 +248,4 @@ async function renderPdf(data) {
   }
 }
 
-module.exports = { appliesTo, buildData, priceLine, renderHtml, renderPdf };
+module.exports = { appliesTo, buildData, priceLine, printedDescription, renderHtml, renderPdf };

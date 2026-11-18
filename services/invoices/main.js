@@ -19,6 +19,7 @@ const allocations = require('./core/allocations');
 const compliance = require('./core/compliance');
 const pricing = require('./core/pricing');
 const clientDiscount = require('./core/clientDiscount');
+const manualEdit = require('./core/manualEdit');
 const templates = require('./core/templates');
 const language = require('./core/language');
 const { calcSubTotals, HKL_ORG_ID } = require('../subPrices');
@@ -155,6 +156,24 @@ const COUNTRY_MISSING_ERROR_CODE = 'INVOICE_COUNTRY_MISSING';
  */
 const NO_LETTERHEAD_ERROR_CODE = 'INVOICE_NO_LETTERHEAD';
 
+/**
+ * Wzorzec i seria numeru faktury z zamówienia. HKL → organizacja z
+ * `number_patterns.hkl_daily` (Cozy od 17.11.2026, decyzja Pawła/Wiktorii: „od niej
+ * zaczniemy fakturowanie HKL-klient”) liczy we WŁASNEJ serii tej organizacji —
+ * `{YY}{NR:6}` → 26000001 — obok serii HKL `{YYYY}/{NR:5}` pozostałych organizacji.
+ * `profile` = organizacja zamówienia, na poziomie 1 to nabywca.
+ *
+ * @returns {{ numberPattern: string, numberSeries: { issuerType: string, issuerId: number, level: number }|null }}
+ */
+function hklSeries(level, documentType, profile, issuerProfile) {
+  const own = Number(level) === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION
+    && (documentType === DocumentType.INVOICE || documentType === DocumentType.FINAL)
+    && profile && profile.numberPatterns && profile.numberPatterns.hkl_daily;
+  return own
+    ? { numberPattern: own, numberSeries: { issuerType: hierarchy.IssuerType.MANUFACTURER, issuerId: Number(profile.organizationId), level: 1 } }
+    : { numberPattern: (issuerProfile && issuerProfile.numberPattern) || '{YYYY}/{NR:5}', numberSeries: null };
+}
+
 class InvoiceService {
   /**
    * @param {Object} [deps]
@@ -206,7 +225,7 @@ class InvoiceService {
    * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
    */
   async createFromOrder(params) {
-    const source = await this.loadInvoiceableSource(params.orderId);
+    const source = await this.loadInvoiceableSource(params.orderId, { allowUnshipped: params.allowUnshipped === true });
     return this.buildDocument({ ...params, sources: [source] });
   }
 
@@ -233,7 +252,7 @@ class InvoiceService {
    * @param {boolean} [params.requireLetterhead=false] tylko na formatce wystawcy (automat) — patrz `NO_LETTERHEAD_ERROR_CODE`
    * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
    */
-  async createCollective({ orderIds, period, level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, issue = true, lang, createdByPin, requireLetterhead = false }) {
+  async createCollective({ orderIds, period, level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, issue = true, lang, createdByPin, requireLetterhead = false, replace = null }) {
     if (!Array.isArray(orderIds) || !orderIds.length) throw new Error('Faktura zbiorcza wymaga listy zamówień');
     const toOrganization = Number(level) === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION;
     if (!toOrganization && Number(level) !== hierarchy.InvoiceLevel.ORGANIZATION_TO_USER) {
@@ -265,7 +284,8 @@ class InvoiceService {
       sources,
       collective: { period },
       saleDate: period.end,
-      deliveryDate: period.end
+      deliveryDate: period.end,
+      replace
     });
   }
 
@@ -477,6 +497,276 @@ class InvoiceService {
     };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Ręczna edycja faktury z zamówienia (admin i biuro, 17.11.2026)       */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Nakładki zamówień dokumentu (`core/manualEdit.js`): jawna z edytora (dokument
+   * jednego zamówienia) albo zapisana przy zamówieniu i relacji.
+   * @returns {Promise<Map<number, Record<string, any>>>} id zamówienia → nakładka
+   */
+  async resolveManualOverlays(params, sources, level) {
+    const map = new Map();
+    if (params.skipOverlay) return map;
+    for (const s of sources) {
+      const id = Number(s.order.id);
+      const overlay = params.overlay && sources.length === 1
+        ? params.overlay
+        : (this.repository.findManualOverlay ? ((await this.repository.findManualOverlay({ orderId: id, level })) || {}).manualEdit?.overlay : null);
+      if (overlay) map.set(id, overlay);
+    }
+    return map;
+  }
+
+  /**
+   * Nakładka każdego zamówienia na jego pozycje, w kolejności zamówień dokumentu.
+   * Linia ręczna w dziennej/zbiorczej niesie numer i klienta swojego zamówienia.
+   */
+  applyManualOverlays(rawItems, sources, overlays, resolveTax) {
+    const orderOf = new Map();
+    for (const s of sources) for (const oi of s.orderItems) orderOf.set(Number(oi.id), Number(s.order.id));
+    const out = [];
+    const conflicts = [];
+    for (const s of sources) {
+      const id = Number(s.order.id);
+      const own = rawItems.filter((it) => it.orderItemId && orderOf.get(Number(it.orderItemId)) === id);
+      const r = manualEdit.applyOverlay(own, overlays.get(id) || null, { resolveTax });
+      const first = own[0] || {};
+      out.push(...r.items.map((it) => (it.orderItemId ? it : {
+        ...it,
+        ...(first.orderNumber ? { orderNumber: first.orderNumber } : {}),
+        meta: { ...it.meta, orderClient: (first.meta && first.meta.orderClient) || '' }
+      })));
+      conflicts.push(...r.conflicts.map((c) => ({ ...c, orderId: id })));
+    }
+    out.push(...rawItems.filter((it) => !it.orderItemId));
+    return { rawItems: out, conflicts };
+  }
+
+  /**
+   * Pozycje zapisanej faktury z opisem DOKŁADNIE takim, jak drukuje go jej wzór — edytor
+   * pokazuje i porównuje 1:1 to, co na fakturze. Wzór Cozy liczy opis starszych pozycji
+   * z parametrów zamówienia (`maizonCozy.printedDescription`), wzór HKL drukuje `description`.
+   */
+  async withPrintedDescriptions(invoice, items) {
+    const profile = await this.repository.getOrganizationProfile(invoice.organizationId);
+    if (!maizonCozy.appliesTo({ invoice, profile })) return items;
+    const ids = items.map((it) => it.orderItemId).filter(Boolean);
+    const rows = ids.length ? await this.repository.getOrderItemsForPrint(ids) : [];
+    const byId = new Map((rows || []).map((r) => [Number(r.id), r]));
+    return items.map((it) => (it.orderItemId
+      ? { ...it, description: maizonCozy.printedDescription(it, byId.get(Number(it.orderItemId))), meta: { ...it.meta, printedDescription: true } }
+      : it));
+  }
+
+  /** Podatek linii ręcznej na zapisanej fakturze — z krajów stron zapisanych na dokumencie. */
+  taxResolverFor(invoice) {
+    return ({ isService, isInstallation }) => taxRules.resolveTaxTreatment({
+      seller: invoice.seller,
+      buyer: invoice.buyer,
+      opts: { isService, isInstallation, vatEuVerified: invoice.buyerVatEuVerified }
+    });
+  }
+
+  /**
+   * Cel edycji. Szkic przygotowany ręcznie albo zamówienie bez faktury w relacji →
+   * tryb „prepared” (nakładka, wystawi automat po !sent!); każda inna faktura →
+   * tryb „document” (zmiana w miejscu, ten sam numer, bez maila).
+   *
+   * @param {{ invoiceId?: number, orderId?: number, level?: number }} target
+   */
+  async resolveEditTarget(target) {
+    if (target && target.invoiceId) {
+      const invoice = await this.repository.getInvoice(Number(target.invoiceId));
+      if (!invoice) throw new Error(`Faktura ${target.invoiceId} nie istnieje`);
+      const prepared = invoice.status === InvoiceStatus.DRAFT && invoice.orderId && invoice.compliance?.manualEdit?.prepared === true;
+      return prepared
+        ? { mode: 'prepared', invoice, orderId: Number(invoice.orderId), level: Number(invoice.level) }
+        : { mode: 'document', invoice };
+    }
+    const orderId = Number(target && target.orderId);
+    const level = Number(target && target.level);
+    if (!orderId || ![1, 2, 3, 4].includes(level)) throw new Error('Edycja faktury: wskaż zamówienie i relację (poziom 1–4)');
+    const draft = await this.repository.findPreparedDraft({ orderId, level });
+    if (draft) return { mode: 'prepared', invoice: await this.repository.getInvoice(draft.id), orderId, level };
+    // Faktura już wystawiona (per zlecenie albo dzienna z tym zamówieniem) → edycja w miejscu
+    const issuedId = this.repository.findOrderInvoiceForEdit ? await this.repository.findOrderInvoiceForEdit({ orderId, level }) : null;
+    if (issuedId) return { mode: 'document', invoice: await this.repository.getInvoice(issuedId) };
+    return { mode: 'prepared', invoice: null, orderId, level };
+  }
+
+  /** Faktura z samego zamówienia (bez nakładki, także przed !sent!) — baza edycji. */
+  baseFromOrder(orderId, level) {
+    // Zamówienie bez cen też da się przygotować — ceny wpisuje się właśnie w edytorze (automat 0,00 nie wystawi)
+    return this.createFromOrder({ orderId, level, documentType: DocumentType.INVOICE, issue: false, allowUnshipped: true, dryRun: true, skipOverlay: true, allowZeroTotal: true });
+  }
+
+  /**
+   * Nowa treść faktury z linii edytora, bez zapisu.
+   * @returns {Promise<{ target: any, invoice: Record<string, any>, overlay?: Record<string, any>, diff?: Record<string, any>, conflicts: any[] }>}
+   */
+  async computeEdit({ target, lines, notes, saleDate, deliveryDate, paymentDays }) {
+    const t = await this.resolveEditTarget(target);
+    const days = paymentDays === '' || paymentDays === undefined || paymentDays === null ? undefined : Number(paymentDays);
+    if (t.mode === 'prepared') {
+      const base = await this.baseFromOrder(t.orderId, t.level);
+      const overlay = manualEdit.diffOverlay(base.invoice.items, lines);
+      overlay.header = Object.fromEntries(Object.entries({ notes, saleDate, deliveryDate, paymentDays: days }).filter(([, v]) => v !== undefined));
+      const built = await this.createFromOrder({ orderId: t.orderId, level: t.level, documentType: DocumentType.INVOICE, issue: false, allowUnshipped: true, dryRun: true, overlay, allowZeroTotal: true });
+      return { target: t, invoice: built.invoice, overlay, conflicts: built.conflicts || [] };
+    }
+    const inv = t.invoice;
+    const base = await this.withPrintedDescriptions(inv, inv.items.map(manualEdit.rawFromSaved));
+    const diff = manualEdit.diffOverlay(base, lines);
+    const { items } = manualEdit.applyOverlay(base, diff, { resolveTax: this.taxResolverFor(inv) });
+    const computed = new InvoiceCalculator({ currency: inv.currency, localCurrency: inv.localCurrency, exchangeRate: inv.exchangeRate || null })
+      .calculate(items, { advanceSettled: inv.advanceSettled || 0 });
+    const invoice = {
+      ...inv,
+      items: computed.items,
+      taxLines: computed.taxLines,
+      totalNet: computed.totalNet,
+      totalTax: computed.totalTax,
+      totalGross: computed.totalGross,
+      totalTaxLocal: computed.totalTaxLocal,
+      amountDue: computed.amountDue,
+      notes: notes !== undefined ? notes : inv.notes,
+      saleDate: toIsoDay(saleDate) || inv.saleDate,
+      deliveryDate: toIsoDay(deliveryDate) || inv.deliveryDate,
+      dueDate: days !== undefined ? addDays(inv.issueDate, days) : inv.dueDate,
+      legalNotes: [...new Set(computed.taxLines.map((l) => l.legalNoteKey).filter(Boolean))]
+    };
+    return { target: t, invoice, diff, conflicts: [] };
+  }
+
+  /** Podsumowanie edycji na żywo (ten sam kształt co `previewBlank`, formularz v10). */
+  async previewEdit(params) {
+    const { target, invoice, conflicts } = await this.computeEdit(params);
+    const t = renderer.createTranslator(invoice.lang);
+    const major = (minor) => money.toMajor(minor, invoice.currency);
+    return {
+      lang: invoice.lang,
+      currency: invoice.currency,
+      expectedNumber: target.mode === 'document' ? invoice.number : null,
+      seller: { name: invoice.seller.name, country: invoice.seller.country },
+      buyer: { name: invoice.buyer.name, country: invoice.buyer.country },
+      items: invoice.items.map((it) => ({ net: major(it.netAmount), taxRate: it.taxRate, taxCategory: it.taxCategory })),
+      taxLines: invoice.taxLines.map((l) => ({
+        taxCategory: l.taxCategory, taxRate: l.taxRate, net: major(l.netAmount), tax: major(l.taxAmount), gross: major(l.grossAmount),
+        legalNote: l.legalNoteKey ? t(l.legalNoteKey) : ''
+      })),
+      totals: { net: major(invoice.totalNet), tax: major(invoice.totalTax), gross: major(invoice.totalGross) },
+      conflicts,
+      warnings: (invoice.compliance && invoice.compliance.warnings) || []
+    };
+  }
+
+  /**
+   * Zapis edycji.
+   *  - „prepared” (zamówienie przed !sent!): szkic z nakładką; wystawi go automat po !sent!
+   *    (mail i FTP jak każda faktura automatu — klient dostaje wersję po edycji),
+   *  - „document” (faktura wystawiona): zmiana w miejscu, ten sam numer, BEZ maila;
+   *    PDF na FTP podmieniony (decyzja Pawła 17.11.2026). Faktura per zlecenie zapisuje też
+   *    nakładkę względem zamówienia — dzienna/zbiorcza zbudowana później ją zastosuje.
+   *
+   * @param {{ target: any, lines: any[], notes?: string, saleDate?: string, deliveryDate?: string, paymentDays?: number|string, version?: number|null, actor: { pin: string, role: string, isAdmin: boolean } }} params
+   */
+  async saveEdit(params) {
+    const { actor } = params;
+    const at = new Date().toISOString();
+    const { target: t, invoice, overlay, diff } = await this.computeEdit(params);
+    const totals = { net: invoice.totalNet, tax: invoice.totalTax, gross: invoice.totalGross };
+
+    if (t.mode === 'prepared') {
+      const prevVersion = Number((t.invoice && t.invoice.compliance?.manualEdit?.version) || 0);
+      if (params.version != null && Number(params.version) !== prevVersion) {
+        const err = new Error('Ktoś zapisał tę fakturę w międzyczasie — odśwież edytor i nanieś zmiany jeszcze raz.');
+        err.code = 'INVOICE_EDIT_CONFLICT';
+        throw err;
+      }
+      const meta = { prepared: true, overlay, version: prevVersion + 1, by: actor.pin, role: actor.role, at };
+      const saved = await this.createFromOrder({
+        orderId: t.orderId, level: t.level, documentType: DocumentType.INVOICE, issue: false, allowUnshipped: true,
+        overlay, manualEdit: meta, replaceId: t.invoice ? t.invoice.id : null, createdByPin: actor.pin, allowZeroTotal: true
+      });
+      await this.repository.addInvoiceEvent({ invoiceId: saved.id, eventType: 'prepared', actorPin: actor.pin, payload: { role: actor.role, overlay, totals } });
+      return { id: saved.id, number: null, mode: 'prepared', version: meta.version };
+    }
+
+    const inv = t.invoice;
+    if (inv.status === InvoiceStatus.CANCELLED) throw new Error('Faktura anulowana — edycja niedostępna');
+    if (inv.status === InvoiceStatus.PAID && !actor.isAdmin) throw new Error('Faktura opłacona — poprawia ją tylko admin');
+    const blockers = this.repository.getEditBlockers ? await this.repository.getEditBlockers(inv.id) : { related: 0, allocations: 0 };
+    if (blockers.related) throw new Error('Faktura ma korektę albo dokument powiązany — edycja niedostępna');
+    if (blockers.allocations) throw new Error('Faktura częściowa (alokacje ilości) — edycja niedostępna');
+
+    // Nakładka względem zamówienia: dzienna/zbiorcza zbudowana później powtórzy te zmiany
+    let orderOverlay = null;
+    if (inv.orderId) {
+      try {
+        const base = await this.baseFromOrder(Number(inv.orderId), Number(inv.level));
+        orderOverlay = manualEdit.diffOverlay(base.invoice.items, params.lines);
+      } catch (err) {
+        this.log(`[invoices] edycja faktury ${inv.number}: bez nakładki zamówienia (${err.message})`);
+      }
+    }
+    const meta = { edited: true, by: actor.pin, role: actor.role, at, document: !inv.orderId, ...(orderOverlay ? { overlay: orderOverlay } : {}) };
+    const before = {
+      number: inv.number,
+      items: inv.items.map((it) => ({ orderItemId: it.orderItemId || null, name: it.name, description: it.description, quantity: it.meta?.displayQuantity ?? it.quantity, unit: it.unit, net: it.netAmount, taxRate: it.taxRate, taxCategory: it.taxCategory })),
+      totals: { net: inv.totalNet, tax: inv.totalTax, gross: inv.totalGross },
+      notes: inv.notes, saleDate: inv.saleDate, deliveryDate: inv.deliveryDate, dueDate: inv.dueDate
+    };
+    const r = await this.repository.updateInvoiceContent(inv.id, { ...invoice, compliance: { manualEdit: meta } }, {
+      expectedVersion: params.version ?? null,
+      actorPin: actor.pin,
+      eventPayload: { role: actor.role, before, diff, after: { totals } },
+      reuploadFtp: inv.status !== InvoiceStatus.DRAFT
+    });
+    return { id: inv.id, number: inv.number, mode: 'document', version: r.version };
+  }
+
+  /**
+   * Dane do edytora: strony, linie (z nakładką), uwagi, daty, wersja, historia, konflikty.
+   * @param {{ invoiceId?: number, orderId?: number, level?: number }} target
+   */
+  async editContext(target) {
+    const t = await this.resolveEditTarget(target);
+    const daysBetween = (from, to) => Math.round((new Date(`${to}T00:00:00Z`) - new Date(`${from}T00:00:00Z`)) / 86400000);
+    if (t.mode === 'prepared') {
+      const base = await this.baseFromOrder(t.orderId, t.level);
+      const me = (t.invoice && t.invoice.compliance?.manualEdit) || null;
+      const applied = me && me.overlay
+        ? manualEdit.applyOverlay(base.invoice.items, me.overlay, { resolveTax: this.taxResolverFor(base.invoice) })
+        : { items: base.invoice.items, conflicts: [] };
+      const header = (me && me.overlay && me.overlay.header) || {};
+      const b = base.invoice;
+      return {
+        mode: 'prepared', invoiceId: t.invoice ? t.invoice.id : null, orderId: t.orderId, level: t.level,
+        number: null, status: t.invoice ? 'draft' : 'new', orderRef: b.orderRef, lang: b.lang, currency: b.currency,
+        seller: { name: b.seller.name, country: b.seller.country }, buyer: { name: b.buyer.name, country: b.buyer.country },
+        lines: manualEdit.editorLines(applied.items), conflicts: applied.conflicts,
+        notes: header.notes !== undefined ? header.notes : (b.notes || ''),
+        saleDate: header.saleDate || b.saleDate, deliveryDate: header.deliveryDate || b.deliveryDate,
+        paymentDays: header.paymentDays ?? daysBetween(b.issueDate, b.dueDate),
+        version: Number((me && me.version) || 0),
+        history: t.invoice ? await this.repository.getInvoiceHistory(t.invoice.id) : []
+      };
+    }
+    const inv = t.invoice;
+    return {
+      mode: 'document', invoiceId: inv.id, orderId: inv.orderId || null, level: inv.level,
+      number: inv.number, status: inv.status, orderRef: inv.orderRef, lang: inv.lang, currency: inv.currency,
+      seller: { name: inv.seller.name, country: inv.seller.country }, buyer: { name: inv.buyer.name, country: inv.buyer.country },
+      lines: manualEdit.editorLines(await this.withPrintedDescriptions(inv, inv.items.map(manualEdit.rawFromSaved))), conflicts: [],
+      notes: inv.notes || '', saleDate: inv.saleDate, deliveryDate: inv.deliveryDate, paymentDays: daysBetween(inv.issueDate, inv.dueDate),
+      version: Number(inv.compliance?.manualEdit?.version || 0),
+      createdByPin: inv.createdByPin || '', multiOrder: !inv.orderId,
+      history: await this.repository.getInvoiceHistory(inv.id)
+    };
+  }
+
   /**
    * Sprawdzenie numeru VAT-UE w VIES na żądanie z formularza in blanco.
    *
@@ -494,10 +784,13 @@ class InvoiceService {
    * @param {number} orderId
    * @returns {Promise<{ order: any, orderItems: any[], organization: any, user: any, groupShop: any }>}
    */
-  async loadInvoiceableSource(orderId) {
+  async loadInvoiceableSource(orderId, { allowUnshipped = false } = {}) {
     const source = await this.repository.getOrderInvoiceSource(orderId);
     if (!source) throw new Error(`Zamówienie ${orderId} nie istnieje`);
     if (!source.orderItems.length) throw new Error(`Zamówienie ${orderId} nie ma pozycji`);
+    // Przygotowanie faktury PRZED wysyłką (ręczna edycja, 17.11.2026) — tylko szkic,
+    // wystawia go automat dopiero po !sent!
+    if (allowUnshipped) return source;
     // Dokument wystawiamy WYŁĄCZNIE dla zlecenia wysłanego do klienta: status
     // `!sent!` z pliku produkcji (`status.txt` → `order.prod_status`,
     // `services/prodStatus.js`). Jedna reguła dla panelu, API i automatu.
@@ -588,11 +881,16 @@ class InvoiceService {
     const currency = DOCUMENT_CURRENCY;
     const today = todayIso(this.now());
     // `sent_date` przychodzi z mysql2 jako obiekt Date — patrz `core/dates.js`
-    const saleDate = toIsoDay(params.saleDate) || toIsoDay(source.order.sent_date) || today;
-    const issueDate = today;
-    const dueDate = addDays(issueDate, issuerProfile.paymentDays ?? profile.defaultPaymentDays);
+    // Ręczne zmiany zamówień (nakładki) — raz na dokument; nagłówek tylko z dokumentu jednego zamówienia
+    const overlays = await this.resolveManualOverlays(params, sources, level);
+    const header = (!collective && sources.length === 1 && (overlays.get(Number(source.order.id)) || {}).header) || {};
+    const saleDate = toIsoDay(params.saleDate) || toIsoDay(header.saleDate) || toIsoDay(source.order.sent_date) || today;
+    // Przeliczona faktura dzienna zachowuje numer i datę wystawienia (`params.replace`)
+    const issueDate = (params.replace && toIsoDay(params.replace.issueDate)) || today;
+    const paymentDays = params.paymentDays ?? header.paymentDays;
+    const dueDate = addDays(issueDate, paymentDays ?? issuerProfile.paymentDays ?? profile.defaultPaymentDays);
     // Data dostawy/usługi — wymagana na fakturze niemieckiej (Leistungsdatum)
-    const deliveryDate = toIsoDay(params.deliveryDate) || toIsoDay(source.order.delivery_date) || saleDate;
+    const deliveryDate = toIsoDay(params.deliveryDate) || toIsoDay(header.deliveryDate) || toIsoDay(source.order.delivery_date) || saleDate;
 
     // Strony transakcji wynikają z POZIOMU — patrz `core/hierarchy.js`.
     // Dane wystawcy pochodzą z jego profilu, nabywcy z właściwej tabeli.
@@ -855,6 +1153,23 @@ class InvoiceService {
       }
     }
 
+    // Wzór MaizonCozy drukuje opis z parametrów zamówienia (OPIS_POZYCJI + ceny SUB) — w pozycji
+    // zapisujemy DOKŁADNIE ten tekst, żeby edytor pokazywał 1:1 to, co na fakturze (17.11.2026)
+    if (maizonCozy.appliesTo({ invoice: { level, issuerType: parties.issuerType }, profile })) {
+      const rowById = new Map(sources.flatMap((s) => s.orderItems).map((r) => [Number(r.id), r]));
+      rawItems = rawItems.map((it) => (it.orderItemId && rowById.has(Number(it.orderItemId))
+        ? { ...it, description: maizonCozy.printedDescription(it, rowById.get(Number(it.orderItemId))), meta: { ...it.meta, printedDescription: true } }
+        : it));
+    }
+
+    // RĘCZNA EDYCJA (admin/biuro, 17.11.2026): nakładka każdego zamówienia na jego
+    // pozycje — przygotowany szkic, faktura per zlecenie, dzienna i zbiorcza tak samo
+    let manualConflicts = [];
+    if ((documentType === DocumentType.INVOICE || documentType === DocumentType.FINAL) && overlays.size && !requestedAllocations) {
+      ({ rawItems, conflicts: manualConflicts } = this.applyManualOverlays(rawItems, sources, overlays, resolveTax));
+      if (manualConflicts.length && !params.dryRun) throw manualEdit.conflictError(manualConflicts, ref);
+    }
+
     const calculator = new InvoiceCalculator({ currency, localCurrency, exchangeRate });
 
     let advanceSettled = 0;
@@ -912,7 +1227,7 @@ class InvoiceService {
       buyerType: parties.buyerType,
       buyerEndClientId: parties.buyerType === hierarchy.BuyerType.END_CLIENT ? parties.buyerId : null,
       deliveryDate,
-      compliance: complianceContext,
+      compliance: params.manualEdit ? { ...complianceContext, manualEdit: params.manualEdit } : complianceContext,
       allocations: requestedAllocations
         ? requestedAllocations.map((l) => ({ orderItemId: l.orderItemId, quantity: l.quantity }))
         : null,
@@ -932,7 +1247,8 @@ class InvoiceService {
       viesCheckedAt: vies.checkedAt,
       viesValid: vies.checked ? vies.verified : null,
       paymentMethod: profile.defaultPaymentMethod,
-      numberPattern: issuerProfile.numberPattern || '{YYYY}/{NR:5}',
+      ...hklSeries(level, documentType, profile, issuerProfile),
+      number: params.replace ? params.replace.number : null,
       items: computed.items,
       taxLines: computed.taxLines,
       totalNet: computed.totalNet,
@@ -962,13 +1278,14 @@ class InvoiceService {
       templateCode,
       notes: collective
         ? [collectiveNote(lang, collective.period, sources), notes].filter(Boolean).join(' ')
-        : (notes || source.order.comment || ''),
+        : (notes || (header.notes !== undefined ? header.notes : source.order.comment) || ''),
       legalNotes: [...new Set(computed.taxLines.map((l) => l.legalNoteKey).filter(Boolean))],
       orgCode: profile.orgCode,
       createdByPin
     };
 
-    const saved = await this.repository.createInvoice(invoice, { assignNumber: issue });
+    if (params.dryRun) return { id: null, number: null, invoice, conflicts: manualConflicts };
+    const saved = await this.repository.createInvoice(invoice, { assignNumber: issue, replaceId: params.replace ? params.replace.id : (params.replaceId || null) });
     invoice.id = saved.id;
     invoice.number = saved.number;
     return { id: saved.id, number: saved.number, invoice };
@@ -1042,12 +1359,11 @@ class InvoiceService {
     const issuerProfile = issuerSeries
       ? await this.repository.getIssuerProfile({ issuerType: invoice.issuerType, issuerId: invoice.issuerId || 0, level: invoice.level || 2 })
       : null;
+    const series = issuerSeries ? hklSeries(invoice.level, invoice.documentType, profile, issuerProfile) : null;
     const numbering = new NumberingService({
       allocateSequence: issuerSeries
         ? ({ periodKey }) => this.repository.allocateIssuerSequence({
-          issuerType: invoice.issuerType,
-          issuerId: invoice.issuerId || 0,
-          level: invoice.level || 2,
+          ...(series.numberSeries || { issuerType: invoice.issuerType, issuerId: invoice.issuerId || 0, level: invoice.level || 2 }),
           year: Number(String(periodKey).slice(0, 4))
         })
         : (p) => this.repository.allocateSequence(p)
@@ -1056,7 +1372,7 @@ class InvoiceService {
       organizationId: invoice.organizationId,
       documentType: invoice.documentType,
       isoDate: invoice.issueDate,
-      pattern: issuerSeries ? (issuerProfile?.numberPattern || '{YYYY}/{NR:5}') : profile?.numberPatterns?.[invoice.documentType],
+      pattern: issuerSeries ? series.numberPattern : profile?.numberPatterns?.[invoice.documentType],
       orgCode: profile?.orgCode
     });
 

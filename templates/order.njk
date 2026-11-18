@@ -746,6 +746,12 @@
                                                                                                     {% if staffAudit.updatedBy %} · {{ __('staff.audit_updated') }}: {{ staffAudit.updatedBy }}{% endif %}
                                                                                                 </p>
                                                                                             {% endif %}
+                                                                                            {# Edycja faktury (admin i biuro) — services/invoices/orderLinks.js, etykiety z panelu faktur #}
+                                                                                            {% if invoiceEditLinks and invoiceEditLinks.length %}
+                                                                                                <p class="staff-audit w-100 text-end invoice-edit-links">
+                                                                                                    {% for link in invoiceEditLinks %}<a class="btn btn-sm btn-outline-secondary ms-2" href="{{ link.href }}">{{ link.label }}</a>{% endfor %}
+                                                                                                </p>
+                                                                                            {% endif %}
                                                                                             {# Korekta: kolejność i numery pozycji jak w produkcji — przesunięcie zamienia `id` pozycji (db/positions.js). #}
                                                                                             {% if orderDetails.status == 'correction' %}<style>.position-controls .btn.move-up-btn, .position-controls .btn.move-down-btn { display: none !important; }</style>{% endif %}
                                                                                             {% block send_order_btn %}
