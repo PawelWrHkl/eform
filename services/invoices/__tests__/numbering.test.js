@@ -110,22 +110,26 @@ test('statusy: przekroczony termin płatności', () => {
   assert.equal(isOverdue({ status: InvoiceStatus.PAID, dueDate: '2026-08-01' }, new Date('2026-09-01')), false);
 });
 
-test('seria numeracji: jedna na firmę — HKL na poziomach 1 i 2 z jednego licznika (2026-11-06)', async () => {
-  const { allocateIssuerSequence, issuerSeriesKey } = require('../db/repository');
+test('seria numeracji: jedna na firmę — całe HKL (poziomy 1, 2, 4) z jednego licznika {YY}{NR:6} (2026-11-18)', async () => {
+  const { allocateIssuerSequence, issuerSeriesKey, HKL_SERIES } = require('../db/repository');
   const { HKL_ORG_ID } = require('../../subPrices');
-  const hkl = { issuerType: 'organization', issuerId: Number(HKL_ORG_ID), level: 2 };
-  assert.deepEqual(issuerSeriesKey({ issuerType: 'manufacturer', issuerId: 0, level: 1 }), hkl);
-  assert.deepEqual(issuerSeriesKey({ issuerType: 'organization', issuerId: HKL_ORG_ID, level: 2 }), hkl);
-  // Organizacja sprzedająca odbiorcy końcowemu (poziom 4) liczy w tej samej serii co na poziomie 2
+  // Licznik, od którego 17.11 ruszyła seria HKL → Cozy (26000001): „hkl-cozy 0001, potem hkl-luxan 0002”
+  const hkl = { issuerType: 'manufacturer', issuerId: 1, level: 1 };
+  assert.equal(HKL_SERIES.numberPattern, '{YY}{NR:6}');
+  for (const issuer of [
+    { issuerType: 'manufacturer', issuerId: 0, level: 1 },
+    { issuerType: 'manufacturer', issuerId: 1, level: 1 },
+    { issuerType: 'organization', issuerId: HKL_ORG_ID, level: 2 },
+    { issuerType: 'organization', issuerId: HKL_ORG_ID, level: 4 }
+  ]) assert.deepEqual(issuerSeriesKey(issuer), hkl, JSON.stringify(issuer));
+  // Inna organizacja sprzedająca odbiorcy końcowemu (poziom 4) liczy w swojej serii z poziomu 2
   assert.deepEqual(issuerSeriesKey({ issuerType: 'organization', issuerId: 5, level: 4 }), { issuerType: 'organization', issuerId: 5, level: 2 });
   assert.deepEqual(issuerSeriesKey({ issuerType: 'user', issuerId: 77, level: 3 }), { issuerType: 'user', issuerId: 77, level: 3 });
-  // Producent z id organizacji-nabywcy = osobna seria HKL dla niej (Cozy 17.11.2026: 26000001…)
-  assert.deepEqual(issuerSeriesKey({ issuerType: 'manufacturer', issuerId: 1, level: 1 }), { issuerType: 'manufacturer', issuerId: 1, level: 1 });
 
   const calls = [];
   const conn = { query: async (sql, params) => { calls.push(params); return [{ insertId: calls.length }]; } };
   await allocateIssuerSequence({ issuerType: 'manufacturer', issuerId: 0, level: 1, year: 2026 }, conn);
   await allocateIssuerSequence({ issuerType: 'organization', issuerId: HKL_ORG_ID, level: 2, year: 2026 }, conn);
   assert.deepEqual(calls[0], calls[1], 'ten sam klucz licznika');
-  assert.deepEqual(calls[0], ['organization', Number(HKL_ORG_ID), 2, 2026]);
+  assert.deepEqual(calls[0], ['manufacturer', 1, 1, 2026]);
 });

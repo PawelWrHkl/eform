@@ -640,3 +640,73 @@ test('specyfikacja: klient LUXAN_EWA_KRAWCZYK z PL — „brutto po rabacie”, 
   assert.doesNotMatch(spec.t.note, /netto/);
   assert.match(spec.t.note, /EUR/);
 });
+
+// ── rabat B2B organizacji u zwykłego klienta (services/b2bDiscount.js, 2026-11-18) ──
+
+test('rabaty: zwykły klient po kłódce, rabat B2B +3 pkt — rabat od ceny katalogowej i dopłata z cennika osobno', () => {
+  const spec = build({ isClient: true, prices: true }, {
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+      ['SUB___RABAT_KLIENTA', row('Rabat B2B (+3 pkt)', '63%', { sub: true, locked: true })],
+      // 200·0.37 + 50·0.4 = 74 + 20
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '94', { sub: true, locked: true })]
+    ] })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [['Rabat B2B (+3 pkt)', 126], ['Rabat na dopłaty', 30]]);
+  assert.equal(set.unitAfter, 94);
+});
+
+test('rabaty: rabat kwotowy B2B — osobna linia od ceny po pozostałych rabatach, dokładny procent z values', () => {
+  const spec = build({ isClient: true, prices: true }, {
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_B2B_KWOTOWY: 10 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+      ['SUB___RABAT_KLIENTA', row('Rabat B2B (+3 pkt)', '63%', { sub: true, locked: true })],
+      ['SUB___RABAT_B2B_KWOTOWY', row('Rabat kwotowy B2B', '10%', { sub: true, locked: true })],
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '84.6', { sub: true, locked: true })]
+    ] })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [
+    ['Rabat B2B (+3 pkt)', 126], ['Rabat na dopłaty', 30], ['Rabat kwotowy B2B', 9.4]
+  ]);
+  assert.equal(set.unitAfter, 84.6);
+
+  const onlyAmount = build({ isClient: true, prices: true }, {
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_B2B_KWOTOWY: 10 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+      ['SUB___RABAT_B2B_KWOTOWY', row('Rabat kwotowy B2B', '10%', { sub: true, locked: true })],
+      // 250·0.4 = 100 → × 0.9
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '90', { sub: true, locked: true })]
+    ] })
+  }).positions[0].sets[0];
+  assert.deepEqual(onlyAmount.discount.map((d) => [d.label, d.amount]), [['Rabat cennikowy', 150], ['Rabat kwotowy B2B', 10]]);
+});
+
+test('rabaty: zwykły klient z samym ekstra rabatem — jak dotąd jedna linia z rzeczywistą kwotą', () => {
+  const spec = build({ isClient: true, prices: true }, {
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+      ['SUB___RABAT_KLIENTA', row('1% rabatu za korzystanie z serwisu', '1%', { sub: true, locked: true })],
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '99', { sub: true, locked: true })]
+    ] })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [['Rabat', 151]]);
+});
+
+test('rabaty: B2B z ekstra rabatem za serwis — ekstra rabat osobną linią od ceny po rabacie B2B', () => {
+  const spec = build({ isClient: true, prices: true }, {
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_PORTALU: 1 }, desc: [
+      ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
+      ['SUB___RABAT_KLIENTA', row('Rabat B2B (+3 pkt) (1% rabatu za serwis)', '63%', { sub: true, locked: true })],
+      // (200·0.37 + 50·0.4) × 0.99 = 94 × 0.99
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '93.06', { sub: true, locked: true })]
+    ] })
+  });
+  const set = spec.positions[0].sets[0];
+  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [
+    ['Rabat B2B (+3 pkt) (1% rabatu za serwis)', 126], ['Rabat na dopłaty', 30], ['Rabat za korzystanie z serwisu', 0.94]
+  ]);
+  assert.equal(set.unitAfter, 93.06);
+});

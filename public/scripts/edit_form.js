@@ -220,6 +220,8 @@ async function sendData(id, values, valuesToDisplay, comment, orderId) {
     const total = getTotal(valuesToDisplay);
     
     postBody.total = total;
+    // Rabat B2B, z którym policzono ceny — serwer odrzuca zapis, gdy w międzyczasie się zmienił.
+    postBody.b2bStamp = window.b2bDiscountStamp || '';
 
     try {
         const result = await sendFormDataWithAttachments("/position/edit/save", postBody, "PATCH");
@@ -239,7 +241,7 @@ async function sendData(id, values, valuesToDisplay, comment, orderId) {
         });
     } catch (error) {
         console.error("Błąd przy wysyłaniu", error);
-        showToast('error', t("form.error_saving_form"));
+        showToast('error', (error.status === 409 && error.serverMessage) || t("form.error_saving_form"));
         throw error;
     }
 

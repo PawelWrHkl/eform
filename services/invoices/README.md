@@ -136,9 +136,15 @@ jest nabywcą na 1 i wystawcą na 2), dlatego identyfikacja to zawsze **para
 tym samym `2026/00001`.
 
 **Numeracja:** `{YYYY}/{NR:5}` → `2026/00001`, licznik zerowany 1 stycznia,
-JEDEN na firmę (`repository.issuerSeriesKey`): HKL na poziomie 1 (producent) liczy w
-serii organizacji HKL z poziomu 2, organizacja na poziomach 2 i 4 w jednej serii,
-użytkownik (poziom 3) we własnej. Do 2026-11-06 licznik był per (wystawca, poziom, rok),
+JEDEN na firmę (`repository.issuerSeriesKey`): organizacja na poziomach 2 i 4 w jednej serii,
+użytkownik (poziom 3) we własnej. **HKL** (producent na poziomie 1 i organizacja HKL na
+poziomach 2 i 4) od 18.11.2026 ma jedną wspólną serię `{YY}{NR:6}` → 26000001, 26000002…
+(`repository.HKL_SERIES`, Paweł: „hkl-cozy 0001, potem hkl-luxan 0002 i tak dalej”). Licznik
+to `invoice_issuer_sequence('manufacturer', 1, 1, rok)` — założony 17.11 dla HKL → Cozy, stąd
+id 1. Wzorzec jest w kodzie (`getIssuerProfile` go narzuca), nie w profilu: ten licznik z
+dawnym `{YYYY}/{NR:5}` dałby numery już użyte w 2026. Faktury HKL do 17.11 mają numery
+`2026/…` (seria `organization/3/2`, zamrożona); te wystawione po 26000001 przenumerowano 18.11
+na 26000002–26000011. Do 2026-11-06 licznik był per (wystawca, poziom, rok),
 więc HKL wystawiło 97 par faktur o tym samym numerze (poziom 1 i 2, jeden NIP). Na
 produkcji faktury poziomu 1 usunięto i wystawiono od nowa w serii wspólnej. Rezerwacja
 numeru jest atomowa (`INSERT … ON DUPLICATE KEY UPDATE LAST_INSERT_ID(last+1)`)
@@ -612,9 +618,18 @@ połączenie szyfrowane (FTPS). Domyślnie WYŁĄCZONE.
   nazwa nabywcy z faktury, a gdy i jej brak — `klient-<id>` / `organizacja-<id>`.
 - Faktura sklepu grupy idzie do katalogu konta klienta (`invoice.buyer_user_id`),
   faktura zbiorcza — jak każda inna poziomu 2.
-- Plik: `<rodzaj>_<numer>.pdf` po polsku, tylko ASCII (`Faktura_VAT_…`,
-  `Faktura_korygujaca_…`) — rodzaj w nazwie, bo rodzaje dokumentów mają osobne serie
-  numeracji.
+- Plik: `<rodzaj>_<numer>.pdf`, rodzaj w języku wydruku, tylko ASCII
+  (`renderer.documentFileName`; od 18.11.2026, wcześniej zawsze po polsku): `Rechnung_26000002.pdf`,
+  `Factuur_…`, `Facture_…`, `VAT_invoice_…`, `Faktura_VAT_…`, `Faktura_korygujaca_…`. Wzór
+  MaizonCozy drukuje po niderlandzku (`maizonCozy.printLanguage`). Ta sama nazwa w załączniku
+  maila i przy pobraniu z panelu (`InvoiceService.renderPdf`). Rodzaj w nazwie, bo rodzaje
+  dokumentów mają osobne serie numeracji.
+- Ponowne wysłanie tej samej faktury (edycja w miejscu `ftp_uploaded_rN`, przeliczona dzienna —
+  `createInvoice` przenosi ścieżkę jako `ftp_replaced`) nadpisuje plik pod jego DAWNĄ nazwą
+  (`findInvoicesForFtp.previous_path`), także sprzed nazw w języku wydruku.
+- ⚠️ Kopia FTP na udziały księgowości (`/home/pawel/projects/ftp-invoices/sync_invoices.py`, co
+  15 min → `/mnt/eform/faktury`, `/mnt/faktury_eform`) tylko DOKŁADA pliki: plik usunięty albo
+  przemianowany na FTP zostaje na udziałach, dopóki ktoś go tam nie usunie.
 - Poziomy 3 i 4 (odbiorcy końcowi) nie mają katalogu — nie są wysyłane.
 - ⚠️ Test i produkcja piszą na TO SAMO konto, a numeracja w bazie testowej i
   produkcyjnej jest osobna (ten sam numer = dwa różne dokumenty). Dlatego domyślny
@@ -700,8 +715,10 @@ Ustawia to admin: `/admin/users` → konto → karta **„Fakturowanie niestanda
 
 ## Faktury dzienne HKL (`INVOICE_DAILY_SINCE`)
 
-Decyzja właściciela 2026-11-06: dla sprzedaży **HKL** (organizacja 3) automat wystawia
-OBOK faktur per zlecenie jedną fakturę za dzień wysyłki (`order.delivery_date`):
+Dla sprzedaży **HKL** (organizacja 3) automat wystawia jedną fakturę za dzień wysyłki
+(`order.delivery_date`). Od 18.11.2026 to JEDYNA faktura relacji HKL (Paweł po mailu szefa:
+„dajemy zbiorczo per dzień wysyłki” — przy 100 fakturach klient przy płatności wpisywałby 100
+numerów); od 06.11 do 18.11 szła OBOK faktur per zlecenie:
 
 | Poziom | Nabywca | Jedna faktura na | Kolejność pozycji |
 | --- | --- | --- | --- |
@@ -718,18 +735,23 @@ OBOK faktur per zlecenie jedną fakturę za dzień wysyłki (`order.delivery_dat
   i data wystawienia, stara wersja usunięta w tej samej transakcji (`createInvoice`
   `opts.replaceId`). Nowy rekord nie ma znaczników, więc mail i FTP idą ponownie (FTP nadpisuje
   plik). Faktury opłaconej, z korektą albo kilku dziennych za jeden dzień przycisk nie rusza.
-- **Organizacja „tylko dzienna”** — `invoice_organization_profile.number_patterns.hkl_daily`
-  (Cozy od 17.11.2026 = `{YY}{NR:6}`, decyzja Wiktorii i Pawła): HKL nie wystawia jej faktur per
-  zlecenie poziomu 1 (`findAutoInvoiceCandidates` `excludeOrganizationIds`, wykluczenie w SQL,
-  żeby czekające zlecenia nie zjadały limitu przebiegu), a jej faktury poziomu 1 (invoice/final)
-  liczą we WŁASNEJ serii: licznik `invoice_issuer_sequence` (`manufacturer`, id organizacji, 1, rok),
-  `main.js:hklSeries`. Pierwsza faktura HKL → Maizon: 26000001 (dzienna za 16.11).
+- **Tylko dzienna** (od 18.11.2026, gdy `INVOICE_DAILY_SINCE` ustawione): automat nie robi faktur
+  per zlecenie poziomu 1 w ogóle, a na poziomie 2 wyklucza organizację HKL
+  (`findAutoInvoiceCandidates` `excludeOrganizationId`, wykluczenie w SQL, żeby czekające zlecenia
+  nie zjadały limitu przebiegu); przygotowanych szkiców z edytora w tych relacjach nie wystawia
+  (`findPreparedDraftsReady` `hklDailyOnly`) — ich zmiany niesie dzienna. Organizacja → klient
+  (poziom 2 innych organizacji) i poziomy 3/4 zostają per zlecenie. Bez `INVOICE_DAILY_SINCE`
+  relacje HKL wracają do faktur per zlecenie (zlecenia z dzienną już się nie zdublują —
+  `linkedDocumentSql` ją liczy). Klient HKL z fakturą tygodniową/miesięczną nie dostaje dziennej,
+  tylko zbiorczą (`findDailyCandidates`). Numeracja: wspólna seria HKL (patrz „Numeracja”);
+  `number_patterns.hkl_daily` Cozy z 17.11 jest już nieużywane.
 - Dokument: `createCollective` (poziom 1 — zlecenia różnych klientów jednej organizacji,
   przy pozycji `KLIENT · numer`), autor `created_by_pin = 'AUTO-DAILY'`
   (`core/collective.js:DAILY_ACTOR`), seria numeracji wystawcy ta sama co faktur per zlecenie.
-- ⚠️ Faktura dzienna to dokument DODATKOWY: `linkedDocumentSql` go pomija, więc nie
-  blokuje faktury per zlecenie (ani okna zamówień w panelu), a sama ma własny warunek
-  „już jest" (`findDailyCandidates`: faktura dzienna tego poziomu z pozycją zlecenia).
+- Faktura dzienna jest pełną fakturą: `linkedDocumentSql` ją liczy (przegląd i okno zamówień w
+  panelu nie pokazują jej zleceń jako niezafakturowanych). `findDailyCandidates` pomija zlecenie z
+  WYSTAWIONĄ fakturą per zlecenie (np. ręczną; szkic z edytora nie blokuje) i z dzienną/zbiorczą
+  obejmującą jego pozycje (także anulowaną).
 - Mail: tak, jak faktury automatu (`invoiceMailer` bierze `AUTO` i `AUTO-DAILY`; dziś REDIRECT
   na testerów — polecenie właściciela 2026-11-06). FTP: tak, osobny katalog
   `<katalog>/dzienne/hkl-organizacja/<ORG>/` i `<katalog>/dzienne/organizacja-klient/HKL/<KLIENT>/`.
@@ -753,7 +775,7 @@ cena, usługa), uwagi, daty, termin — nigdy numer. Opłaconą poprawia tylko a
   (`findPreparedDraftsReady`) wystawia szkic: przebudowa z aktualnego zamówienia + nakładka,
   `created_by_pin = AUTO` (mail i FTP jak zawsze), `createInvoice opts.replaceId` (historia
   przechodzi na nową wersję, znaczniki maila/FTP nie). Relacje bez faktur per zlecenie
-  (HKL → organizacja `hkl_daily`, klient tygodniowy/miesięczny) — nakładkę stosuje dzienna/zbiorcza.
+  (relacje HKL przy dziennych, klient tygodniowy/miesięczny) — nakładkę stosuje dzienna/zbiorcza.
 - **Konflikt**: ruszona pozycja, której odcisk (`nazwa|opis|ilość|jedn.|wartość`) w zamówieniu
   się zmienił albo która zniknęła → `INVOICE_MANUAL_EDIT_CONFLICT`, bez wystawienia, zdarzenie
   `manual_review` (raz), log „do przejrzenia”, edytor pokazuje pozycje. Nieruszone i nowe pozycje

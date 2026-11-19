@@ -137,6 +137,27 @@ test('cykl: awaria FTP nie przerywa cyklu — zapisana jako nieudana wysyłka, b
   assert.equal(lock.released, 1);
 });
 
+test('cykl: e-faktury po FTP (dry-run przekazany); ich awaria nie przerywa cyklu; --no-einvoice je pomija', async () => {
+  const order = [];
+  const deps = {
+    log: quiet,
+    acquireLock: async () => fakeLock(),
+    syncStatuses: async () => ({}),
+    runAutoInvoicing: async () => ({ created: [] }),
+    runInvoiceMailing: async () => ({ sent: [], failed: [], planned: [] }),
+    runInvoiceFtpExport: async () => { order.push('ftp'); return EMPTY_FTP(); },
+    runEinvoiceExport: async ({ dryRun }) => { order.push(`einvoice:${dryRun}`); throw new Error('usługa leży'); }
+  };
+  const result = await runProdStatusCycle({ dryRun: true, deps });
+  assert.deepEqual(order, ['ftp', 'einvoice:true']);
+  assert.deepEqual(result.einvoices, { done: [], failed: [{ error: 'usługa leży' }], planned: [] });
+
+  order.length = 0;
+  const skipped = await runProdStatusCycle({ einvoice: false, deps });
+  assert.deepEqual(order, ['ftp']);
+  assert.equal(skipped.einvoices, null);
+});
+
 test('cykl: blokadę trzyma inny proces → nic nie robimy', async () => {
   let ran = false;
   const result = await runProdStatusCycle({

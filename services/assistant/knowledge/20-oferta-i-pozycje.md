@@ -72,6 +72,13 @@
 - To rabat, który salon daje swojemu klientowi końcowemu: widać go w ofercie i w PDF. Nie obniża ceny zakupu u producenta.
 - Centrum rabatów nie jest dostępne dla kont grupy i sklepów ani dla pracowników bez prawa do cen.
 
+## Rabat B2B dla klienta (organizacja daje rabat swojemu klientowi)
+- Tylko konto organizacji (np. Luxan) pracujące na zleceniu swojego klienta. Sam klient, pracownik, biuro i konta grupy tej sekcji nie mają.
+- Najpierw odblokuj ceny kłódką. Wtedy w pasku oferty pojawia się osobny przycisk „{{order.b2b_discount_title}}” (ikona rabatu z napisem B2B). Okno pokazuje „{{order.b2b_discount_list_rates}}”. Centrum rabatów (B2C) to osobne okno.
+- „{{order.b2b_discount_points}}”: punkty dodawane do rabatu z cennika każdej pozycji (cennik 70% + 3 pkt = 73%). „{{order.b2b_discount_amount}}”: kwota dzielona równym procentem na wszystkie pozycje.
+- „{{order.b2b_discount_apply}}” zapisuje rabat i przelicza wszystkie pozycje. Rabat zmienia cenę zakupu klienta, więc trafia do pozycji, sumy, PDF i faktury. Klient widzi go po odblokowaniu cen kłódką.
+- Działa tylko na zleceniu przed wysłaniem.
+
 ## PDF i Excel
 - „{{base.generate_pdf_tooltip}}” — pełny PDF oferty/zamówienia.
 - „{{base.generate_short_pdf_tooltip}}” — skrócony PDF (A3 poziomo, same kody wartości bez opisów).

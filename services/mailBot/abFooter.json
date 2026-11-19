@@ -1,38 +1,51 @@
 {
-  "_info": "Stopka AB (POP-19) — baner targowy w mailu i PDF/HTML. booth = numer stoiska, image = plik obok (pusty = bez zdjęcia). Teksty per język. Włącznik: AB_FOOTER_ENABLED w .env danego środowiska. Zmiana tego pliku działa bez restartu.",
-  "booth": "XX",
+  "_info": "Stopka AB (POP-19) — baner targowy R+T w mailu i PDF/HTML (szablon _ab_footer.njk). fair/hall/booth/company wspólne, teksty per język. image = plik obok (pusty = bez logo). organizations = identy organizacji zlecenia (sendData.organizationIdent), których AB dostają stopkę (brak klucza = wszystkie). Włącznik: AB_FOOTER_ENABLED w .env danego środowiska. Zmiana tego pliku działa bez restartu.",
+  "organizations": ["HKL"],
+  "fair": "R+T Stuttgart 2027",
+  "hall": "7",
+  "booth": "7B78",
   "company": "HKL DEKORACJA OKIEN Sp. z o.o.",
-  "image": "abFooter.jpg",
+  "image": "rt-logo.png",
   "text": {
     "pl": {
-      "label": "Targi · luty 2027",
-      "title": "Spotkajmy się na targach!",
-      "subtitle": "Zapraszamy na stoisko HKL — pokażemy nowości w osłonach okiennych i porozmawiamy o współpracy.",
-      "boothLabel": "Stoisko"
+      "label": "Zapraszamy na targi",
+      "dates": "15–19 lutego 2027 · Messe Stuttgart",
+      "tagline": "Międzynarodowe targi rolet, bram i osłon przeciwsłonecznych",
+      "hallLabel": "Hala",
+      "boothLabel": "Stoisko",
+      "invite": "Do zobaczenia w Stuttgarcie!"
     },
     "en": {
-      "label": "Trade fair · February 2027",
-      "title": "Meet us at the trade fair!",
-      "subtitle": "Visit the HKL stand — discover what is new in window coverings and let's talk about working together.",
-      "boothLabel": "Stand"
+      "label": "Visit us at the trade fair",
+      "dates": "15–19 February 2027 · Messe Stuttgart",
+      "tagline": "World's leading trade fair for roller shutters, doors/gates and sun shading systems",
+      "hallLabel": "Hall",
+      "boothLabel": "Stand",
+      "invite": "We look forward to seeing you in Stuttgart!"
     },
     "de": {
-      "label": "Messe · Februar 2027",
-      "title": "Besuchen Sie uns auf der Messe!",
-      "subtitle": "Wir freuen uns auf Sie am HKL-Stand — mit Neuheiten im Sonnenschutz und Zeit für ein persönliches Gespräch.",
-      "boothLabel": "Stand"
+      "label": "Besuchen Sie uns auf der Messe",
+      "dates": "15.–19. Februar 2027 · Messe Stuttgart",
+      "tagline": "Weltleitmesse für Rollladen, Tore und Sonnenschutz",
+      "hallLabel": "Halle",
+      "boothLabel": "Stand",
+      "invite": "Wir freuen uns auf Ihren Besuch in Stuttgart!"
     },
     "fr": {
-      "label": "Salon · février 2027",
-      "title": "Rendez-vous au salon !",
-      "subtitle": "Venez nous voir sur le stand HKL — nos nouveautés en protections solaires et un moment pour échanger.",
-      "boothLabel": "Stand"
+      "label": "Rendez-nous visite au salon",
+      "dates": "15–19 février 2027 · Messe Stuttgart",
+      "tagline": "Salon mondial des volets roulants, portes et protections solaires",
+      "hallLabel": "Hall",
+      "boothLabel": "Stand",
+      "invite": "Au plaisir de vous voir à Stuttgart !"
     },
     "nl": {
-      "label": "Beurs · februari 2027",
-      "title": "Bezoek ons op de beurs!",
-      "subtitle": "Kom langs op de HKL-stand — ontdek onze nieuwigheden in raamdecoratie en praat met ons over samenwerking.",
-      "boothLabel": "Stand"
+      "label": "Bezoek ons op de beurs",
+      "dates": "15–19 februari 2027 · Messe Stuttgart",
+      "tagline": "Toonaangevende vakbeurs voor rolluiken, poorten en zonwering",
+      "hallLabel": "Hal",
+      "boothLabel": "Stand",
+      "invite": "Graag tot ziens in Stuttgart!"
     }
   }
 }

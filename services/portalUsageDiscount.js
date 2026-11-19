@@ -40,6 +40,7 @@ const { resolveClientDiscountForOrder, resolveClientDiscountForPosition } = requ
 const { isEnabled: isDiscountSwitchEnabled } = require('./portalUsageDiscountSwitch');
 const { resolveClientPricingForOrder } = require('./groupPriceMode');
 const { resolveGrossAfterDiscountForOrder } = require('./vatCalculator');
+const { resolveForOrder: resolveB2bDiscountForOrder, stampOf: stampOfB2bDiscount } = require('./b2bDiscount');
 
 /** Kolumna niosąca wysokość rabatu (punkty procentowe). */
 const EXTRA_DISCOUNT_COLUMN = 'extra_rabat';
@@ -201,9 +202,15 @@ async function resolveCombinedDiscountForPosition(positionId, deps = {}) {
 async function resolveFormPricingForOrder(orderId) {
     const { total, portalBonus } = await resolveCombinedDiscountForOrder(orderId);
     const { mode, markupPercent } = await resolveClientPricingForOrder(orderId);
+    // Rabat B2B organizacji (services/b2bDiscount.js) — osobne globale, bo punkty
+    // dolicza się do rabatu z cennika KAŻDEJ pozycji, a nie jeden procent na zlecenie.
+    const b2b = await resolveB2bDiscountForOrder(orderId);
     return {
         clientDiscountPercent: total,
         portalUsageDiscountPercent: portalBonus,
+        b2bDiscountPoints: b2b.points,
+        b2bDiscountAmountPercent: b2b.amountPct,
+        b2bDiscountStamp: stampOfB2bDiscount(b2b),
         clientPriceMode: mode,
         clientMarkupPercent: markupPercent,
         // Luxan EK z PL: kwoty po rabacie to brutto (services/vatCalculator.js).

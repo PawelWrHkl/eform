@@ -231,7 +231,7 @@ async function insertTaxLines(conn, invoiceId, taxLines, cur) {
  * `opts.replaceId` („Przelicz dzienne ponownie”): stara wersja faktury znika w TEJ SAMEJ
  * transakcji (pozycje, VAT, zdarzenia — kaskadą), a nowa przejmuje jej numer z `invoice.number`.
  *
- * @param {Invoice & { orgCode?: string, numberPattern?: string, numberSeries?: { issuerType: string, issuerId: number, level: number }|null, createdByPin?: string }} invoice
+ * @param {Invoice & { orgCode?: string, numberPattern?: string, createdByPin?: string }} invoice
  * @param {{ assignNumber?: boolean, replaceId?: number|null }} [opts]
  * @returns {Promise<{ id: number, number: string|null }>}
  */
@@ -240,12 +240,14 @@ async function createInvoice(invoice, opts = {}) {
 
   return withTransaction(async (conn) => {
     // Historia (utworzenie, przygotowanie, edycje) przechodzi na nową wersję; znaczniki
-    // maila i FTP nie — nowa wersja idzie kanałami od nowa (przeliczona dzienna, wystawiony szkic)
+    // maila i FTP nie — nowa wersja idzie kanałami od nowa (przeliczona dzienna, wystawiony szkic).
+    // Wysłany plik zostaje jako `ftp_replaced`: nowa wersja nadpisze go na FTP pod tą samą nazwą
     let carriedEvents = [];
     if (opts.replaceId) {
       [carriedEvents] = await conn.query(
-        `SELECT event_type, from_status, to_status, actor_pin, payload, created_at FROM invoice_event
-          WHERE invoice_id = ? AND event_type NOT LIKE 'mail\\_%' AND event_type NOT LIKE 'ftp\\_%' ORDER BY id`,
+        `SELECT IF(event_type LIKE 'ftp\\_uploaded%', 'ftp_replaced', event_type) AS event_type,
+                from_status, to_status, actor_pin, payload, created_at FROM invoice_event
+          WHERE invoice_id = ? AND event_type NOT LIKE 'mail\\_%' AND event_type NOT LIKE 'ftp\\_failed%' ORDER BY id`,
         [Number(opts.replaceId)]
       );
       const [del] = await conn.query('DELETE FROM invoice WHERE id = ?', [Number(opts.replaceId)]);
@@ -259,13 +261,15 @@ async function createInvoice(invoice, opts = {}) {
     let number = invoice.number || null;
 
     if (!number && opts.assignNumber) {
-      // v2: seria per (wystawca, poziom, rok) → `YYYY/00001`.
+      // v2: seria wystawcy na rok (`issuerSeriesKey`; HKL — jedna wspólna, `{YY}{NR:6}`).
       // v1 (bez `issuerType`): stara seria per organizacja/typ dokumentu.
       const useIssuerSeries = !!invoice.issuerType;
       const numbering = new NumberingService({
         allocateSequence: useIssuerSeries
           ? ({ periodKey }) => allocateIssuerSequence({
-            ...(invoice.numberSeries || { issuerType: invoice.issuerType, issuerId: invoice.issuerId || 0, level: invoice.level || 2 }),
+            issuerType: invoice.issuerType,
+            issuerId: invoice.issuerId || 0,
+            level: invoice.level || 2,
             year: Number(String(periodKey).slice(0, 4))
           }, conn)
           : (params) => allocateSequence(params, conn)
@@ -1007,8 +1011,8 @@ async function listInvoiceOverview({ level, organizationId, since = null, hklOrg
  * `invoice.order_id` — tak rozpoznajemy FAKTURĘ ZBIORCZĄ (dotyczy wielu
  * zamówień, więc `order_id` ma pusty). Bez tego zamówienie z faktury zbiorczej
  * wyglądałoby na niezafakturowane i automat wystawiłby mu drugą fakturę.
- * Jeden placeholder `IN (?)` — lista poziomów. Faktura dzienna HKL (`DAILY_ACTOR`)
- * się nie liczy — to dokument dodatkowy, zlecenie dostaje też własną fakturę.
+ * Jeden placeholder `IN (?)` — lista poziomów. Faktura dzienna HKL też się liczy:
+ * od 18.11.2026 to JEDYNA faktura relacji HKL (Paweł: „per dzień, wyłączyć per zlecenie”).
  *
  * @param {string} [extra] dodatkowe warunki na `il` (typ dokumentu, status)
  * @returns {string}
@@ -1017,8 +1021,7 @@ function linkedDocumentSql(extra = '') {
   return `EXISTS (SELECT 1 FROM order_item oi
                    JOIN invoice_item ii ON ii.order_item_id = oi.id
                    JOIN invoice il ON il.id = ii.invoice_id
-                  WHERE oi.order_id = o.id AND il.order_id IS NULL AND il.level IN (?)
-                    AND COALESCE(il.created_by_pin, '') <> '${DAILY_ACTOR}' ${extra})`;
+                  WHERE oi.order_id = o.id AND il.order_id IS NULL AND il.level IN (?) ${extra})`;
 }
 
 /** @type {Promise<boolean>|null} */
@@ -1119,17 +1122,16 @@ const AUTO_LEVEL_SQL = Object.freeze({
  *    że ktoś zajął się zamówieniem ręcznie — automat wystawiałby ją od nowa co
  *    godzinę; zaliczka wymaga faktury końcowej, którą wystawia człowiek.
  *
- * @param {{ level: number, since: string, organizationIds?: number[], excludeOrganizationId?: number|null, excludeOrganizationIds?: number[], limit?: number }} params
+ * @param {{ level: number, since: string, organizationIds?: number[], excludeOrganizationId?: number|null, limit?: number }} params
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function findAutoInvoiceCandidates({ level, since, organizationIds = [], excludeOrganizationId = null, excludeOrganizationIds = [], limit = 100 }) {
+async function findAutoInvoiceCandidates({ level, since, organizationIds = [], excludeOrganizationId = null, limit = 100 }) {
   const levelSql = AUTO_LEVEL_SQL[Number(level)];
   if (levelSql === undefined) throw new Error(`Automat nie obsługuje poziomu ${level}`);
   const values = [since];
   let filters = '';
   if (organizationIds.length) { filters += ' AND o.organization_id IN (?)'; values.push(organizationIds); }
-  const excluded = [excludeOrganizationId, ...excludeOrganizationIds].map(Number).filter(Boolean);
-  if (excluded.length) { filters += ' AND o.organization_id NOT IN (?)'; values.push(excluded); }
+  if (excludeOrganizationId) { filters += ' AND o.organization_id <> ?'; values.push(Number(excludeOrganizationId)); }
   // Klient z fakturowaniem niestandardowym (tygodniowe/miesięczne) dostaje
   // fakturę ZBIORCZĄ za okres (`findCollectiveCandidates`), nie za każde zlecenie
   const scheduleSql = Number(level) === 2 && (await supportsInvoiceSchedule())
@@ -1362,9 +1364,12 @@ async function findInvoicedPositions() {
  */
 async function findInvoicesForFtp({ since, doneEvent, failedEvent, maxAttempts = 5, createdByPin = 'AUTO', levels, limit = 50 }) {
   return strictQuery(
-    `SELECT i.id, i.number, i.level, i.document_type, i.organization_id, i.issuer_id,
+    `SELECT i.id, i.number, i.level, i.document_type, i.organization_id, i.issuer_id, i.issuer_type, i.lang,
             i.buyer_user_id, i.buyer_name, i.created_at, i.created_by_pin,
             org.ident AS organization_ident, iss.ident AS issuer_organization_ident, u.ident AS client_ident,
+            (SELECT JSON_UNQUOTE(JSON_EXTRACT(p.payload, '$.path')) FROM invoice_event p
+              WHERE p.invoice_id = i.id AND (p.event_type LIKE 'ftp\\_uploaded%' OR p.event_type = 'ftp_replaced')
+              ORDER BY p.id DESC LIMIT 1) AS previous_path,
             (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) AS failures
        FROM invoice i
        LEFT JOIN organization org ON org.id = i.organization_id
@@ -1381,6 +1386,153 @@ async function findInvoicesForFtp({ since, doneEvent, failedEvent, maxAttempts =
       LIMIT ?`,
     [failedEvent, [].concat(createdByPin), levels, since, doneEvent, failedEvent, maxAttempts, limit]
   );
+}
+
+/**
+ * Ostatnia wersja treści dokumentu: utworzenie (także nowa wersja po przeliczeniu —
+ * `createInvoice({ replaceId })` przenosi stare zdarzenia PRZED nowe `created`)
+ * albo edycja w miejscu (`updateInvoiceContent` → `edited`).
+ */
+const LAST_VERSION_EVENT_SQL = `COALESCE((SELECT MAX(v.id) FROM invoice_event v
+     WHERE v.invoice_id = i.id AND v.event_type IN ('created', 'edited')), 0)`;
+
+/**
+ * Faktury do wysłania do usługi e-faktur (`einvoice/index.js`): wystawione od `since`
+ * (data wystawienia), pary (wystawca z kluczem API, poziom) z `issuerLevels`, bez rozstrzygnięcia
+ * dla AKTUALNEJ wersji treści — zdarzenie końcowe sprzed edycji/przeliczenia się
+ * nie liczy, tak samo nieudane próby (licznik od nowa po zmianie treści).
+ *
+ * @param {{ since: string, issuerLevels: Array<[string, number]>, statuses: string[], terminalEvents: string[], failedEvent: string, maxAttempts: number, limit: number }} params
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findInvoicesForEinvoice({ since, issuerLevels, statuses, terminalEvents, failedEvent, maxAttempts, limit }) {
+  if (!issuerLevels.length) return [];
+  const { HKL_ORG_ID } = require('../../subPrices');
+  const issuerIdent = `CASE i.issuer_type WHEN 'organization' THEN iss.ident WHEN 'manufacturer' THEN hkl.ident WHEN 'user' THEN iu.ident END`;
+  return strictQuery(
+    `SELECT i.id, i.number, i.level, i.issuer_type, i.issuer_id, i.document_type, i.order_id, i.order_name,
+            i.created_by_pin, DATE_FORMAT(i.sale_date, '%Y-%m-%d') AS sale_date, i.buyer_name,
+            ${issuerIdent} AS issuer_ident,
+            (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?
+                AND f.id > ${LAST_VERSION_EVENT_SQL}) AS failures
+       FROM invoice i
+       LEFT JOIN organization iss ON iss.id = i.issuer_id AND i.issuer_type = 'organization'
+       LEFT JOIN organization hkl ON hkl.id = ?
+       LEFT JOIN \`user\` iu ON iu.id = i.issuer_id AND i.issuer_type = 'user'
+      WHERE i.status IN (?)
+        AND i.number IS NOT NULL
+        AND i.issue_date >= ?
+        AND (${issuerIdent}, i.level) IN (?)
+        AND NOT EXISTS (SELECT 1 FROM invoice_event e WHERE e.invoice_id = i.id AND e.event_type IN (?)
+                           AND e.id > ${LAST_VERSION_EVENT_SQL})
+        AND (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?
+                AND f.id > ${LAST_VERSION_EVENT_SQL}) < ?
+      ORDER BY i.id
+      LIMIT ?`,
+    [failedEvent, HKL_ORG_ID, statuses, since, issuerLevels, terminalEvents, failedEvent, maxAttempts, limit]
+  );
+}
+
+/**
+ * Wiersze źródłowe treści e-faktury (`einvoice/payload.js:buildPayload`) dla dokumentu
+ * z bazy albo z `createFromOrder({ dryRun })`: zamówienia i pozycje z właścicielem,
+ * statusy pozycji z `position_statuses`, adresy wysyłki, nabywca, termin płatności
+ * klienta, wystawca i dokument korygowany. Wyłącznie odczyt.
+ *
+ * @param {import('../domain/types').Invoice & Record<string, any>} invoice
+ * @returns {Promise<import('../einvoice/payload').EinvoiceSources>}
+ */
+async function getEinvoiceSources(invoice) {
+  const itemIds = [...new Set((invoice.items || []).map((it) => Number(it.orderItemId)).filter(Boolean))];
+  const orderItems = itemIds.length
+    ? await strictQuery(
+      `SELECT oi.id, oi.order_id, oi.orderpos, oi.commision, oi.json_parameters, o.order_idx, u.ident AS user_ident
+         FROM order_item oi
+         JOIN \`order\` o ON o.id = oi.order_id
+         JOIN \`user\` u ON u.id = o.user_id
+        WHERE oi.id IN (?)
+        ORDER BY oi.order_id, oi.orderpos, oi.id`,
+      [itemIds]
+    )
+    : [];
+  const orderIds = [...new Set([invoice.orderId, ...orderItems.map((r) => r.order_id)].filter(Boolean).map(Number))];
+  const orders = orderIds.length
+    ? await strictQuery(
+      `SELECT o.id, o.order_idx, o.commision, DATE_FORMAT(o.delivery_date, '%Y-%m-%d') AS delivery_date,
+              o.send_address_id, u.ident AS user_ident
+         FROM \`order\` o
+         JOIN \`user\` u ON u.id = o.user_id
+        WHERE o.id IN (?)
+        ORDER BY o.id`,
+      [orderIds]
+    )
+    : [];
+  const pairs = [...new Map(orders.map((o) => [`${o.user_ident}\u0000${o.order_idx}`, [o.user_ident, o.order_idx]])).values()];
+  const statuses = pairs.length
+    ? await strictQuery(
+      `SELECT user_ident, order_idx, order_pos, status, DATE_FORMAT(shipping_date, '%Y-%m-%d') AS shipping_date
+         FROM position_statuses WHERE (user_ident, order_idx) IN (?)`,
+      [pairs]
+    )
+    : [];
+  const sendIds = [...new Set(orders.map((o) => Number(o.send_address_id)).filter(Boolean))];
+  const sendAddresses = sendIds.length
+    ? await strictQuery('SELECT id, name, street, zip, city, country FROM send_address WHERE id IN (?)', [sendIds])
+    : [];
+
+  let buyer = { ident: null, email: null, phone: null };
+  if (invoice.buyerGroupUserId) {
+    const [g] = await strictQuery('SELECT ident, email, phone FROM group_user WHERE id = ?', [invoice.buyerGroupUserId]);
+    if (g) buyer = g;
+  } else if (invoice.buyerUserId) {
+    const [u] = await strictQuery('SELECT ident, email, phone FROM `user` WHERE id = ?', [invoice.buyerUserId]);
+    if (u) buyer = u;
+  } else if (invoice.buyerType === 'organization') {
+    // Poziom 1: nabywcą jest organizacja faktury
+    const [o] = await strictQuery('SELECT ident, invoice_email AS email, NULL AS phone FROM organization WHERE id = ?', [invoice.organizationId]);
+    if (o) buyer = o;
+  }
+
+  let paymentTermsDays = null;
+  if (invoice.buyerUserId) {
+    try {
+      const [t] = await strictQuery(
+        'SELECT payment_terms_days FROM customer_commercial_terms WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 1',
+        [invoice.buyerUserId]
+      );
+      if (t && t.payment_terms_days !== null && t.payment_terms_days !== undefined) paymentTermsDays = Number(t.payment_terms_days);
+    } catch (err) {
+      // Baza bez modułu kartoteki klientów (ORG_CUSTOMERS_ENABLED) — termin z dat faktury
+      if (err.code !== 'ER_NO_SUCH_TABLE' && err.code !== 'ER_BAD_FIELD_ERROR') throw err;
+    }
+  }
+
+  let issuer = await getInvoiceSender({ issuerType: invoice.issuerType, issuerId: invoice.issuerId });
+  if (!issuer && invoice.issuerType === 'user') {
+    const [u] = await strictQuery('SELECT ident, email FROM `user` WHERE id = ?', [invoice.issuerId]);
+    if (u) issuer = { ident: u.ident || '', email: u.email || '' };
+  }
+
+  let corrected = null;
+  if (invoice.correctedInvoiceId) {
+    const [c] = await strictQuery(
+      `SELECT number, DATE_FORMAT(issue_date, '%Y-%m-%d') AS issueDate, DATE_FORMAT(delivery_date, '%Y-%m-%d') AS deliveryDate
+         FROM invoice WHERE id = ?`,
+      [invoice.correctedInvoiceId]
+    );
+    corrected = c || null;
+  }
+
+  return {
+    issuer: { ident: (issuer && issuer.ident) || '', email: (issuer && issuer.email) || '' },
+    buyer,
+    paymentTermsDays,
+    orders,
+    orderItems,
+    statuses,
+    sendAddresses,
+    corrected
+  };
 }
 
 /**
@@ -1460,9 +1612,12 @@ async function findCollectiveCandidates({ since, organizationIds = [] }) {
 /**
  * Zlecenia HKL czekające na FAKTURĘ DZIENNĄ (`core/collective.js:groupDailyCandidates`):
  * poziom 1 — zlecenia innych organizacji (HKL → organizacja), poziom 2 — klientów
- * HKL (bez własnego konta HKL). Te same warunki wysyłki co automat, ale faktury
- * per zlecenie NIE wykluczają — wyklucza tylko istniejąca faktura dzienna tego
- * poziomu (także anulowana: ktoś zajął się nią ręcznie).
+ * HKL (bez własnego konta HKL i bez klientów z fakturą tygodniową/miesięczną — ci
+ * dostają zbiorczą). Te same warunki wysyłki co automat. Od 18.11.2026 dzienna to
+ * jedyna faktura relacji HKL, więc wyklucza ją każda faktura tego zlecenia: wystawiona
+ * per zlecenie (np. ręcznie; szkic przygotowany w edytorze nie — jego zmiany niesie
+ * dzienna) i dzienna/zbiorcza obejmująca jego pozycje (także anulowana: ktoś zajął się
+ * nią ręcznie).
  *
  * @param {{ level: 1|2, since: string, organizationIds?: number[] }} params
  * @returns {Promise<Array<Record<string, any>>>}
@@ -1474,7 +1629,8 @@ async function findDailyCandidates({ level, since, organizationIds = [] }) {
   const values = [lvl, since, Number(HKL_ORG_ID)];
   let filters = '';
   if (organizationIds.length) { filters += ' AND o.organization_id IN (?)'; values.push(organizationIds); }
-  values.push(lvl);
+  if (lvl === 2 && (await supportsInvoiceSchedule())) filters += " AND (u.invoice_schedule IS NULL OR u.invoice_schedule NOT IN ('weekly', 'monthly'))";
+  values.push([lvl], [lvl]);
 
   return strictQuery(
     `SELECT o.id, o.order_idx, o.user_id, o.group_user_id, o.organization_id, o.delivery_date,
@@ -1491,10 +1647,10 @@ async function findDailyCandidates({ level, since, organizationIds = [] }) {
                WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
                  AND ps.status <> '!sent!')
         AND NOT EXISTS (
-              SELECT 1 FROM order_item oi
-                JOIN invoice_item ii ON ii.order_item_id = oi.id
-                JOIN invoice il ON il.id = ii.invoice_id
-               WHERE oi.order_id = o.id AND il.level = ? AND il.created_by_pin = '${DAILY_ACTOR}')
+              SELECT 1 FROM invoice i
+               WHERE i.order_id = o.id AND i.level IN (?)
+                 AND i.document_type IN ('invoice', 'final', 'advance') AND i.status NOT IN ('draft', 'cancelled'))
+        AND NOT ${linkedDocumentSql("AND il.document_type IN ('invoice', 'final', 'advance')")}
       ORDER BY o.delivery_date, o.id`,
     values
   );
@@ -1540,16 +1696,16 @@ async function findPreparedDraft({ orderId, level }) {
 /**
  * Przygotowane szkice, których zamówienie doszło do !sent! — automat wystawia je
  * zamiast budować fakturę od zera. Bez relacji, w których faktury per zlecenie nie ma:
- * HKL → organizacja „tylko dzienna” (`excludeOrganizationIds`) i klient z fakturą
- * tygodniową/miesięczną — tam nakładkę stosuje faktura dzienna/zbiorcza.
+ * relacje HKL przy fakturach dziennych (`hklDailyOnly`: poziom 1 i klienci HKL) i klient
+ * z fakturą tygodniową/miesięczną — tam nakładkę stosuje faktura dzienna/zbiorcza.
  *
- * @param {{ since: string, excludeOrganizationIds?: number[], limit?: number }} params
+ * @param {{ since: string, hklDailyOnly?: boolean, limit?: number }} params
  */
-async function findPreparedDraftsReady({ since, excludeOrganizationIds = [], limit = 100 }) {
+async function findPreparedDraftsReady({ since, hklDailyOnly = false, limit = 100 }) {
+  const { HKL_ORG_ID } = require('../../subPrices');
   const scheduleSql = (await supportsInvoiceSchedule())
     ? "AND (i.level <> 2 OR u.invoice_schedule IS NULL OR u.invoice_schedule NOT IN ('weekly', 'monthly'))"
     : '';
-  const excluded = excludeOrganizationIds.map(Number).filter(Boolean);
   return strictQuery(
     `SELECT i.id, i.order_id, i.level, o.order_idx, o.organization_id, u.ident AS user_ident,
             EXISTS (SELECT 1 FROM invoice_event e WHERE e.invoice_id = i.id AND e.event_type = 'manual_review') AS review
@@ -1563,11 +1719,11 @@ async function findPreparedDraftsReady({ since, excludeOrganizationIds = [], lim
               SELECT 1 FROM position_statuses ps
                WHERE ps.user_ident = u.ident AND CAST(ps.order_idx AS CHAR) = o.order_idx
                  AND ps.status <> '!sent!')
-        ${excluded.length ? 'AND (i.level <> 1 OR o.organization_id NOT IN (?))' : ''}
+        ${hklDailyOnly ? 'AND i.level <> 1 AND NOT (i.level = 2 AND o.organization_id = ?)' : ''}
         ${scheduleSql}
       ORDER BY i.id
       LIMIT ?`,
-    [since, ...(excluded.length ? [excluded] : []), Number(limit)]
+    [since, ...(hklDailyOnly ? [Number(HKL_ORG_ID)] : []), Number(limit)]
   );
 }
 
@@ -1721,19 +1877,6 @@ async function updateInvoiceContent(invoiceId, invoice, { expectedVersion = null
 }
 
 /**
- * Organizacje, którym HKL wystawia TYLKO fakturę dzienną, we własnej serii:
- * `invoice_organization_profile.number_patterns.hkl_daily` (Cozy od 17.11.2026,
- * `{YY}{NR:6}` → 26000001). Automat nie robi im faktur per zlecenie poziomu 1.
- * `strictQuery`: błąd ma zatrzymać automat — inaczej powstałyby faktury per zlecenie.
- *
- * @returns {Promise<number[]>}
- */
-async function findHklDailyOrganizationIds() {
-  const rows = await strictQuery('SELECT organization_id, number_patterns FROM invoice_organization_profile');
-  return rows.filter((r) => (parseJsonColumn(r.number_patterns) || {}).hkl_daily).map((r) => Number(r.organization_id));
-}
-
-/**
  * Faktury dzienne nabywcy za dzień (bez anulowanych) — automat nie wystawia drugiej,
  * spóźnione zlecenia dołącza „Przelicz dzienne ponownie”. Poziom 1: nabywca =
  * organizacja (`invoice.organization_id`), poziom 2: klient HKL i sklep grupowy.
@@ -1799,32 +1942,42 @@ async function getAdvanceInvoicesForOrder(orderId) {
  * ===================================================================== */
 
 /**
+ * JEDNA seria faktur HKL (Paweł 18.11.2026: „wspólna numeracja — hkl-cozy 0001, potem hkl-luxan
+ * 0002 i tak dalej”): HKL-producent (poziom 1, każda organizacja) i organizacja HKL (jej klienci,
+ * poziomy 2 i 4) liczą razem, wzorzec `{YY}{NR:6}` → 26000001, 26000002… Licznik to ten, od
+ * którego 17.11 ruszyła seria HKL → Cozy (26000001): `manufacturer/1/1` (1 = id Cozy, historycznie).
+ * Wzorzec siedzi w kodzie razem z licznikiem: ten licznik z dawnym `{YYYY}/{NR:5}` dałby numery
+ * już użyte w 2026 (2026/00002…).
+ */
+const HKL_SERIES = Object.freeze({ issuerType: 'manufacturer', issuerId: 1, level: 1, numberPattern: '{YY}{NR:6}' });
+
+/** Czy wystawcą jest HKL: producent albo organizacja HKL. */
+function isHklIssuer(issuerType, issuerId) {
+  const { HKL_ORG_ID } = require('../../subPrices');
+  return issuerType === 'manufacturer' || (issuerType === 'organization' && Number(issuerId) === Number(HKL_ORG_ID));
+}
+
+/**
  * Klucz serii numeracji wystawcy — firma, nie poziom (patrz `allocateIssuerSequence`).
- * Organizacja zostaje przy kluczu poziomu 2, bo tam są jej istniejące liczniki.
+ * HKL → `HKL_SERIES`; inna organizacja zostaje przy kluczu poziomu 2, bo tam są jej liczniki.
  *
  * @param {{ issuerType: string, issuerId: number, level: number }} issuer
  * @returns {{ issuerType: string, issuerId: number, level: number }}
  */
 function issuerSeriesKey({ issuerType, issuerId, level }) {
-  if (issuerType === 'manufacturer') {
-    // Producent ma zawsze id 0. Id ≠ 0 = osobna seria HKL dla organizacji-nabywcy
-    // (`number_patterns.hkl_daily`, Cozy od 17.11.2026: 26000001…) — patrz `invoice.numberSeries`
-    if (Number(issuerId)) return { issuerType, issuerId: Number(issuerId), level: 1 };
-    const { HKL_ORG_ID } = require('../../subPrices');
-    return { issuerType: 'organization', issuerId: Number(HKL_ORG_ID), level: 2 };
-  }
+  if (isHklIssuer(issuerType, issuerId)) return { issuerType: HKL_SERIES.issuerType, issuerId: HKL_SERIES.issuerId, level: HKL_SERIES.level };
   if (issuerType === 'organization') return { issuerType, issuerId: Number(issuerId) || 0, level: 2 };
   return { issuerType, issuerId: Number(issuerId) || 0, level: Number(level) };
 }
 
 /**
- * Atomowa rezerwacja numeru w serii wystawcy (`YYYY/00001`).
+ * Atomowa rezerwacja numeru w serii wystawcy.
  *
- * JEDNA seria na firmę, zerowana 1 stycznia: wspólny wzorzec `YYYY/00001` przy osobnych
- * licznikach dawał te same numery dwóm fakturom jednego NIP-u (2026-11-06: HKL poziom 1 i
- * poziom 2 → 97 par). Dlatego klucz (`issuerSeriesKey`) pomija poziom: HKL-producent
- * (poziom 1) liczy w serii organizacji HKL, organizacja (poziomy 2 i 4) w swojej serii
- * z poziomu 2, użytkownik (poziom 3) w swojej. Ta sama technika co w
+ * JEDNA seria na firmę, zerowana 1 stycznia: wspólny wzorzec przy osobnych licznikach dawał
+ * te same numery dwóm fakturom jednego NIP-u (2026-11-06: HKL poziom 1 i poziom 2 → 97 par).
+ * Dlatego klucz (`issuerSeriesKey`) pomija poziom: HKL (producent i organizacja) liczy w
+ * `HKL_SERIES`, inna organizacja (poziomy 2 i 4) w swojej serii z poziomu 2, użytkownik
+ * (poziom 3) w swojej. Ta sama technika co w
  * `allocateSequence`: `LAST_INSERT_ID(expr)` zapisuje i zwraca wartość w jednym
  * zapytaniu, więc dwa równoległe wystawienia nie dostaną tego samego numeru
  * (żadnego `SELECT … FOR UPDATE`).
@@ -1857,6 +2010,12 @@ async function allocateIssuerSequence({ issuerType, issuerId, level, year }, con
  * @returns {Promise<Object|null>}
  */
 async function getIssuerProfile({ issuerType, issuerId, level }) {
+  const profile = await loadIssuerProfile({ issuerType, issuerId, level });
+  return profile && isHklIssuer(issuerType, issuerId) ? { ...profile, numberPattern: HKL_SERIES.numberPattern } : profile;
+}
+
+/** Profil wystawcy z bazy albo zastępczy (`getIssuerProfile` bez wzorca serii HKL). */
+async function loadIssuerProfile({ issuerType, issuerId, level }) {
   const rows = await selectQuery(
     `SELECT * FROM invoice_issuer_profile WHERE issuer_type = ? AND issuer_id = ? AND level = ?`,
     [issuerType, Number(issuerId) || 0, Number(level)]
@@ -2500,6 +2659,7 @@ async function runSchemaMigration() {
 module.exports = {
   withTransaction,
   allocateIssuerSequence,
+  HKL_SERIES,
   issuerSeriesKey,
   getIssuerProfile,
   getInvoiceSender,
@@ -2528,6 +2688,8 @@ module.exports = {
   hasLevelInvoice,
   findInvoicesToMail,
   findInvoicesForFtp,
+  findInvoicesForEinvoice,
+  getEinvoiceSources,
   findInvoicedPositions,
   getUserForInvoice,
   searchBlankBuyers,
@@ -2549,7 +2711,6 @@ module.exports = {
   updateStatus,
   listInvoices,
   getAdvanceInvoicesForOrder,
-  findHklDailyOrganizationIds,
   findDailyInvoices,
   findManualOverlay,
   findPreparedDraft,

@@ -1,31 +1,39 @@
-{# Stopka AB (POP-19) — baner targowy, wspólny dla maila (mailTemplate.njk) i PDF/HTML (order-pdf.njk).
-   Tabele i style inline, bo klienci poczty gubią <style>. Dane: `abFooter` z services/mailBot/abFooter.js;
-   `abFooter.compact` (PDF/HTML) = niższy baner, żeby AB z jednej strony nie dostał drugiej. #}
-{% set c = abFooter.compact %}{% set imgW = 140 if c else 200 %}{% set imgH = 91 if c else 130 %}
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background-color:#231f20;font-family:Arial,Helvetica,sans-serif;">
+{# Stopka AB (POP-19) — baner targowy R+T, wspólny dla maila (mailTemplate.njk) i PDF/HTML (order-pdf.njk).
+   Tabele, bgcolor i style inline, bo klienci poczty (Outlook) gubią <style> i gradienty. Dane: `abFooter`
+   z services/mailBot/abFooter.js; `abFooter.compact` (PDF/HTML) = niższy baner, żeby AB nie dostał drugiej strony.
+   Kolory: głęboki granat z przejściem #0E3A8A → #0A2463 → #061A47 (stary Outlook: sam bgcolor #0A2463),
+   akcenty #1D5FD0 / #8DB8FF / #C9D8F5, karta stoiska i dolny pasek białe. #}
+{% set c = abFooter.compact %}
+{% set logoH = 64 if c else 120 %}{% set logoW = (logoH * 0.725) | round | int %}
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0A2463" style="border-collapse:collapse;background-color:#0A2463;background-image:linear-gradient(120deg,#0E3A8A 0%,#0A2463 55%,#061A47 100%);font-family:Arial,Helvetica,sans-serif;">
   <tr>
     {% if abFooter.img %}
-    <td width="{{ imgW }}" style="width:{{ imgW }}px;padding:0;vertical-align:middle;line-height:0;">
-      <img src="{{ abFooter.img }}" width="{{ imgW }}" height="{{ imgH }}" alt="HKL" style="display:block;width:{{ imgW }}px;height:{{ imgH }}px;border:0;">
+    <td class="ab-col ab-col-logo" width="{{ logoW + (14 if c else 22) }}" style="width:{{ logoW + (14 if c else 22) }}px;padding:{{ '7px 0 7px 14px' if c else '18px 0 18px 22px' }};vertical-align:middle;line-height:0;">
+      <img src="{{ abFooter.img }}" width="{{ logoW }}" height="{{ logoH }}" alt="R+T" style="display:block;width:{{ logoW }}px;height:{{ logoH }}px;border:0;background-color:#ffffff;">
     </td>
     {% endif %}
-    <td style="padding:{{ '8px 16px' if c else '16px 20px' }};vertical-align:middle;text-align:left;">
-      <div style="color:#e5a82c;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;line-height:1.3;">{{ abFooter.label }}</div>
-      <div style="color:#ffffff;font-size:{{ 16 if c else 20 }}px;font-weight:bold;line-height:1.25;margin:{{ 3 if c else 6 }}px 0;">{{ abFooter.title }}</div>
-      <div style="color:#cfcbcb;font-size:{{ 12 if c else 13 }}px;line-height:1.4;">{{ abFooter.subtitle }}</div>
+    <td class="ab-col ab-col-text" style="padding:{{ '7px 14px' if c else '18px 20px' }};vertical-align:middle;text-align:left;">
+      <div style="color:#8DB8FF;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;line-height:1.3;">{{ abFooter.label }}</div>
+      <div style="color:#ffffff;font-size:{{ 17 if c else 24 }}px;font-weight:bold;line-height:1.2;margin:{{ '2px 0 1px' if c else '6px 0 4px' }};">{{ abFooter.fair }}</div>
+      <div style="color:#ffffff;font-size:{{ 12 if c else 15 }}px;font-weight:bold;line-height:1.35;">{{ abFooter.dates }}</div>
+      <div style="color:#C9D8F5;font-size:{{ 11 if c else 12 }}px;line-height:1.35;margin-top:{{ 2 if c else 6 }}px;">{{ abFooter.tagline }}</div>
     </td>
-    <td width="96" style="width:96px;padding:{{ '8px 14px 8px 0' if c else '16px 18px 16px 0' }};vertical-align:middle;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background-color:#e5a82c;">
+    <td class="ab-col ab-col-booth" width="{{ 100 if c else 118 }}" style="width:{{ 100 if c else 118 }}px;padding:{{ '7px 14px 7px 0' if c else '18px 22px 18px 0' }};vertical-align:middle;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="border-collapse:collapse;background-color:#ffffff;">
         <tr>
-          <td style="padding:{{ '6px' if c else '10px 6px' }};text-align:center;color:#231f20;">
-            <div style="font-size:10px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;line-height:1.2;">{{ abFooter.boothLabel }}</div>
-            <div style="font-size:{{ 24 if c else 30 }}px;font-weight:bold;line-height:1.1;">{{ abFooter.booth }}</div>
+          <td style="padding:{{ '5px 4px' if c else '11px 4px' }};text-align:center;color:#0A2463;">
+            <div style="color:#1D5FD0;font-size:10px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;line-height:1.2;">{{ abFooter.boothLabel }}</div>
+            <div style="font-size:{{ 20 if c else 27 }}px;font-weight:bold;line-height:1.1;margin:2px 0;white-space:nowrap;">{{ abFooter.booth }}</div>
+            {% if abFooter.hall %}<div style="color:#1D5FD0;font-size:10px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;line-height:1.2;">{{ abFooter.hallLabel }} {{ abFooter.hall }}</div>{% endif %}
           </td>
         </tr>
       </table>
     </td>
   </tr>
   <tr>
-    <td colspan="{{ 3 if abFooter.img else 2 }}" style="padding:{{ '5px 16px' if c else '9px 20px' }};border-top:1px solid #3d3839;color:#a3a0a0;font-size:11px;font-weight:bold;letter-spacing:1px;text-align:center;">{{ abFooter.company }}</td>
+    <td colspan="{{ 3 if abFooter.img else 2 }}" bgcolor="#ffffff" style="background-color:#ffffff;border-bottom:1px solid #E1DFDD;padding:{{ '4px 14px' if c else '10px 22px' }};font-size:{{ 11 if c else 12 }}px;line-height:1.4;text-align:center;">
+      <span style="color:#0A2463;font-weight:bold;letter-spacing:1px;">{{ abFooter.company }}</span>
+      {% if abFooter.invite %}<span style="color:#C8C6C4;">&nbsp;&nbsp;|&nbsp;&nbsp;</span><span style="color:#605E5C;">{{ abFooter.invite }}</span>{% endif %}
+    </td>
   </tr>
 </table>

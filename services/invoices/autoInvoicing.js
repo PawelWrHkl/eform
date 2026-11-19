@@ -14,15 +14,16 @@
  * każde zlecenie — po zamknięciu okresu automat wystawia mu JEDNĄ fakturę ze
  * wszystkich zleceń z tego okresu (`core/collective.js`, `InvoiceService.createCollective`).
  *
- * FAKTURY DZIENNE HKL (od `INVOICE_DAILY_SINCE`): OBOK faktur per zlecenie HKL
- * wystawia jedną fakturę za dzień wysyłki — organizacji (poziom 1, zlecenia
- * wszystkich jej klientów) i każdemu klientowi HKL (poziom 2). Autor `DAILY_ACTOR`;
- * nie blokują faktur per zlecenie; mail jak reszta automatu, FTP w `dzienne/`.
- * Od 17.11.2026 (Paweł): dzień zamyka się o północy — dzienna powstaje w pierwszym
- * przebiegu następnego dnia — i nie powstaje druga za ten sam dzień: zlecenie ze
- * spóźnionym statusem dołącza przycisk „Przelicz dzienne ponownie” w panelu admina
- * (`recalculateDailyInvoices`). Organizacja z `number_patterns.hkl_daily` (Cozy) dostaje
- * od HKL TYLKO fakturę dzienną, we własnej serii (`{YY}{NR:6}` → 26000001…).
+ * FAKTURY DZIENNE HKL (od `INVOICE_DAILY_SINCE`): jedna faktura za dzień wysyłki —
+ * organizacji (poziom 1, zlecenia wszystkich jej klientów) i każdemu klientowi HKL
+ * (poziom 2; klient z fakturą tygodniową/miesięczną dostaje zbiorczą). Od 18.11.2026
+ * (Paweł, mail szefa: „dajemy zbiorczo per dzień wysyłki”) to JEDYNA faktura relacji HKL —
+ * per zlecenie HKL → organizacja i HKL → klient HKL nie powstają; organizacja → klient
+ * (poziom 2 innych organizacji), poziomy 3 i 4 zostają per zlecenie. Autor `DAILY_ACTOR`,
+ * mail jak reszta automatu, FTP w `dzienne/`. Dzień zamyka się o północy — dzienna powstaje
+ * w pierwszym przebiegu następnego dnia — i nie powstaje druga za ten sam dzień: zlecenie
+ * ze spóźnionym statusem dołącza przycisk „Przelicz dzienne ponownie” w panelu admina
+ * (`recalculateDailyInvoices`). Numeracja: jedna seria HKL `{YY}{NR:6}` (`repository.HKL_SERIES`).
  *
  * RĘCZNA EDYCJA (admin i biuro, 17.11.2026): szkic przygotowany przed !sent! automat
  * wystawia po !sent! zamiast budować fakturę od zera — nakładka ręcznych zmian
@@ -40,6 +41,7 @@
  *   INVOICE_AUTOGEN_ISSUE=true          `false` → szkice do przejrzenia zamiast faktur z numerem
  *   INVOICE_AUTOGEN_MAX_PER_RUN=100     bezpiecznik na jeden przebieg
  *   INVOICE_DAILY_SINCE=2026-11-06      faktury dzienne HKL za dni wysyłki od tego dnia; puste = wyłączone
+ *                                       (wtedy relacje HKL wracają do faktur per zlecenie)
  *
  * ⚠️ `SINCE` jest wymagane świadomie: w bazie są setki wysłanych zamówień
  * rozliczonych poza eForm. Bez progu pierwszy przebieg wystawiłby im wszystkim
@@ -190,15 +192,13 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
 
   const service = deps.service || new InvoiceService({ repository, log });
   let budget = config.maxPerRun;
-  // HKL → organizacja „tylko dzienna” (`number_patterns.hkl_daily`): bez faktur per zlecenie poziomu 1
-  const hklDailyOrgs = config.levels.includes(InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) && repository.findHklDailyOrganizationIds
-    ? await repository.findHklDailyOrganizationIds()
-    : [];
+  // Relacje HKL (poziom 1 i klienci HKL) mają tylko fakturę dzienną, póki dzienne są włączone
+  const hklDailyOnly = !!config.dailySince;
 
   // Szkice przygotowane ręcznie (admin/biuro), których zamówienie doszło do !sent!:
   // wystawiamy TĘ wersję — nakładka na aktualne zamówienie, autor AUTO (mail i FTP jak zawsze)
   if (repository.findPreparedDraftsReady) {
-    const ready = await repository.findPreparedDraftsReady({ since: config.since, excludeOrganizationIds: hklDailyOrgs, limit: budget });
+    const ready = await repository.findPreparedDraftsReady({ since: config.since, hklDailyOnly, limit: budget });
     for (const d of ready) {
       const level = Number(d.level);
       if (budget <= 0) break;
@@ -249,13 +249,14 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
 
   for (const level of config.levels) {
     if (budget <= 0) break;
+    if (hklDailyOnly && level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) continue;
     const candidates = await repository.findAutoInvoiceCandidates({
       level,
       since: config.since,
       organizationIds: config.organizationIds,
-      // HKL nie sprzedaje sam sobie — poziom 1 dotyczy wyłącznie innych organizacji
-      excludeOrganizationId: level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? HKL_ORG_ID : null,
-      excludeOrganizationIds: level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION ? hklDailyOrgs : [],
+      // Poziom 1: HKL nie sprzedaje sam sobie. Poziom 2: klienci HKL mają fakturę dzienną
+      excludeOrganizationId: level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION
+        || (hklDailyOnly && level === InvoiceLevel.ORGANIZATION_TO_USER) ? HKL_ORG_ID : null,
       limit: budget
     });
 
@@ -339,8 +340,9 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
     }
 
     try {
-      // Między wyszukaniem a wystawieniem ktoś mógł zafakturować zlecenie ręcznie.
-      // Dzienna jest dodatkowa — faktura per zlecenie jej nie wyklucza.
+      // Między wyszukaniem a wystawieniem ktoś mógł zafakturować zlecenie ręcznie. Dzienna
+      // tego nie sprawdza: jej kandydaci są już bez faktur, a `hasLevelInvoice` liczy też szkic
+      // przygotowany w edytorze, którego zmiany dzienna ma właśnie nieść.
       const orderIds = [];
       for (const orderId of group.orderIds) {
         if (daily || !(await repository.hasLevelInvoice({ orderId, level }))) orderIds.push(orderId);

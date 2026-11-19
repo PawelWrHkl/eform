@@ -139,6 +139,7 @@ const CATALOG = [
 	{ key: 'add_position', selectors: ['#new-order-button'], labelKey: 'order.add_position_btn', description: 'dodanie pozycji — otwiera konfigurator', screens: ['order_view'], click: true },
 	{ key: 'edit_order_header', selectors: ['#edit-order-button'], labelKey: 'edit_order.title', description: 'edycja danych i nazwy oferty', screens: ['order_view'], click: true },
 	{ key: 'discount', selectors: ['#discount-btn'], labelKey: 'base.give_discount_tooltip', description: 'centrum rabatów (otwiera okno rabatu)', screens: ['order_view'], click: true },
+	{ key: 'org_client_discount', selectors: ['#b2b-discount-btn'], labelKey: 'order.b2b_discount_title', description: 'rabat B2B dla klienta (tylko organizacja i admin, po kłódce)', screens: ['order_view'], click: true },
 	{ key: 'link_manager', selectors: ['.open-link-manager-btn'], labelKey: 'order.link_manager_title', description: 'łączenie pozycji (otwiera okno)', screens: ['order_view'], click: true },
 	{ key: 'unlock_prices', selectors: ['#unlockBtn'], labelKey: 'order.unlock', description: 'kłódka cen ukrytych (otwiera okno hasła)', screens: ['order_view'], click: true },
 	{ key: 'print_pdf', selectors: ['#print-button'], labelKey: 'base.generate_pdf_tooltip', description: 'pobranie PDF (klik pobiera plik)', screens: ['order_view', 'sent_view'], click: true },

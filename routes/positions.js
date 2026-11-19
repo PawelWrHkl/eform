@@ -7,6 +7,7 @@ const db = require("../db/db_helper.js");
 const { getOrderMutationBlock, getClientGroupOrderBlock } = require('../utils/orderStatusGuard');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const { resolveFormPricingForOrder } = require('../services/portalUsageDiscount');
+const { resolveForOrder: resolveB2bDiscountForOrder, stampOf: stampOfB2bDiscount } = require('../services/b2bDiscount');
 const { currencyLocalsForOrder } = require('../services/currency');
 const adminDb = require("../db/admin/db_helper.js");
 const ownerService = require('../services/owner.js');
@@ -63,6 +64,18 @@ async function rejectSentOrderMutation(res, orderId, req) {
   return null;
 }
 
+/**
+ * Formularz policzył ceny z innym rabatem B2B niż zlecenie ma teraz (owner zmienił
+ * go w innej karcie) — zapis utrwaliłby stary rabat. Brak znacznika = zapis
+ * spoza formularza pozycji (import, kopia), tam nic nie sprawdzamy.
+ */
+async function rejectStaleB2bDiscount(res, orderId, stamp, req) {
+  if (!stamp) return null;
+  const current = stampOfB2bDiscount(await resolveB2bDiscountForOrder(orderId));
+  if (String(stamp) === current) return null;
+  return res.status(409).json({ success: false, status: 'error', message: req.__('order.b2b_discount_stale') });
+}
+
 
 /** GET z `:positionId` — dostęp do zlecenia, do którego należy pozycja (brak pozycji obsługuje trasa). */
 async function requirePositionAccess(req, res, next) {
@@ -117,6 +130,10 @@ router.post('/save', requireLogin, upload.any(), async (req, res) => {
     if (sentOrderResponse) {
       return sentOrderResponse;
     }
+    const staleB2bResponse = await rejectStaleB2bDiscount(res, formData.order, formData.b2bStamp, req);
+    if (staleB2bResponse) {
+      return staleB2bResponse;
+    }
 
     const total = formData.total;
     const files = req.files || [];
@@ -160,6 +177,10 @@ router.patch('/edit/save', requireLogin, upload.any(), async (req, res) => {
     const sentOrderResponse = await rejectSentOrderMutation(res, existingPosition.order_id, req);
     if (sentOrderResponse) {
       return sentOrderResponse;
+    }
+    const staleB2bResponse = await rejectStaleB2bDiscount(res, existingPosition.order_id, formData.b2bStamp, req);
+    if (staleB2bResponse) {
+      return staleB2bResponse;
     }
 
     const result = await db.updatePosition(formData, total);

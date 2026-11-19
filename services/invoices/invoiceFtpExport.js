@@ -16,9 +16,11 @@
  * Katalogi to identy z eForma (`organization.ident`, `user.ident`) — jak w
  * nazwach plików zleceń na tym samym FTP (`HKL_TCN_190_pdf.pdf`); zamieniane są
  * tylko znaki niedozwolone w ścieżce. Faktura sklepu grupy trafia do katalogu
- * konta klienta (`invoice.buyer_user_id`). Plik: `<rodzaj>_<numer>.pdf` po
- * polsku, np. `Faktura_VAT_2026_00134.pdf` — rodzaj w nazwie, bo dokumenty
- * różnych rodzajów mają osobne serie i mogą dostać ten sam numer.
+ * konta klienta (`invoice.buyer_user_id`). Plik: `<rodzaj>_<numer>.pdf`, rodzaj w
+ * języku wydruku (od 18.11.2026; wcześniej zawsze po polsku), np. `Rechnung_26000002.pdf`,
+ * `Faktura_VAT_26000003.pdf` — rodzaj w nazwie, bo dokumenty różnych rodzajów mają
+ * osobne serie i mogą dostać ten sam numer. Ponowne wysłanie faktury (edycja, przeliczona
+ * dzienna) nadpisuje plik pod nazwą, pod którą już leży.
  *
  * ⚠️ Test i produkcja piszą na TO SAMO konto FTP, a numeracja w obu bazach jest
  * osobna — ten sam numer to w nich różne dokumenty. Dlatego domyślny katalog
@@ -48,10 +50,10 @@ const path = require('path');
 const { Readable } = require('stream');
 const defaultRepository = require('./db/repository');
 const renderer = require('./render/renderer');
+const maizonCozy = require('./render/maizonCozy');
 const { AUTO_ACTOR } = require('./autoInvoicing');
 const { DAILY_ACTOR, periodFor } = require('./core/collective');
 const { InvoiceLevel } = require('./core/hierarchy');
-const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 const { log: defaultLog } = require('../../utils/logging');
 
 const FtpEvent = Object.freeze({
@@ -138,14 +140,18 @@ function pathSegment(value) {
     .replace(/^[\s.]+|[\s.]+$/g, '');
 }
 
-const plTranslate = renderer.createTranslator('pl');
-
 /**
- * @param {{ document_type: string, number: string }} row
- * @returns {string} np. `Faktura_VAT_2026_00134.pdf`
+ * Ta sama nazwa co `InvoiceService.renderPdf`: rodzaj w języku wydruku + numer.
+ *
+ * @param {{ document_type: string, number: string, level?: number, issuer_type?: string, lang?: string, organization_ident?: string }} row
+ * @returns {string} np. `Rechnung_26000002.pdf`
  */
 function invoiceFileName(row) {
-  return sanitizeFilename(`${plTranslate(`doc.${row.document_type}`)}_${row.number}.pdf`);
+  const lang = maizonCozy.printLanguage({
+    invoice: { level: row.level, issuerType: row.issuer_type, lang: row.lang },
+    profile: { orgCode: row.organization_ident }
+  });
+  return renderer.documentFileName({ documentType: row.document_type, number: row.number, lang });
 }
 
 /**
@@ -159,6 +165,12 @@ function buildRemoteTarget(row, rootDir) {
   const level = Number(row.level);
   const folder = LEVEL_FOLDERS[level];
   if (!folder) throw new Error(`poziom ${row.level} nie ma katalogu na FTP`);
+  // Faktura już tu leży (edycja, przeliczona dzienna): nadpisujemy TEN plik, także sprzed nazw
+  // w języku wydruku — inaczej na FTP i w kopii księgowości (która nie kasuje) byłyby dwa
+  const previous = String(row.previous_path || '');
+  if (previous.startsWith(`${rootDir.replace(/\/+$/, '')}/`)) {
+    return { dir: path.posix.dirname(previous), fileName: path.posix.basename(previous), path: previous };
+  }
 
   const segments = row.created_by_pin === DAILY_ACTOR ? [rootDir, 'dzienne', folder] : [rootDir, folder];
   if (level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) {

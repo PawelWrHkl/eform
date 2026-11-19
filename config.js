@@ -137,7 +137,8 @@ module.exports = {
 
     // Stopka AB ze stoiskiem HKL (POP-19, services/mailBot/abFooter.js): treść per
     // język i nr stoiska w services/mailBot/abFooter.json. Brak zmiennej = wyłączone
-    // — włączanie per środowisko, bo `update.sh` nie kopiuje `.env`.
+    // — włączanie per środowisko, bo `update.sh` nie kopiuje `.env`. Mail dostaje baner jako obrazek
+    // (tryb ciemny Outlooka przerabia kolory HTML-a), PDF/HTML — baner HTML.
     abFooter: envSwitch(process.env.AB_FOOTER_ENABLED),
   },
 

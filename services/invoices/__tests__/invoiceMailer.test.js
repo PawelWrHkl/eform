@@ -207,6 +207,9 @@ test('wiadomość (do nabywcy): adres z faktury, Reply-To wystawcy, BCC, bez ban
   assert.equal(message.bcc, 'ksiegowosc@hkl.eu');
   assert.equal(message.subject, 'Rechnung 2026/00121 — HKL Dekoracja Okien Sp. z o.o.');
   assert.equal(message.attachments[0].filename, 'Rechnung_2026_00121.pdf');
+  // Nazwa z `renderPdf` (język wydruku, np. wzór MaizonCozy po niderlandzku) wygrywa
+  assert.equal(buildInvoiceMail({ invoice: invoiceFixture({ lang: 'fr' }), pdf: { buffer: Buffer.from('%PDF'), filename: 'Factuur_26000010.pdf' }, config: cfg })
+    .message.attachments[0].filename, 'Factuur_26000010.pdf');
   assert.doesNotMatch(message.html, /TRYB TESTOWY/);
   assert.match(message.html, /Guten Tag,/);
 });

@@ -6,7 +6,7 @@ const confLang = require('./conf');
 const { log } = require('../../utils/logging');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
 const { resolveAbLang } = require('../abType');
-const { abFooter, IMAGE_CID } = require('./abFooter');
+const { abFooter, ensureAbFooterBanner, IMAGE_CID, BANNER_CID } = require('./abFooter');
 
 
 const transporter = nodemailer.createTransport({
@@ -46,7 +46,7 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
     autoescape: true
   });
 
-  const footer = abFooter(mailLang, 'cid');
+  const footer = abFooter(mailLang, 'cid', templateVars.orderDetails?.organizationIdent);
   const htmlContent = nunjucks.render(templateName, {
     ...templateVars,
     abFooter: footer,
@@ -112,9 +112,12 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
     log('Plik logo nie istnieje:', templateVars.logoPath);
   }
 
-  // Zdjęcie stopki AB (POP-19) — inline jak logo, bo zewnętrzne obrazki klienci poczty blokują.
-  if (footer?.imagePath) {
-    attachments.push({ filename: 'hkl-targi.jpg', path: footer.imagePath, cid: IMAGE_CID });
+  // Stopka AB (POP-19) inline jak logo HKL, bo zewnętrzne obrazki klienci poczty blokują: gotowy
+  // obrazek banera (odporny na tryb ciemny), a bez niego baner HTML z samym logo targów.
+  if (footer?.bannerPath) {
+    attachments.push({ filename: 'targi-hkl.png', path: footer.bannerPath, cid: BANNER_CID });
+  } else if (footer?.imagePath) {
+    attachments.push({ filename: path.basename(footer.imagePath), path: footer.imagePath, cid: IMAGE_CID });
   }
 
   if (attachmentsBuffer && Array.isArray(attachmentsBuffer)) {
@@ -152,7 +155,8 @@ function buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer = [], templateV
   return mailOptions;
 }
 
-function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, bcc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
+async function sendMailAsync(to, lang, pdfBuffer, attachmentsBuffer = [], templateVars = {}, bcc = null, templateName = 'mailTemplate.njk', subjectKey = 'mail.subject', options = {}) {
+  await ensureAbFooterBanner(resolveAbLang(options.abLang) || lang, templateVars.orderDetails?.organizationIdent); // obrazek stopki AB; nie rzuca
   const mailOptions = buildMailOptions(to, lang, pdfBuffer, attachmentsBuffer, templateVars, bcc, templateName, subjectKey, options);
   return new Promise((resolve, reject) => {
     transporter.sendMail(mailOptions, (error, info) => {

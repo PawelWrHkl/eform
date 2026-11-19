@@ -198,10 +198,26 @@ test('katalog: ident zostaje (B&C, umlauty), znikają separatory, znaki zakazane
   assert.equal(pathSegment(null), '');
 });
 
-test('plik: rodzaj dokumentu po polsku + numer, tylko ASCII', () => {
+test('plik: rodzaj dokumentu w języku wydruku + numer, tylko ASCII (18.11.2026)', () => {
   assert.equal(invoiceFileName({ document_type: 'invoice', number: '2026/00134' }), 'Faktura_VAT_2026_00134.pdf');
   assert.equal(invoiceFileName({ document_type: 'correction', number: '2026/00001' }), 'Faktura_korygujaca_2026_00001.pdf');
   assert.equal(invoiceFileName({ document_type: 'invoice', number: 'FV/2026/08/2' }), 'Faktura_VAT_FV_2026_08_2.pdf');
+  assert.equal(invoiceFileName({ document_type: 'invoice', number: '26000002', level: 1, issuer_type: 'manufacturer', lang: 'de', organization_ident: 'LUXANGMBH' }), 'Rechnung_26000002.pdf');
+  assert.equal(invoiceFileName({ document_type: 'invoice', number: '26000003', level: 2, issuer_type: 'organization', lang: 'fr', organization_ident: 'HKL' }), 'Facture_26000003.pdf');
+  assert.equal(invoiceFileName({ document_type: 'correction', number: 'K1', level: 2, issuer_type: 'organization', lang: 'en', organization_ident: 'HKL' }), 'Credit_note_K1.pdf');
+  // Wzór MaizonCozy (Cozy → klient) drukuje po niderlandzku niezależnie od języka nabywcy
+  assert.equal(invoiceFileName({ document_type: 'invoice', number: '26000010', level: 2, issuer_type: 'organization', lang: 'fr', organization_ident: 'Cozy' }), 'Factuur_26000010.pdf');
+  // HKL → Cozy (poziom 1) to zwykły wzór — język dokumentu
+  assert.equal(invoiceFileName({ document_type: 'invoice', number: '26000001', level: 1, issuer_type: 'manufacturer', lang: 'en', organization_ident: 'Cozy' }), 'VAT_invoice_26000001.pdf');
+});
+
+test('ścieżka: faktura już wysłana (edycja, przeliczona dzienna) — nadpisuje plik pod jego dawną nazwą', () => {
+  const previous = '/invoices/dzienne/organizacja-klient/HKL/Ryver/Faktura_VAT_2026_00871.pdf';
+  const row = rowFixture({ number: '2026/00871', lang: 'nl', issuer_type: 'organization', created_by_pin: 'AUTO-DAILY', client_ident: 'Ryver', previous_path: previous });
+  assert.deepEqual(buildRemoteTarget(row, '/invoices'), { dir: '/invoices/dzienne/organizacja-klient/HKL/Ryver', fileName: 'Faktura_VAT_2026_00871.pdf', path: previous });
+  // Pierwsze wysłanie (albo ścieżka spoza katalogu z konfiguracji) — nazwa w języku wydruku
+  assert.equal(buildRemoteTarget({ ...row, previous_path: null }, '/invoices').fileName, 'Factuur_2026_00871.pdf');
+  assert.equal(buildRemoteTarget(row, '/invoices-test').path, '/invoices-test/dzienne/organizacja-klient/HKL/Ryver/Factuur_2026_00871.pdf');
 });
 
 test('ścieżka: poziom 1 → hkl-organizacja/<organizacja-nabywca>', () => {

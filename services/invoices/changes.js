@@ -13,6 +13,19 @@
 /** @type {Array<{ version: number, date: string, env: 'produkcja'|'test', title: string, changes: string[] }>} */
 const INVOICE_VERSIONS = Object.freeze([
   {
+    version: 15,
+    date: '2026-11-18',
+    env: 'produkcja',
+    title: 'HKL fakturuje tylko dziennie, jedna numeracja HKL, nazwy plików w języku faktury',
+    changes: [
+      'HKL → organizacja i HKL → klient HKL: tylko faktura dzienna (zbiorcza za dzień wysyłki), faktury per zlecenie już nie powstają. Polecenie Pawła 18.11 po mailu szefa: „dajemy zbiorczo per dzień wysyłki”, bo przy 100 fakturach klient musiałby przy płatności wpisywać 100 numerów.',
+      'Organizacja → klient (np. Luxan, Cozy dla swoich klientów) i odbiorcy końcowi bez zmian: faktura per zlecenie. Klient z ustawioną fakturą tygodniową albo miesięczną (np. JC) dostaje zbiorczą za okres zamiast dziennej.',
+      'Faktura dzienna liczy się teraz jako pełna faktura: panel nie pokazuje jej zleceń jako niezafakturowanych. Zlecenie z fakturą wystawioną ręcznie nie trafia do dziennej.',
+      'Jedna numeracja dla wszystkich faktur HKL (do organizacji i do klientów): 8 cyfr jak w PROD, ciągiem. HKL → Cozy 26000001, następna faktura HKL (np. do Luxan) 26000002 i tak dalej. Wcześniej organizacje inne niż Cozy i klienci HKL szli w starej serii 2026/…',
+      'Nazwa pliku PDF w języku faktury, na FTP, w mailu i przy pobraniu z panelu, np. Rechnung_26000002.pdf, Factuur_26000003.pdf, Facture_…, Faktura_VAT_…. Wzór Cozy jest zawsze po niderlandzku (Factuur_…). Faktura już wysłana na FTP przy poprawce nadpisuje swój dawny plik pod starą nazwą, żeby nie powstał drugi.'
+    ]
+  },
+  {
     version: 14,
     date: '2026-11-17',
     env: 'produkcja',

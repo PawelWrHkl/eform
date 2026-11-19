@@ -156,24 +156,6 @@ const COUNTRY_MISSING_ERROR_CODE = 'INVOICE_COUNTRY_MISSING';
  */
 const NO_LETTERHEAD_ERROR_CODE = 'INVOICE_NO_LETTERHEAD';
 
-/**
- * Wzorzec i seria numeru faktury z zamówienia. HKL → organizacja z
- * `number_patterns.hkl_daily` (Cozy od 17.11.2026, decyzja Pawła/Wiktorii: „od niej
- * zaczniemy fakturowanie HKL-klient”) liczy we WŁASNEJ serii tej organizacji —
- * `{YY}{NR:6}` → 26000001 — obok serii HKL `{YYYY}/{NR:5}` pozostałych organizacji.
- * `profile` = organizacja zamówienia, na poziomie 1 to nabywca.
- *
- * @returns {{ numberPattern: string, numberSeries: { issuerType: string, issuerId: number, level: number }|null }}
- */
-function hklSeries(level, documentType, profile, issuerProfile) {
-  const own = Number(level) === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION
-    && (documentType === DocumentType.INVOICE || documentType === DocumentType.FINAL)
-    && profile && profile.numberPatterns && profile.numberPatterns.hkl_daily;
-  return own
-    ? { numberPattern: own, numberSeries: { issuerType: hierarchy.IssuerType.MANUFACTURER, issuerId: Number(profile.organizationId), level: 1 } }
-    : { numberPattern: (issuerProfile && issuerProfile.numberPattern) || '{YYYY}/{NR:5}', numberSeries: null };
-}
-
 class InvoiceService {
   /**
    * @param {Object} [deps]
@@ -1247,7 +1229,8 @@ class InvoiceService {
       viesCheckedAt: vies.checkedAt,
       viesValid: vies.checked ? vies.verified : null,
       paymentMethod: profile.defaultPaymentMethod,
-      ...hklSeries(level, documentType, profile, issuerProfile),
+      // Seria wystawcy; HKL — jedna wspólna `{YY}{NR:6}` (`repository.HKL_SERIES`)
+      numberPattern: issuerProfile.numberPattern || '{YYYY}/{NR:5}',
       number: params.replace ? params.replace.number : null,
       items: computed.items,
       taxLines: computed.taxLines,
@@ -1359,11 +1342,12 @@ class InvoiceService {
     const issuerProfile = issuerSeries
       ? await this.repository.getIssuerProfile({ issuerType: invoice.issuerType, issuerId: invoice.issuerId || 0, level: invoice.level || 2 })
       : null;
-    const series = issuerSeries ? hklSeries(invoice.level, invoice.documentType, profile, issuerProfile) : null;
     const numbering = new NumberingService({
       allocateSequence: issuerSeries
         ? ({ periodKey }) => this.repository.allocateIssuerSequence({
-          ...(series.numberSeries || { issuerType: invoice.issuerType, issuerId: invoice.issuerId || 0, level: invoice.level || 2 }),
+          issuerType: invoice.issuerType,
+          issuerId: invoice.issuerId || 0,
+          level: invoice.level || 2,
           year: Number(String(periodKey).slice(0, 4))
         })
         : (p) => this.repository.allocateSequence(p)
@@ -1372,7 +1356,7 @@ class InvoiceService {
       organizationId: invoice.organizationId,
       documentType: invoice.documentType,
       isoDate: invoice.issueDate,
-      pattern: issuerSeries ? series.numberPattern : profile?.numberPatterns?.[invoice.documentType],
+      pattern: issuerSeries ? (issuerProfile && issuerProfile.numberPattern) || '{YYYY}/{NR:5}' : profile?.numberPatterns?.[invoice.documentType],
       orgCode: profile?.orgCode
     });
 
@@ -1519,10 +1503,9 @@ class InvoiceService {
     const buffer = maizonCozy.appliesTo(ctx)
       ? await maizonCozy.renderPdf(await this.maizonCozyData(ctx.invoice))
       : await renderer.renderInvoicePdf(ctx);
-    // Nazwa pliku wyłącznie ASCII — iOS Mail i część klientów poczty potyka się
-    // o polskie znaki i spacje w nazwach załączników (patrz utils/sanitizeFilename.js).
-    const safe = String(ctx.invoice.number || `draft-${invoiceId}`).replace(/[^\w.-]+/g, '_');
-    return { buffer, filename: `${safe}.pdf` };
+    // Ta sama nazwa na FTP, w mailu i przy pobraniu: rodzaj w języku wydruku (`Factuur_26000001.pdf`)
+    const { documentType, number } = ctx.invoice;
+    return { buffer, filename: renderer.documentFileName({ documentType, number: number || `draft-${invoiceId}`, lang: maizonCozy.printLanguage(ctx) }) };
   }
 
   /**

@@ -891,7 +891,7 @@ export function buildVatFields(destinationNode) {
  */
 export function buildClientDiscountFields(destinationNode) {
   const pct = Number(window.clientDiscountPercent) || 0;
-  if (!(pct > 0)) return {};
+  if (!clientDiscountActive()) return {};
   if (!destinationNode) return {};
   // Te same zasady widoczności co ceny SUB___ (rabat jest ceną klienta):
   // kto nie widzi cen SUB, nie widzi też rabatu; przy ukrytych cenach nic nie
@@ -944,6 +944,17 @@ export function buildClientDiscountFields(destinationNode) {
  * całego modułu cen (z jego zależnościami) tylko po mnożnik byłoby gorszym
  * kompromisem niż te trzy linie.
  */
+/**
+ * Czy pozycja ma rabat klienta: grupy / ekstra rabat (`clientDiscountPercent`)
+ * albo rabat B2B organizacji (services/b2bDiscount.js) — wtedy rabat siedzi już
+ * w `SUB___WARTOSC_KONCOWA` (`pricesCalculator.js applyClientDiscount`).
+ */
+function clientDiscountActive() {
+  return (Number(window.clientDiscountPercent) || 0) > 0
+    || (Number(window.b2bDiscountPoints) || 0) > 0
+    || (Number(window.b2bDiscountAmountPercent) || 0) > 0;
+}
+
 function clientDiscountFactorForTotals() {
   const pct = Number(window.clientDiscountPercent) || 0;
   if (!(pct > 0)) return 1;
@@ -984,8 +995,7 @@ export function getTotal(displayValues) {
   // nadpisać innym wierszem `listsum`. Mnożnik stosujemy TYLKO tam, gdzie tego
   // parametru w ogóle nie ma (HKL / ekran bez cen klienta) — inaczej rabat
   // zszedłby dwa razy.
-  const discountPct = Number(window.clientDiscountPercent) || 0;
-  if (discountPct > 0) {
+  if (clientDiscountActive()) {
     const koncowaRow = displayValues.get('SUB___WARTOSC_KONCOWA');
     const koncowaValue = koncowaRow ? parseFloat(koncowaRow.option_value) : NaN;
     if (Number.isFinite(koncowaValue)) {

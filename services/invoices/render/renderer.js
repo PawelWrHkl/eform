@@ -25,6 +25,7 @@ const { DEFAULT_TEMPLATE, normalizeTemplatePath, parsePageMargins } = require('.
 const { DOCUMENT_LANGUAGES } = require('../core/language');
 const { visibleClauses } = require('../core/compliance');
 const { log } = require('../../../utils/logging');
+const { sanitizeFilename } = require('../../../utils/sanitizeFilename');
 
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
 /** Formatki organizacji (papier firmowy w PDF) — `invoice_template.background_file`. */
@@ -69,6 +70,18 @@ function createTranslator(lang) {
   const dict = loadDictionary(lang);
   const fallback = lang === 'pl' ? dict : loadDictionary('pl');
   return (key) => dict[key] ?? fallback[key] ?? key;
+}
+
+/**
+ * Nazwa pliku PDF dokumentu: rodzaj w języku wydruku + numer, samo ASCII (iOS Mail potyka się
+ * o znaki diakrytyczne) — `Factuur_26000001.pdf`, `Rechnung_26000002.pdf`, `Faktura_VAT_…`.
+ * Paweł 18.11.2026: „nazwy plików też w odpowiednim języku” (FTP, mail, pobranie z panelu).
+ *
+ * @param {{ documentType: string, number: string, lang?: string }} doc
+ * @returns {string}
+ */
+function documentFileName({ documentType, number, lang }) {
+  return sanitizeFilename(`${createTranslator(lang || 'pl')(`doc.${documentType}`)}_${number}.pdf`);
 }
 
 /**
@@ -446,6 +459,7 @@ module.exports = {
   SUPPORTED_LANGS,
   loadDictionary,
   createTranslator,
+  documentFileName,
   createEnvironment,
   buildThemeCss,
   summarizeItemDiscounts,

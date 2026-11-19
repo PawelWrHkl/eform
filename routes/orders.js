@@ -11,6 +11,7 @@ const ownerService = require('../services/owner.js');
 const { getActiveGroupShopId } = require('../services/groupContext');
 const { resolveClientDiscountForOrder } = require('../services/groupDiscount');
 const { resolveFormPricingForOrder } = require('../services/portalUsageDiscount');
+const b2bDiscount = require('../services/b2bDiscount');
 const { currencyLocalsForOrder, formatAmount, withCurrencyLabel } = require('../services/currency');
 const { notifyFirstOrderIfApplicable } = require('../services/firstOrderMailer');
 const mailBot = require('../services/mailBot/mailBot');
@@ -895,6 +896,8 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
             res.render('order_prices.njk', {
                 orderDetails,
                 clientOwnedOrder,
+                // Przycisk rabatu B2B — tylko po kłódce, organizacja klienta albo admin (services/b2bDiscount.js).
+                b2bDiscountButton: await b2bDiscount.canManageOrder(orderDetails.id, req.session.user),
                 orderItems,
                 heads,
                 cleanOrderItems,
@@ -1137,6 +1140,30 @@ router.post('/order/:orderId/set-discount', requireLogin, checkOrderOwnership, a
             success: false,
             message: 'Wewnętrzny błąd serwera podczas zapisywania rabatu'
         });
+    }
+});
+
+// Rabat B2B organizacji dla jej klienta (services/b2bDiscount.js). Uprawnienia
+// i organizację sprawdza serwis — `checkOrderOwnership` wpuszcza ownera do
+// każdego zlecenia, także cudzej organizacji.
+router.get('/order/:orderId/b2b-discount', requireLogin, checkOrderOwnership, async (req, res) => {
+    try {
+        const info = await b2bDiscount.getInfo(req.params.orderId, req.session.user);
+        return res.json({ success: true, ...info });
+    } catch (error) {
+        log('Error fetching B2B discount:', error);
+        return res.status(500).json({ success: false, message: req.__('order.b2b_discount_error') });
+    }
+});
+
+router.post('/order/:orderId/b2b-discount', requireLogin, checkOrderOwnership, async (req, res) => {
+    try {
+        const result = await b2bDiscount.save({ orderId: req.params.orderId, sessionUser: req.session.user, body: req.body || {} });
+        const { messageKey, ...body } = result.body;
+        return res.status(result.status).json(messageKey ? { ...body, message: req.__(messageKey) } : body);
+    } catch (error) {
+        log('Error saving B2B discount:', error);
+        return res.status(500).json({ success: false, message: req.__('order.b2b_discount_error') });
     }
 });
 
@@ -1860,6 +1887,8 @@ router.post('/copy/:orderId', checkOrderOwnership, requireLogin, async (req, res
         return res.status(500).json({ status: "error", message: "Nie udało się skopiować zamówienia" });
     }
     if (req.session.user?.isStaff) await staffAudit.markCreatedByStaff(newOrderId, req.session.user.userId);
+    // Pozycje przechodzą z cenami po rabacie B2B — ustawienie rabatu idzie razem z nimi.
+    await b2bDiscount.copyToOrder(orderId, newOrderId);
     for (const item of orderItems) {
         let body = buildOrderItemStructure(
             newOrderId,

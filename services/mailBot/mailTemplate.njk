@@ -157,6 +157,13 @@
         padding: 20px !important;
         border-top: 1px solid #e9ecef !important;
       }
+      /* Stopka AB (POP-19, _ab_footer.njk) na telefonie: kolumny jedna pod drugą zamiast trzech wąskich. */
+      @media only screen and (max-width: 480px) {
+        .ab-col { display: block !important; width: auto !important; }
+        .ab-col-logo { padding: 18px 22px 0 !important; }
+        .ab-col-text { padding: 12px 22px !important; }
+        .ab-col-booth { padding: 0 22px 18px !important; }
+      }
       /* Mobile styles */
       @media only screen and(max-width: 600px) {
         .email-wrapper-cell {
@@ -228,8 +235,15 @@
           </div>
         </td>
       </tr>
-      {# Stopka AB ze stoiskiem (POP-19) — baner z _ab_footer.njk, dane z services/mailBot/abFooter.js. #}
-      {% if abFooter %}
+      {# Stopka AB ze stoiskiem (POP-19) — dane z services/mailBot/abFooter.js. Gotowy obrazek banera
+         (tryb ciemny Outlooka nie przerabia obrazków), a bez niego baner HTML z _ab_footer.njk. #}
+      {% if abFooter and abFooter.banner %}
+      <tr>
+        <td class="ab-footer" align="center" style="padding:0;background-color:#ffffff;line-height:0;">
+          <img src="{{ abFooter.banner }}" width="{{ abFooter.bannerWidth }}" alt="{{ abFooter.label }}: {{ abFooter.fair }}, {{ abFooter.dates }}. {{ abFooter.boothLabel }} {{ abFooter.booth }}{% if abFooter.hall %}, {{ abFooter.hallLabel }} {{ abFooter.hall }}{% endif %}. {{ abFooter.company }}" style="display:block;margin:0 auto;width:100%;max-width:{{ abFooter.bannerWidth }}px;height:auto;border:0;">
+        </td>
+      </tr>
+      {% elif abFooter %}
       <tr>
         <td class="ab-footer" style="padding:0;">{% include "_ab_footer.njk" %}</td>
       </tr>

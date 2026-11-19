@@ -63,10 +63,11 @@ async function acquireDbLock(name) {
  * @param {boolean} [opts.invoices=true] uruchom automat faktur po synchronizacji
  * @param {boolean} [opts.mail=true]     wyślij maile z fakturami automatu (`invoiceMailer.js`); tylko razem z `invoices`
  * @param {boolean} [opts.ftp=true]      wyślij PDF-y faktur automatu na FTP (`invoiceFtpExport.js`); tylko razem z `invoices`
- * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runInvoiceMailing, runInvoiceFtpExport, retryServiceExports, serviceMode, log }`
- * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null, invoiceMails?: object|null, invoiceFtp?: object|null, serviceExports?: object|null }>}
+ * @param {boolean} [opts.einvoice=true] wyślij wystawione faktury do usługi e-faktur (`invoices/einvoice`); tylko razem z `invoices`
+ * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runInvoiceMailing, runInvoiceFtpExport, runEinvoiceExport, retryServiceExports, serviceMode, log }`
+ * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null, invoiceMails?: object|null, invoiceFtp?: object|null, einvoices?: object|null, serviceExports?: object|null }>}
  */
-async function runProdStatusCycle({ dryRun = false, full = false, invoices = true, mail = true, ftp = true, deps = {} } = {}) {
+async function runProdStatusCycle({ dryRun = false, full = false, invoices = true, mail = true, ftp = true, einvoice = true, deps = {} } = {}) {
     const log = deps.log || defaultLog;
     const lock = await (deps.acquireLock || acquireDbLock)(lockName());
     if (!lock) {
@@ -79,6 +80,7 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
         let autoInvoices = null;
         let invoiceMails = null;
         let invoiceFtp = null;
+        let einvoices = null;
         if (invoices) {
             // Leniwie: sama synchronizacja statusów nie potrzebuje modułu faktur
             const runAutoInvoicing = deps.runAutoInvoicing || require('./invoices/autoInvoicing').runAutoInvoicing;
@@ -108,6 +110,16 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
                     invoiceFtp = { uploaded: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
                 }
             }
+            // E-faktury (ZUGFeRD, tryb cienia) — własna kolejka, wyłączone bez `EINVOICE_MODE`
+            if (einvoice) {
+                try {
+                    const runEinvoiceExport = deps.runEinvoiceExport || require('./invoices/einvoice').runEinvoiceExport;
+                    einvoices = await runEinvoiceExport({ dryRun });
+                } catch (err) {
+                    log(`[einvoice] przebieg przerwany: ${err && err.message ? err.message : err}`);
+                    einvoices = { done: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
+                }
+            }
         }
         // Zgłoszenia serwisowe z nieudanym eksportem do HKL (services/serviceTickets) —
         // ponawiane w tym samym cyklu, tylko przy włączonym module (SERVICE_PANEL=true).
@@ -124,7 +136,7 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
                 serviceExports = { retried: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
             }
         }
-        return { statuses, autoInvoices, invoiceMails, invoiceFtp, serviceExports };
+        return { statuses, autoInvoices, invoiceMails, invoiceFtp, einvoices, serviceExports };
     } finally {
         await lock.release();
     }

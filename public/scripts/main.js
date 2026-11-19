@@ -373,6 +373,8 @@ async function sendData(inputs, values, valuesToDisplay, orderId, comment, versi
 		parseInt(orderId), {}, 0, 0, total.total, total.total_hidden, total.total_sub || 0,
 		commission, commission, values, jsonValuesToDisplay, 1, comment.value, version, groupNumber, document.documentElement.lang, selectedDepartment, selectedGroup, window.shortJson
 	);
+	// Rabat B2B, z którym policzono ceny — serwer odrzuca zapis, gdy w międzyczasie się zmienił.
+	postBody.b2bStamp = window.b2bDiscountStamp || '';
 
 	try {
 		const result = await sendFormDataWithAttachments("/position/save", postBody, "POST");
@@ -392,7 +394,7 @@ async function sendData(inputs, values, valuesToDisplay, orderId, comment, versi
 		return true;
 	} catch (error) {
 		console.error("Błąd przy wysyłaniu", error);
-		showToast('error', t("form.error_saving_form"));
+		showToast('error', (error.status === 409 && error.serverMessage) || t("form.error_saving_form"));
 		return false;
 	}
 }

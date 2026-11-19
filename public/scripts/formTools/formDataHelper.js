@@ -37,7 +37,12 @@ export async function sendFormDataWithAttachments(url, postBody, method = 'POST'
             
         });
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            // Komunikat serwera (np. 409 „rabat B2B się zmienił”) idzie do toastu wołającego.
+            const body = await response.json().catch(() => ({}));
+            const err = new Error(body.message || `HTTP error! status: ${response.status}`);
+            err.status = response.status;
+            err.serverMessage = body.message || null;
+            throw err;
         }
 
         const result = await response.json();

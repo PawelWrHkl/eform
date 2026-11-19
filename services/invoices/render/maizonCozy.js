@@ -49,6 +49,11 @@ function appliesTo({ invoice, profile }) {
     && String((profile && profile.orgCode) || '').toUpperCase() === 'COZY';
 }
 
+/** Język wydruku (nazwa pliku): wzór MaizonCozy jest zawsze po niderlandzku, reszta w języku dokumentu. */
+function printLanguage({ invoice, profile }) {
+  return appliesTo({ invoice, profile }) ? 'nl' : invoice.lang || 'pl';
+}
+
 let assets = null;
 function loadAssets() {
   if (!assets) {
@@ -248,4 +253,4 @@ async function renderPdf(data) {
   }
 }
 
-module.exports = { appliesTo, buildData, priceLine, printedDescription, renderHtml, renderPdf };
+module.exports = { appliesTo, printLanguage, buildData, priceLine, printedDescription, renderHtml, renderPdf };

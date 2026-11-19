@@ -236,7 +236,7 @@ const TEXT_TEMPLATE = `{% if redirect %}TRYB TESTOWY ({{ redirect.envLabel }}) �
  *
  * @param {Object} params
  * @param {Record<string, any>} params.invoice   wynik `repository.getInvoice`
- * @param {{ buffer: Buffer }|null} params.pdf   `null` = bez załącznika (podgląd)
+ * @param {{ buffer: Buffer, filename?: string }|null} params.pdf   `null` = bez załącznika (podgląd); nazwa z `renderPdf`
  * @param {string} [params.issuerEmail]          adres wystawcy (Reply-To)
  * @param {string} [params.from]                 nadawca z `resolveSender` (domyślnie skrzynka systemu)
  * @param {ReturnType<typeof readInvoiceMailConfig>} params.config
@@ -272,7 +272,7 @@ function buildInvoiceMail({ invoice, pdf, issuerEmail = '', from = '', config })
     text: toCrlf(text),
     attachments: pdf
       ? [{
-        filename: sanitizeFilename(`${docLabel}_${invoice.number}.pdf`),
+        filename: pdf.filename || sanitizeFilename(`${docLabel}_${invoice.number}.pdf`),
         content: pdf.buffer,
         contentType: 'application/pdf',
         // Te same ustawienia co potwierdzenie zamówienia (`mailBot.js`) — iOS Mail

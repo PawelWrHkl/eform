@@ -17,6 +17,7 @@
 
 import { generateForm, getTotal, recalculateLastChangedField } from '/scripts/form.js';
 import { FormsManager } from '/scripts/formTools/getAvailableForms.js';
+import { isCalculatedParam } from '/scripts/formTools/createForm.js';
 import { showToast } from '/scripts/components/toast.js';
 import { confirmPrompt } from '/scripts/components/confirmPrompt.js';
 
@@ -338,6 +339,9 @@ function syncSubPriceDisplayEntries(displayValues) {
     const sub = window.subParams || [];
     for (const param of params) {
         if (!param?.NAME?.startsWith('SUB___')) continue;
+        // Policzone naprawdę (skrypt/formuła) — lustro nadpisywało je ceną HKL, także
+        // `SUB___WARTOSC_KONCOWA` → `total_price_sub` (ta sama poprawka co admin_edit_form.js z 28.07).
+        if (isCalculatedParam(param)) continue;
         const baseParamName = param.NAME.slice(6);
         const baseEntry = displayValues.get(baseParamName);
         if (!baseEntry?.option_value) continue;
@@ -387,6 +391,9 @@ async function fetchPositions(orderId) {
     const pricing = data.pricing || {};
     window.clientDiscountPercent = Number(pricing.clientDiscountPercent) || 0;
     window.portalUsageDiscountPercent = Number(pricing.portalUsageDiscountPercent) || 0;
+    // Rabat B2B organizacji (services/b2bDiscount.js).
+    window.b2bDiscountPoints = Number(pricing.b2bDiscountPoints) || 0;
+    window.b2bDiscountAmountPercent = Number(pricing.b2bDiscountAmountPercent) || 0;
     window.clientPriceMode = pricing.clientPriceMode || 'discount';
     window.clientMarkupPercent = Number(pricing.clientMarkupPercent) || 0;
     window.grossAfterDiscount = pricing.grossAfterDiscount === true;
@@ -531,17 +538,30 @@ async function saveRecalculated(orderId, recalculated) {
     return data;
 }
 
+let recalcRunning = false;
+
+/** Czy trwa „Przelicz wszystkie pozycje” — okno rabatu B2B nie zapisuje w tym czasie. */
+export function isRecalculating() {
+    return recalcRunning;
+}
+
 /**
  * Główna funkcja — wywoływana przez przycisk "Przelicz wszystkie pozycje".
+ * `reload: false` — bez przeładowania strony (zapis rabatu B2B w dwóch krokach,
+ * orderTools/setDiscount.js). Zwraca `true`, gdy wszystko się zapisało.
  */
-export async function recalculateOrder(orderId) {
+export async function recalculateOrder(orderId, { reload = true } = {}) {
     if (!orderId) {
         showToast('error', t('order.recalculate_no_id'));
-        return;
+        return false;
     }
+    // Dwa przebiegi naraz (przycisk + zapis rabatu B2B) zapisałyby pozycje
+    // policzone z różnymi rabatami.
+    if (isRecalculating()) return false;
 
     const btn = document.getElementById('recalculate-order-btn');
     if (btn) btn.disabled = true;
+    recalcRunning = true;
 
     try {
         ensureFormHostElements();
@@ -551,7 +571,7 @@ export async function recalculateOrder(orderId) {
         const positions = await fetchPositions(orderId);
         if (positions.length === 0) {
             showToast('info', t('order.recalculate_no_positions'));
-            return;
+            return true;
         }
 
         showToast('info', `${t('order.recalculate_progress')} ${positions.length}...`);
@@ -576,14 +596,21 @@ export async function recalculateOrder(orderId) {
         showToast('success', saveResult.message || 'Przeliczono pomyślnie');
 
         // Reload strony żeby pokazać zaktualizowane dane
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
+        if (reload) {
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else if (btn) {
+            btn.disabled = false;
+        }
+        return true;
     } catch (err) {
         console.error('[recalculate] Błąd:', err);
         showToast('error', err.message || 'Błąd podczas przeliczania zamówienia');
         if (btn) btn.disabled = false;
+        return false;
     } finally {
+        recalcRunning = false;
         hideProgress();
     }
 }

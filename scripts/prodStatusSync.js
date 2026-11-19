@@ -27,6 +27,7 @@
  *   node scripts/prodStatusSync.js --no-invoices sama synchronizacja statusów (bez faktur i maili)
  *   node scripts/prodStatusSync.js --no-mail     statusy + faktury, bez maili z fakturami
  *   node scripts/prodStatusSync.js --no-ftp      bez wysyłki PDF-ów faktur na FTP
+ *   node scripts/prodStatusSync.js --no-einvoice bez wysyłki faktur do usługi e-faktur (ZUGFeRD)
  *
  * Kody wyjścia: 0 — OK (także „inny proces trzyma blokadę" i faktury pominięte
  * z powodu zerowej wartości — nic do zafakturowania), 1 — część zapisów,
@@ -60,14 +61,16 @@ const args = new Set(process.argv.slice(2));
             full: args.has('--full'),
             invoices: !args.has('--no-invoices'),
             mail: !args.has('--no-mail'),
-            ftp: !args.has('--no-ftp')
+            ftp: !args.has('--no-ftp'),
+            einvoice: !args.has('--no-einvoice')
         });
         const statusFailures = result.statuses?.failed || 0;
         const invoiceFailures = result.autoInvoices?.failed?.length || 0;
         const mailFailures = result.invoiceMails?.failed?.length || 0;
         const ftpFailures = result.invoiceFtp?.failed?.length || 0;
+        const einvoiceFailures = result.einvoices?.failed?.length || 0;
         const serviceFailures = result.serviceExports?.failed?.length || 0;
-        if (statusFailures || invoiceFailures || mailFailures || ftpFailures || serviceFailures) code = 1;
+        if (statusFailures || invoiceFailures || mailFailures || ftpFailures || einvoiceFailures || serviceFailures) code = 1;
     } catch (err) {
         log(`[prodStatus] cykl przerwany: ${err && err.stack ? err.stack : err}`);
         code = 2;

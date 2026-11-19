@@ -211,35 +211,32 @@ test('createCollective poziom 1: zamówienia różnych klientów jednej organiza
   assert.equal(mixed.saved.length, 0);
 });
 
-test('createCollective poziom 1: organizacja z number_patterns.hkl_daily (Cozy) — własna seria HKL {YY}{NR:6}, reszta w serii HKL', async () => {
+test('createCollective poziom 1: numer z serii wystawcy (HKL — wspólna {YY}{NR:6}), przeliczenie zostawia numer', async () => {
   const cozy = (s, ident) => ({ ...s, order: { ...s.order, organization_id: 1 }, organization: { id: 1, name: 'MaizonCozy B.V.', country: 'NL' }, user: { ...s.user, ident } });
   const day = { key: '2026-11-16', start: '2026-11-16', end: '2026-11-16' };
   const opts = [];
-  const withPatterns = (patterns) => {
+  const hklRepo = () => {
     const repository = fakeRepository({ 1: cozy(source(1, { idx: '6', userId: 31 }), 'M2'), 2: cozy(source(2, { idx: '19', userId: 30 }), 'Wonen') });
+    // Wzorzec HKL daje `repository.getIssuerProfile` (HKL_SERIES); wzorzec organizacji-nabywcy nie przecieka
     const profile = repository.getOrganizationProfile;
-    repository.getOrganizationProfile = async (id) => ({ ...(await profile(id)), numberPatterns: patterns });
+    repository.getOrganizationProfile = async (id) => ({ ...(await profile(id)), numberPatterns: { invoice: 'COZY/{NR}' } });
+    const issuer = repository.getIssuerProfile;
+    repository.getIssuerProfile = async (p) => ({ ...(await issuer(p)), numberPattern: '{YY}{NR:6}' });
     const create = repository.createInvoice;
     repository.createInvoice = async (invoice, o) => { opts.push({ ...o, number: invoice.number }); return create(invoice, o); };
     return repository;
   };
 
-  const own = withPatterns({ invoice: '{YY}{NR:6}', hkl_daily: '{YY}{NR:6}' });
-  await service(own).createCollective({ orderIds: [1, 2], level: 1, period: day, createdByPin: DAILY_ACTOR });
-  assert.equal(own.saved[0].numberPattern, '{YY}{NR:6}');
-  assert.deepEqual(own.saved[0].numberSeries, { issuerType: 'manufacturer', issuerId: 1, level: 1 });
+  const first = hklRepo();
+  await service(first).createCollective({ orderIds: [1, 2], level: 1, period: day, createdByPin: DAILY_ACTOR });
+  assert.equal(first.saved[0].numberPattern, '{YY}{NR:6}');
+  assert.equal('numberSeries' in first.saved[0], false, 'licznik wybiera repozytorium (issuerSeriesKey), nie faktura');
   assert.deepEqual(opts[0], { assignNumber: true, replaceId: null, number: null });
 
-  // Bez hkl_daily (Luxan itd.) — seria HKL jak dotąd; wzorzec Cozy-wystawcy („invoice”) nie przecieka na poziom 1
-  const hkl = withPatterns({ invoice: '{YY}{NR:6}' });
-  await service(hkl).createCollective({ orderIds: [1, 2], level: 1, period: day, createdByPin: DAILY_ACTOR });
-  assert.equal(hkl.saved[0].numberPattern, '{YYYY}/{NR:5}');
-  assert.equal(hkl.saved[0].numberSeries, null);
-
   // Przeliczenie: ten sam numer i data wystawienia, stara wersja podmieniona w tej samej transakcji
-  const again = withPatterns({ hkl_daily: '{YY}{NR:6}' });
+  const again = hklRepo();
   await service(again).createCollective({ orderIds: [1, 2], level: 1, period: day, createdByPin: DAILY_ACTOR, replace: { id: 70, number: '26000001', issueDate: '2026-11-17' } });
-  assert.deepEqual(opts[2], { assignNumber: true, replaceId: 70, number: '26000001' });
+  assert.deepEqual(opts[1], { assignNumber: true, replaceId: 70, number: '26000001' });
   assert.equal(again.saved[0].issueDate, '2026-11-17');
   assert.equal(again.saved[0].saleDate, '2026-11-16');
 });
@@ -497,15 +494,23 @@ test('automat: dzienna za ten dzień już jest — druga NIE powstaje, zlecenie 
   assert.ok(logs.some((m) => /czeka 1 .*Przelicz dzienne ponownie.*dzienna 2026-11-16 \(Cozy, zamówienia 12\)/.test(m)));
 });
 
-test('automat: HKL → organizacja z hkl_daily nie dostaje faktur per zlecenie (wykluczenie w zapytaniu, nie po fakcie)', async () => {
-  const queries = [];
-  const repository = {
-    async findHklDailyOrganizationIds() { return [1]; },
-    async findAutoInvoiceCandidates(p) { queries.push(p); return []; }
+test('automat: przy fakturach dziennych relacje HKL bez faktur per zlecenie (wykluczenie w zapytaniu, nie po fakcie)', async () => {
+  const { HKL_ORG_ID } = require('../core/pricing');
+  const run = async (env) => {
+    const queries = [];
+    const prepared = [];
+    const repository = {
+      async findPreparedDraftsReady(p) { prepared.push(p); return []; },
+      async findAutoInvoiceCandidates(p) { queries.push(p); return []; }
+    };
+    const config = readAutoInvoiceConfig({ INVOICE_AUTOGEN_ENABLED: 'true', INVOICE_AUTOGEN_SINCE: '2026-01-01', INVOICE_AUTOGEN_LEVELS: '1,2,3,4', ...env }, { invoicesEnabled: true });
+    await runAutoInvoicing({ config, deps: { repository, service: {}, log: quiet, now: () => new Date(2026, 10, 18) } });
+    return { perOrder: queries.map((q) => [q.level, q.excludeOrganizationId]), hklDailyOnly: prepared[0].hklDailyOnly };
   };
-  await runAutoInvoicing({ config: dailyConfig(), deps: { repository, service: {}, log: quiet, now: () => new Date(2026, 10, 17) } });
-  assert.equal(queries[0].level, 1);
-  assert.deepEqual(queries[0].excludeOrganizationIds, [1]);
+  // Dzienne włączone: HKL → organizacja w ogóle, klienci HKL wykluczeni; organizacja → klient i poziomy 3/4 per zlecenie
+  assert.deepEqual(await run({ INVOICE_DAILY_SINCE: '2026-09-01' }), { perOrder: [[2, HKL_ORG_ID], [3, null], [4, null]], hklDailyOnly: true });
+  // Dzienne wyłączone: wszystko per zlecenie jak dawniej (HKL nie fakturuje sam siebie na poziomie 1)
+  assert.deepEqual(await run({}), { perOrder: [[1, HKL_ORG_ID], [2, null], [3, null], [4, null]], hklDailyOnly: false });
 });
 
 test('przelicz dzienne: spóźnione zlecenie trafia do tej samej faktury — ten sam numer i data, klienci alfabetycznie', async () => {

@@ -221,7 +221,8 @@ async function generateOrderDocuments(orderData, cleanOrderItems, lang, logoPath
     currencySymbol: currencySymbol,
     // Korekta zlecenia: baner i oznaczenia zmian (services/correctionDiff.js)
     correction: options.correction || null,
-    abFooter: abFooter(lang)
+    // stopka AB tylko dla organizacji z abFooter.json (`organizations`, dziś HKL)
+    abFooter: abFooter(lang, 'data', data?.organizationIdent)
   };
 
   if (withoutPrices && renderContext.sendData) {
@@ -343,7 +344,7 @@ function renderOrderPdfHtml({
     hideClientVat,
     withoutPrices,
     correction,
-    abFooter: abFooter(lang)
+    abFooter: abFooter(lang, 'data', sendData?.organizationIdent)
   });
 }
 

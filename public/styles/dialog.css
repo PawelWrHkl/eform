@@ -654,6 +654,20 @@ p {
 	min-width: 400px;
 	max-width: 500px;
 	padding: 2rem;
+	/* Z sekcją rabatu B2B okno bywa wyższe niż ekran. */
+	max-height: 90vh;
+	overflow-y: auto;
+}
+
+.discount-hint {
+	margin: 0.25rem 0 0.75rem;
+	color: var(--text-secondary);
+	font-size: 0.9rem;
+}
+
+.discount-hint--warn {
+	color: var(--color-error);
+	font-weight: 500;
 }
 
 .discount-dialog-title {

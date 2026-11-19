@@ -17,6 +17,13 @@
     <button id="lockBtn" class="btn">
       <img src="/img/open-padlock.png" alt="padlock icon" class='icon'></button>
     {% endif %}
+    {# Rabat B2B dla klienta (services/b2bDiscount.js) — osobny przycisk, tylko po kłódce,
+       tylko organizacja klienta i admin; rabat B2C zostaje w Centrum rabatów (order.njk). #}
+    {% if b2bDiscountButton %}
+    <button type="button" class="btn has-tooltip" id="b2b-discount-btn" data-order-id="{{ orderDetails.id }}" data-tooltip="{{ __('order.b2b_discount_title') }}" aria-label="{{ __('order.b2b_discount_title') }}" aria-haspopup="dialog">
+      <img src="/img/sale.png" alt="" class='icon'><span class="fw-bold small ms-1">B2B</span></button>
+    <script type="module" src="/scripts/orderTools/b2bDiscount.js?v={{ assetVersion }}"></script>
+    {% endif %}
     {# Specyfikacja ceny — ten blok podmienia pasek przycisków z order.njk
        (komputer), więc przycisk musi być i tutaj; bez niego po kłódce znikał. #}
     {% if priceSpecUi and not hidePrices and orderDetails and orderDetails.id %}

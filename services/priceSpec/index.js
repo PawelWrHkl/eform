@@ -368,15 +368,40 @@ function buildSetSpec({ prefix, factor, lockedVisible, clientDiscountVisible, va
       amount,
       amountText: `− ${money(amount)}`
     });
-    let lines = rules.filter((r) => r.base > 0).map((r) => lineOf(t(r.key), round2(r.rate * 100), r.base, round2(r.base * r.rate)));
-    const ruleRates = () => new Map([
+    // Mnożniki po rabatach z cennika/klienta (pricesCalculator.applyClientDiscount):
+    // ekstra rabat za korzystanie z serwisu, potem rabat kwotowy B2B
+    // (services/b2bDiscount.js) — każdy osobną linią od ceny po poprzednich.
+    // Dokładne procenty w `values` (wiersze pokazują zaokrąglone).
+    const amountRow = rowOf(prefix + 'RABAT_B2B_KWOTOWY');
+    const trailing = [];
+    const portalPct = toNumber(values.RABAT_PORTALU);
+    if (portalPct) trailing.push([portalPct, t('portal_discount')]);
+    const amountPct = amountRow ? (toNumber(values.RABAT_B2B_KWOTOWY) ?? toNumber(amountRow.option_value)) : null;
+    if (amountPct) trailing.push([amountPct, cleanTitle(amountRow.param_description) || t('discount')]);
+    const withAmountLine = (list) => {
+      if (unitPrice === null) return list;
+      const out = [...list];
+      for (const [pct, label] of trailing) {
+        const base = round2(unitPrice - out.reduce((sum, l) => sum + l.amount, 0));
+        out.push(lineOf(label, round2(pct), base, round2(base * pct / 100)));
+      }
+      return out;
+    };
+    const withAmountRates = (map) => trailing.reduce(
+      (acc, [pct]) => new Map([...acc].map(([param, rate]) => [param, 1 - (1 - rate) * (1 - pct / 100)])), map);
+
+    let lines = withAmountLine(rules.filter((r) => r.base > 0).map((r) => lineOf(t(r.key), round2(r.rate * 100), r.base, round2(r.base * r.rate))));
+    const ruleRates = () => withAmountRates(new Map([
       ['CENA', priceRate || 0],
       ['OTHER', separateSurcharge ? 0 : (priceRate || 0)],
       ['DOPLATA', separateSurcharge ? (surchargeRate || 0) : (priceRate || 0)],
       ['DOPLATA_EL', elRate || 0]
-    ]);
+    ]));
 
-    const clientRow = clientDiscountVisible ? rowOf(prefix + 'RABAT_KLIENTA') : null;
+    // Rabat klienta grupy — a u zwykłego klienta po kłódce rabat B2B organizacji
+    // (ten sam wiersz `RABAT_KLIENTA`, ta sama reguła). U zwykłego klienta używany
+    // tylko, gdy rozbicie się spina — inaczej (np. sam ekstra rabat) jak dotąd.
+    const clientRow = (clientDiscountVisible || lockedVisible) ? rowOf(prefix + 'RABAT_KLIENTA') : null;
     const clientPct = clientRow ? toNumber(clientRow.option_value) : null;
 
     unitAfter = amountOf(prefix + 'CENA_KONCOWA');
@@ -385,41 +410,47 @@ function buildSetSpec({ prefix, factor, lockedVisible, clientDiscountVisible, va
       const actual = round2(unitPrice - unitAfter);
       const computed = round2(lines.reduce((sum, l) => sum + l.amount, 0));
       target = Math.max(0, actual);
-      if (actual <= 0.004) {
-        lines = [];
-        rates = new Map();
-      } else if (clientPct) {
-        // Rabat klienta grupy (od 2026-10-27 — pricesCalculator.clientDiscountBreakdown)
-        // ZASTĘPUJE cennikowy tylko na CENIE KATALOGOWEJ; dopłaty mają swoje rabaty
-        // z konfiguratora: `DOPLATA` — osobny `DOPLATA_RABAT` (grupa 71), inaczej
-        // cennikowy (stoi w nawiasie z ceną), dopłata EL — `DOPLATA_EL_RABAT` („RABAT
-        // EL”). Każdy rabat osobną linią; pozycja liczona po staremu (rabat klienta od
-        // całej ceny z dopłatami) albo z ekstra rabatem nie spina się — wtedy jedna
-        // linia z rzeczywistą kwotą, bez zmyślonego rozbicia.
-        const clientLabel = cleanTitle(clientRow.param_description) || t('client_discount');
+      // Rabat klienta grupy / B2B (od 2026-10-27 — pricesCalculator.clientDiscountBreakdown)
+      // ZASTĘPUJE cennikowy tylko na CENIE KATALOGOWEJ; dopłaty mają swoje rabaty
+      // z konfiguratora: `DOPLATA` — osobny `DOPLATA_RABAT` (grupa 71), inaczej
+      // cennikowy (stoi w nawiasie z ceną), dopłata EL — `DOPLATA_EL_RABAT` („RABAT
+      // EL”). Każdy rabat osobną linią; `null`, gdy rozbicie się nie spina (pozycja
+      // liczona po staremu albo z ekstra rabatem).
+      const clientLabel = clientRow ? (cleanTitle(clientRow.param_description) || t('client_discount')) : null;
+      const clientSplit = () => {
         const doplata = sectionAmount('DOPLATA');
         const doplataEl = sectionAmount('DOPLATA_EL');
         const catalogBase = round2(unitPrice - doplata - doplataEl);
         const doplataRate = separateSurcharge ? rateOf('DOPLATA_RABAT') : rateOf('CENA_RABAT');
-        const groupLines = [lineOf(clientLabel, clientPct, catalogBase, round2(catalogBase * clientPct / 100))];
-        if (doplata && doplataRate) groupLines.push(lineOf(t('discount_surcharge'), round2(doplataRate * 100), doplata, round2(doplata * doplataRate)));
-        if (doplataEl && elRate) groupLines.push(lineOf(t('discount_el'), round2(elRate * 100), doplataEl, round2(doplataEl * elRate)));
+        const parts = [lineOf(clientLabel, clientPct, catalogBase, round2(catalogBase * clientPct / 100))];
+        if (doplata && doplataRate) parts.push(lineOf(t('discount_surcharge'), round2(doplataRate * 100), doplata, round2(doplata * doplataRate)));
+        if (doplataEl && elRate) parts.push(lineOf(t('discount_el'), round2(elRate * 100), doplataEl, round2(doplataEl * elRate)));
+        const groupLines = withAmountLine(parts);
         const groupSum = round2(groupLines.reduce((sum, l) => sum + l.amount, 0));
-        if (catalogBase > 0 && Math.abs(groupSum - actual) <= 0.01 * (groupLines.length + 1)) {
-          // Zaokrąglenia — ostatni grosz trafia do największego rabatu.
-          const biggest = groupLines.reduce((a, b) => (b.amount > a.amount ? b : a));
-          const fixed = round2(biggest.amount + actual - groupSum);
-          Object.assign(biggest, { amount: fixed, amountText: `− ${money(fixed)}` });
-          lines = groupLines;
-          rates = new Map([
+        if (!(catalogBase > 0) || Math.abs(groupSum - actual) > 0.01 * (groupLines.length + 1)) return null;
+        // Zaokrąglenia — ostatni grosz trafia do największego rabatu.
+        const biggest = groupLines.reduce((a, b) => (b.amount > a.amount ? b : a));
+        const fixed = round2(biggest.amount + actual - groupSum);
+        Object.assign(biggest, { amount: fixed, amountText: `− ${money(fixed)}` });
+        return {
+          lines: groupLines,
+          rates: withAmountRates(new Map([
             ['CENA', clientPct / 100],
             ['OTHER', clientPct / 100],
             ['DOPLATA', doplata && doplataRate ? doplataRate : 0],
             ['DOPLATA_EL', doplataEl && elRate ? elRate : 0]
-          ]);
-        } else {
-          lines = [lineOf(clientLabel, clientPct, unitPrice, actual)];
-        }
+          ]))
+        };
+      };
+      const split = actual > 0.004 && clientPct ? clientSplit() : null;
+      if (actual <= 0.004) {
+        lines = [];
+        rates = new Map();
+      } else if (split) {
+        lines = split.lines;
+        rates = split.rates;
+      } else if (clientPct && clientDiscountVisible) {
+        lines = [lineOf(clientLabel, clientPct, unitPrice, actual)];
       } else if (lines.length && Math.abs(computed - actual) <= 0.01 * (lines.length + 1)) {
         // Zaokrąglenia — ostatni grosz trafia do największego rabatu.
         const biggest = lines.reduce((a, b) => (b.amount > a.amount ? b : a));
