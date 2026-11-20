@@ -9,6 +9,10 @@
 # Teraz: logo = obrazek wyrenderowany z oryginału, teksty stopki = wektorowo z tych samych
 # napisów i pozycji co w HKL.pdf (wyciągnięte programem — bez przepisywania IBAN-ów).
 # Dane firmy (nazwa, adres, REGON, tel., fax, e-mail, NIP) od 2026-11-06 w stopce, nie nad kreską.
+# Od 2026-11-19 BEZ rachunków bankowych: konto do wpłaty zależy od klienta (kartoteka księgowości,
+# services/invoices/core/contractorAccounts.js) i drukuje się w sekcji „Płatność” faktury — na
+# fakturze ma być jedno konto (decyzja Pawła). Dawny rachunek PLN z HKL.pdf miał też złą sumę
+# kontrolną IBAN (PL64 … 0001, poprawnie PL91 … 0001). Wysokość stopki i linia zostają jak były.
 #
 # Wymaga PyMuPDF (nie jest zależnością aplikacji — plik PDF generuje się raz):
 #   python3 -m venv /tmp/venv-pdf && /tmp/venv-pdf/bin/pip install pymupdf
@@ -42,8 +46,8 @@ page.insert_image(fitz.Rect(M, top, M + logo.width * s_head, top + head_h), pixm
 y_line_head = top + head_h + 5
 page.draw_line((M, y_line_head), (W - M, y_line_head), color=GREY, width=0.9)
 
-# --- Stopka: linia, potem w jednym rzędzie dane firmy | rachunek EUR | rachunek PLN.
-# Rachunki: napisy HKL.pdf (Arial 8 pt) z ich pozycjami, przeskalowane do szerokości strony.
+# --- Stopka: linia, potem dane firmy. Geometria (skala, wysokość) liczona jak wtedy, gdy obok były
+# rachunki EUR/PLN z HKL.pdf — marginesy faktury (szablon HKL: dół 25 mm) się nie zmieniają.
 dane = [['HKL DEKORACJA OKIEN Sp. z o.o.', 'ul. Wisławy Szymborskiej 20', '70-784 Szczecin', 'REGON 811899346'],
         ['tel.: (91) 432-11-92', 'fax: (91) 886-50-70', 'e-mail: info@hkl.eu', 'NIP 955-19-42-642']]
 FS, LINE, COLGAP, GAP = 8.0, 9.6, 12.0, 14.0
@@ -67,17 +71,6 @@ for col, w in zip(dane, col_w):
         text(x, y_of(FIRST_BASELINE + i * LINE), t, FS * s_foot)
     x += (w + COLGAP) * s_foot
 
-def bank_block(clip, x0):
-    spans = [s for b in src.get_text('dict', clip=clip)['blocks'] for l in b.get('lines', []) for s in l['spans'] if s['text'].strip()]
-    for s in spans:
-        ox, oy = s['origin']
-        text(x0 + (ox - clip.x0) * s_foot, y_of(oy), s['text'], s['size'] * s_foot)
-    return spans
-
-x_eur = M + dane_w * s_foot + GAP
-n_eur = len(bank_block(eur, x_eur))
-n_pln = len(bank_block(pln, x_eur + eur.width * s_foot + GAP))
-assert n_eur == 8 and n_pln == 8, f'inne napisy rachunków w HKL.pdf niż oczekiwane: {n_eur}/{n_pln}'
 
 out.subset_fonts()
 # PyMuPDF opisuje glif spacji jako NBSP, a „-” jako miękki dywiz (w czcionce to te same glify):
@@ -91,7 +84,8 @@ for xref in range(1, out.xref_length()):
         out.update_stream(xref, cmap.encode('latin1'))
 out.save(out_path, garbage=4, deflate=True)
 check = fitz.open(out_path)[0].get_text()
-assert 'PL64 1910 1048 2793 2107 1341 0002' in check and '\xa0' not in check and '\xad' not in check, 'tekst stopki kopiuje się ze złymi znakami'
+assert 'NIP 955-19-42-642' in check and '\xa0' not in check and '\xad' not in check, 'tekst stopki kopiuje się ze złymi znakami'
+assert 'IBAN' not in check.upper() and '1910 1048' not in check and 'PAYMENTS' not in check.upper(), 'w formatce zostały rachunki bankowe'
 assert 'GEPARD' not in check.upper() and len(fitz.open(out_path)[0].get_images()) == 1, 'w formatce zostały resztki oryginału'
 mm = lambda pt: round(pt * 25.4 / 72, 1)
 print(f'linia nagłówka {mm(y_line_head)} mm od góry, linia stopki {mm(H - y_line_foot)} mm od dołu, '

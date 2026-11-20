@@ -3,9 +3,9 @@
 /**
  * Rabat B2B — owner organizacji spoza HKL daje swojemu klientowi rabat w ofercie
  * (zgłoszenie KK 18.11.2026, decyzje właściciela z tego dnia):
- *  • **procent = punkty doliczane do rabatu z cennika** (`SUB___CENA_RABAT`) każdej
- *    pozycji: 70% + 3 = 73%, 55% + 3 = 58%. Per pozycja, bo cennik tego samego
- *    klienta różni się między grupami (Luxan: od 0% w gr. 73 do 70% u JC);
+ *  • **procent = rabat extra od ceny po rabacie z cennika** (Paweł 19.11: „70 i osobno
+ *    10%”): cennik zostaje, cena × (1 − 10%). Kolumna `b2b_discount_points` i pole
+ *    `points` niosą ten procent (do 19.11 były to punkty doliczane do cennika, 70% + 10 = 80%);
  *  • **kwota = równy procent pozycji**: przy zapisie zamieniana na procent wartości
  *    zlecenia po rabacie %. Po dodaniu/usunięciu pozycji procent zostaje, okno
  *    pokazuje nową kwotę, a ponowne „Zastosuj” liczy procent od nowa;

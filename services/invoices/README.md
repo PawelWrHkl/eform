@@ -656,6 +656,62 @@ znaczników — awaria FTP nie zużywa prób faktur — i daje kod 1 skryptu.
 Ręcznie: `npm run prodstatus:dry` pokazuje docelowe ścieżki;
 `node scripts/prodStatusSync.js --no-ftp` — cykl bez FTP.
 
+## Konto do wpłaty klienta HKL (`core/contractorAccounts.js`, v17, 19.11.2026)
+
+Faktura, której wystawcą jest HKL (poziom 1, klienci HKL, in blanco HKL), drukuje w sekcji „Płatność”
+bank, IBAN i SWIFT przypisane nabywcy w kartotece księgowości (polecenie Pawła: „to obowiązek”).
+
+- Źródło: `kontrahenci - nr kont bankowych.xlsx` → `node scripts/importContractorAccounts.js <plik>` →
+  `data/hkl-contractor-accounts.json` (klucz = NIP bez kodu kraju i znaków; kolumny FA-BANK/FA-IBAN/FA-SWIFT).
+  Skrypt przerywa przy błędnym IBAN-ie, braku NIP-u albo dublu. Nowy plik z księgowości = import + wgranie
+  JSON-a + restart (plik czyta się raz na proces).
+- Konto liczy się przy KAŻDYM druku (`renderer.renderInvoiceHtml` → `paymentAccount`), więc obowiązuje też
+  dla faktur wystawionych wcześniej. Formatka `HKL_POZIOM.pdf` od 19.11 nie ma kont (generator
+  `scripts/hklLandscapeLetterhead.py`) — na fakturze jest jedno konto.
+- Nabywca spoza pliku → domyślne `PL34 1050 1559 1000 0090 3311 9596` (ING EUR) + ostrzeżenie w
+  `compliance.warnings` (log automatu, edytor, formularz in blanco).
+
+## Płatnik i konto z contractors.txt (v19, 19.11.2026)
+
+Od 19.11 (mail Tomka) `contractors.txt` ma kolumny `EMAIL`, `COUNTRY` (dawniej `KRAJ`), `PAYMASTER_IDENT`,
+`BANK_NAME`, `BANK_ACCOUNT`, `SWIFT`; „-” = brak. `services/dbUserSync.js` synchronizuje je do `user`
+(kolumny `paymaster_ident`, `bank_name`, `bank_account`, `swift` — migracja `migrations/add_user_paymaster_bank.sql`;
+bez niej nowe pola są pomijane). Pusty/„-” e-mail w pliku nie kasuje adresu w bazie.
+
+- **Płatnik**: `repository.getOrderInvoiceSource` dokłada `payer` (konto o identzie `paymaster_ident`, inne niż
+  klienta), `hierarchy.withPayer` — nabywca faktury poziomu 2 (konto klienta, nie sklep grupowy) dostaje nazwę,
+  NIP, adres, kraj, e-mail i telefon płatnika; puste pola płatnika zostają z konta klienta. `buyerUserId`, katalog
+  FTP i grupowanie dziennych zostają przy kliencie. In blanco bez zmian (nabywcę wybiera się wprost).
+- **Konto**: `user.bankAccount` = konto płatnika, a bez niego klienta (`accountFromContractor`, zły IBAN = brak);
+  faktura HKL zapisuje je w `compliance.paymentAccount`. Kolejność przy druku: zapisane w fakturze → plik
+  księgowości po NIP (`data/hkl-contractor-accounts.json`) → domyślne ING EUR.
+
+## Płatności z księgowości i przypomnienia (`invoicePayments.js`, v18, 19.11.2026)
+
+Statusy „otwarta” (`issued`/`overdue`) i „opłacona” (`paid`); wpłata częściowa w `paid_amount`.
+
+**Plik od księgowości** (automat Wiktorii, decyzja Pawła 19.11): `<INVOICE_FTP_DIR>/platnosci.tsv`, UTF-8,
+tabulatory, nagłówek w pierwszym wierszu, cały stan przy każdej aktualizacji (co ~15 min):
+
+| Kolumna | Znaczenie |
+|---|---|
+| `LEVEL` | poziom faktury — jak w `zafakturowane_pozycje.tsv` |
+| `INVOICENO` | numer faktury, np. `26000002` |
+| `ORGANIZATIONIDENT` | jak w `zafakturowane_pozycje.tsv` (ten sam numer bywa u dwóch wystawców: 26000009 HKL i Cozy) |
+| `PAIDAMOUNT` | ile ŁĄCZNIE zapłacono, w walucie faktury (`442.18` albo `442,18`) |
+| `PAIDDATE` | data ostatniej wpłaty `RRRR-MM-DD` (pusta, gdy `PAIDAMOUNT` = 0) |
+
+Cykl tła (`prodStatusCycle`, PRZED mailami): pełna wpłata → `paid` + `paid_at`, częściowa → `paid_amount`,
+zdarzenie `payment_synced`; opłaconej nie cofa (log „UWAGA”); brak pliku = nic. `INVOICE_PAYMENTS_ENABLED=true`.
+
+**Przypomnienie** (`invoiceMailer.js`, `INVOICE_REMINDERS_ENABLED=true` + WYMAGANE `INVOICE_REMINDERS_SINCE`):
+faktura z terminem płatności dziś, wystawiona od `SINCE`, nieopłacona, wcześniej wysłana mailem w tym samym
+trybie (klient nie dostanie przypomnienia o fakturze, której nie dostał) → od 7:00 mail w języku faktury:
+„Przypomnienie o płatności: …”, pozostała kwota, ten sam PDF w załączniku; raz na fakturę (`reminder_sent` /
+`reminder_redirected`, 3 próby `reminder_failed`). UDW do skrzynki fakturowej wystawcy
+(`organization.invoice_email`, zapasowo adres z profilu) — tylko przy wysyłce do klientów; w trybie testowym
+tylko testerzy, jak faktury. Limit wspólny z mailami faktur (`INVOICE_MAIL_MAX_PER_RUN`).
+
 ## Przegląd „wystawione / niewystawione" (panel, poziomy 1 i 2)
 
 Ekran startowy `/invoices` pokazuje pod wyborem klienta tabelę wszystkich

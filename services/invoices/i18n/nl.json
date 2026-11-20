@@ -101,5 +101,9 @@
   "blank.rebill_note": "Doorberekening van kosten",
   "blank.tpl.transport": "Transportkosten",
   "blank.tpl.montage": "Montage",
-  "blank.tpl.repair": "Reparatie"
+  "blank.tpl.repair": "Reparatie",
+  "reminder.subject": "Betalingsherinnering",
+  "reminder.intro": "wij herinneren u eraan dat de betaling van onderstaande factuur vandaag vervalt. De factuur sturen wij u opnieuw als bijlage.",
+  "reminder.paid_note": "Heeft u de betaling al gedaan, dan kunt u dit bericht als niet verzonden beschouwen.",
+  "reminder.amount_left": "Openstaand bedrag"
 }

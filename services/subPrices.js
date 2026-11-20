@@ -102,7 +102,11 @@ function parseJsonValues(raw) {
 function calcSubTotals(orderItems) {
   let subVisible = 0;
   let subLocked = 0;
-  if (!Array.isArray(orderItems)) return { subVisible, subLocked };
+  // Suma „Razem po rabacie” bez rabatu B2B organizacji (`WARTOSC_PRZED_B2B` z
+  // pricesCalculator.js) — pod nią stopka pokazuje „Rabat extra B2B” i cenę po rabacie.
+  let subBeforeB2b = 0;
+  let hasB2b = false;
+  if (!Array.isArray(orderItems)) return { subVisible, subLocked, subBeforeB2b: null };
 
   for (const item of orderItems) {
     let parsed = item?.json_parameters_desc;
@@ -177,11 +181,19 @@ function calcSubTotals(orderItems) {
     // WARTOSC_KONCOWA = 113.20, WARTOSC_PO_RABACIE = 112.07, w bazie 112.07 —
     // a kafelek pokazywał 113.20.
     subVisible += itemVisible;
-    subLocked += itemAfterDiscount !== null ? itemAfterDiscount : itemLocked;
+    const itemFinal = itemAfterDiscount !== null ? itemAfterDiscount : itemLocked;
+    subLocked += itemFinal;
+    const beforeB2b = parseFloat(parseJsonValues(item?.json_parameters).WARTOSC_PRZED_B2B);
+    if (Number.isFinite(beforeB2b)) hasB2b = true;
+    subBeforeB2b += Number.isFinite(beforeB2b) ? beforeB2b : itemFinal;
   }
+  subLocked = parseFloat(subLocked.toFixed(2));
+  subBeforeB2b = parseFloat(subBeforeB2b.toFixed(2));
   return {
     subVisible: parseFloat(subVisible.toFixed(2)),
-    subLocked: parseFloat(subLocked.toFixed(2))
+    subLocked,
+    // null = brak rabatu B2B; stopka zostaje jak była
+    subBeforeB2b: hasB2b && subBeforeB2b > subLocked ? subBeforeB2b : null
   };
 }
 

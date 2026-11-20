@@ -334,10 +334,10 @@ test('calcSubTotals: pozycja bez wierszy sum SUB___ w opisie — sumy z wartośc
       ['SUB___CENA_RABAT', { param_description: 'RABAT', option_value: '60%', row: '2', locked: true, sub: true }]
     ]
   };
-  assert.deepEqual(calcSubTotals([legacy]), { subVisible: 213.3, subLocked: 85.32 });
+  assert.deepEqual(calcSubTotals([legacy]), { subVisible: 213.3, subLocked: 85.32, subBeforeB2b: null });
   // Wartości zapisane jako tekst JSON (podwójnie) — jak w części starych wierszy.
   assert.deepEqual(calcSubTotals([{ ...legacy, json_parameters: JSON.stringify(JSON.stringify(legacy.json_parameters)) }]),
-    { subVisible: 213.3, subLocked: 85.32 });
+    { subVisible: 213.3, subLocked: 85.32, subBeforeB2b: null });
 });
 
 test('calcSubTotals: pozycja Z wierszami sum SUB___ — liczone jak dotąd (wartości nie są czytane)', () => {
@@ -349,10 +349,21 @@ test('calcSubTotals: pozycja Z wierszami sum SUB___ — liczone jak dotąd (wart
       ['SUMA_BRUTTO', { option_value: '100', listsum: true }]
     ]
   };
-  assert.deepEqual(calcSubTotals([item]), { subVisible: 120, subLocked: 48 });
+  assert.deepEqual(calcSubTotals([item]), { subVisible: 120, subLocked: 48, subBeforeB2b: null });
   // Pozycja bez żadnych cen SUB___ — nic nie dopisujemy.
   assert.deepEqual(calcSubTotals([{ json_parameters: { SUB___SUMA_BRUTTO: 5 }, json_parameters_desc: [['SUMA_BRUTTO', { option_value: '1', listsum: true }]] }]),
-    { subVisible: 0, subLocked: 0 });
+    { subVisible: 0, subLocked: 0, subBeforeB2b: null });
+});
+
+test('calcSubTotals: rabat B2B — suma bez B2B z WARTOSC_PRZED_B2B, pozycja bez niego liczy się po rabacie', () => {
+  const item = (after, before) => ({
+    json_parameters: before === undefined ? {} : JSON.stringify({ WARTOSC_PRZED_B2B: before }),
+    json_parameters_desc: [['SUB___WARTOSC_KONCOWA', { option_value: String(after), listsum: true, locked: true }]]
+  });
+  assert.deepEqual(calcSubTotals([item(97, 100), item(48.5, 50), item(10)]),
+    { subVisible: 0, subLocked: 155.5, subBeforeB2b: 160 });
+  // Rabat B2B zdjęty, ale wartość została (0 pkt) — stopka bez wierszy B2B.
+  assert.equal(calcSubTotals([item(100, 100)]).subBeforeB2b, null);
 });
 
 // ─── Wydruk i PDF: ta sama reguła ───────────────────────────────────────────
@@ -643,6 +654,16 @@ test('kolumny stopki order_prices.njk: owner — P | N; klient bez cen SUB___ �
   const plain = totalsColumns(pageHtml('order_prices.njk', { prices: true, totalPrice: TOTAL_PRICE, ...currencyLocals('PLN') }));
   assert.equal(plain.sub, null);
   assert.match(plain.regular, /order\.total: 100\.00 zł order\.total_hidden: 90\.00 zł netto/);
+});
+
+test('stopka po kłódce z rabatem B2B (mail szefa 19.11): suma bez B2B → rabat extra → cena po rabacie', () => {
+  const b2b = { ...TOTAL_PRICE, subLocked: 107, subBeforeB2b: 110 };
+  for (const template of ['order.njk', 'order_prices.njk']) {
+    const { sub } = totalsColumns(pageHtml(template, { ...OWNER, prices: true, totalPrice: b2b, ...currencyLocals('PLN') }));
+    assert.match(sub, /order\.total_hidden: 110\.00 zł netto order\.total_b2b_extra_discount 2\.73%: −3\.00 zł order\.total_after_b2b_discount: 107\.00 zł netto/, template);
+    const plain = totalsColumns(pageHtml(template, { ...OWNER, prices: true, totalPrice: TOTAL_PRICE, ...currencyLocals('PLN') }));
+    assert.doesNotMatch(plain.sub, /b2b/, `${template}: bez B2B stopka jak dotąd`);
+  }
 });
 
 test('kolumny PDF (mail) i wydruku: suma ukryta i VAT w kolumnie wg znaczników z buildPdfSendDataTotals', () => {

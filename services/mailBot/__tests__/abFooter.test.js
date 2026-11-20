@@ -3,7 +3,7 @@
 /**
  * Stopka AB ze stoiskiem (POP-19): baner `_ab_footer.njk` w mailu (mailTemplate.njk) i PDF/HTML
  * (order-pdf.njk) każdego AB, w języku AB, sterowany `config.features.abFooter` (AB_FOOTER_ENABLED),
- * tylko dla zleceń organizacji z `organizations` w abFooter.json (dziś HKL — sendData.organizationIdent).
+ * dla wszystkich organizacji (opcjonalny klucz `organizations` w abFooter.json zawęża).
  */
 
 const test = require('node:test');
@@ -81,15 +81,14 @@ test('nieznany język: brak stopki zamiast cudzego języka', () => {
   assert.equal(abFooter('xx', 'data', 'HKL'), null);
 });
 
-test('tylko organizacja HKL: zlecenia Luxan i bez organizacji — bez stopki w mailu i PDF', async () => {
+test('wszystkie organizacje (19.11): zlecenia HKL, Luxan, Cozy i bez organizacji — stopka w mailu i PDF', () => {
   config.features.abFooter = true;
-  assert.ok(abFooter('de', 'data', 'hkl'), 'ident bez względu na wielkość liter');
-  for (const org of ['LUXANGMBH', 'Cozy', null]) {
-    assert.equal(abFooter('de', 'data', org), null, `${org}: stopka nie dla tej organizacji`);
+  const { organizations } = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  assert.equal(organizations, undefined, 'abFooter.json nie zawęża organizacji');
+  for (const org of ['HKL', 'LUXANGMBH', 'Cozy', null]) {
+    assert.ok(abFooter('de', 'data', org), `${org}: brak stopki`);
+    assert.match(pdfHtml('de', org), /ab-footer/, `${org}: PDF bez stopki`);
     const m = mail('de', org);
-    assert.doesNotMatch(m.html, /ab-footer/, `${org}: mail ze stopką`);
-    assert.ok(!m.attachments.some((a) => a.cid === IMAGE_CID || a.cid === BANNER_CID), `${org}: obrazek stopki w mailu`);
-    assert.doesNotMatch(pdfHtml('de', org), /ab-footer/, `${org}: PDF ze stopką`);
-    assert.equal(await ensureAbFooterBanner('de', org), null, `${org}: baner renderowany niepotrzebnie`);
+    assert.ok(m.attachments.some((a) => a.cid === IMAGE_CID || a.cid === BANNER_CID), `${org}: mail bez obrazka stopki`);
   }
 });

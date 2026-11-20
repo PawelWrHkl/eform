@@ -674,40 +674,44 @@ test('klient LUXAN_EWA_KRAWCZYK z PL (window.grossAfterDiscount): ukryte kwoty p
   assert.equal(dvInny.get('SUB___CENA_KONCOWA').param_description, 'CENA NETTO PO RABACIE [€]', 'bez flagi — jak w param.txt');
 });
 
-// ── Rabat B2B organizacji (services/b2bDiscount.js, decyzje 2026-11-18) ──────
-// Punkty doliczane do rabatu z cennika TEJ pozycji, liczone dalej jak rabat
-// klienta grupy; kwota jako równy procent na samym końcu.
+// ── Rabat B2B organizacji (services/b2bDiscount.js) ──────────────────────────
+// Od 2026-11-19 (Paweł: „70 i osobno 10%”): procent extra od ceny po rabacie
+// z cennika, potem kwota jako równy procent — oba mnożą cenę na końcu.
 
 function makeB2bWindow({ points = 0, amountPct = 0, clientDiscountPercent = 0 } = {}) {
   const window = makeWindow({ clientDiscountPercent });
   window.b2bDiscountPoints = points;
   window.b2bDiscountAmountPercent = amountPct;
-  const t0 = window.t;
-  window.t = (key, vars) => (key === 'form.b2b_discount_label' ? `Rabat B2B (+${vars.points} pkt)` : t0(key, vars));
   return window;
 }
 
-test('B2B +3 pkt: rabat z cennika 60% → 63% od ceny katalogowej (283 × 0.37 = 104.71)', () => {
-  const window = makeB2bWindow({ points: 3 });
+test('B2B 10%: cennik zostaje 60%, B2B osobnym wierszem od ceny po cenniku (113.20 × 0.9 = 101.88)', () => {
+  const window = makeB2bWindow({ points: 10 });
   const values = valuesFixture(113.2, 2, 283);
   const dv = displayValuesFixture(window, 113.2, 2);
 
   window.__discountTest.applyClientDiscount(values, dv);
 
-  assert.equal(values.SUB___CENA_KONCOWA, 104.71);
-  assert.equal(values.SUB___WARTOSC_KONCOWA, 209.42, '× ILOSC 2');
-  assert.equal(window.__discountTest.getTotal(dv).total_sub, 209.42, 'suma pozycji bierze cenę po rabacie B2B');
-  assert.equal(values.SUB___CENA_RABAT, 0.6, 'rabat z cennika nietknięty — punkty nie kumulują się');
-  assert.equal(values.RABAT_KLIENTA, 63);
-  const row = dv.get('SUB___RABAT_KLIENTA');
-  assert.equal(row.option_value, '63%');
-  assert.equal(row.param_description, 'Rabat B2B (+3 pkt)');
+  assert.equal(values.SUB___CENA_KONCOWA, 101.88);
+  assert.equal(values.SUB___WARTOSC_KONCOWA, 203.76, '× ILOSC 2');
+  assert.equal(window.__discountTest.getTotal(dv).total_sub, 203.76, 'suma pozycji bierze cenę po rabacie B2B');
+  assert.equal(values.SUB___CENA_RABAT, 0.6, 'rabat z cennika nietknięty');
+  assert.equal(dv.get('SUB___CENA_RABAT').option_value, '60%');
+  assert.equal(dv.has('SUB___RABAT_KLIENTA'), false, 'bez „Rabat B2B 70%” — tylko osobne 10%');
+  assert.equal(dv.has('SUB___CENA_PO_RABACIE'), false, 'bez rozbicia rabatu klienta');
+  const row = dv.get('SUB___RABAT_B2B');
+  assert.equal(row.option_value, '10%');
+  assert.equal(row.param_description, 'order.total_b2b_extra_discount');
   assert.equal(row.locked, true, 'pod kłódką');
   assert.equal(row.sub, true);
+  assert.ok(window.lockedParams.includes('SUB___RABAT_B2B') && window.subParams.includes('SUB___RABAT_B2B'));
+  assert.equal(values.RABAT_B2B, 10, 'procent dla specyfikacji ceny');
+  assert.equal(values.RABAT_KLIENTA, 0);
   assert.equal(dv.has('SUB___RABAT_B2B_KWOTOWY'), false, 'bez kwoty nie ma wiersza kwoty');
+  assert.equal(values.WARTOSC_PRZED_B2B, 226.4, 'wartość bez B2B dla stopki: 113.20 × 2');
 });
 
-test('B2B punkty idą od cennika KAŻDEJ pozycji osobno (55% + 5 = 60%), dopłata zostaje z rabatem z cennika', () => {
+test('B2B z dopłatą: cała cena po cenniku × (1 − B2B), dopłata nie dostaje osobnego rabatu (225 × 0.95 = 213.75)', () => {
   const window = makeB2bWindow({ points: 5 });
   const values = {
     ILOSC: 1, SUB___CENA: 400, SUB___DOPLATA: 100, SUB___DOPLATA_EL: 0, SUB___CENA_SUMA: 500,
@@ -717,10 +721,9 @@ test('B2B punkty idą od cennika KAŻDEJ pozycji osobno (55% + 5 = 60%), dopłat
 
   window.__discountTest.applyClientDiscount(values, dv);
 
-  assert.equal(dv.get('SUB___CENA_PO_RABACIE').option_value, '160', '400 × 40%');
-  assert.equal(dv.get('SUB___DOPLATA_PO_RABACIE').option_value, '45', 'dopłata 100 × 45% — rabat z cennika');
-  assert.equal(values.SUB___CENA_KONCOWA, 205);
-  assert.equal(dv.get('SUB___RABAT_KLIENTA').option_value, '60%');
+  assert.equal(values.SUB___CENA_KONCOWA, 213.75);
+  assert.equal(dv.has('SUB___DOPLATA_PO_RABACIE'), false);
+  assert.equal(dv.get('SUB___RABAT_B2B').option_value, '5%');
 });
 
 test('B2B sama kwota (10%): ten sam mnożnik na cenie po cenniku, osobny ukryty wiersz, bez wiersza rabatu klienta', () => {
@@ -733,6 +736,7 @@ test('B2B sama kwota (10%): ten sam mnożnik na cenie po cenniku, osobny ukryty 
   assert.equal(values.SUB___CENA_KONCOWA, 101.88, '113.20 × 0.9');
   assert.equal(window.__discountTest.getTotal(dv).total_sub, 101.88);
   assert.equal(dv.has('SUB___RABAT_KLIENTA'), false);
+  assert.equal(dv.has('SUB___RABAT_B2B'), false, 'bez procentu B2B');
   const row = dv.get('SUB___RABAT_B2B_KWOTOWY');
   assert.equal(row.option_value, '10%');
   assert.equal(row.locked, true);
@@ -747,45 +751,36 @@ test('B2B sama kwota (10%): ten sam mnożnik na cenie po cenniku, osobny ukryty 
   assert.equal(v2.RABAT_PORTALU, 1, 'ekstra rabat zapisany dla specyfikacji ceny');
 });
 
-test('B2B punkty + kwota: najpierw punkty, potem równy procent (104.71 × 0.9 = 94.24); dwa przeliczenia pod rząd dają to samo', () => {
-  const window = makeB2bWindow({ points: 3, amountPct: 10 });
+test('B2B procent + kwota: 113.20 × 0.9 × 0.9 = 91.69; dwa przeliczenia pod rząd dają to samo', () => {
+  const window = makeB2bWindow({ points: 10, amountPct: 10 });
   const values = valuesFixture(113.2, 1, 283);
   const dv = displayValuesFixture(window, 113.2);
 
   window.__discountTest.applyClientDiscount(values, dv);
-  assert.equal(values.SUB___CENA_KONCOWA, 94.24);
+  assert.equal(values.SUB___CENA_KONCOWA, 91.69);
+  assert.equal(values.WARTOSC_PRZED_B2B, 113.2, 'bez procentu i bez kwoty');
   // Silnik liczy formuły od nowa przed każdym rabatem — odtwarzamy to.
   Object.assign(values, valuesFixture(113.2, 1, 283));
   window.__discountTest.applyClientDiscount(values, dv);
-  assert.equal(values.SUB___CENA_KONCOWA, 94.24);
+  assert.equal(values.SUB___CENA_KONCOWA, 91.69);
 
   const keys = [...dv.keys()];
-  assert.ok(keys.indexOf('SUB___RABAT_B2B_KWOTOWY') > keys.indexOf('SUB___CENA_PO_RABACIE'), 'kwota za rozbiciem');
+  assert.ok(keys.indexOf('SUB___RABAT_B2B') > keys.indexOf('SUB___CENA_RABAT'), 'za rabatem z cennika');
+  assert.ok(keys.indexOf('SUB___RABAT_B2B_KWOTOWY') > keys.indexOf('SUB___RABAT_B2B'), 'kwota za procentem');
   assert.ok(keys.indexOf('SUB___RABAT_B2B_KWOTOWY') < keys.indexOf('SUB___CENA_KONCOWA'), 'przed wartością 1 szt.');
 });
 
-test('B2B bez ceny katalogowej: rabat z cennika zamieniony na nowy (40 × 37/40 = 37)', () => {
+test('B2B bez ceny katalogowej: procent od ceny po cenniku (40 × 0.97 = 38.80)', () => {
   const window = makeB2bWindow({ points: 3 });
   const values = { ILOSC: 1, SUB___CENA_RABAT: 0.6, SUB___CENA_KONCOWA: 40, SUB___WARTOSC_KONCOWA: 40 };
   const dv = displayValuesFixture(window, 40);
 
   window.__discountTest.applyClientDiscount(values, dv);
 
-  assert.equal(values.SUB___CENA_KONCOWA, 37);
+  assert.equal(values.SUB___CENA_KONCOWA, 38.8);
 });
 
-test('rabat klienta grupy ma pierwszeństwo przed B2B (serwer i tak nie wysyła obu)', () => {
-  const window = makeB2bWindow({ points: 3, clientDiscountPercent: 15 });
-  const values = valuesFixture(832.15, 1, 979);
-  const dv = displayValuesFixture(window, 832.15, 1, '15%');
-
-  window.__discountTest.applyClientDiscount(values, dv);
-
-  assert.equal(values.SUB___CENA_KONCOWA, 832.15, '979 × 85% — punkty B2B nie działają');
-  assert.equal(dv.get('SUB___RABAT_KLIENTA').option_value, '15%');
-});
-
-test('odebrany rabat B2B: wiersze i dokładny procent kwoty znikają', () => {
+test('odebrany rabat B2B: wiersze, procenty i wartość bez B2B znikają', () => {
   const window = makeB2bWindow({ points: 3, amountPct: 10 });
   const values = valuesFixture(113.2, 1, 283);
   const dv = displayValuesFixture(window, 113.2);
@@ -796,9 +791,11 @@ test('odebrany rabat B2B: wiersze i dokładny procent kwoty znikają', () => {
   Object.assign(values, valuesFixture(113.2, 1, 283));
   window.__discountTest.applyClientDiscount(values, dv);
 
-  for (const key of ['SUB___RABAT_KLIENTA', 'SUB___CENA_PO_RABACIE', 'SUB___RABAT_B2B_KWOTOWY']) {
+  for (const key of ['SUB___RABAT_KLIENTA', 'SUB___RABAT_B2B', 'SUB___RABAT_B2B_KWOTOWY']) {
     assert.equal(dv.has(key), false, `${key} usunięty`);
   }
-  assert.equal('RABAT_B2B_KWOTOWY' in values, false);
+  for (const key of ['RABAT_B2B', 'RABAT_B2B_KWOTOWY', 'WARTOSC_PRZED_B2B']) {
+    assert.equal(key in values, false, `${key} usunięty`);
+  }
   assert.equal(values.SUB___CENA_KONCOWA, 113.2, 'cena z cennika');
 });

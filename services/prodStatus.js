@@ -1,7 +1,7 @@
 const { usersPath } = require('../config.js');
 const path = require('path');
 const fs = require('fs').promises;
-const { convertToSQLDate } = require('../utils/humanize_date.js');
+const { convertToSQLDate, getDbTimestamp } = require('../utils/humanize_date.js');
 const { log } = require('../utils/logging');
 
 /** Eksport systemu produkcyjnego, nadpisywany z zewnątrz — eForm go tylko czyta. */
@@ -199,6 +199,17 @@ async function syncAllProdStatuses({ dryRun = false, full = false, filePath = ST
         for (const order of orders) {
             if (!(await statusDb.syncOrderFromStatuses(order.userIdent, order.orderIdx))) summary.failed++;
         }
+    }
+
+    // Anulowane w produkcji (każda pozycja) → anulowane w eFormie (Paweł 19.11.2026).
+    try {
+        const keys = [...require('./prodProgress').buildCanceledOrders(fileRows).values()];
+        const ids = await statusDb.cancelOrdersFromProd(keys, { canceledAt: getDbTimestamp(), dryRun });
+        summary.canceledByProd = ids.length;
+        if (ids.length) logger(`[prodStatus] ${dryRun ? 'DRY-RUN do anulowania' : 'anulowane'} przez produkcję (Anulacja na każdej pozycji): zlecenia ${ids.join(', ')}`);
+    } catch (error) {
+        summary.failed++;
+        logger(`[prodStatus] ⚠️ anulowanie zleceń anulowanych przez produkcję nie powiodło się: ${error.message}`);
     }
 
     summary.durationMs = Date.now() - startedAt;

@@ -1,0 +1,17 @@
+{# Rabat B2B organizacji pod „Razem po rabacie” (mail szefa 2026-11-19: suma 100 €,
+   rabat extra 3%, cena po rabacie 97 €). Wiersz „Razem po rabacie” pokazuje wtedy
+   sumę BEZ rabatu B2B (`subBeforeB2b`, services/subPrices.js calcSubTotals), a te dwa
+   wiersze — różnicę i `subLocked`, czyli to, z czego idzie faktura i VAT niżej.
+   Włączany jak order_vat_totals.njk: `vatTotalsApplyFactor` mówi o `applyFactor`. #}
+{% if totalPrice and totalPrice.subBeforeB2b %}
+{% set b2bCut = totalPrice.subBeforeB2b - totalPrice.subLocked %}
+{# Kafelek rabatu w bursztynowym akcencie rabatu (`.client-discount-row`), nie złoty (Paweł 19.11). #}
+<div class="total-price client-discount-row d-flex justify-content-end align-items-center col-12">
+    <span class='total price-label col-3 text-center'>
+        {{ __('order.total_b2b_extra_discount') }} {{ (b2bCut / totalPrice.subBeforeB2b * 100) | round(2) }}%: −{{ (b2bCut | applyFactor(priceFactor)) if vatTotalsApplyFactor else (b2bCut | applyFactor(1)) }}{{ currencySuffix | default('€') }}</span>
+</div>
+<div class="total-price d-flex justify-content-end align-items-center col-12">
+    <span class='total gold price-label col-3 text-center'>
+        {{ __('order.total_after_b2b_discount') }}: {{ (totalPrice.subLocked | applyFactor(priceFactor)) if vatTotalsApplyFactor else (totalPrice.subLocked | applyFactor(1)) }}{{ currencySuffix | default('€') }} {{ 'brutto' if totalPrice.subLockedGross else 'netto' }}</span>
+</div>
+{% endif %}

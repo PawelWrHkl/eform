@@ -12,10 +12,12 @@
  *    zostaje na stałe (historia: tabela `prod_status_history`,
  *    migrations/add_prod_status_history.sql),
  *  • status bez procentu („Got.do fakt.”, „Zafakturowane”, „Anulacja” = zlecenie
- *    anulowane przez produkcję) = blokada.
+ *    anulowane przez produkcję) = blokada,
+ *  • zlecenie bez pozycji w pliku = blokada (Wiktoria 19.11.2026).
  * Admin i biuro korygują zawsze (services/orderCancellation.js `canCorrect`) — poza
  * zleceniem anulowanym przez produkcję (`canceled`: „Anulacja” na KAŻDEJ pozycji,
- * Wiktoria 17.11.2026); anulowanie obowiązuje wszystkich. Zastępuje dawne okno 24 h.
+ * Wiktoria 17.11.2026); takie zlecenie cykl statusów sam oznacza jako anulowane
+ * (services/prodStatus.js, Paweł 19.11.2026). Anulowanie obowiązuje wszystkich.
  */
 
 'use strict';
@@ -54,14 +56,27 @@ function buildProgressIndex(rows) {
     return index;
 }
 
-/** Klucze zleceń anulowanych przez produkcję: „Anulacja” na każdej pozycji w pliku (pojedyncze pozycje — nie). */
-function buildCanceledSet(rows) {
+/**
+ * Pozycja anulowana przez produkcję: BIEŻĄCY STATUSPROD „Anulacja” (MAXSTATUSPROD bywa
+ * „Anulacja” przy pozycjach wysłanych — Ryver 239, 19.11.2026) albo STATUS „cancelled”
+ * (Wiktoria poprosiła Tomka o osobny status 19.11.2026).
+ */
+function isCanceledRow(row) {
+    return /^anulac/i.test(String(row?.STATUSPROD ?? '').trim()) || /^!?cancel/i.test(String(row?.STATUS ?? '').trim());
+}
+
+/**
+ * Zlecenia anulowane przez produkcję — KAŻDA pozycja w pliku anulowana (pojedyncze pozycje — nie).
+ * @returns {Map<string, [string, string, string]>} klucz zlecenia → `[organizacja, klient, nr]` z pliku
+ */
+function buildCanceledOrders(rows) {
     const all = new Map();
     for (const row of rows || []) {
         const key = orderKey(row.ORGANIZATIONIDENT, row.USERIDENT, row.ORDERNO);
-        all.set(key, (all.get(key) ?? true) && /^anulac/i.test(maxStatusProd(row)));
+        const canceled = (all.get(key)?.canceled ?? true) && isCanceledRow(row);
+        all.set(key, { canceled, ids: [String(row.ORGANIZATIONIDENT).trim(), String(row.USERIDENT).trim(), normOrderNo(row.ORDERNO)] });
     }
-    return new Set([...all].filter(([, canceled]) => canceled).map(([key]) => key));
+    return new Map([...all].filter(([, order]) => order.canceled).map(([key, order]) => [key, order.ids]));
 }
 
 /** Wiersze pliku → wiersze `prod_status_history` (`db/statuses.js recordProdStatusHistory`). */
@@ -103,12 +118,13 @@ function decide(order, index, history = null) {
         else if (history.max_percent !== null && history.max_percent !== undefined) highest = Math.max(highest, Number(history.max_percent));
     }
     const percent = Number.isFinite(highest) ? highest : null;
-    if (!index.has(key) && String(order?.prod_status ?? '').trim()) return { allowed: false, percent };
-    if (highest === -Infinity) return { allowed: true, percent: null };
+    // Bez pozycji w pliku stan produkcji jest nieznany → bez przycisków (Wiktoria 19.11.2026:
+    // Neidhardt_Raumaus_SV nr 2 z 12.08 nigdy nie było w status.txt, a klient je anulował).
+    if (!index.has(key)) return { allowed: false, percent };
     return { allowed: highest < PROD_LOCK_PERCENT, percent };
 }
 
-let cache = { file: null, mtimeMs: null, index: null, canceled: new Set() };
+let cache = { file: null, mtimeMs: null, index: null, canceled: new Map() };
 let historyWarned = false;
 
 function resolveDeps(deps = {}) {
@@ -143,7 +159,7 @@ async function loadIndex(deps = {}) {
         if (cache.file === d.filePath && cache.mtimeMs === stat.mtimeMs) return cache.index;
         const rows = require('./prodStatus').parseStatusFile(await d.fs.readFile(d.filePath, 'utf-8'));
         const index = buildProgressIndex(rows);
-        cache = { file: d.filePath, mtimeMs: stat.mtimeMs, index, canceled: buildCanceledSet(rows) };
+        cache = { file: d.filePath, mtimeMs: stat.mtimeMs, index, canceled: buildCanceledOrders(rows) };
         await recordHistory(rows, deps);
         return index;
     } catch (err) {
@@ -191,7 +207,7 @@ module.exports = {
     maxStatusProd,
     orderKey,
     buildProgressIndex,
-    buildCanceledSet,
+    buildCanceledOrders,
     historyRows,
     decide,
     recordHistory,

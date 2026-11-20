@@ -7,7 +7,7 @@
  *
  *   node scripts/checkTransportApi.js
  *
- * TRANSPORT_API_KEY (i ewentualnie TRANSPORT_API_URL) trzymamy tylko w .env.local,
+ * TRANSPORT_API_KEY (klucz testowy działa tylko z 192.168.0.8) trzymamy tylko w .env.local,
  * bo .env jest automatycznie commitowany. Bez klucza sprawdza tylko autoryzację,
  * ścieżki i metody, a testy z kluczem są pomijane. Odpowiedzi wypisuje w całości,
  * żeby było widać ich format (specyfikacji z załącznika nie ma w repo).
@@ -66,7 +66,38 @@ test('puste zapytanie: 422 z listą pól', needsKey, async () => {
   assert.ok(r.json && Object.values(r.json).some((v) => Array.isArray(v) && v.length), 'brak listy błędnych pól');
 });
 
-// Te testy wymagają formatu zapytania ze specyfikacji Wiktorii (załącznik, mail z 28.10).
-test.todo('wycena: te same kwoty co faktury z 16.11');
-test.todo('linia rabatu (ilość 0, wartość ujemna) jest przyjmowana');
-test.todo('data w tekście linii w formacie DD.MM.RRRR');
+// Kwoty z maila Wiktorii z 19.11 (reguły 2026-11-18.v4.2). Inna kwota = zmiana reguł albo błąd.
+const pos = (extra) => ({ client: 'EFORM_KONTROLA', ship_date: '2026-11-16', carrier: 'DPD', country: 'DE', qty: 1, net: 50, ...extra });
+async function quote(...positions) {
+  const r = await call('POST', '/v1/transport/quote', { key: KEY, body: { positions } });
+  assert.equal(r.status, 200, r.text);
+  return r.json.charges.map((c) => [c.amount, c.action]);
+}
+
+test('wycena: DE poniżej 100 EUR 8,50, Austria 19,00, naprawa 22,00, zastępcza bez kosztu', needsKey, async () => {
+  assert.deepEqual(await quote(pos()), [['8.50', 'charge']]);
+  assert.deepEqual(await quote(pos({ country: 'AT' })), [['19.00', 'charge']]);
+  assert.deepEqual(await quote(pos({ kind: 'repair' })), [['22.00', 'charge']]);
+  assert.deepEqual(await quote(pos({ kind: 'replacement', net: 0 })), [['0.00', 'none']]);
+});
+
+test('wycena: jedna przesyłka na dwóch fakturach liczy się razem, inny adres = osobna przesyłka', needsKey, async () => {
+  assert.deepEqual(await quote(pos({ net: 70, order: 'O1', address: 'A1' }), pos({ net: 66.09, order: 'O2', address: 'A1' })), [['0.00', 'none']]);
+  assert.deepEqual(await quote(pos({ net: 70, address: 'A1' }), pos({ net: 66.09, address: 'A2' })), [['8.50', 'charge'], ['8.50', 'charge']]);
+});
+
+test('wycena: linia rabatu (ilość 0, wartość ujemna) obniża wartość przesyłki', needsKey, async () => {
+  assert.deepEqual(await quote(pos({ net: 120 }), pos({ qty: 0, net: -30 })), [['8.50', 'charge']]);
+});
+
+test('tekst linii: data w formacie DD.MM.RRRR', needsKey, async () => {
+  const r = await call('POST', '/v1/transport/quote', { key: KEY, body: { positions: [pos()] } });
+  assert.match(r.json.charges[0].text_de, /Sendung 16\.11\.2026$/);
+});
+
+test('nieznany rodzaj albo przewoźnik: 422', needsKey, async () => {
+  assert.equal((await call('POST', '/v1/transport/quote', { key: KEY, body: { positions: [pos({ kind: 'naprawa' })] } })).status, 422);
+  assert.equal((await call('POST', '/v1/transport/quote', { key: KEY, body: { positions: [pos({ carrier: 'BUS' })] } })).status, 422);
+});
+
+test.todo('próbki 1–3 z załącznika z 19.11 (wymagają plików z próbkami)');

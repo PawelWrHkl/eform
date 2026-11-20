@@ -276,7 +276,14 @@ async function getUserData(pin) {
 }
 
 
-async function getUsers() {
+/**
+ * Konta do porównania z contractors.txt (`services/dbUserSync.js`). Kolumny jawnie, bez `id`
+ * (od niego zależy `fixEncodingInDatabase`). `extras` — płatnik i bank (migracja
+ * `add_user_paymaster_bank.sql`), tylko gdy kolumny istnieją.
+ *
+ * @param {{ extras?: boolean }} [opts]
+ */
+async function getUsers({ extras = false } = {}) {
     const sql = `
         SELECT
             ident,
@@ -288,7 +295,10 @@ async function getUsers() {
             pin,
             password,
             phone,
+            email,
+            country,
             country AS kraj,
+            ${extras ? 'paymaster_ident, bank_name, bank_account, swift,' : ''}
             role
         FROM eform.\`user\`
     `;

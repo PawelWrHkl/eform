@@ -344,6 +344,19 @@ router.post('/daily/recalculate', requireLogin, async (req, res) => {
   }
 });
 
+// „Pobierz ponownie z zamówienia” (Paweł 19.11.2026): ta sama faktura z aktualnych danych zleceń
+router.post('/:id/rebuild', requireLogin, async (req, res) => {
+  if (adminOnly(req, res)) return undefined;
+  const id = toId(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: 'Nieprawidłowy identyfikator' });
+  try {
+    const { id: newId, number } = await service.rebuildFromOrders(id);
+    return res.json({ success: true, id: newId, number });
+  } catch (err) {
+    return sendError(res, err, `POST /${id}/rebuild`);
+  }
+});
+
 router.post('/blank', requireLogin, async (req, res) => {
   if (adminOnly(req, res)) return undefined;
   const { errors, fieldErrors, params } = parseBlankRequest(req.body);

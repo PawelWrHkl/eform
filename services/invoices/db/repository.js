@@ -605,7 +605,7 @@ async function listInvoices({ organizationId, status, documentType, orderId, buy
 
   const rows = await selectQuery(
     `SELECT i.id, i.number, i.document_type, i.status, i.issue_date, i.due_date, i.currency,
-            i.total_net, i.total_tax, i.total_gross, i.amount_due, i.buyer_name, i.order_id,
+            i.total_net, i.total_tax, i.total_gross, i.amount_due, i.paid_amount, i.buyer_name, i.order_id,
             i.level, i.issuer_type, i.issuer_id,
             -- 'AUTO' = dokument wystawiony przez automat (autoInvoicing.js)
             i.created_by_pin,
@@ -1569,6 +1569,76 @@ async function addInvoiceEvent({ invoiceId, eventType, actorPin = null, payload 
 }
 
 /**
+ * Faktury na przypomnienie o płatności (`invoiceMailer.js`, szef 19.11.2026): termin płatności DZIŚ,
+ * nieopłacone (status i kwota z księgowości — `invoicePayments.js`), wysłane wcześniej mailem w tym
+ * samym trybie (`mailedEvent`: klient dostaje przypomnienie tylko o fakturze, którą dostał), bez
+ * przypomnienia (`doneEvent`) i z mniej niż `maxAttempts` nieudanymi próbami.
+ *
+ * @param {{ today: string, since: string, mailedEvent: string, doneEvent: string, failedEvent: string, maxAttempts?: number, limit?: number }} params
+ *        `since` — tylko faktury wystawione od tego dnia (`INVOICE_REMINDERS_SINCE`)
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findInvoicesToRemind({ today, since, mailedEvent, doneEvent, failedEvent, maxAttempts = 3, limit = 50 }) {
+  return strictQuery(
+    `SELECT i.id, i.number, i.buyer_name, i.due_date, i.amount_due, i.paid_amount, i.currency,
+            (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) AS failures
+       FROM invoice i
+      WHERE i.status IN ('issued', 'overdue')
+        AND i.document_type IN ('invoice', 'final')
+        AND i.number IS NOT NULL
+        AND i.due_date = ?
+        AND i.issue_date >= ?
+        AND i.amount_due - i.paid_amount >= 0.01
+        AND EXISTS (SELECT 1 FROM invoice_event m WHERE m.invoice_id = i.id AND m.event_type = ?)
+        AND NOT EXISTS (SELECT 1 FROM invoice_event e WHERE e.invoice_id = i.id AND e.event_type = ?)
+        AND (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) < ?
+      ORDER BY i.id
+      LIMIT ?`,
+    [failedEvent, today, since, mailedEvent, doneEvent, failedEvent, maxAttempts, limit]
+  );
+}
+
+/**
+ * Faktury po numerach — do pliku płatności z księgowości (`invoicePayments.js`). Organizacja jak
+ * w pliku pozycji (`organization_ident` = organizacja faktury: na poziomie 1 nabywca, na 2 wystawca).
+ *
+ * @param {string[]} numbers
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
+async function findInvoicesByNumbers(numbers) {
+  if (!numbers.length) return [];
+  return strictQuery(
+    `SELECT i.id, i.number, i.level, i.status, i.document_type, i.amount_due, i.paid_amount, i.paid_at, i.currency,
+            org.ident AS organization_ident
+       FROM invoice i
+       LEFT JOIN organization org ON org.id = i.organization_id
+      WHERE i.number IN (?)`,
+    [numbers]
+  );
+}
+
+/**
+ * Wpłata z księgowości: kwota, data i (przy pełnej) status „opłacona”, plus wpis `payment_synced`
+ * w dzienniku. Tylko gdy status się w międzyczasie nie zmienił (np. ktoś anulował fakturę).
+ *
+ * @param {{ id: number, fromStatus: string, status: string, paidAmount: number, paidAt: string|null, actorPin?: string, payload?: object }} p
+ * @returns {Promise<boolean>} czy zapisano
+ */
+async function applyPayment({ id, fromStatus, status, paidAmount, paidAt, actorPin = null, payload = null }) {
+  return withTransaction(async (conn) => {
+    const [r] = await conn.query('UPDATE invoice SET status = ?, paid_amount = ?, paid_at = ? WHERE id = ? AND status = ?',
+      [status, paidAmount, paidAt, Number(id), fromStatus]);
+    if (!r.affectedRows) return false;
+    await conn.query(
+      `INSERT INTO invoice_event (invoice_id, event_type, from_status, to_status, actor_pin, payload)
+       VALUES (?, 'payment_synced', ?, ?, ?, ?)`,
+      [Number(id), fromStatus, status, actorPin, payload ? JSON.stringify(payload) : null]
+    );
+    return true;
+  });
+}
+
+/**
  * Zamówienia klientów z fakturowaniem niestandardowym (`user.invoice_schedule`),
  * które czekają na FAKTURĘ ZBIORCZĄ poziomu 2. Te same warunki co pojedyncza
  * faktura automatu (`findAutoInvoiceCandidates`, poziom 2) — różni je tylko to,
@@ -1741,7 +1811,7 @@ async function searchInvoices({ q, limit = 100 }) {
   if (term.length < 2) return [];
   const like = `%${term.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
   return strictQuery(
-    `SELECT i.id, i.number, i.level, i.status, i.document_type, i.currency, i.total_net, i.total_gross, i.amount_due,
+    `SELECT i.id, i.number, i.level, i.status, i.document_type, i.currency, i.total_net, i.total_gross, i.amount_due, i.paid_amount,
             i.issue_date, i.due_date, i.seller_name, i.buyer_name, i.order_ref, i.order_name, i.created_by_pin,
             JSON_EXTRACT(i.compliance, '$.manualEdit') IS NOT NULL AS manual_edit, bu.ident AS buyer_ident
        FROM invoice i
@@ -1805,6 +1875,24 @@ async function getInvoiceOrderIds(invoiceId) {
     [Number(invoiceId), Number(invoiceId)]
   );
   return [...new Set(rows.map((r) => Number(r.id)).filter(Boolean))];
+}
+
+/**
+ * „Pobierz ponownie z zamówienia” (`InvoiceService.rebuildFromOrders`): autor faktury (od niego
+ * zależy mail i FTP automatu) i jej zlecenia w kolejności pozycji. Osobno od `getInvoice`, bo
+ * korekta kopiuje cały obiekt faktury i z `createdByPin` automat wysłałby ją mailem.
+ *
+ * @param {number} invoiceId
+ * @returns {Promise<{ createdByPin: string|null, orderIds: number[] }>}
+ */
+async function getRebuildSource(invoiceId) {
+  const [head] = await strictQuery('SELECT created_by_pin FROM invoice WHERE id = ?', [Number(invoiceId)]);
+  const rows = await strictQuery(
+    `SELECT oi.order_id AS id, MIN(ii.position) AS pos FROM invoice_item ii JOIN order_item oi ON oi.id = ii.order_item_id
+      WHERE ii.invoice_id = ? GROUP BY oi.order_id ORDER BY pos`,
+    [Number(invoiceId)]
+  );
+  return { createdByPin: head ? head.created_by_pin || null : null, orderIds: rows.map((r) => Number(r.id)) };
 }
 
 /** Historia faktury do panelu edycji (utworzenie, przygotowanie, edycje, przegląd). */
@@ -1951,11 +2039,7 @@ async function getAdvanceInvoicesForOrder(orderId) {
  */
 const HKL_SERIES = Object.freeze({ issuerType: 'manufacturer', issuerId: 1, level: 1, numberPattern: '{YY}{NR:6}' });
 
-/** Czy wystawcą jest HKL: producent albo organizacja HKL. */
-function isHklIssuer(issuerType, issuerId) {
-  const { HKL_ORG_ID } = require('../../subPrices');
-  return issuerType === 'manufacturer' || (issuerType === 'organization' && Number(issuerId) === Number(HKL_ORG_ID));
-}
+const { isHklIssuer } = require('../core/pricing');
 
 /**
  * Klucz serii numeracji wystawcy — firma, nie poziom (patrz `allocateIssuerSequence`).
@@ -2439,12 +2523,27 @@ async function getOrderInvoiceSource(orderId) {
   const shops = order.group_user_id
     ? await selectQuery('SELECT * FROM group_user WHERE id = ?', [order.group_user_id])
     : null;
+  // Płatnik i konto z contractors.txt (Tomek/Paweł 19.11.2026). `SELECT *`: kolumny są od migracji
+  // `add_user_paymaster_bank.sql` — bez niej po prostu ich nie ma i faktura idzie jak dotąd.
+  const { cleanValue, accountFromContractor } = require('../core/contractorAccounts');
+  const extra = ((await selectQuery('SELECT * FROM `user` WHERE id = ?', [order.u_id])) || [])[0] || {};
+  const paymaster = cleanValue(extra.paymaster_ident);
+  const payerRow = paymaster && paymaster.toUpperCase() !== String(order.u_ident || '').toUpperCase()
+    ? ((await selectQuery('SELECT * FROM `user` WHERE ident = ? LIMIT 1', [paymaster])) || [])[0] || null
+    : null;
 
   return {
     order,
     orderItems,
     organization: (orgs && orgs[0]) || null,
+    // Dane płatnika na fakturę (`hierarchy.resolveParties`) — bez haseł i reszty konta
+    payer: payerRow
+      ? { ident: payerRow.ident, client_name: payerRow.client_name, tax_id: payerRow.tax_id, street: payerRow.street,
+        city: payerRow.city, zip: payerRow.zip, country: payerRow.country, email: payerRow.email, phone: payerRow.phone }
+      : null,
     user: {
+      // Konto do wpłaty z contractors.txt: płatnika, a gdy go nie ma albo nie ma konta — klienta
+      bankAccount: accountFromContractor(payerRow) || accountFromContractor(extra),
       id: order.u_id,
       client_name: order.client_name,
       tax_id: order.u_tax_id,
@@ -2683,6 +2782,9 @@ module.exports = {
   listInvoiceableOrdersForClient,
   listInvoiceOverview,
   findAutoInvoiceCandidates,
+  findInvoicesByNumbers,
+  applyPayment,
+  findInvoicesToRemind,
   findCollectiveCandidates,
   findDailyCandidates,
   hasLevelInvoice,
@@ -2716,6 +2818,7 @@ module.exports = {
   findPreparedDraft,
   findPreparedDraftsReady,
   getInvoiceOrderIds,
+  getRebuildSource,
   getInvoiceHistory,
   getEditBlockers,
   getOrderRelations,

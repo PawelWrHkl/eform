@@ -46,6 +46,8 @@
 const nodemailer = require('nodemailer');
 const defaultRepository = require('./db/repository');
 const renderer = require('./render/renderer');
+const money = require('./core/money');
+const { todayIso } = require('./core/dates');
 const { AUTO_ACTOR } = require('./autoInvoicing');
 const { DAILY_ACTOR } = require('./core/collective');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
@@ -58,6 +60,11 @@ const MailEvent = Object.freeze({
 });
 
 const MailMode = Object.freeze({ REDIRECT: 'redirect', BUYER: 'buyer' });
+
+/** Znaczniki przypomnień o płatności — jak `MailEvent`, osobna kolejka (jedno przypomnienie na fakturę). */
+const ReminderEvent = Object.freeze({ SENT: 'reminder_sent', REDIRECTED: 'reminder_redirected', FAILED: 'reminder_failed' });
+/** Przypomnienia nie wychodzą w nocy — pierwszy przebieg od tej godziny (czas procesu). */
+const REMINDER_FROM_HOUR = 7;
 
 /** Po tylu nieudanych próbach faktura przestaje wracać (np. błędny adres nabywcy). */
 const MAX_ATTEMPTS = 3;
@@ -93,9 +100,16 @@ function environmentLabel(env) {
   return String(env.NODE_ENV || '').trim().toLowerCase() === 'prod' ? 'PRODUKCJA' : 'TEST';
 }
 
+/** RRRR-MM-DD albo `null`. */
+function isoDay(value) {
+  const raw = String(value || '').trim();
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00Z`) : null;
+  return d && !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === raw ? raw : null;
+}
+
 /**
  * @param {Record<string, string|undefined>} [env]
- * @returns {{ enabled: boolean, active: boolean, mode: string|null, since: string|null, redirect: string[], bcc: string[], maxPerRun: number, from: string, smtp: Record<string, { pass: string, host: string }>, envLabel: string, problems: string[] }}
+ * @returns {{ enabled: boolean, active: boolean, mode: string|null, since: string|null, redirect: string[], bcc: string[], maxPerRun: number, from: string, smtp: Record<string, { pass: string, host: string }>, envLabel: string, reminders: boolean, remindersSince: string|null, problems: string[] }}
  */
 function readInvoiceMailConfig(env = process.env) {
   const enabled = String(env.INVOICE_MAIL_ENABLED).toLowerCase() === 'true';
@@ -144,6 +158,10 @@ function readInvoiceMailConfig(env = process.env) {
     from,
     smtp,
     envLabel: environmentLabel(env),
+    // Przypomnienia w dniu terminu płatności (19.11.2026) — osobny włącznik, ten sam tryb i adresaci.
+    // WYMAGANY próg dat wystawienia: stare faktury z okresu testów (prod 20.11: 562 z terminem tego dnia) nie dostają przypomnień
+    reminders: String(env.INVOICE_REMINDERS_ENABLED).toLowerCase() === 'true' && !!isoDay(env.INVOICE_REMINDERS_SINCE),
+    remindersSince: isoDay(env.INVOICE_REMINDERS_SINCE),
     problems
   };
 }
@@ -215,16 +233,18 @@ function toCrlf(text) {
 
 const TEXT_TEMPLATE = `{% if redirect %}TRYB TESTOWY ({{ redirect.envLabel }}) — ten mail NIE trafił do klienta. {% if redirect.intendedTo %}Normalnie trafiłby do: {{ redirect.intendedTo }}{% else %}Nabywca nie ma adresu e-mail.{% endif %} (nabywca: {{ invoice.buyer.name }})
 
+{% endif %}{% if reminder %}{{ t('reminder.subject') | upper }}
+
 {% endif %}{{ t('mail.greeting') }}
-{{ t('mail.intro') }}
+{{ t('reminder.intro') if reminder else t('mail.intro') }}
 
 {{ t('header.number') }}: {{ invoice.number }}
 {{ t('header.issue_date') }}: {{ invoice.issueDate | date }}
 {% if invoice.orderRef %}{{ t('header.order_ref') }}: {{ invoice.orderRef }}
 {% endif %}{{ t('header.due_date') }}: {{ invoice.dueDate | date }}
-{{ t('totals.amount_due') }}: {{ (invoice.amountDue if invoice.amountDue is not none else invoice.totalGross) | money }} {{ invoice.currency }}
+{{ t('reminder.amount_left') if reminder else t('totals.amount_due') }}: {{ (invoice.amountDue if invoice.amountDue is not none else invoice.totalGross) | money }} {{ invoice.currency }}
 
-{{ t('mail.attachment') }}{% if hasReplyTo %} {{ t('mail.questions') }}{% endif %}
+{{ t('mail.attachment') }}{% if reminder %} {{ t('reminder.paid_note') }}{% endif %}{% if hasReplyTo %} {{ t('mail.questions') }}{% endif %}
 
 
 {{ t('mail.regards') }}
@@ -240,9 +260,11 @@ const TEXT_TEMPLATE = `{% if redirect %}TRYB TESTOWY ({{ redirect.envLabel }}) �
  * @param {string} [params.issuerEmail]          adres wystawcy (Reply-To)
  * @param {string} [params.from]                 nadawca z `resolveSender` (domyślnie skrzynka systemu)
  * @param {ReturnType<typeof readInvoiceMailConfig>} params.config
+ * @param {boolean} [params.reminder]            przypomnienie w dniu terminu: `invoice.amountDue` = pozostało do zapłaty
+ * @param {string} [params.copyTo]               przypomnienie: kopia (UDW) do skrzynki fakturowej wystawcy — tylko poza trybem testowym
  * @returns {{ message: Record<string, any>, to: string[], intendedTo: string[] }}
  */
-function buildInvoiceMail({ invoice, pdf, issuerEmail = '', from = '', config }) {
+function buildInvoiceMail({ invoice, pdf, issuerEmail = '', from = '', config, reminder = false, copyTo = '' }) {
   const lang = invoice.lang || 'pl';
   const env = renderer.createEnvironment({ lang, currency: invoice.currency, localCurrency: invoice.localCurrency });
   const t = renderer.createTranslator(lang);
@@ -253,12 +275,12 @@ function buildInvoiceMail({ invoice, pdf, issuerEmail = '', from = '', config })
     ? { intendedTo: intendedTo.join(', '), replyTo, envLabel: config.envLabel || 'TEST' }
     : null;
 
-  const vars = { invoice, docLabel, redirect, hasReplyTo: !!replyTo };
+  const vars = { invoice, docLabel, redirect, hasReplyTo: !!replyTo, reminder };
   const html = env.render('mail/invoice-mail.njk', vars);
   const text = env.renderString(TEXT_TEMPLATE, vars);
 
   const sellerName = (invoice.seller && invoice.seller.name) || '';
-  const subject = `${docLabel} ${invoice.number}${sellerName ? ` — ${sellerName}` : ''}`;
+  const subject = `${reminder ? `${t('reminder.subject')}: ` : ''}${docLabel} ${invoice.number}${sellerName ? ` — ${sellerName}` : ''}`;
   const to = redirect ? [...config.redirect] : intendedTo;
 
   const message = {
@@ -284,7 +306,8 @@ function buildInvoiceMail({ invoice, pdf, issuerEmail = '', from = '', config })
   // W trybie testowym bez Reply-To i BCC: odpowiedź testera nie może trafić
   // do wystawcy (np. innej organizacji), a kopia — do księgowości.
   if (!redirect && replyTo) message.replyTo = replyTo;
-  if (!redirect && config.bcc.length) message.bcc = config.bcc.join(', ');
+  const bcc = [...config.bcc, ...(reminder ? parseEmailList(copyTo).valid.slice(0, 1) : [])];
+  if (!redirect && bcc.length) message.bcc = bcc.join(', ');
   // Nadawca = skrzynka organizacji: odpowiedź testera idzie do skrzynki systemu, jak dotąd
   if (redirect && message.from.address !== config.from) message.replyTo = config.from;
 
@@ -355,52 +378,77 @@ async function runInvoiceMailing({ dryRun = false, config = readInvoiceMailConfi
   });
 
   let service = null;
-  for (const row of pending) {
-    const label = `faktura ${row.number} (id ${row.id}, ${row.buyer_name})`;
+  /** Jedna wiadomość: faktura (`reminder` false) albo przypomnienie w dniu terminu z tą samą fakturą w załączniku. */
+  const deliver = async (row, { reminder, done, failedEvent, out }) => {
+    const label = `${reminder ? 'przypomnienie o płatności — ' : ''}faktura ${row.number} (id ${row.id}, ${row.buyer_name})`;
     if (dryRun) {
-      result.planned.push({ invoiceId: row.id, number: row.number });
+      out.planned.push({ invoiceId: row.id, number: row.number });
       log(`[invoices:mail] DRY-RUN: wysłałbym — ${label}`);
-      continue;
+      return;
     }
 
     try {
-      const invoice = await repository.getInvoice(row.id);
-      if (!invoice) throw new Error('faktura zniknęła z bazy');
+      const stored = await repository.getInvoice(row.id);
+      if (!stored) throw new Error('faktura zniknęła z bazy');
+      // Przypomnienie: w mailu kwota, która jeszcze została do zapłaty (wpłaty częściowe z księgowości)
+      const invoice = reminder ? { ...stored, amountDue: money.toMinor(Number(row.amount_due) - Number(row.paid_amount || 0), stored.currency) } : stored;
       const issuer = invoice.issuerType
         ? await repository.getIssuerProfile({ issuerType: invoice.issuerType, issuerId: invoice.issuerId, level: invoice.level })
         : null;
       const issuerEmail = (issuer && issuer.email) || '';
-      const sender = resolveSender(await repository.getInvoiceSender({ issuerType: invoice.issuerType, issuerId: invoice.issuerId }), config);
+      const invoiceSender = await repository.getInvoiceSender({ issuerType: invoice.issuerType, issuerId: invoice.issuerId });
+      const sender = resolveSender(invoiceSender, config);
+      // Kopia przypomnienia: skrzynka fakturowa wystawcy (decyzja Pawła 19.11), bez niej — adres wystawcy
+      const copyTo = reminder ? ((invoiceSender && invoiceSender.email) || issuerEmail) : '';
+      const mailOpts = { invoice, issuerEmail, from: sender.address, config, reminder, copyTo };
 
       // Adresat znany przed renderem PDF — bez adresu nie ma po co uruchamiać Chromium
-      const preview = buildInvoiceMail({ invoice, pdf: null, issuerEmail, from: sender.address, config });
+      const preview = buildInvoiceMail({ ...mailOpts, pdf: null });
       if (!preview.to.length) throw new Error('nabywca nie ma poprawnego adresu e-mail (invoice.buyer_email)');
 
       service = service || getService();
       const pdf = await service.renderPdf(row.id);
-      const { message, to, intendedTo } = buildInvoiceMail({ invoice, pdf, issuerEmail, from: sender.address, config });
+      const { message, to, intendedTo } = buildInvoiceMail({ ...mailOpts, pdf });
       assertRecipientsAllowed(message, config);
       const info = await sendMail(message, sender.account);
 
       const payload = { mode: config.mode, from: sender.address, to, intendedTo, messageId: (info && info.messageId) || null };
       try {
-        await repository.addInvoiceEvent({ invoiceId: row.id, eventType: doneEvent, actorPin: AUTO_ACTOR, payload });
+        await repository.addInvoiceEvent({ invoiceId: row.id, eventType: done, actorPin: AUTO_ACTOR, payload });
       } catch (err) {
         // Mail wyszedł — błąd zapisu znacznika oznacza ryzyko powtórki w następnym przebiegu
         log(`[invoices:mail] UWAGA — ${label}: mail wysłany, ale nie zapisano znacznika (${err.message}); może pójść ponownie`);
       }
-      result.sent.push({ invoiceId: row.id, number: row.number, to, intendedTo });
+      out.sent.push({ invoiceId: row.id, number: row.number, to, intendedTo });
       log(`[invoices:mail] ${label} ${sender.address} → ${to.join(', ')}`
         + (config.mode === MailMode.REDIRECT ? ` (nabywca: ${intendedTo.join(', ') || 'brak adresu'})` : '')
         + (sender.warning ? ` — UWAGA: ${sender.warning}` : ''));
     } catch (err) {
-      result.failed.push({ invoiceId: row.id, number: row.number, error: err.message });
+      out.failed.push({ invoiceId: row.id, number: row.number, error: err.message });
       log(`[invoices:mail] BŁĄD — ${label}: ${err.message} (próba ${Number(row.failures || 0) + 1}/${MAX_ATTEMPTS})`);
       try {
-        await repository.addInvoiceEvent({ invoiceId: row.id, eventType: MailEvent.FAILED, actorPin: AUTO_ACTOR, payload: { mode: config.mode, error: err.message } });
+        await repository.addInvoiceEvent({ invoiceId: row.id, eventType: failedEvent, actorPin: AUTO_ACTOR, payload: { mode: config.mode, error: err.message } });
       } catch (err2) {
         log(`[invoices:mail] nie zapisano nieudanej próby — ${label}: ${err2.message}`);
       }
+    }
+  };
+
+  for (const row of pending) await deliver(row, { reminder: false, done: doneEvent, failedEvent: MailEvent.FAILED, out: result });
+
+  // Przypomnienia w dniu terminu płatności (szef 19.11.2026): faktura wysłana mailem w tym samym trybie,
+  // nieopłacona (płatności z księgowości wczytuje wcześniej `invoicePayments.js`), od 7:00, raz na fakturę.
+  // W trybie testowym idą tylko do testerów, jak same faktury.
+  const budget = config.maxPerRun - pending.length;
+  if (config.reminders && budget > 0 && now().getHours() >= REMINDER_FROM_HOUR) {
+    result.reminders = { sent: [], failed: [], planned: [] };
+    const reminderDone = config.mode === MailMode.REDIRECT ? ReminderEvent.REDIRECTED : ReminderEvent.SENT;
+    const due = await repository.findInvoicesToRemind({
+      today: todayIso(now()), since: config.remindersSince, mailedEvent: doneEvent, doneEvent: reminderDone, failedEvent: ReminderEvent.FAILED, maxAttempts: MAX_ATTEMPTS, limit: budget
+    });
+    for (const row of due) await deliver(row, { reminder: true, done: reminderDone, failedEvent: ReminderEvent.FAILED, out: result.reminders });
+    if (due.length || dryRun) {
+      log(`[invoices:mail] przypomnienia o płatności: ${dryRun ? `do wysłania ${result.reminders.planned.length}` : `wysłano ${result.reminders.sent.length}, błędy ${result.reminders.failed.length}`}`);
     }
   }
 
@@ -415,6 +463,8 @@ async function runInvoiceMailing({ dryRun = false, config = readInvoiceMailConfi
 module.exports = {
   MailEvent,
   MailMode,
+  ReminderEvent,
+  REMINDER_FROM_HOUR,
   MAX_ATTEMPTS,
   MAX_AGE_DAYS,
   parseEmailList,

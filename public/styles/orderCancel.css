@@ -218,6 +218,17 @@
     margin-left: 0;
 }
 
+/* Telefon: mobile/orders.css daje przyciskom karty `flex: 1 !important` (równe części),
+   co ucinało „Poproś o anulowanie” i „Zamów ponownie” — szerokość z treści, nadmiar niżej.
+   Wygląd B chce chipów o szerokości treści (theme-efor-v2.css), tylko przegrywał z tym !important. */
+html:not(.theme-efor-v2) .mobile-order-actions > .btn {
+    flex: 1 1 auto !important;
+}
+
+html.theme-efor-v2 .mobile-order-actions > .btn {
+    flex: 0 0 auto !important;
+}
+
 /* ── Okna potwierdzenia (createInfoDialog → #delete-dialog.order-cancel-dialog) ── */
 dialog.order-cancel-dialog {
     width: min(520px, 92vw);

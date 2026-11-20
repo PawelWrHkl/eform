@@ -641,36 +641,40 @@ test('specyfikacja: klient LUXAN_EWA_KRAWCZYK z PL — „brutto po rabacie”, 
   assert.match(spec.t.note, /EUR/);
 });
 
-// ── rabat B2B organizacji u zwykłego klienta (services/b2bDiscount.js, 2026-11-18) ──
+// ── rabat B2B organizacji u zwykłego klienta (services/b2bDiscount.js) ──
+// Od 2026-11-19 procent B2B mnoży cenę po rabacie z cennika (osobny wiersz `RABAT_B2B`).
 
-test('rabaty: zwykły klient po kłódce, rabat B2B +3 pkt — rabat od ceny katalogowej i dopłata z cennika osobno', () => {
+const b2bRow = (pct) => ['SUB___RABAT_B2B', row('Rabat extra B2B', `${pct}%`, { sub: true, locked: true })];
+
+test('rabaty: zwykły klient po kłódce, rabat B2B 10% — cennik osobno, B2B osobną linią od ceny po cenniku', () => {
   const spec = build({ isClient: true, prices: true }, {
-    item: discountItem({ values: { SUB___CENA_RABAT: 0.6 }, desc: [
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_B2B: 10 }, desc: [
       ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
-      ['SUB___RABAT_KLIENTA', row('Rabat B2B (+3 pkt)', '63%', { sub: true, locked: true })],
-      // 200·0.37 + 50·0.4 = 74 + 20
-      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '94', { sub: true, locked: true })]
+      b2bRow(10),
+      // 250·0.4 = 100 → × 0.9
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '90', { sub: true, locked: true })]
     ] })
   });
   const set = spec.positions[0].sets[0];
-  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [['Rabat B2B (+3 pkt)', 126], ['Rabat na dopłaty', 30]]);
-  assert.equal(set.unitAfter, 94);
+  assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [['Rabat cennikowy', 150], ['Rabat extra B2B', 10]]);
+  assert.equal(set.unitAfter, 90);
 });
 
 test('rabaty: rabat kwotowy B2B — osobna linia od ceny po pozostałych rabatach, dokładny procent z values', () => {
   const spec = build({ isClient: true, prices: true }, {
-    item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_B2B_KWOTOWY: 10 }, desc: [
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_B2B: 10, RABAT_B2B_KWOTOWY: 10 }, desc: [
       ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
-      ['SUB___RABAT_KLIENTA', row('Rabat B2B (+3 pkt)', '63%', { sub: true, locked: true })],
+      b2bRow(10),
       ['SUB___RABAT_B2B_KWOTOWY', row('Rabat kwotowy B2B', '10%', { sub: true, locked: true })],
-      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '84.6', { sub: true, locked: true })]
+      // 100 × 0.9 × 0.9
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '81', { sub: true, locked: true })]
     ] })
   });
   const set = spec.positions[0].sets[0];
   assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [
-    ['Rabat B2B (+3 pkt)', 126], ['Rabat na dopłaty', 30], ['Rabat kwotowy B2B', 9.4]
+    ['Rabat cennikowy', 150], ['Rabat extra B2B', 10], ['Rabat kwotowy B2B', 9]
   ]);
-  assert.equal(set.unitAfter, 84.6);
+  assert.equal(set.unitAfter, 81);
 
   const onlyAmount = build({ isClient: true, prices: true }, {
     item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_B2B_KWOTOWY: 10 }, desc: [
@@ -695,18 +699,29 @@ test('rabaty: zwykły klient z samym ekstra rabatem — jak dotąd jedna linia z
   assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [['Rabat', 151]]);
 });
 
-test('rabaty: B2B z ekstra rabatem za serwis — ekstra rabat osobną linią od ceny po rabacie B2B', () => {
+test('rabaty: B2B z ekstra rabatem za serwis — każdy osobną linią od ceny po poprzednich', () => {
   const spec = build({ isClient: true, prices: true }, {
-    item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_PORTALU: 1 }, desc: [
+    item: discountItem({ values: { SUB___CENA_RABAT: 0.6, RABAT_PORTALU: 1, RABAT_B2B: 10 }, desc: [
       ['SUB___CENA_RABAT', row('RABATT', '60%', { sub: true, locked: true })],
-      ['SUB___RABAT_KLIENTA', row('Rabat B2B (+3 pkt) (1% rabatu za serwis)', '63%', { sub: true, locked: true })],
-      // (200·0.37 + 50·0.4) × 0.99 = 94 × 0.99
-      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '93.06', { sub: true, locked: true })]
+      ['SUB___RABAT_KLIENTA', row('1% rabatu za korzystanie z serwisu', '1%', { sub: true, locked: true })],
+      b2bRow(10),
+      // 100 × 0.99 × 0.9
+      ['SUB___CENA_KONCOWA', row('PREIS N. RABATT', '89.1', { sub: true, locked: true })]
     ] })
   });
   const set = spec.positions[0].sets[0];
   assert.deepEqual(set.discount.map((d) => [d.label, d.amount]), [
-    ['Rabat B2B (+3 pkt) (1% rabatu za serwis)', 126], ['Rabat na dopłaty', 30], ['Rabat za korzystanie z serwisu', 0.94]
+    ['Rabat cennikowy', 150], ['Rabat za korzystanie z serwisu', 1], ['Rabat extra B2B', 9.9]
   ]);
-  assert.equal(set.unitAfter, 93.06);
+  assert.equal(set.unitAfter, 89.1);
+});
+
+test('specyfikacja: nazwa grupy z prod.txt w języku widza, zapisana group_name tylko jako zapas', () => {
+  const dir = makeDataDir();
+  fs.mkdirSync(path.join(dir, '39', 'data', 'de'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '39', 'data', 'de', 'prod.txt'), 'CODE\t39\r\nOWNERS\tHKL\r\nDESCRIPTION\tINSEKTENSCHUTZ\r\n');
+  const stale = item();
+  stale.group_name = 'MOSKITIERY';
+  assert.equal(build({ isGroupShop: true }, { item: stale, lang: 'de', dataDir: dir }).positions[0].name, 'INSEKTENSCHUTZ');
+  assert.equal(build({ isGroupShop: true }, { item: stale, lang: 'nl', dataDir: dir }).positions[0].name, 'MOSKITIERY', 'brak prod.txt — zostaje zapis');
 });

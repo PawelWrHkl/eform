@@ -1,0 +1,294 @@
+{
+  "source": "kontrahenci - nr kont bankowych.xlsx",
+  "imported": "2026-11-19",
+  "accounts": {
+    "36064122": {
+      "ident": "INTERLUX",
+      "name": "INTERLUX D.O.O.",
+      "country": "SI",
+      "bankName": "Erste Bank Polska S.A.",
+      "iban": "PL81 1090 0004 0004 8001 0000 8394",
+      "swift": "WBKPPLPP"
+    },
+    "125752261": {
+      "ident": "KADECO",
+      "name": "KADECO Sonnenschutzsysteme GmbH",
+      "country": "DE",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "293796843": {
+      "ident": "FENIX",
+      "name": "FENIX SONNESHUTZ GMBH",
+      "country": "DE",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "814603367": {
+      "ident": "LUXAN GMBH",
+      "name": "LUXAN KRAWCZYK SONNENSCHUTZSYSTEME GmbH",
+      "country": "DE",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "807493892B01": {
+      "ident": "ZONNELUX",
+      "name": "ZONNELUX RAAMDECORATIE BV",
+      "country": "NL",
+      "bankName": "Erste Bank Polska S.A.",
+      "iban": "PL64 1910 1048 2793 2107 1341 0002",
+      "swift": "WBKPPLPP"
+    },
+    "803035834B01": {
+      "ident": "COULISSE",
+      "name": "COULISSE B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "01318330337": {
+      "ident": "TECNOPLAST",
+      "name": "TECNOPLAST S.P.A.",
+      "country": "IT",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "8510310301": {
+      "ident": "ALMEX",
+      "name": "ALMEX sp. z o.o.",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL56 1050 1559 1000 0090 3311 9588",
+      "swift": "INGBPLPW"
+    },
+    "821554049B01": {
+      "ident": "VAKO",
+      "name": "VAKO B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "006011251B01": {
+      "ident": "VRIESCO",
+      "name": "VRIESCO INTERNATIONAL FABRISC BV A HOUSE OF HAPPINES",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "8510305895": {
+      "ident": "TOM",
+      "name": "TOM Sp. z o.o.",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL56 1050 1559 1000 0090 3311 9588",
+      "swift": "INGBPLPW"
+    },
+    "5892021036": {
+      "ident": "SHADOW-SYSTEM",
+      "name": "SHADOW-SYSTEM SP. Z O.O.",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL56 1050 1559 1000 0090 3311 9588",
+      "swift": "INGBPLPW"
+    },
+    "8513194309": {
+      "ident": "LUXAN EWA KRAWCZYK",
+      "name": "LUXAN Spółka z ograniczoną odpowiedzialnością Spółka Komandytowa",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL56 1050 1559 1000 0090 3311 9588",
+      "swift": "INGBPLPW"
+    },
+    "9552300437": {
+      "ident": "TOM ELEKTRORECYKLING",
+      "name": "TOM ELEKTRORECYKLING SP. Z O.O.",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL56 1050 1559 1000 0090 3311 9588",
+      "swift": "INGBPLPW"
+    },
+    "821358595B01": {
+      "ident": "B&C",
+      "name": "B&C RAAMDECORATIE",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "0401756875": {
+      "ident": "HEYTENS",
+      "name": "HEYTENS CENTRALE SA",
+      "country": "BE",
+      "bankName": "Erste Bank Polska S.A.",
+      "iban": "PL81 1090 0004 0004 8001 0000 8394",
+      "swift": "WBKPPLPP"
+    },
+    "8531525774": {
+      "ident": "FENEXO",
+      "name": "FENEXO ADRIAN KRZYSZTOF MIGDAŁ",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL56 1050 1559 1000 0090 3311 9588",
+      "swift": "INGBPLPW"
+    },
+    "008704399B01": {
+      "ident": "SOMFY NEDERLAND",
+      "name": "SOMFY NEDERLAND B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "9552554416": {
+      "ident": "HOLE_IN_ONE",
+      "name": "HOLE IN ONE INDOOR GOLF",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL56 1050 1559 1000 0090 3311 9588",
+      "swift": "INGBPLPW"
+    },
+    "5263403146": {
+      "ident": "OLIVERSTORE",
+      "name": "OLIVER\"STORE SAS",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "9552572532": {
+      "ident": "NAOKNIE",
+      "name": "NAOKNIE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+      "country": "PL",
+      "bankName": "Erste Bank Polska S.A.",
+      "iban": "PL91 1910 1048 2793 2107 1341 0001",
+      "swift": "WBKPPLPP"
+    },
+    "804541747B01": {
+      "ident": "BDLINE",
+      "name": "BD Line binnenzonwering B.V.",
+      "country": "NL",
+      "bankName": "Erste Bank Polska S.A.",
+      "iban": "PL81 1090 0004 0004 8001 0000 8394",
+      "swift": "WBKPPLPP"
+    },
+    "861371860B01": {
+      "ident": "SYNKO",
+      "name": "Synko Shading Solutions",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "803141816B01": {
+      "ident": "MAXSOL",
+      "name": "Maxsol v.o.f.",
+      "country": "NL",
+      "bankName": "Erste Bank Polska S.A.",
+      "iban": "PL81 1090 0004 0004 8001 0000 8394",
+      "swift": "WBKPPLPP"
+    },
+    "49943740043": {
+      "ident": "ARTELIOZ",
+      "name": "Artelioz",
+      "country": "FR",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "866478450B01": {
+      "ident": "RADERO",
+      "name": "Radero BV",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "864868893B01": {
+      "ident": "AZRA",
+      "name": "Azra Home Collection B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "009513644B01": {
+      "ident": "DOST BV",
+      "name": "Dost BV",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "864076861B01": {
+      "ident": "THUIS MET GORDIJNEN",
+      "name": "THUIS MET GORDIJNEN",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "867730730B01": {
+      "ident": "KAYA EXCLUSIVE",
+      "name": "Kaya Exclusive B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "004148496B01": {
+      "ident": "TAPIJTCENTRUM",
+      "name": "TAPIJTCENTRUM NEDERLAND B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "855129013B01": {
+      "ident": "RAAMDECORATIE",
+      "name": "RAAMDECORATIE.COM B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "869751876B01": {
+      "ident": "RYVER BLINDS BV",
+      "name": "Ryver Blinds BV",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "867556146B01": {
+      "ident": "MULTILUX RAAMDECORATIE B.V.",
+      "name": "MULTILUX RAAMDECORATIE B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "9691357464": {
+      "ident": "FHU MAŁGORZATA LIPKA",
+      "name": "FHU MAŁGORZATA LIPKA",
+      "country": "PL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    },
+    "866455139B01": {
+      "ident": "MAIZONCOZY B.V.",
+      "name": "MAIZONCOZY B.V.",
+      "country": "NL",
+      "bankName": "ING BANK ŚLĄSKI S.A.",
+      "iban": "PL34 1050 1559 1000 0090 3311 9596",
+      "swift": "INGBPLPW"
+    }
+  }
+}

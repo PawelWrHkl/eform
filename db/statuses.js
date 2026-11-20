@@ -182,7 +182,35 @@ async function getProdStatusHistoryMax(keys) {
 }
 
 
+/**
+ * Zlecenia anulowane przez produkcję → `canceled` (Paweł 19.11.2026). Bez znacznika `.cancel` —
+ * produkcja już wie. `keys` = `[organizacja, klient, nr]` z pliku; kolacja porównuje bez wielkości liter
+ * (plik `LuxanGmbH`, baza `LUXANGMBH`). Zlecenie w korekcie też, żeby korekta nie poszła na anulowane.
+ * @returns {Promise<number[]>} id zleceń anulowanych teraz (`dryRun`: do anulowania); rzuca przy błędzie bazy
+ */
+async function cancelOrdersFromProd(keys, { canceledAt, dryRun = false } = {}) {
+    if (!keys.length) return [];
+    const rows = await strictSelect(
+        `SELECT o.id FROM \`order\` o
+         JOIN \`user\` u ON u.id = o.user_id
+         JOIN organization org ON org.id = o.organization_id
+         WHERE o.status IN ('sent', 'correction') AND (org.ident, u.ident, o.order_idx) IN (?)`,
+        [keys]
+    );
+    const ids = rows.map((r) => r.id);
+    if (!ids.length || dryRun) return ids;
+    const result = await updateQuery(
+        `UPDATE \`order\` SET status = 'canceled', canceled_at = ?, canceled_by = 'PROD: Anulacja w status.txt'
+         WHERE id IN (?) AND status IN ('sent', 'correction')`,
+        [canceledAt, ids]
+    );
+    if (!result) throw new Error('UPDATE anulowania nie powiódł się');
+    return ids;
+}
+
+
 module.exports = {
+    cancelOrdersFromProd,
     recordProdStatusHistory,
     getProdStatusHistoryMax,
     checkIfStatusExists,

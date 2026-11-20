@@ -121,15 +121,16 @@ test('statusKey: klucz niewrażliwy na wielkość liter i spacje', () => {
 });
 
 /** Atrapa `db/statuses.js` z zapisem wywołań. */
-function fakeStatusDb({ rows = [], idents = ['Ryver'], failInsert = false } = {}) {
-  const calls = { insert: [], update: [], sync: [] };
+function fakeStatusDb({ rows = [], idents = ['Ryver'], failInsert = false, canceledIds = [] } = {}) {
+  const calls = { insert: [], update: [], sync: [], cancel: [] };
   return {
     calls,
     getAllPositionStatuses: async () => rows,
     getKnownUserIdents: async () => idents,
     insertStatus: async (r) => { calls.insert.push(r); return !failInsert; },
     updateStatus: async (r) => { calls.update.push(r); return true; },
-    syncOrderFromStatuses: async (u, o) => { calls.sync.push([u, o]); return { affectedRows: 1 }; }
+    syncOrderFromStatuses: async (u, o) => { calls.sync.push([u, o]); return { affectedRows: 1 }; },
+    cancelOrdersFromProd: async (keys, opts) => { if (keys.length) calls.cancel.push([keys, opts.dryRun]); return canceledIds; }
   };
 }
 
@@ -156,7 +157,7 @@ test('syncAllProdStatuses: dry-run niczego nie zapisuje', async () => {
     deps: { db, log: () => {}, readFile: async () => file('HKL\tRyver\t1\t1\t!sent!\t2026-08-05\tBUS') }
   });
   assert.equal(summary.inserted, 1);
-  assert.deepEqual(db.calls, { insert: [], update: [], sync: [] });
+  assert.deepEqual(db.calls, { insert: [], update: [], sync: [], cancel: [] });
 });
 
 test('syncAllProdStatuses: nieudany zapis liczony jako błąd (insertStatus zwraca false)', async () => {
@@ -188,4 +189,31 @@ test('syncAllProdStatuses: błąd odczytu bazy przerywa — nie traktujemy go ja
     /ECONNREFUSED/
   );
   assert.deepEqual(db.calls.insert, []);
+});
+
+test('syncAllProdStatuses: zlecenie z „Anulacja” na każdej pozycji → anulowane w eFormie (Paweł 19.11.2026)', async () => {
+  const header = `${HEADER}\tSTATUSPROD\tMAXSTATUSPROD`;
+  const content = [header,
+    'LuxanGmbH\tKN\t70\t1\t!sent!\t\t\tAnulacja\tAnulacja',
+    'LuxanGmbH\tKN\t70\t2\t!sent!\t\t\tAnulacja\tAnulacja',
+    'HKL\tRyver\t239\t1\t!sent!\t2026-09-28\t\t100%Wyslane\tAnulacja',
+    'HKL\tRyver\t5\t1\t!sent!\t\t\tAnulacja\tAnulacja',
+    'HKL\tRyver\t5\t2\t!production!\t\t\t11%Akcept.p.prod.\t11%Akcept.p.prod.'
+  ].join('\r\n');
+  const logs = [];
+  const db = fakeStatusDb({ idents: ['Ryver', 'KN'], canceledIds: [4012] });
+  const summary = await syncAllProdStatuses({ deps: { db, log: (m) => logs.push(m), readFile: async () => content } });
+  assert.deepEqual(db.calls.cancel, [[[['LuxanGmbH', 'KN', '70']], false]], 'tylko całe zlecenie; MAXSTATUSPROD przy wysłanej i pojedyncza pozycja — nie');
+  assert.equal(summary.canceledByProd, 1);
+  assert.match(logs.join('\n'), /anulowane przez produkcję .*4012/);
+
+  const dry = fakeStatusDb({ idents: ['KN'] });
+  await syncAllProdStatuses({ dryRun: true, deps: { db: dry, log: () => {}, readFile: async () => content } });
+  assert.equal(dry.calls.cancel[0][1], true, 'dry-run tylko liczy');
+});
+
+test('syncAllProdStatuses: błąd anulowania liczony jako błąd, cykl idzie dalej', async () => {
+  const db = { ...fakeStatusDb(), cancelOrdersFromProd: async () => { throw new Error('baza'); } };
+  const summary = await syncAllProdStatuses({ deps: { db, log: () => {}, readFile: async () => file('HKL\tRyver\t1\t1\t!sent!\t2026-08-05\tBUS') } });
+  assert.equal(summary.failed, 1);
 });

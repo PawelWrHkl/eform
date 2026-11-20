@@ -133,7 +133,7 @@ function setRowAfter(displayValues, afterKey, key, entry) {
  * Od 2026-10-27 także rozbicie ceny po rabacie klienta grupy
  * (`clientDiscountBreakdown`): cena po rabacie, rabat na dopłatę, dopłata po rabacie.
  */
-const CLIENT_DISCOUNT_KEYS = ['SUB___RABAT_KLIENTA', 'SUB___CENA_PO_RABACIE', 'SUB___RABAT_DOPLATY', 'SUB___DOPLATA_PO_RABACIE', 'SUB___RABAT_B2B_KWOTOWY'];
+const CLIENT_DISCOUNT_KEYS = ['SUB___RABAT_KLIENTA', 'SUB___CENA_PO_RABACIE', 'SUB___RABAT_DOPLATY', 'SUB___DOPLATA_PO_RABACIE', 'SUB___RABAT_B2B', 'SUB___RABAT_B2B_KWOTOWY'];
 
 /**
  * Rabat klienta grupy rozłożony na składniki ceny (decyzja właściciela
@@ -426,13 +426,15 @@ export function applyClientDiscount(values, displayValues) {
     applyClientMarkup(values, displayValues);
 
     const pct = Number(window.clientDiscountPercent) || 0;
-    // Rabat B2B organizacji dla jej klienta (services/b2bDiscount.js, decyzje
-    // właściciela 2026-11-18): punkty doliczane do rabatu z cennika TEJ pozycji
-    // oraz rabat kwotowy zamieniony na serwerze na równy procent pozycji.
+    // Rabat B2B organizacji dla jej klienta (services/b2bDiscount.js): procent extra
+    // OD CENY PO RABACIE Z CENNIKA — cennik zostaje 70%, a B2B osobno 10% (Paweł
+    // 2026-11-19; do tego dnia punkty doliczane do cennika, 70% + 10 = 80%) — oraz
+    // rabat kwotowy zamieniony na serwerze na równy procent pozycji. Oba mnożą cenę
+    // na końcu. Kolumna nadal nazywa się `b2b_discount_points`, ale niesie procent.
     // Zlecenie konta podrzędnego grupy go nie ma (serwer przysyła 0).
-    const b2bPoints = Math.min(100, Math.max(0, Number(window.b2bDiscountPoints) || 0));
+    const b2bPct = Math.min(100, Math.max(0, Number(window.b2bDiscountPoints) || 0));
     const b2bAmountPct = Math.min(100, Math.max(0, Number(window.b2bDiscountAmountPercent) || 0));
-    if (!(pct > 0) && !(b2bPoints > 0) && !(b2bAmountPct > 0)) {
+    if (!(pct > 0) && !(b2bPct > 0) && !(b2bAmountPct > 0)) {
         // ⚠️ Rabat zszedł do zera, ale wiersz po nim potrafi wciąż siedzieć
         // w ZAPISANEJ pozycji: przy edycji `displayValues` przychodzą z bazy,
         // nie z pustej mapy. Bez tego usunięcia klient, któremu rabat odebrano,
@@ -444,8 +446,10 @@ export function applyClientDiscount(values, displayValues) {
             displayValues.delete('SUB___WARTOSC_PO_RABACIE');
             displayValues.delete('WARTOSC_PO_RABACIE');
         }
+        delete values['RABAT_B2B'];
         delete values['RABAT_B2B_KWOTOWY'];
         delete values['RABAT_PORTALU'];
+        delete values['WARTOSC_PRZED_B2B'];
         return;
     }
     // Ile z `pct` to ekstra rabat klienta (`user.extra_rabat`; 0, gdy klient nic
@@ -470,19 +474,7 @@ export function applyClientDiscount(values, displayValues) {
     // Rabat klienta grupy = to, co zostaje z `pct` po odjęciu ekstra rabatu.
     // Serwer przysyła sumę obu (`resolveCombinedDiscountForOrder`), a składają
     // się inaczej, więc muszą tu zostać rozdzielone.
-    let clientPct = Math.max(0, pct - portalBonusPct);
-
-    // Rabat B2B: rabat z cennika pozycji + punkty (70% + 3 = 73%), dalej liczony
-    // DOKŁADNIE jak rabat klienta grupy — zastępuje cennikowy na cenie katalogowej,
-    // dopłaty zostają ze swoim rabatem. Per pozycja, bo cennik klienta różni się
-    // między grupami. `SUB___CENA_RABAT` zostaje nietknięty, więc każde kolejne
-    // przeliczenie znów startuje od cennika (punkty nie kumulują się).
-    const listRaw = parseFloat(values['SUB___CENA_RABAT']) || 0;
-    const listPct = parseFloat((listRaw > 1 ? listRaw : listRaw * 100).toFixed(2));
-    const b2bActive = !(clientPct > 0) && b2bPoints > 0;
-    if (b2bActive) clientPct = Math.min(100, parseFloat((listPct + b2bPoints).toFixed(2)));
-    // Procent pokazywany w wierszu rabatu i zapisywany w `RABAT_KLIENTA`.
-    const shownPct = b2bActive ? clientPct : pct;
+    const clientPct = Math.max(0, pct - portalBonusPct);
 
     const ilosc = Math.max(1, parseFloat(values['ILOSC']) || 1);
     const hasKoncowa = values['SUB___WARTOSC_KONCOWA'] !== undefined;
@@ -498,19 +490,15 @@ export function applyClientDiscount(values, displayValues) {
     const unitAfterClientDiscount = breakdown
         ? breakdown.unitAfterClientDiscount
         : (clientPct > 0 && Number.isFinite(cenaKoncowaCennikowa)
-            ? Math.max(0, cenaKoncowaCennikowa * (b2bActive
-                // B2B bez ceny katalogowej: cena po cenniku już ma rabat z cennika,
-                // więc zamieniamy go na nowy: × (100 − nowy) / (100 − cennikowy).
-                ? (listPct < 100 ? (100 - clientPct) / (100 - listPct) : 0)
-                : (1 - clientPct / 100)))
+            ? Math.max(0, cenaKoncowaCennikowa * (1 - clientPct / 100))
             : cenaKoncowaCennikowa);
 
     // Krok 2 — ekstra rabat zdejmuje swój procent z KWOTY NETTO PO RABACIE.
     // ⚠️ Mnożenie, nie dodawanie punktów procentowych: rabat klienta 15% i bonus
     // 1% dają 100 → 85 → 84.15, a nie 84 (16% od katalogu, jak było do 22.09).
     const unitAfterDiscount = Number.isFinite(unitAfterClientDiscount)
-        // Rabat kwotowy B2B — ten sam równy mnożnik na każdej pozycji, na samym końcu.
-        ? Math.max(0, parseFloat((unitAfterClientDiscount * (1 - portalBonusPct / 100) * (1 - b2bAmountPct / 100)).toFixed(2)))
+        // Rabat B2B (procent, potem kwota jako równy procent) — mnożniki na samym końcu.
+        ? Math.max(0, parseFloat((unitAfterClientDiscount * (1 - portalBonusPct / 100) * (1 - b2bPct / 100) * (1 - b2bAmountPct / 100)).toFixed(2)))
         : NaN;
     const positionAfterDiscount = Number.isFinite(unitAfterDiscount)
         ? parseFloat((unitAfterDiscount * ilosc).toFixed(2))
@@ -528,6 +516,15 @@ export function applyClientDiscount(values, displayValues) {
     // `total_sub`, a `services/subPrices.js` — sumę „Razem po rabacie".
     // Zostawienie jej bez rabatu wróciłoby do usterki z 2026-09-10: kafelek
     // pokazywał 113.20, a w bazie było 112.07.
+    // Wartość pozycji bez rabatu B2B (ta sama ścieżka, tylko bez mnożników B2B) — stopka
+    // po kłódce pokazuje od jej sumy „Rabat extra B2B” i cenę po rabacie (mail szefa 2026-11-19).
+    if ((b2bPct > 0 || b2bAmountPct > 0) && hasKoncowa && Number.isFinite(unitAfterClientDiscount)) {
+        const unit = Math.max(0, parseFloat((unitAfterClientDiscount * (1 - portalBonusPct / 100)).toFixed(2)));
+        values['WARTOSC_PRZED_B2B'] = parseFloat((unit * ilosc).toFixed(2));
+    } else {
+        delete values['WARTOSC_PRZED_B2B'];
+    }
+
     if (Number.isFinite(positionAfterDiscount) && hasKoncowa) {
         discountAppliedToSubTotal = true;
         values['SUB___WARTOSC_KONCOWA'] = positionAfterDiscount;
@@ -536,11 +533,13 @@ export function applyClientDiscount(values, displayValues) {
     }
 
     // Pola informacyjne w formularzu (form.js → buildClientDiscountFields).
-    values['RABAT_KLIENTA'] = shownPct;
+    values['RABAT_KLIENTA'] = pct;
     if (Number.isFinite(positionAfterDiscount)) values['WARTOSC_PO_RABACIE'] = positionAfterDiscount;
     // Dokładny procent rabatu kwotowego (wiersz niżej pokazuje go zaokrąglonego) —
     // specyfikacja ceny uzgadnia z nim kwoty. Bez prefiksu `SUB___`, bo
     // `applyClientMarkup` kasuje wiersze `SUB___X` bez bliźniaka `X`.
+    if (b2bPct > 0) values['RABAT_B2B'] = b2bPct;
+    else delete values['RABAT_B2B'];
     if (b2bAmountPct > 0) values['RABAT_B2B_KWOTOWY'] = b2bAmountPct;
     else delete values['RABAT_B2B_KWOTOWY'];
     // Tak samo ekstra rabat — mnożnik po rabacie klienta, osobna linia w specyfikacji.
@@ -548,7 +547,7 @@ export function applyClientDiscount(values, displayValues) {
     else delete values['RABAT_PORTALU'];
 
     const discountInput = document.getElementById('RABAT_KLIENTA');
-    if (discountInput) discountInput.value = `${shownPct}%`;
+    if (discountInput) discountInput.value = `${pct}%`;
     const afterInput = document.getElementById('WARTOSC_PO_RABACIE');
     if (afterInput && Number.isFinite(positionAfterDiscount)) afterInput.value = positionAfterDiscount;
 
@@ -581,10 +580,7 @@ export function applyClientDiscount(values, displayValues) {
     // przy każdej innej wartości. Podstawiamy `portalBonusPct`, nie `pct`:
     // opis dotyczy samego ekstra rabatu, a `pct` niesie sumę z rabatem klienta.
     const portalLabel = t('form.portal_usage_discount_label', { percent: portalBonusPct });
-    // Rabat B2B: rabat z cennika podniesiony o punkty — opis mówi, o ile.
-    const baseLabel = b2bActive
-        ? t('form.b2b_discount_label', { points: b2bPoints })
-        : t('form.client_discount_label');
+    const baseLabel = t('form.client_discount_label');
     const discountLabel = portalBonusPct <= 0
         ? baseLabel
         : (clientPct > 0
@@ -597,14 +593,14 @@ export function applyClientDiscount(values, displayValues) {
             // Opis jest wyliczany, nie dziedziczony: `|| existing` zamroziłoby stary
             // tekst przy kolejnym przeliczeniu, gdyby doszedł rabat klienta.
             param_description: discountLabel,
-            option_value: `${shownPct}%`,
+            option_value: `${pct}%`,
             option_description: '',
             locked: true,
             sub: true,
             row: existingDiscount.row || '2'
         });
     } else {
-        // Sam rabat kwotowy B2B — procentu rabatu klienta nie ma.
+        // Sam rabat B2B — procentu rabatu klienta nie ma.
         displayValues.delete('SUB___RABAT_KLIENTA');
     }
 
@@ -640,10 +636,17 @@ export function applyClientDiscount(values, displayValues) {
         displayValues.delete('SUB___DOPLATA_PO_RABACIE');
     }
 
-    // Rabat kwotowy B2B — ukryty wiersz z procentem za rozbiciem, przed wartością 1 szt.
+    // Rabat B2B — ukryte wiersze z procentem za rozbiciem, przed wartością 1 szt.:
+    // najpierw „Rabat extra B2B 10%”, potem rabat kwotowy.
+    const b2bAnchor = () => ['SUB___RABAT_B2B', 'SUB___DOPLATA_PO_RABACIE', 'SUB___RABAT_DOPLATY', 'SUB___CENA_PO_RABACIE', 'SUB___RABAT_KLIENTA']
+        .find((key) => displayValues.has(key)) || 'SUB___CENA_RABAT';
+    displayValues.delete('SUB___RABAT_B2B');
+    if (b2bPct > 0) {
+        setRowAfter(displayValues, b2bAnchor(), 'SUB___RABAT_B2B',
+            hiddenRow(t('order.total_b2b_extra_discount'), `${parseFloat(b2bPct.toFixed(2))}%`));
+    }
     if (b2bAmountPct > 0) {
-        const anchor = ['SUB___DOPLATA_PO_RABACIE', 'SUB___RABAT_DOPLATY', 'SUB___CENA_PO_RABACIE', 'SUB___RABAT_KLIENTA']
-            .find((key) => displayValues.has(key)) || 'SUB___CENA_RABAT';
+        const anchor = b2bAnchor();
         setRowAfter(displayValues, anchor, 'SUB___RABAT_B2B_KWOTOWY',
             hiddenRow(t('form.b2b_amount_discount_label'), `${parseFloat(b2bAmountPct.toFixed(2))}%`));
     } else {

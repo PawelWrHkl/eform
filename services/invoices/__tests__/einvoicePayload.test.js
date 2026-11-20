@@ -100,7 +100,7 @@ test('poziom 2: pełna treść zgodna z przykładem kontraktu (pkt 4)', () => {
     },
     buyer: {
       name: 'Muster Raumausstattung GmbH', street: 'Beispielstraße 12', zip: '10115', city: 'Berlin', country: 'DE',
-      vat_eu_id: 'DE123456789', tax_id: 'DE123456789', invoice_email: null, email: 'login@muster.example',
+      vat_eu_id: 'DE123456789', tax_id: 'DE123456789', invoice_email: '', email: 'login@muster.example',
       phone: '+49 30 123', ident: 'Muster_Raum', source_type: 'user'
     },
     delivery_address: null,
@@ -146,12 +146,15 @@ test('uwagi z zamówienia (invoice.notes) NIGDY nie idą do notes_de', () => {
 test('VAT-UE sprzedawcy: vatEuId, a bez niego USt-IdNr. z wydruku; brak obu → null', () => {
   assert.equal(sellerVatId(invoiceFixture({ seller: { vatEuId: 'DE999' } })), 'DE999');
   assert.equal(sellerVatId(invoiceFixture()), 'DE814603367');
-  assert.equal(sellerVatId(invoiceFixture({ compliance: null })), null);
+  assert.equal(sellerVatId(invoiceFixture({ compliance: null })), '');
 });
 
-test('numer: null tylko dla /check; „_” i nieznane znaki odrzucone; zły efor_env i waluta też', () => {
+test('numer: null tylko dla /check; „_” i nieznane znaki odrzucone; zły efor_env, waluta i brak invoice_id też', () => {
   assert.equal(buildPayload({ invoice: invoiceFixture(), env: 'test', sources: sourcesFixture(), number: null }).number, null);
-  assert.equal(buildPayload({ invoice: invoiceFixture({ id: null }), env: 'prod', sources: sourcesFixture(), number: 'SHADOW-2913' }).invoice_id, null);
+  // Skrypt wsadowy: -order_id (Wiktoria 19.11.2026 — null daje 400)
+  assert.equal(buildPayload({ invoice: invoiceFixture({ id: -2913 }), env: 'prod', sources: sourcesFixture(), number: 'SHADOW-2913' }).invoice_id, -2913);
+  assert.throws(() => buildPayload({ invoice: invoiceFixture({ id: null }), env: 'prod', sources: sourcesFixture(), number: 'SHADOW-2913' }), /invoice_id/);
+  assert.throws(() => buildPayload({ invoice: invoiceFixture({ id: undefined }), env: 'prod', sources: sourcesFixture() }), /invoice_id/);
   assert.throws(() => buildPayload({ invoice: invoiceFixture({ number: '2026_00017' }), env: 'test', sources: sourcesFixture() }), /numer/);
   assert.throws(() => buildPayload({ invoice: invoiceFixture(), env: 'production', sources: sourcesFixture() }), /efor_env/);
   assert.throws(() => buildPayload({ invoice: invoiceFixture({ currency: 'PLN' }), env: 'test', sources: sourcesFixture() }), /EUR/);
@@ -253,7 +256,7 @@ test('bez okresu nie ma pól period_*; sklep grupy = source_type group_user; lin
   assert.equal(payload.buyer.source_type, 'group_user');
   assert.deepEqual(
     (({ order_idx, order_item_id, order_position, shipping_date, shipping_status, user_ident, kom }) => ({ order_idx, order_item_id, order_position, shipping_date, shipping_status, user_ident, kom }))(payload.items[1]),
-    { order_idx: null, order_item_id: null, order_position: null, shipping_date: null, shipping_status: '', user_ident: null, kom: '' }
+    { order_idx: '', order_item_id: null, order_position: null, shipping_date: null, shipping_status: '', user_ident: '', kom: '' }
   );
 });
 
@@ -264,6 +267,22 @@ test('korekta: blok corrected z numerem faktury pierwotnej; zwykła faktura → 
     sources: sourcesFixture({ corrected: { number: '2026/00017', issueDate: '2026-10-19', deliveryDate: '2026-10-16' } })
   });
   assert.deepEqual(payload.corrected, { number: '2026/00017', issue_date: '2026-10-19', delivery_date: '2026-10-16', reason: 'Falscher Preis' });
+});
+
+test('pola tekstowe nigdy null — schemat usługi (19.11.2026: 400 „Input should be a valid string”)', () => {
+  const bare = invoiceFixture({
+    lang: null,
+    seller: { name: 'X GmbH' },
+    buyer: { name: 'Y GmbH' },
+    compliance: null
+  });
+  const payload = buildPayload({
+    invoice: bare,
+    env: 'test',
+    sources: sourcesFixture({ issuer: { ident: 'LUXANGMBH', email: '' }, buyer: { ident: null, email: null, phone: null }, orders: [{ id: 1, order_idx: '1', commision: null, delivery_date: null, user_ident: null }], orderItems: [], statuses: [] })
+  });
+  const strings = [payload.lang, ...Object.values(payload.seller), ...Object.values(payload.buyer).filter((v) => typeof v !== 'boolean'), payload.orders[0].user_ident, payload.items[0].order_idx, payload.items[0].user_ident];
+  assert.ok(strings.every((v) => typeof v === 'string'), JSON.stringify({ seller: payload.seller, buyer: payload.buyer }));
 });
 
 test('grupa cenowa z parametrów pozycji; zepsuty JSON → pusto', () => {

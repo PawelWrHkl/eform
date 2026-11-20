@@ -101,5 +101,9 @@
   "blank.rebill_note": "Re-invoicing of costs",
   "blank.tpl.transport": "Transport costs",
   "blank.tpl.montage": "Installation",
-  "blank.tpl.repair": "Repair"
+  "blank.tpl.repair": "Repair",
+  "reminder.subject": "Payment reminder",
+  "reminder.intro": "this is a reminder that payment of the invoice below is due today. The invoice is attached again.",
+  "reminder.paid_note": "If you have already made the payment, please disregard this message.",
+  "reminder.amount_left": "Amount outstanding"
 }

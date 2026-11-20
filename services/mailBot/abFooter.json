@@ -1,6 +1,5 @@
 {
-  "_info": "Stopka AB (POP-19) — baner targowy R+T w mailu i PDF/HTML (szablon _ab_footer.njk). fair/hall/booth/company wspólne, teksty per język. image = plik obok (pusty = bez logo). organizations = identy organizacji zlecenia (sendData.organizationIdent), których AB dostają stopkę (brak klucza = wszystkie). Włącznik: AB_FOOTER_ENABLED w .env danego środowiska. Zmiana tego pliku działa bez restartu.",
-  "organizations": ["HKL"],
+  "_info": "Stopka AB (POP-19) — baner targowy R+T w mailu i PDF/HTML (szablon _ab_footer.njk). fair/hall/booth/company wspólne, teksty per język. image = plik obok (pusty = bez logo). Stopka dla WSZYSTKICH organizacji (19.11, Paweł); opcjonalny klucz organizations = lista identów organizacji zlecenia (sendData.organizationIdent) zawęża ją. Włącznik: AB_FOOTER_ENABLED w .env danego środowiska. Zmiana tego pliku działa bez restartu.",
   "fair": "R+T Stuttgart 2027",
   "hall": "7",
   "booth": "7B78",

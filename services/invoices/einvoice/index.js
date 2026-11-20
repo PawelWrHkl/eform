@@ -130,8 +130,10 @@ function readEinvoiceConfig(env = process.env) {
  */
 function classifyResponse(res) {
   const body = res.body || {};
-  // Usługa opisuje błąd w `detail` (400 — lista pól) albo w `error` (401: „api key missing”)
-  const why = body.detail !== undefined ? body.detail : body.error;
+  // Usługa opisuje błąd w `errors` (400 schemat: [{ loc, msg }]), `detail` albo `error` (401: „api key missing”)
+  const why = Array.isArray(body.errors)
+    ? body.errors.map((e) => `${e.loc}: ${e.msg}`).join('; ')
+    : (body.detail !== undefined ? body.detail : body.error);
   const suffix = why === undefined || why === null ? '' : `: ${typeof why === 'string' ? why : JSON.stringify(why).slice(0, 300)}`;
   switch (res.httpStatus) {
     case 200:
@@ -171,7 +173,7 @@ function eventPayload(res, requestSha) {
     pdf_sha256: b.pdf_sha256 || null,
     xml_sha256: b.xml_sha256 || null,
     live_would_reject: b.live_would_reject || null,
-    detail: b.detail === undefined ? (b.error === undefined ? null : b.error) : b.detail,
+    detail: b.errors || (b.detail === undefined ? (b.error === undefined ? null : b.error) : b.detail),
     request_sha256: requestSha
   };
 }

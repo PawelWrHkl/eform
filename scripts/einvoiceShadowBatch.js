@@ -6,7 +6,8 @@
  *
  * Dla wysłanych (`!sent!`) zamówień wystawcy (domyślnie Luxan GmbH, poziom 2) z okresu
  * dostawy buduje treść faktury DOKŁADNIE jak `createFromOrder` (te same ceny, VAT, nazwy),
- * ale bez zapisu do bazy i bez VIES, nadaje numer `SHADOW-<order_id>` i — dopiero z `--send` —
+ * ale bez zapisu do bazy i bez VIES, nadaje numer `SHADOW-<order_id>` i `invoice_id = -order_id`
+ * (Wiktoria 19.11.2026: liczba wymagana, ujemna nie zderzy się z prawdziwą fakturą) i — dopiero z `--send` —
  * wysyła ją kluczem shadow do usługi Wiktorii, która porównuje ją z fakturami PROD.
  *
  * TYLKO ODCZYT: repozytorium faktur jest owinięte strażnikiem, który przepuszcza wyłącznie
@@ -105,7 +106,7 @@ async function main() {
     let payload;
     try {
       const { invoice } = await service.createFromOrder({ orderId: order.id, level: 2, documentType: 'invoice', issue: false, dryRun: true, skipVies: true });
-      payload = buildPayload({ invoice, env: args.env, sources: await repo.getEinvoiceSources(invoice), number: `SHADOW-${order.id}` });
+      payload = buildPayload({ invoice: { ...invoice, id: -order.id }, env: args.env, sources: await repo.getEinvoiceSources(invoice), number: `SHADOW-${order.id}` });
     } catch (err) {
       summary.skipped++;
       console.log(`[batch] ${label}: pominięte — ${err.message}`);

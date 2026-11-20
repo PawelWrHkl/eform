@@ -26,7 +26,7 @@
  */
 
 const { parseSpecExpression, allocateToTotal } = require('./expression');
-const { conditionsForParam, labelForCode, cleanTitle, optionText } = require('./scriptLabels');
+const { conditionsForParam, labelForCode, cleanTitle, optionText, groupNameFor } = require('./scriptLabels');
 const { translator, resolveLang } = require('./i18n');
 const { raffrolloItems } = require('./raffrollo');
 const { isDisabledDefaultRow } = require('../orderService');
@@ -369,13 +369,16 @@ function buildSetSpec({ prefix, factor, lockedVisible, clientDiscountVisible, va
       amountText: `− ${money(amount)}`
     });
     // Mnożniki po rabatach z cennika/klienta (pricesCalculator.applyClientDiscount):
-    // ekstra rabat za korzystanie z serwisu, potem rabat kwotowy B2B
+    // ekstra rabat za korzystanie z serwisu, potem rabat B2B procentowy i kwotowy
     // (services/b2bDiscount.js) — każdy osobną linią od ceny po poprzednich.
     // Dokładne procenty w `values` (wiersze pokazują zaokrąglone).
     const amountRow = rowOf(prefix + 'RABAT_B2B_KWOTOWY');
     const trailing = [];
     const portalPct = toNumber(values.RABAT_PORTALU);
     if (portalPct) trailing.push([portalPct, t('portal_discount')]);
+    const b2bRow = rowOf(prefix + 'RABAT_B2B');
+    const b2bPct = b2bRow ? (toNumber(values.RABAT_B2B) ?? toNumber(b2bRow.option_value)) : null;
+    if (b2bPct) trailing.push([b2bPct, cleanTitle(b2bRow.param_description) || t('discount')]);
     const amountPct = amountRow ? (toNumber(values.RABAT_B2B_KWOTOWY) ?? toNumber(amountRow.option_value)) : null;
     if (amountPct) trailing.push([amountPct, cleanTitle(amountRow.param_description) || t('discount')]);
     const withAmountLine = (list) => {
@@ -398,9 +401,9 @@ function buildSetSpec({ prefix, factor, lockedVisible, clientDiscountVisible, va
       ['DOPLATA_EL', elRate || 0]
     ]));
 
-    // Rabat klienta grupy — a u zwykłego klienta po kłódce rabat B2B organizacji
-    // (ten sam wiersz `RABAT_KLIENTA`, ta sama reguła). U zwykłego klienta używany
-    // tylko, gdy rozbicie się spina — inaczej (np. sam ekstra rabat) jak dotąd.
+    // Rabat klienta grupy (wiersz `RABAT_KLIENTA`; do 2026-11-19 niósł też rabat B2B
+    // jako punkty — stare pozycje). U zwykłego klienta używany tylko, gdy rozbicie
+    // się spina — inaczej (np. sam ekstra rabat) jak dotąd.
     const clientRow = (clientDiscountVisible || lockedVisible) ? rowOf(prefix + 'RABAT_KLIENTA') : null;
     const clientPct = clientRow ? toNumber(clientRow.option_value) : null;
 
@@ -521,6 +524,7 @@ function buildOrderPriceSpec({ orderDetails, orderItems, view, lang, currency, s
   // `hasSubPrices` widoku zlecenia (order_prices.njk liczy je dla CAŁEGO zlecenia).
   const orderHasSubPrices = (orderItems || []).some((i) => Array.isArray(i.subParamValues) && i.subParamValues.length > 0);
   const positions = [];
+  const groupNames = new Map(); // grupa → nazwa z prod.txt (jeden odczyt na grupę)
   (orderItems || []).forEach((item, index) => {
     const values = parseJson(item.json_parameters) || {};
     const descRaw = parseJson(item.json_parameters_desc);
@@ -543,10 +547,11 @@ function buildOrderPriceSpec({ orderDetails, orderItems, view, lang, currency, s
     if (!sets.length) return;
     const both = sets.length > 1;
     for (const s of sets) s.title = both ? t(s.key === 'sub' ? 'set_client' : 'set_purchase') : null;
+    if (!groupNames.has(groupNumber)) groupNames.set(groupNumber, groupNameFor(groupNumber, language, { dataDir }));
     positions.push({
       number: index + 1,
       id: item.id,
-      name: item.group_name || null,
+      name: groupNames.get(groupNumber) || item.group_name || null,
       commission: item.commision || null,
       config: configSummary(descRows, 6, values),
       quantity: sets[0].quantity,

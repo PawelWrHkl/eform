@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const { renderInvoiceHtml, createTranslator, buildThemeCss, summarizeItemDiscounts, SUPPORTED_LANGS } = require('../render/renderer');
+const { renderInvoiceHtml, createTranslator, buildThemeCss, summarizeItemDiscounts, SUPPORTED_LANGS, pageFooterTemplate } = require('../render/renderer');
 const { buildComplianceContext } = require('../core/compliance');
 const { TaxCategory } = require('../domain/constants');
 
@@ -269,4 +269,23 @@ test('render: szkic bez numeru nie wysadza szablonu', () => {
 test('render: dokument bez zaliczek nie pokazuje wiersza zaliczek', () => {
   const html = renderInvoiceHtml(ctx({ invoice: { advanceSettled: 0, amountDue: 212300, lang: 'pl' } }));
   assert.doesNotMatch(html, /Zapłacone zaliczki/);
+});
+
+test('stopka strony: rodzaj i numer w języku faktury + Strona X/Y, podniesiona pod treść (19.11.2026)', () => {
+  const de = pageFooterTemplate({ documentType: 'invoice', number: '26000002', lang: 'de' }, 28);
+  assert.match(de, /Rechnung 26000002 &middot; Seite <span class="pageNumber"><\/span>\/<span class="totalPages"><\/span>/);
+  assert.match(de, /padding:0 12mm 19\.0mm/);
+  // Szkic bez numeru; mały margines nie daje ujemnego podniesienia; numer escapowany
+  assert.match(pageFooterTemplate({ documentType: 'correction', number: null, lang: 'pl' }, 5), /padding:0 12mm 0\.0mm.*>Faktura korygująca &middot; Strona /);
+  assert.match(pageFooterTemplate({ documentType: 'invoice', number: 'A<1>', lang: 'nl' }, 14), /Factuur A&lt;1&gt; &middot; Pagina /);
+});
+
+test('płatność: faktura HKL drukuje konto klienta z pliku księgowości, inny wystawca — konto z profilu (19.11.2026)', () => {
+  const base = ctx();
+  const hkl = renderInvoiceHtml(ctx({ invoice: { issuerType: 'manufacturer', issuerId: 0, buyer: { ...base.invoice.buyer, vatEuId: 'NL869751876B01' } } }));
+  const payment = hkl.slice(hkl.indexOf('<section class="payment">'));
+  assert.match(payment, /ING BANK ŚLĄSKI S\.A\.[\s\S]*PL34 1050 1559 1000 0090 3311 9596[\s\S]*INGBPLPW/);
+  const other = renderInvoiceHtml(ctx({ invoice: { issuerType: 'organization', issuerId: 999 }, profile: { bankAccount: { bankName: 'Bank X', iban: 'DE89 3704 0044 0532 0130 00', swift: 'COBADEFFXXX' } } }));
+  assert.match(other.slice(other.indexOf('<section class="payment">')), /DE89 3704 0044 0532 0130 00/);
+  assert.doesNotMatch(other, /PL34 1050 1559/);
 });

@@ -101,5 +101,9 @@
   "blank.rebill_note": "Weiterberechnung von Kosten",
   "blank.tpl.transport": "Transportkosten",
   "blank.tpl.montage": "Montage",
-  "blank.tpl.repair": "Reparatur"
+  "blank.tpl.repair": "Reparatur",
+  "reminder.subject": "Zahlungserinnerung",
+  "reminder.intro": "wir möchten Sie daran erinnern, dass die Zahlung der unten genannten Rechnung heute fällig ist. Die Rechnung senden wir Ihnen erneut im Anhang.",
+  "reminder.paid_note": "Sollten Sie die Zahlung bereits veranlasst haben, betrachten Sie diese Nachricht bitte als gegenstandslos.",
+  "reminder.amount_left": "Offener Betrag"
 }

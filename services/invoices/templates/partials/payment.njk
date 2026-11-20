@@ -1,4 +1,4 @@
-{# Sekcja płatności: forma, rachunek bankowy, termin. #}
+{# Sekcja płatności: forma, rachunek bankowy (`paymentAccount`: faktura HKL — konto klienta z pliku księgowości), termin. #}
 <section class="payment">
   <h2 class="section-title">{{ t('payment.title') }}</h2>
   <table class="payment-table">
@@ -12,21 +12,21 @@
       <th>{{ t('header.due_date') }}</th>
       <td>{{ invoice.dueDate | date }}</td>
     </tr>
-    {% if profile.bankAccount and profile.bankAccount.iban %}
-      {% if profile.bankAccount.bankName %}
+    {% if paymentAccount and paymentAccount.iban %}
+      {% if paymentAccount.bankName %}
         <tr>
           <th>{{ t('payment.bank') }}</th>
-          <td>{{ profile.bankAccount.bankName }}</td>
+          <td>{{ paymentAccount.bankName }}</td>
         </tr>
       {% endif %}
       <tr>
         <th>{{ t('payment.iban') }}</th>
-        <td class="payment-table__iban">{{ profile.bankAccount.iban }}</td>
+        <td class="payment-table__iban">{{ paymentAccount.iban }}</td>
       </tr>
-      {% if profile.bankAccount.swift %}
+      {% if paymentAccount.swift %}
         <tr>
           <th>{{ t('payment.swift') }}</th>
-          <td>{{ profile.bankAccount.swift }}</td>
+          <td>{{ paymentAccount.swift }}</td>
         </tr>
       {% endif %}
     {% endif %}

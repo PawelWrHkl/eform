@@ -553,3 +553,43 @@ test('przelicz dzienne: dzień bez dziennej dostaje nową; opłaconej, z korekt�
   const off = await recalculateDailyInvoices({ config: readAutoInvoiceConfig({ INVOICE_AUTOGEN_ENABLED: 'true', INVOICE_AUTOGEN_SINCE: '2026-01-01' }, { invoicesEnabled: true }), deps: { repository: {}, service: {}, log: quiet } });
   assert.equal(off.skipped, 'daily-disabled');
 });
+
+test('pobierz ponownie z zamówienia: ten sam numer, daty i autor z aktualnych cen; dzienna po dniu sprzedaży; reszta odmawia', async () => {
+  const issued = (over = {}) => ({ id: 77, number: '26000010', status: 'issued', documentType: 'invoice', level: 2, orderId: 1, issueDate: '2026-11-18', saleDate: '2026-11-17', deliveryDate: '2026-11-17', compliance: {}, ...over });
+  const rebuildRepo = (inv, { pin = 'AUTO', orderIds = [1], blockers = {} } = {}) => {
+    const repo = fakeRepository({ 1: source(1, { idx: '23', price: '231.11' }), 2: source(2, { idx: '24' }) });
+    const opts = [];
+    const issuerProfile = repo.getIssuerProfile;
+    return Object.assign(repo, {
+      opts,
+      // dzienna wymaga formatki wystawcy, jak w automacie
+      async getIssuerProfile(...a) { return { ...(await issuerProfile(...a)), templateCode: 'HKL' }; },
+      async getInvoice() { return inv; },
+      async getEditBlockers() { return { related: 0, allocations: 0, ...blockers }; },
+      async getRebuildSource() { return { createdByPin: pin, orderIds }; },
+      async createInvoice(invoice, o) { repo.saved.push(invoice); opts.push(o); return { id: 78, number: invoice.number }; }
+    });
+  };
+
+  const repo = rebuildRepo(issued());
+  const r = await service(repo).rebuildFromOrders(77);
+  const saved = repo.saved[0];
+  assert.deepEqual([r.number, saved.number, saved.issueDate, saved.saleDate, saved.createdByPin, repo.opts[0].replaceId], ['26000010', '26000010', '2026-11-18', '2026-11-17', 'AUTO', 77]);
+  assert.equal(saved.totalNet, 23111, 'kwota z aktualnej ceny zlecenia');
+
+  const daily = rebuildRepo(issued({ orderId: null, level: 2, saleDate: '2026-11-18' }), { pin: DAILY_ACTOR, orderIds: [2, 1] });
+  await service(daily).rebuildFromOrders(77);
+  assert.deepEqual([daily.saved[0].saleDate, daily.saved[0].createdByPin, daily.saved[0].items.map((i) => i.orderNumber)], ['2026-11-18', DAILY_ACTOR, ['24', '23']]);
+
+  for (const [inv, opt, re] of [
+    [issued({ status: 'paid' }), {}, /status paid/],
+    [issued({ documentType: 'proforma' }), {}, /tylko faktura VAT/],
+    [issued(), { blockers: { related: 1 } }, /korektę/],
+    [issued({ compliance: { manualEdit: { edited: true } } }), {}, /edytowana ręcznie/],
+    [issued({ orderId: null }), { pin: 'AUTO' }, /ani dzienna/]
+  ]) {
+    const bad = rebuildRepo(inv, opt);
+    await assert.rejects(service(bad).rebuildFromOrders(77), re);
+    assert.equal(bad.saved.length, 0);
+  }
+});

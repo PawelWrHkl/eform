@@ -191,6 +191,20 @@ function labelForCode(code, ctx) {
   return parts.length ? parts.slice(0, 2).join(' · ') : null;
 }
 
+/**
+ * Nazwa grupy (`DESCRIPTION` z `prod.txt`) w języku widza. `order_item.group_name`
+ * to zrzut z chwili zapisu — pozycje DE z 18.11 mają „MOSKITIERY”, bo plik DE był wtedy po polsku.
+ * `lang` już po resolveLang (stała lista), więc ścieżka bezpieczna.
+ */
+function groupNameFor(groupNumber, lang, opts = {}) {
+  if (!groupNumber) return null;
+  try {
+    const text = fs.readFileSync(path.join(opts.dataDir || dataDir, String(groupNumber), 'data', lang, 'prod.txt'), 'utf8');
+    const m = /^DESCRIPTION\t([^\t\r\n]*)/m.exec(text);
+    return (m && m[1].trim()) || null;
+  } catch (_e) { return null; }
+}
+
 function clearCache() {
   scriptCache.clear();
 }
@@ -203,5 +217,6 @@ module.exports = {
   labelForCode,
   cleanTitle,
   optionText,
+  groupNameFor,
   clearCache
 };

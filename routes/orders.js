@@ -710,6 +710,7 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        totalPrice.subBeforeB2b = subTotals.subBeforeB2b;
         // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
         await attachSubVatTotals(totalPrice, orderDetails.id);
         await attachRegularVatTotals(totalPrice, orderDetails.id);
@@ -865,6 +866,7 @@ router.get('/order/:orderId/:prices(true|false)?', requireLogin, checkOrderOwner
         const subTotals = calcSubTotals(orderItems);
         totalPrice.subVisible = subTotals.subVisible;
         totalPrice.subLocked = subTotals.subLocked;
+        totalPrice.subBeforeB2b = subTotals.subBeforeB2b;
         // VAT i brutto pod ukrytą sumą klienta (stopka po kłódce).
         await attachSubVatTotals(totalPrice, orderDetails.id);
         await attachRegularVatTotals(totalPrice, orderDetails.id);

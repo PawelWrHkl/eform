@@ -13,6 +13,7 @@ const renderer = require('./render/renderer');
 const maizonCozy = require('./render/maizonCozy');
 const defaultRepository = require('./db/repository');
 const { toIsoDay, todayIso, addDays } = require('./core/dates');
+const { DAILY_ACTOR } = require('./core/collective');
 const { ViesClient } = require('./core/vies');
 const hierarchy = require('./core/hierarchy');
 const allocations = require('./core/allocations');
@@ -20,6 +21,7 @@ const compliance = require('./core/compliance');
 const pricing = require('./core/pricing');
 const clientDiscount = require('./core/clientDiscount');
 const manualEdit = require('./core/manualEdit');
+const { withPaymentAccountWarning } = require('./core/contractorAccounts');
 const templates = require('./core/templates');
 const language = require('./core/language');
 const { calcSubTotals, HKL_ORG_ID } = require('../subPrices');
@@ -212,6 +214,49 @@ class InvoiceService {
   }
 
   /**
+   * „Pobierz ponownie z zamówienia” (Paweł 19.11.2026: „funkcjonalność w zakładce faktury, która
+   * będzie jeszcze raz pobierała dane ze zlecenia i na nowo robiła fakturę” — np. po przeliczeniu
+   * cen zlecenia). Ta sama faktura: numer i data wystawienia zostają, treść z aktualnych zleceń,
+   * stara wersja znika w transakcji (`createInvoice({ replaceId })`) — jak „Przelicz dzienne
+   * ponownie”. Autor zostaje, więc mail i FTP automatu idą od nowa (FTP nadpisze plik). Ręczna
+   * edycja faktury per zlecenie (nakładka na zlecenie) jest stosowana ponownie.
+   *
+   * @param {number} invoiceId
+   * @returns {Promise<{ id: number, number: string|null }>}
+   */
+  async rebuildFromOrders(invoiceId) {
+    const inv = await this.repository.getInvoice(invoiceId);
+    if (!inv) throw new Error(`Faktura ${invoiceId} nie istnieje`);
+    const label = inv.number || `#${invoiceId}`;
+    if (inv.status !== InvoiceStatus.ISSUED) throw new Error(`Faktura ${label} ma status ${inv.status} — ponownie z zamówienia tylko wystawiona i nieopłacona`);
+    if (inv.documentType !== DocumentType.INVOICE) throw new Error(`Dokument ${label} (${inv.documentType}) — ponownie z zamówienia tylko faktura VAT`);
+    const blockers = await this.repository.getEditBlockers(inv.id);
+    if (blockers.related) throw new Error(`Faktura ${label} ma korektę albo dokument powiązany — przelicz ręcznie`);
+    if (blockers.allocations) throw new Error(`Faktura ${label} jest częściowa (alokacje ilości) — przelicz ręcznie`);
+    const edit = inv.compliance && inv.compliance.manualEdit;
+    // Edycja bez nakładki na zlecenie (sama faktura, dzienna) zniknęłaby przy przebudowie
+    if (edit && edit.edited && !edit.overlay) throw new Error(`Faktura ${label} była edytowana ręcznie — przebudowa skasowałaby zmiany, popraw w edytorze faktury`);
+
+    const { createdByPin, orderIds } = await this.repository.getRebuildSource(inv.id);
+    const replace = { id: inv.id, number: inv.number, issueDate: inv.issueDate };
+    if (inv.orderId) {
+      // Daty sprzedaży i dostawy z faktury: ponowne wysłanie zlecenia (korekta) zmienia mu sent_date
+      return this.createFromOrder({
+        orderId: Number(inv.orderId), level: inv.level, documentType: DocumentType.INVOICE, issue: true, createdByPin, replace,
+        saleDate: inv.saleDate, deliveryDate: inv.deliveryDate,
+        ...(edit ? { manualEdit: edit } : {})
+      });
+    }
+    // shortcut: zbiorcza tygodniowa/miesięczna nie zapisuje okresu — obsługa tylko dziennej (okres = dzień sprzedaży); dopisać, gdy będzie potrzebna
+    if (createdByPin !== DAILY_ACTOR) throw new Error(`Faktura ${label} nie jest z jednego zlecenia ani dzienna — przelicz ręcznie`);
+    const day = toIsoDay(inv.saleDate);
+    return this.createCollective({
+      orderIds, period: { schedule: 'daily', key: day, start: day, end: day }, level: inv.level,
+      issue: true, createdByPin, requireLetterhead: true, replace
+    });
+  }
+
+  /**
    * FAKTURA ZBIORCZA — jeden dokument ze wszystkich zamówień klienta z okresu
    * (fakturowanie niestandardowe: `user.invoice_schedule`, `core/collective.js`).
    *
@@ -379,7 +424,8 @@ class InvoiceService {
       buyerEndClientId: null,
       deliveryDate,
       compliance: {
-        ...compliance.buildComplianceContext({ seller, buyer, taxLines: computed.taxLines, legalSettings: issuerProfile.legalSettings, currency, localCurrency, deliveryDate }),
+        ...withPaymentAccountWarning(compliance.buildComplianceContext({ seller, buyer, taxLines: computed.taxLines, legalSettings: issuerProfile.legalSettings, currency, localCurrency, deliveryDate }),
+          { issuerType: hierarchy.IssuerType.ORGANIZATION, issuerId, buyer }),
         // Dane formularza do wznowienia szkicu i „nowa na podstawie” (`/invoices/blank?from=`)
         blank: {
           rebillSource,
@@ -882,6 +928,7 @@ class InvoiceService {
       context: {
         organization: source.organization,
         user: source.user,
+        payer: source.payer,
         groupShop: source.groupShop,
         endClient
       }
@@ -1180,7 +1227,7 @@ class InvoiceService {
 
     // Kontekst prawno-podatkowy kraju WYSTAWCY (numery rejestrowe, klauzule,
     // wymóg daty dostawy, wymóg kwoty VAT w walucie krajowej)
-    const complianceContext = compliance.buildComplianceContext({
+    const complianceContext = withPaymentAccountWarning(compliance.buildComplianceContext({
       seller,
       buyer,
       taxLines: computed.taxLines,
@@ -1188,7 +1235,9 @@ class InvoiceService {
       currency,
       localCurrency,
       deliveryDate
-    });
+    }), { issuerType: parties.issuerType, issuerId: parties.issuerId, buyer, contractorAccount: buyer.bankAccount });
+    // Faktura HKL: konto z contractors.txt zapisane w fakturze (druk nie zależy od późniejszych zmian w pliku)
+    if (buyer.bankAccount && pricing.isHklIssuer(parties.issuerType, parties.issuerId)) complianceContext.paymentAccount = buyer.bankAccount;
     complianceContext.warnings.forEach((w) => this.log(`[invoices] order ${ref}: ${w}`));
 
     // Adres dostawy trafia na dokument TYLKO gdy realnie różni się od adresu

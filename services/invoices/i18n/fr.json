@@ -101,5 +101,9 @@
   "blank.rebill_note": "Refacturation de frais",
   "blank.tpl.transport": "Frais de transport",
   "blank.tpl.montage": "Installation",
-  "blank.tpl.repair": "Réparation"
+  "blank.tpl.repair": "Réparation",
+  "reminder.subject": "Rappel de paiement",
+  "reminder.intro": "nous vous rappelons que le paiement de la facture ci-dessous arrive à échéance aujourd'hui. La facture est à nouveau jointe à ce message.",
+  "reminder.paid_note": "Si vous avez déjà effectué le paiement, veuillez ne pas tenir compte de ce message.",
+  "reminder.amount_left": "Montant restant dû"
 }

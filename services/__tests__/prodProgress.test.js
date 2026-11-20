@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { prodPercent, maxStatusProd, buildProgressIndex, buildCanceledSet, historyRows, decide, loadIndex, clientMayChange, clientMayChangeMany, PROD_LOCK_PERCENT } = require('../prodProgress');
+const { prodPercent, maxStatusProd, buildProgressIndex, buildCanceledOrders, historyRows, decide, loadIndex, clientMayChange, clientMayChangeMany, PROD_LOCK_PERCENT } = require('../prodProgress');
 const { parseStatusFile } = require('../prodStatus');
 
 const FILE = [
@@ -40,9 +40,10 @@ test('pozycja bez procentu → blokada', () => {
     assert.deepEqual(decide(order({ user_ident: 'X', order_idx: 5 }), index), { allowed: false, percent: null });
 });
 
-test('brak w pliku: świeże (bez statusu produkcji) wolno, stare (z prod_status) nie', () => {
-    assert.equal(decide(order({ order_idx: 999, prod_status: null }), index).allowed, true);
+test('brak pozycji w pliku → nie wolno, także świeże i z historią < 20% (Wiktoria 19.11.2026)', () => {
+    assert.equal(decide(order({ order_idx: 999, prod_status: null }), index).allowed, false);
     assert.equal(decide(order({ order_idx: 999, prod_status: '!sent!' }), index).allowed, false);
+    assert.deepEqual(decide(order({ order_idx: 999 }), index, { max_percent: '11.00', no_percent: 0 }), { allowed: false, percent: 11 });
 });
 
 test('pliku nie da się odczytać → nie wolno', async () => {
@@ -125,7 +126,7 @@ test('lista: nowa wersja pliku zapisuje historię, decyzja łączy plik i histor
     const res = await clientMayChangeMany([order(), order({ order_idx: 999, prod_status: null })], deps);
     assert.equal(calls.record, 6);
     assert.deepEqual(calls.keys, [['HKL', 'TCN', '222'], ['HKL', 'TCN', '999']]);
-    assert.deepEqual(res, [{ allowed: false, percent: 40, canceled: false }, { allowed: true, percent: null, canceled: false }]);
+    assert.deepEqual(res, [{ allowed: false, percent: 40, canceled: false }, { allowed: false, percent: null, canceled: false }]);
 });
 
 test('historia niedostępna (przed migracją): decyzja z samego pliku', async () => {
@@ -141,12 +142,16 @@ const FILE_ANUL = [
     'LuxanGmbH\tKN\t70\t1\t!sent!\t\t\t100%Wyslane\t100%Wyslane',
     'LuxanGmbH\tKN\t70\t2\t!sent!\t\t\tAnulacja\tAnulacja',
     'HKL\tRyver\t239\t1\t!sent!\t\t\tAnulacja\tAnulacja',
-    'HKL\tRyver\t239\t2\t!sent!\t\t\t11%Akcept.p.prod.\tAnulacja'
+    'HKL\tRyver\t239\t2\t!sent!\t\t\tAnulacja\tAnulacja',
+    // MAXSTATUSPROD „Anulacja” przy wysłanej pozycji (prawdziwy plik 19.11.2026) — to NIE jest anulowanie.
+    'HKL\tRyver\t240\t1\t!sent!\t2026-09-28\t\t100%Wyslane\tAnulacja',
+    // Zapowiedziany osobny STATUS dla anulowanych.
+    'Cozy\tM2\t7\t1\tcancelled\t\t\t\t'
 ].join('\r\n');
 
 test('anulowane przez produkcję = „Anulacja” na każdej pozycji; pojedyncza pozycja — nie', async () => {
-    const canceled = buildCanceledSet(parseStatusFile(FILE_ANUL));
-    assert.deepEqual([...canceled], ['HKL|RYVER|239']);
+    const canceled = buildCanceledOrders(parseStatusFile(FILE_ANUL));
+    assert.deepEqual([...canceled], [['HKL|RYVER|239', ['HKL', 'Ryver', '239']], ['COZY|M2|7', ['Cozy', 'M2', '7']]]);
     const deps = { ...fakeDeps().deps, filePath: '/fake/anul.txt', fs: { stat: async () => ({ mtimeMs: Math.random() }), readFile: async () => FILE_ANUL } };
     const res = await clientMayChangeMany([order({ user_ident: 'Ryver', order_idx: 239 }), order({ org_ident: 'LUXANGMBH', user_ident: 'KN', order_idx: 70 })], deps);
     assert.deepEqual(res.map((r) => r.canceled), [true, false], 'klucz bez wielkości liter (LuxanGmbH = LUXANGMBH)');

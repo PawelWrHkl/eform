@@ -4,6 +4,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { connetToDb } = require('../db/core');
 const { log } = require('../utils/logging');
+const { groupNameFor } = require('./priceSpec/scriptLabels');
 
 const GRUPY_FILE = '/mnt/eformconf/grupy.xlsx';
 const CONFIG_DIR = '/mnt/eformconf';
@@ -116,7 +117,10 @@ async function syncGroupsFromExcel() {
             for (const groupNum of dept.groups) {
                 let names;
                 try {
-                    names = readGroupNamesFromExcel(groupNum);
+                    // Nazwy jak w formularzu (DESCRIPTION z prod.txt) — arkusz PRODUKT .xlsm bywa
+                    // nieprzetłumaczony (gr. 11: „MOSKITIERY” w DE/EN/NL/FR); arkusz tylko gdy grupa nie ma prod.txt.
+                    const fromProd = Object.fromEntries(['pl', 'en', 'de', 'nl', 'fr'].map((l) => [l, groupNameFor(groupNum, l) || '']));
+                    names = fromProd.pl ? fromProd : readGroupNamesFromExcel(groupNum);
                 } catch (e) {
                     log('[GroupSync] Error reading Excel for group ' + groupNum + ': ' + e.message);
                 }

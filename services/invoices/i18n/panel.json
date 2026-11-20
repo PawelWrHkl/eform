@@ -229,6 +229,10 @@
     "daily_recalc_done": "Przeliczone faktury dzienne: {n}, nowe: {m}",
     "daily_recalc_none": "Nic nie czeka — faktury dzienne są aktualne",
     "daily_recalc_failed": "Nie przeliczono",
+    "rebuild": "Pobierz ponownie z zlecenia",
+    "rebuild_title": "Faktura od nowa z aktualnych danych zlecenia (np. po przeliczeniu cen): ten sam numer i data wystawienia",
+    "rebuild_confirm": "Faktura zostanie zbudowana od nowa z aktualnych danych zlecenia (ceny, pozycje, opisy). Numer, data wystawienia i data sprzedaży zostają, ręczne poprawki z edytora też. PDF pójdzie ponownie mailem i na FTP (plik zostanie nadpisany). Kontynuować?",
+    "rebuild_done": "Faktura {number} pobrana ponownie z zlecenia",
     "edit_title": "Edycja faktury",
     "edit_title_prepared": "Przygotowanie faktury",
     "edit_intro_prepared": "Zamówienie nie jest jeszcze wysłane. Twoje zmiany trafią na fakturę, którą automat wystawi po wysyłce — klient dostanie ją mailem już poprawioną.",
@@ -372,7 +376,15 @@
     "blank_err_item_qty": "Ilość większa od zera, do 3 miejsc po przecinku",
     "blank_err_item_price": "Cena netto, do 2 miejsc po przecinku",
     "blank_err_date": "Nieprawidłowa data",
-    "blank_err_payment_days": "Termin płatności: od 0 do 365 dni"
+    "blank_err_payment_days": "Termin płatności: od 0 do 365 dni",
+    "status_draft": "szkic",
+    "status_issued": "otwarta",
+    "status_overdue": "otwarta, po terminie",
+    "status_paid": "opłacona",
+    "status_cancelled": "anulowana",
+    "status_corrected": "skorygowana",
+    "status_partial": "zapłacono",
+    "status_paid_title": "Status płatności z księgowości (plik platnosci.tsv); „opłacona” można też ustawić ręcznie"
   },
   "en": {
     "title": "Invoices",
@@ -597,6 +609,10 @@
     "daily_recalc_done": "Recalculated daily invoices: {n}, new: {m}",
     "daily_recalc_none": "Nothing pending — daily invoices are up to date",
     "daily_recalc_failed": "Not recalculated",
+    "rebuild": "Reload from order",
+    "rebuild_title": "Rebuild the invoice from the current order data (e.g. after a price recalculation): same number and issue date",
+    "rebuild_confirm": "The invoice will be rebuilt from the current order data (prices, items, descriptions). Number, issue date and sale date stay, and so do manual corrections from the editor. The PDF is sent again by e-mail and to FTP (the file is overwritten). Continue?",
+    "rebuild_done": "Invoice {number} reloaded from the order",
     "edit_title": "Edit invoice",
     "edit_title_prepared": "Prepare invoice",
     "edit_intro_prepared": "The order has not shipped yet. Your changes will be on the invoice the system issues after shipping — the customer receives the corrected version by e-mail.",
@@ -740,7 +756,15 @@
     "blank_err_item_qty": "Quantity above zero, up to 3 decimals",
     "blank_err_item_price": "Net price, up to 2 decimals",
     "blank_err_date": "Invalid date",
-    "blank_err_payment_days": "Payment term: 0 to 365 days"
+    "blank_err_payment_days": "Payment term: 0 to 365 days",
+    "status_draft": "draft",
+    "status_issued": "open",
+    "status_overdue": "open, overdue",
+    "status_paid": "paid",
+    "status_cancelled": "cancelled",
+    "status_corrected": "corrected",
+    "status_partial": "paid",
+    "status_paid_title": "Payment status from accounting (platnosci.tsv); “paid” can also be set manually"
   },
   "de": {
     "title": "Rechnungen",
@@ -965,6 +989,10 @@
     "daily_recalc_done": "Neu berechnete Tagesrechnungen: {n}, neue: {m}",
     "daily_recalc_none": "Nichts offen — die Tagesrechnungen sind aktuell",
     "daily_recalc_failed": "Nicht neu berechnet",
+    "rebuild": "Neu aus Auftrag laden",
+    "rebuild_title": "Rechnung aus den aktuellen Auftragsdaten neu erstellen (z. B. nach Preisneuberechnung): gleiche Nummer und gleiches Ausstellungsdatum",
+    "rebuild_confirm": "Die Rechnung wird aus den aktuellen Auftragsdaten neu erstellt (Preise, Positionen, Beschreibungen). Nummer, Ausstellungs- und Leistungsdatum bleiben, ebenso manuelle Korrekturen aus dem Editor. Das PDF wird erneut per E-Mail und auf den FTP gesendet (die Datei wird überschrieben). Fortfahren?",
+    "rebuild_done": "Rechnung {number} neu aus dem Auftrag geladen",
     "edit_title": "Rechnung bearbeiten",
     "edit_title_prepared": "Rechnung vorbereiten",
     "edit_intro_prepared": "Der Auftrag ist noch nicht versendet. Ihre Änderungen kommen auf die Rechnung, die das System nach dem Versand ausstellt — der Kunde erhält sie bereits korrigiert per E-Mail.",
@@ -1108,6 +1136,14 @@
     "blank_err_item_qty": "Menge größer als null, bis 3 Nachkommastellen",
     "blank_err_item_price": "Nettopreis, bis 2 Nachkommastellen",
     "blank_err_date": "Ungültiges Datum",
-    "blank_err_payment_days": "Zahlungsziel: 0 bis 365 Tage"
+    "blank_err_payment_days": "Zahlungsziel: 0 bis 365 Tage",
+    "status_draft": "Entwurf",
+    "status_issued": "offen",
+    "status_overdue": "offen, überfällig",
+    "status_paid": "bezahlt",
+    "status_cancelled": "storniert",
+    "status_corrected": "korrigiert",
+    "status_partial": "bezahlt",
+    "status_paid_title": "Zahlungsstatus aus der Buchhaltung (platnosci.tsv); „bezahlt“ kann auch manuell gesetzt werden"
   }
 }

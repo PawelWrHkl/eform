@@ -64,7 +64,7 @@ async function acquireDbLock(name) {
  * @param {boolean} [opts.mail=true]     wyślij maile z fakturami automatu (`invoiceMailer.js`); tylko razem z `invoices`
  * @param {boolean} [opts.ftp=true]      wyślij PDF-y faktur automatu na FTP (`invoiceFtpExport.js`); tylko razem z `invoices`
  * @param {boolean} [opts.einvoice=true] wyślij wystawione faktury do usługi e-faktur (`invoices/einvoice`); tylko razem z `invoices`
- * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runInvoiceMailing, runInvoiceFtpExport, runEinvoiceExport, retryServiceExports, serviceMode, log }`
+ * @param {Object} [opts.deps]           `{ acquireLock, syncStatuses, runAutoInvoicing, runPaymentSync, runInvoiceMailing, runInvoiceFtpExport, runEinvoiceExport, retryServiceExports, serviceMode, log }`
  * @returns {Promise<{ skipped?: string, statuses?: object, autoInvoices?: object|null, invoiceMails?: object|null, invoiceFtp?: object|null, einvoices?: object|null, serviceExports?: object|null }>}
  */
 async function runProdStatusCycle({ dryRun = false, full = false, invoices = true, mail = true, ftp = true, einvoice = true, deps = {} } = {}) {
@@ -80,6 +80,7 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
         let autoInvoices = null;
         let invoiceMails = null;
         let invoiceFtp = null;
+        let invoicePayments = null;
         let einvoices = null;
         if (invoices) {
             // Leniwie: sama synchronizacja statusów nie potrzebuje modułu faktur
@@ -88,6 +89,17 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
             // Maile PO automacie, w tym samym przebiegu: faktura wystawiona przed
             // chwilą wychodzi od razu, a nieudane z poprzednich przebiegów są
             // ponawiane. Wyłączone w `.env` = nic się nie dzieje (`INVOICE_MAIL_ENABLED`).
+            // Płatności z księgowości (plik Wiktorii na FTP) PRZED mailami: przypomnienie w dniu terminu
+            // nie może pójść do faktury, którą klient już zapłacił (`INVOICE_PAYMENTS_ENABLED`)
+            if (ftp) {
+                try {
+                    const runPaymentSync = deps.runPaymentSync || require('./invoices/invoicePayments').runPaymentSync;
+                    invoicePayments = await runPaymentSync({ dryRun });
+                } catch (err) {
+                    log(`[invoices:payments] przebieg przerwany: ${err && err.message ? err.message : err}`);
+                    invoicePayments = { updated: [], unknown: [], errors: [String(err && err.message ? err.message : err)] };
+                }
+            }
             if (mail) {
                 try {
                     const runInvoiceMailing = deps.runInvoiceMailing || require('./invoices/invoiceMailer').runInvoiceMailing;
@@ -136,7 +148,7 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
                 serviceExports = { retried: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
             }
         }
-        return { statuses, autoInvoices, invoiceMails, invoiceFtp, einvoices, serviceExports };
+        return { statuses, autoInvoices, invoicePayments, invoiceMails, invoiceFtp, einvoices, serviceExports };
     } finally {
         await lock.release();
     }

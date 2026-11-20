@@ -137,7 +137,11 @@ test('klasyfikacja odpowiedzi (kontrakt pkt 5)', () => {
   assert.equal(classifyResponse({ httpStatus: 400, body: { detail: [{ loc: ['items', 0, 'unit'] }] } }).event, EinvoiceEvent.FAILED);
   assert.equal(classifyResponse({ httpStatus: 500, body: {} }).event, EinvoiceEvent.FAILED);
   for (const httpStatus of [401, 403, 503]) assert.equal(classifyResponse({ httpStatus, body: {} }).abort, true);
-  // Prawdziwa odpowiedź usługi z 18.11.2026 bez klucza
+  // Prawdziwe odpowiedzi usługi: 400 schematu (19.11.2026) i brak klucza (18.11.2026)
+  assert.equal(
+    classifyResponse({ httpStatus: 400, body: { error: 'schema', errors: [{ loc: 'seller.email', msg: 'Input should be a valid string' }] } }).reason,
+    'HTTP 400: seller.email: Input should be a valid string'
+  );
   assert.equal(classifyResponse({ httpStatus: 401, body: { error: 'api key missing' } }).reason, 'HTTP 401: api key missing');
 });
 

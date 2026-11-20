@@ -40,8 +40,8 @@ async function postB2bDiscount(orderId, points, amount) {
 
 /**
  * Zapis rabatu i przeliczenie pozycji istniejącym „Przelicz wszystkie pozycje”.
- * Nowe punkty + kwota = dwa kroki: kwota zamienia się na procent wartości zlecenia
- * PO rabacie %, a ta jest znana dopiero po przeliczeniu z nowymi punktami.
+ * Nowy procent + kwota = dwa kroki: kwota zamienia się na procent wartości zlecenia
+ * PO rabacie %, a ta jest znana dopiero po przeliczeniu z nowym procentem.
  */
 async function applyB2bDiscount(orderId, points, amount, dialog, button) {
     const { recalculateOrder, isRecalculating } = await import('../recalculateOrder.js');
@@ -66,11 +66,9 @@ async function applyB2bDiscount(orderId, points, amount, dialog, button) {
             return;
         }
     }
-    if (!result.changed && !result.needsSecondPass) {
-        showToast('info', t('order.b2b_discount_unchanged'));
-        return;
-    }
-    showToast('success', t('order.b2b_discount_saved'));
+    // Przeliczamy też bez zmiany rabatu — przycisk obiecuje „przelicz pozycje”, a pozycje
+    // mogą być liczone starszą regułą (np. punkty sprzed 2026-11-19).
+    showToast('success', t(result.changed || result.needsSecondPass ? 'order.b2b_discount_saved' : 'order.b2b_discount_unchanged'));
     await recalculateOrder(orderId);
 }
 
@@ -107,16 +105,6 @@ export async function showB2bDiscountModal(orderId) {
         id: 'b2b-points-input', label: t('order.b2b_discount_points'), unit: t('order.b2b_discount_points_unit'),
         value: info.points, disabled: !info.editable, max: '100'
     });
-    const pointsPreview = createElement('div', { class: ['discount-calculated-amount'], 'aria-live': 'polite' }, section);
-    const refreshPreview = () => {
-        const points = parseInput(pointsInput) || 0;
-        pointsPreview.textContent = listRates.length && points > 0
-            ? `${t('order.b2b_discount_after')}: ${listRates.map((r) => fmtPct(Math.min(100, r + points))).join(' · ')}`
-            : '';
-    };
-    pointsInput.addEventListener('input', refreshPreview);
-    refreshPreview();
-
     const amountInput = numberField(section, {
         id: 'b2b-amount-input', label: `${t('order.b2b_discount_amount')} (${waluta()})`, unit: waluta(),
         value: info.amount, disabled: !info.editable

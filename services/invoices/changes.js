@@ -13,6 +13,63 @@
 /** @type {Array<{ version: number, date: string, env: 'produkcja'|'test', title: string, changes: string[] }>} */
 const INVOICE_VERSIONS = Object.freeze([
   {
+    version: 20,
+    date: '2026-11-19',
+    env: 'produkcja',
+    title: 'Pobierz ponownie z zlecenia (np. po przeliczeniu cen)',
+    changes: [
+      'W liście faktur (panel faktur, admin) przy wystawionej fakturze VAT jest przycisk „Pobierz ponownie z zlecenia”. Faktura buduje się od nowa z aktualnych danych zlecenia: ceny, pozycje, opisy. Polecenie Pawła 19.11 przy zleceniu 23 „Van Straaten” klienta Wonen, któremu przeliczono ceny.',
+      'Numer, data wystawienia i data sprzedaży zostają. Poprawki zrobione w edytorze faktury dla zlecenia też zostają. PDF idzie ponownie mailem i na FTP, plik na FTP jest nadpisany.',
+      'Działa dla faktury z jednego zlecenia i dla faktury dziennej (wszystkie jej zlecenia naraz). Nie rusza faktury opłaconej, anulowanej, z korektą, częściowej, zbiorczej tygodniowej/miesięcznej ani dziennej poprawionej ręcznie w edytorze — wtedy komunikat, co zrobić.'
+    ]
+  },
+  {
+    version: 19,
+    date: '2026-11-19',
+    env: 'produkcja',
+    title: 'Płatnik z contractors.txt na fakturze; konto z kartoteki klientów',
+    changes: [
+      'Gdy klient ma w contractors.txt płatnika (PAYMASTER_IDENT, np. TCN → TCN_RECH, A&A Lohne → A&A Lohne_Rechnung, sklepy JC → JC-Berlin-Meierotto), faktura idzie na dane płatnika: nazwa, NIP, adres, kraj, e-mail, telefon. Puste pole płatnika uzupełnia konto klienta. Polecenie Pawła 19.11 po mailu Tomka.',
+      'Konto do wpłaty na fakturze HKL: najpierw z contractors.txt (BANK_NAME, BANK_ACCOUNT, SWIFT — płatnika, potem klienta), potem z pliku księgowości po NIP, na końcu domyślne. Konto zapisuje się w fakturze przy wystawieniu.',
+      'Synchronizacja klientów z contractors.txt aktualizuje teraz wszystkie pola: także e-mail (pusty w pliku nie kasuje adresu w bazie), kraj (nowa kolumna COUNTRY) oraz płatnika i konto. Kraj był pusty u prawie wszystkich klientów; od teraz przychodzi z pliku, a od niego zależy VAT i język faktury.',
+      'Faktura organizacji dla klienta i faktury in blanco bez innych zmian; faktury już wystawione zachowują swoich nabywców.'
+    ]
+  },
+  {
+    version: 18,
+    date: '2026-11-19',
+    env: 'produkcja',
+    title: 'Status płatności z księgowości i przypomnienie w dniu terminu',
+    changes: [
+      'Faktura ma status „otwarta” albo „opłacona” (także „otwarta, po terminie”); przy wpłacie częściowej panel pokazuje, ile już zapłacono. Wymaganie szefa 19.11: „dane eForm będzie czytał z księgowości, czy zapłacone — musi iść online”.',
+      'Płatności eForm czyta co godzinę z pliku księgowości platnosci.tsv na FTP faktur (automat Wiktorii; ten sam katalog co zafakturowane_pozycje.tsv). Pełna wpłata → „opłacona” z datą zapłaty, częściowa → kwota przy fakturze. Opłaconej nie cofa. Ręczny przycisk „Zapłacona” w panelu zostaje.',
+      'W dniu terminu płatności (od 7:00) nieopłacona faktura dostaje przypomnienie mailem: „dziś mija termin płatności”, kwota pozostała do zapłaty i ta sama faktura PDF w załączniku, w języku faktury. Raz na fakturę. Kopia (UDW) do skrzynki fakturowej wystawcy.',
+      'Na razie przypomnienia, jak same faktury, idą tylko do testerów. Dotyczą faktur wystawionych od 16.11 (start prawdziwego fakturowania), żeby stare dokumenty z okresu testów nie zasypały skrzynek.'
+    ]
+  },
+  {
+    version: 17,
+    date: '2026-11-19',
+    env: 'produkcja',
+    title: 'Konto do wpłaty klienta HKL z kartoteki księgowości; formatka HKL bez kont',
+    changes: [
+      'Faktury HKL (automatyczne, in blanco i edytowane) mają w sekcji „Płatność” bank, numer konta i SWIFT przypisane klientowi w księgowości (plik „kontrahenci - nr kont bankowych”, dopasowanie po NIP). Np. Ryver, Luxan GmbH, Kaya, Thuis, Azra, Artelioz: ING PL34 1050 1559 1000 0090 3311 9596; Luxan Sp.: ING PL56 …9588; Maxsol, BD Line: Erste PL81 …8394; Naoknie: Erste PL91 …0001. Polecenie Pawła 19.11: „to obowiązek”.',
+      'Klient HKL, którego nie ma w pliku, dostaje domyślne konto EUR ING PL34 1050 1559 1000 0090 3311 9596, a w logu automatu i w edytorze pojawia się ostrzeżenie, żeby księgowość dopisała go do pliku. MaizonCozy dopisana przez księgowość 19.11 (ING PL34 …9596).',
+      'Formatka HKL nie ma już kont w stopce, tylko dane firmy: na fakturze jest jedno konto, to z sekcji „Płatność”. Dawne konto PLN na formatce (PL64 1910 … 0001) miało błędną sumę kontrolną, poprawne to PL91 1910 1048 2793 2107 1341 0001.',
+      'Faktury Cozy i Luxan dla ich klientów bez zmian. Wystawione faktury HKL z nowej serii (od 26000001) dostały konto; ich PDF-y na FTP podmienione bez maila.'
+    ]
+  },
+  {
+    version: 16,
+    date: '2026-11-19',
+    env: 'produkcja',
+    title: 'Numer strony na każdej stronie faktury',
+    changes: [
+      'Na każdej stronie faktury, z prawej nad stopką formatki: rodzaj, numer i numer strony, w języku faktury, np. „Faktura VAT 26000002 · Strona 1/3”, „Rechnung … · Seite 2/3”, „Factuur … · Pagina 3/3” (prośba Pawła 19.11). Długie faktury dzienne nie gubią kolejności kartek.',
+      'Wzór MaizonCozy miał to już wcześniej („Factuur … · Bladzijde 1/3”) — bez zmian. Treść i układ faktur bez zmian.'
+    ]
+  },
+  {
     version: 15,
     date: '2026-11-18',
     env: 'produkcja',

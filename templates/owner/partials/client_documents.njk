@@ -135,12 +135,15 @@
                     <td class="ta-r inv-nowrap">{{ inv.netFmt }}</td>
                     <td class="ta-r inv-nowrap">{{ inv.grossFmt }}</td>
                     <td class="ta-r inv-nowrap">{{ inv.dueFmt }}</td>
-                    <td><span class="inv-status inv-status--{{ inv.status }}">{{ inv.status }}</span></td>
+                    <td><span class="inv-status inv-status--{{ inv.status }}" title="{{ L.status_paid_title }}">{{ L['status_' + inv.status] or inv.status }}</span>{% if inv.paidFmt %}<span class="inv-order-ref">{{ L.status_partial }} {{ inv.paidFmt }}</span>{% endif %}</td>
                     <td class="inv-actions">
                       <a class="inv-link" href="/invoices/{{ inv.id }}/view" target="_blank" rel="noopener">{{ L.preview }}</a>
                       <a class="inv-link" href="/api/v1/invoices/{{ inv.id }}/pdf?download=1">{{ L.pdf }}</a>
                       {% if admin and inv.status != 'cancelled' and (inv.document_type == 'invoice' or inv.document_type == 'final') %}
                         <a class="inv-link" href="/invoices/edit/{{ inv.id }}">{{ L.edit_link }}</a>
+                      {% endif %}
+                      {% if admin and inv.status == 'issued' and inv.document_type == 'invoice' %}
+                        <button class="inv-link inv-link--action" data-action="rebuild" data-id="{{ inv.id }}" title="{{ L.rebuild_title }}">{{ L.rebuild }}</button>
                       {% endif %}
                       {% if inv.status == 'draft' %}
                         <button class="inv-link inv-link--action" data-action="issue" data-id="{{ inv.id }}">{{ L.issue }}</button>

@@ -448,3 +448,51 @@ test('przebieg: faktura zniknęła z bazy — błąd tej jednej, bez wysyłki', 
   assert.equal(result.failed.length, 1);
   assert.equal(calls.sent.length, 0);
 });
+
+test('przypomnienie: temat, wstęp, pozostała kwota; UDW do skrzynki wystawcy tylko przy wysyłce do klientów (19.11.2026)', () => {
+  const buyer = readInvoiceMailConfig({ ...BUYER_ENV, INVOICE_REMINDERS_ENABLED: 'true', INVOICE_REMINDERS_SINCE: '2026-11-16' });
+  assert.equal(buyer.reminders, true);
+  // Bez progu dat przypomnienia nie ruszają (faktury maili działają dalej)
+  const noSince = readInvoiceMailConfig({ ...BUYER_ENV, INVOICE_REMINDERS_ENABLED: 'true' });
+  assert.equal(noSince.reminders, false);
+  assert.equal(noSince.active, true);
+  const { message } = buildInvoiceMail({ invoice: invoiceFixture({ amountDue: 10000 }), pdf: { buffer: Buffer.from('%PDF'), filename: 'Faktura_VAT_2026_00121.pdf' },
+    from: 'faktury@hkl.eu', config: buyer, reminder: true, copyTo: 'faktury@hkl.eu' });
+  assert.equal(message.subject, 'Przypomnienie o płatności: Faktura VAT 2026/00121 — HKL Dekoracja Okien Sp. z o.o.');
+  assert.match(message.text, /^PRZYPOMNIENIE O PŁATNOŚCI/);
+  assert.match(message.text, /dziś mija termin płatności/);
+  assert.match(message.text, /Pozostało do zapłaty: 100,00 EUR/);
+  assert.match(message.html, /Przypomnienie o płatności/);
+  assert.equal(message.bcc, 'faktury@hkl.eu');
+  assert.equal(message.attachments[0].filename, 'Faktura_VAT_2026_00121.pdf');
+  assert.equal(buildInvoiceMail({ invoice: invoiceFixture({ lang: 'de' }), pdf: null, config: buyer, reminder: true }).message.subject.split(':')[0], 'Zahlungserinnerung');
+
+  // Tryb testowy: bez UDW, temat z banerem testowym
+  const redirect = readInvoiceMailConfig({ ...BASE_ENV, INVOICE_REMINDERS_ENABLED: 'true', INVOICE_REMINDERS_SINCE: '2026-11-16' });
+  const r = buildInvoiceMail({ invoice: invoiceFixture(), pdf: null, config: redirect, reminder: true, copyTo: 'faktury@hkl.eu' });
+  assert.equal(r.message.bcc, undefined);
+  assert.match(r.message.subject, /^\[TEST · do klienta: orders@klient\.nl\] Przypomnienie o płatności: /);
+});
+
+test('przebieg: przypomnienia po fakturach — termin dziś, od 7:00, kwota pozostała, osobny znacznik (19.11.2026)', async () => {
+  const config = readInvoiceMailConfig({ ...BASE_ENV, INVOICE_REMINDERS_ENABLED: 'true', INVOICE_REMINDERS_SINCE: '2026-11-16' });
+  const { calls, deps } = fakeDeps({ invoices: { 9: invoiceFixture({ id: 9, number: '26000002', amountDue: 44218 }) } });
+  const asked = [];
+  deps.repository.findInvoicesToRemind = async (p) => { asked.push(p); return [{ id: 9, number: '26000002', buyer_name: 'Luxan GmbH', amount_due: '442.18', paid_amount: '100.00', failures: 0 }]; };
+  deps.now = () => new Date(2026, 10, 20, 8, 5);
+  const result = await runInvoiceMailing({ config, deps });
+  assert.deepEqual(asked, [{ today: '2026-11-20', since: '2026-11-16', mailedEvent: 'mail_redirected', doneEvent: 'reminder_redirected', failedEvent: 'reminder_failed', maxAttempts: 3, limit: config.maxPerRun }]);
+  assert.equal(result.reminders.sent.length, 1);
+  assert.match(calls.sent[0].subject, /Przypomnienie o płatności: Faktura VAT 26000002/);
+  assert.match(calls.sent[0].text, /Pozostało do zapłaty: 342,18 EUR/);
+  assert.deepEqual(calls.sent[0].to, PAWEL);
+  assert.equal(calls.events[0].eventType, 'reminder_redirected');
+
+  // Przed 7:00 i przy wyłączonym włączniku — bez pytania bazy o przypomnienia
+  const early = fakeDeps();
+  early.deps.repository.findInvoicesToRemind = async () => { throw new Error('nie powinno pytać'); };
+  early.deps.now = () => new Date(2026, 10, 20, 6, 5);
+  assert.equal((await runInvoiceMailing({ config, deps: early.deps })).reminders, undefined);
+  early.deps.now = () => new Date(2026, 10, 20, 9, 5);
+  assert.equal((await runInvoiceMailing({ config: readInvoiceMailConfig(BASE_ENV), deps: early.deps })).reminders, undefined);
+});

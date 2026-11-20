@@ -24,6 +24,7 @@ const { DocumentType, PaymentMethod } = require('../domain/constants');
 const { DEFAULT_TEMPLATE, normalizeTemplatePath, parsePageMargins } = require('../core/templates');
 const { DOCUMENT_LANGUAGES } = require('../core/language');
 const { visibleClauses } = require('../core/compliance');
+const { hklPaymentAccount } = require('../core/contractorAccounts');
 const { log } = require('../../../utils/logging');
 const { sanitizeFilename } = require('../../../utils/sanitizeFilename');
 
@@ -231,6 +232,8 @@ function renderInvoiceHtml({ invoice, profile = {}, template = {}, logoDataUri =
     footerNote,
     lang,
     discounts: summarizeItemDiscounts(invoice.items),
+    // Faktura HKL: konto klienta z pliku księgowości (`core/contractorAccounts.js`), reszta — konto z profilu
+    paymentAccount: hklPaymentAccount(invoice) || profile.bankAccount || null,
     // Klauzule kraju wystawcy, które nie dublują adnotacji VAT w języku klienta
     clauses: visibleClauses(invoice.compliance, lang)
   });
@@ -327,7 +330,8 @@ async function renderPdfFromHtml(html, opts = {}) {
       ...size,
       scale,
       printBackground: true,
-      margin: opts.margin || { top: '12mm', right: '10mm', bottom: '14mm', left: '10mm' }
+      margin: opts.margin || { top: '12mm', right: '10mm', bottom: '14mm', left: '10mm' },
+      ...(opts.footerTemplate ? { displayHeaderFooter: true, headerTemplate: '<span></span>', footerTemplate: opts.footerTemplate } : {})
     });
   } catch (err) {
     log(`[invoices] renderPdfFromHtml error: ${err.message}`);
@@ -413,11 +417,29 @@ async function backgroundPageSize(backgroundPdf) {
  * @param {Parameters<typeof renderInvoiceHtml>[0] & { pdfOptions?: object }} params
  * @returns {Promise<Buffer>}
  */
+/**
+ * Stopka każdej strony: „Faktura VAT 26000002 · Strona 1/3” w języku faktury (Paweł 19.11.2026),
+ * jak „Bladzijde X/Y” na wzorze MaizonCozy. Numery stron wstawia Chromium (`pageNumber`/`totalPages`).
+ *
+ * @param {{ documentType: string, number?: string|null, lang?: string }} invoice
+ * @param {number} bottomMarginMm dolny margines strony — stopka staje tuż pod treścią, nad stopką formatki
+ * @returns {string}
+ */
+function pageFooterTemplate(invoice, bottomMarginMm) {
+  const t = createTranslator(invoice.lang || 'pl');
+  const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const title = [t(`doc.${invoice.documentType}`), invoice.number].filter(Boolean).join(' ');
+  // Chromium dociska stopkę do dołu (~5,5 mm od krawędzi); podnosimy ją pod treść, nad dane firmy i banku z formatki
+  const lift = Math.max(0, bottomMarginMm - 9).toFixed(1);
+  return `<div style="width:100%;padding:0 12mm ${lift}mm;text-align:right;font:7pt Arial,Helvetica,sans-serif;color:#444">`
+    + `${esc(title)} &middot; ${esc(t('footer.page'))} <span class="pageNumber"></span>/<span class="totalPages"></span></div>`;
+}
+
 async function renderInvoicePdf(params) {
   const template = params.template || {};
   const backgroundPath = resolveBackgroundFile(template.backgroundFile, { code: template.code });
   if (!backgroundPath) {
-    return renderPdfFromHtml(renderInvoiceHtml(params), params.pdfOptions || {});
+    return renderPdfFromHtml(renderInvoiceHtml(params), { ...(params.pdfOptions || {}), footerTemplate: pageFooterTemplate(params.invoice, 14) });
   }
 
   const backgroundPdf = fs.readFileSync(backgroundPath);
@@ -428,7 +450,8 @@ async function renderInvoicePdf(params) {
     height: `${heightMm.toFixed(2)}mm`,
     margin: { top: `${m.top}mm`, right: `${m.right}mm`, bottom: `${m.bottom}mm`, left: `${m.left}mm` },
     transparent: true,
-    fit: { contentWidthMm: widthMm - m.left - m.right, availableHeightMm: heightMm - m.top - m.bottom }
+    fit: { contentWidthMm: widthMm - m.left - m.right, availableHeightMm: heightMm - m.top - m.bottom },
+    footerTemplate: pageFooterTemplate(params.invoice, m.bottom)
   });
   return overlayOnBackground(contentPdf, backgroundPdf);
 }
@@ -466,5 +489,6 @@ module.exports = {
   renderInvoiceHtml,
   renderPdfFromHtml,
   renderInvoicePdf,
+  pageFooterTemplate,
   loadLogoDataUri
 };

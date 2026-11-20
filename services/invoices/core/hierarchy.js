@@ -126,6 +126,27 @@ function sellerFromIssuerProfile(issuerProfile) {
   };
 }
 
+/** Pola nabywcy z contractors.txt, które płatnik przejmuje od konta klienta. */
+const PAYER_FIELDS = ['client_name', 'tax_id', 'street', 'zip', 'city', 'country', 'email', 'phone'];
+
+/**
+ * Konto klienta z danymi płatnika (contractors.txt PAYMASTER_IDENT, Paweł 19.11.2026: „jeżeli istnieje
+ * PAYMASTER_IDENT, bierzesz na fakturę dane usera, który nazywa się jak paymaster_ident”). Puste pole
+ * płatnika (albo „-” z pliku) zostaje z konta klienta; id i ident konta klienta bez zmian.
+ *
+ * @param {Record<string, any>|null|undefined} user
+ * @param {Record<string, any>|null|undefined} payer
+ */
+function withPayer(user, payer) {
+  if (!user || !payer) return user;
+  const merged = { ...user };
+  for (const key of PAYER_FIELDS) {
+    const value = String(payer[key] ?? '').trim();
+    if (value && value !== '-') merged[key] = value;
+  }
+  return merged;
+}
+
 /**
  * Buduje strony transakcji dla danego poziomu.
  *
@@ -182,10 +203,12 @@ function resolveParties({ level, issuerProfile, context }) {
       break;
     case BuyerType.USER:
     default: {
-      // Sklep grupowy z własnym NIP-em jest nabywcą zamiast konta-parenta
-      const source = ctx.groupShop && (ctx.groupShop.tax_id || ctx.groupShop.name) ? ctx.groupShop : ctx.user;
+      // Sklep grupowy z własnym NIP-em jest nabywcą zamiast konta-parenta; konto z płatnikiem
+      // (contractors.txt PAYMASTER_IDENT, 19.11.2026) — nabywcą są dane płatnika
+      const source = ctx.groupShop && (ctx.groupShop.tax_id || ctx.groupShop.name) ? ctx.groupShop : withPayer(ctx.user, ctx.payer);
       buyerSource = source
         ? {
+          bankAccount: source.bankAccount || null,
           name: source.name || source.client_name,
           taxId: source.tax_id,
           vatEuId: source.tax_id,
@@ -217,7 +240,9 @@ function resolveParties({ level, issuerProfile, context }) {
     email: buyerSource.email || '',
     phone: buyerSource.phone || '',
     registry: buyerSource.registry || {},
-    clientType: buyerSource.clientType
+    clientType: buyerSource.clientType,
+    // Konto HKL do wpłaty z contractors.txt (płatnik/klient) — trafia do `compliance.paymentAccount`
+    bankAccount: buyerSource.bankAccount || null
   };
 
   const issuerId = Number(def.issuerIdFrom(ctx) ?? 0);
@@ -263,6 +288,7 @@ function allowedLevelsForSession(sessionUser) {
 }
 
 module.exports = {
+  withPayer,
   InvoiceLevel,
   IssuerType,
   BuyerType,

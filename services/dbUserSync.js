@@ -7,6 +7,27 @@ const { log } = require('../utils/logging');
 const { isLocallyManagedPassword } = require('../utils/localPassword');
 const { isDemoPin } = require('./demoMode');
 
+/**
+ * Kolumny contractors.txt od 19.11.2026 (Tomek): PAYMASTER_IDENT (konto płatnika — faktura idzie
+ * na jego dane), BANK_NAME / BANK_ACCOUNT / SWIFT (konto, na które klient płaci). „-” = brak.
+ * W bazie od migracji `migrations/add_user_paymaster_bank.sql`; bez niej synchronizacja je pomija.
+ */
+const EXTRA_FIELDS = ['paymaster_ident', 'bank_name', 'bank_account', 'swift'];
+
+/** @type {Promise<boolean>|null} */
+let extrasSupport = null;
+/** Czy baza ma kolumny `EXTRA_FIELDS` — raz na proces (kod bywa wdrażany przed migracją). */
+function supportsContractorExtras() {
+  if (!extrasSupport) {
+    extrasSupport = Promise.resolve(db.selectQuery(
+      `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME IN (?)`,
+      [EXTRA_FIELDS]
+    )).then((rows) => Number(rows && rows[0] && rows[0].c) === EXTRA_FIELDS.length).catch(() => false);
+  }
+  return extrasSupport;
+}
+
 async function updateClients() {
   if (process.env?.PRODUCTION === 'true' || process.env?.PRODUCTION) {
     await fixEncodingInDatabase();
@@ -20,9 +41,10 @@ async function updateClients() {
 
   const fileClientsObj = parseClients(fileClientsObjRaw);
 
-  const dbClientsObj = await db.getUsers();
+  const extras = await supportsContractorExtras();
+  const dbClientsObj = await db.getUsers({ extras });
 
-  const diff = compareClients(fileClientsObj, dbClientsObj);
+  const diff = compareClients(fileClientsObj, dbClientsObj, { extraFields: extras ? EXTRA_FIELDS : [] });
 
   if (Object.keys(diff.toAdd).length === 0) {
     log('Baza klientów aktualna');
@@ -80,7 +102,12 @@ function getClientKey(client) {
 
 
 
-function compareClients(fileClients, allDbClients) {
+/**
+ * @param {object[]} fileClients  wiersze contractors.txt (`parseClients`)
+ * @param {object[]} allDbClients `db.getUsers`
+ * @param {{ extraFields?: string[] }} [opts] pola płatnika i banku, gdy baza je ma
+ */
+function compareClients(fileClients, allDbClients, { extraFields = [] } = {}) {
 
   // Konta biura (`role = 'staff'`) zakłada admin w aplikacji — w contractors.txt
   // ich nie ma i nigdy nie będzie, więc synchronizacja nie może ich ani usuwać,
@@ -109,7 +136,8 @@ function compareClients(fileClients, allDbClients) {
   });
 
   const toUpdate = [];
-  const fieldsToCheck = ['name', 'address', 'city', 'zip', 'taxid', 'phone', 'kraj', 'password'];
+  // 19.11.2026: wszystkie pola pliku (Paweł) — także email i kraj (kolumna COUNTRY, dawniej KRAJ)
+  const fieldsToCheck = ['name', 'address', 'city', 'zip', 'taxid', 'phone', 'country', 'email', 'password', ...extraFields];
 
   for (const fileClient of fileClients) {
     const pin = (fileClient.pin || '').toUpperCase();
@@ -134,6 +162,10 @@ function compareClients(fileClients, allDbClients) {
         // przywracało hasło z pliku i zmiana z panelu żyłaby kilka minut.
         // Zasada: hash w bazie = hasło zarządzane lokalnie, plik go nie rusza.
         if (field === 'password' && isLocallyManagedPassword(dbValue)) {
+          continue;
+        }
+        // Pusty albo „-” email w pliku nie kasuje adresu z bazy (bywa wpisany w aplikacji, idą na niego faktury)
+        if (field === 'email' && (fileValue === '' || fileValue === '-')) {
           continue;
         }
 
@@ -177,7 +209,7 @@ async function syncUserCountry(pin) {
     const fileClient = fileClientsObj.find(c => (c.pin || '').toUpperCase() === String(pin).toUpperCase());
     if (!fileClient) return;
 
-    const fileCountry = (fileClient.kraj || '').trim();
+    const fileCountry = (fileClient.country || '').trim();
     if (!fileCountry) return;
 
     const result = await db.selectQuery('SELECT country FROM `user` WHERE pin = ?', pin);
@@ -211,6 +243,9 @@ function parseClients(inputArray) {
 
     let owner = (lowerObj.owner || '').toUpperCase().replace(/\s+/g, '_');
     lowerObj.organization_id = orgMap[owner] || 3;
+    // Kraj: kolumna COUNTRY (od 19.11.2026), w starszych plikach KRAJ
+    if (lowerObj.country === undefined && lowerObj.kraj !== undefined) lowerObj.country = lowerObj.kraj;
+    delete lowerObj.kraj;
 
     delete lowerObj.owner;
     return lowerObj;
@@ -238,8 +273,13 @@ async function updateExistingClients(clientsToUpdate) {
     zip: 'zip',
     taxid: 'tax_id',
     phone: 'phone',
-    kraj: 'country',
+    country: 'country',
+    email: 'email',
     password: 'password',
+    paymaster_ident: 'paymaster_ident',
+    bank_name: 'bank_name',
+    bank_account: 'bank_account',
+    swift: 'swift',
   };
 
   let updated = 0;
@@ -416,4 +456,4 @@ async function fixEncodingInDatabase() {
     }
   }
 }
-module.exports = { updateClients, fixEncodingInDatabase, updateExistingClients, syncUserCountry, isLocallyManagedPassword, compareClients };
+module.exports = { updateClients, fixEncodingInDatabase, updateExistingClients, syncUserCountry, isLocallyManagedPassword, compareClients, parseClients, EXTRA_FIELDS };

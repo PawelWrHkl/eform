@@ -75,9 +75,10 @@
 ## Rabat B2B dla klienta (organizacja daje rabat swojemu klientowi)
 - Tylko konto organizacji (np. Luxan) pracujące na zleceniu swojego klienta. Sam klient, pracownik, biuro i konta grupy tej sekcji nie mają.
 - Najpierw odblokuj ceny kłódką. Wtedy w pasku oferty pojawia się osobny przycisk „{{order.b2b_discount_title}}” (ikona rabatu z napisem B2B). Okno pokazuje „{{order.b2b_discount_list_rates}}”. Centrum rabatów (B2C) to osobne okno.
-- „{{order.b2b_discount_points}}”: punkty dodawane do rabatu z cennika każdej pozycji (cennik 70% + 3 pkt = 73%). „{{order.b2b_discount_amount}}”: kwota dzielona równym procentem na wszystkie pozycje.
+- „{{order.b2b_discount_points}}”: procent zdejmowany z ceny po rabacie z cennika. Rabat z cennika zostaje taki sam (np. 70%), a rabat B2B (np. 10%) pokazuje się przy pozycji osobnym wierszem. „{{order.b2b_discount_amount}}”: kwota dzielona równym procentem na wszystkie pozycje.
 - „{{order.b2b_discount_apply}}” zapisuje rabat i przelicza wszystkie pozycje. Rabat zmienia cenę zakupu klienta, więc trafia do pozycji, sumy, PDF i faktury. Klient widzi go po odblokowaniu cen kłódką.
 - Działa tylko na zleceniu przed wysłaniem.
+- Po kłódce stopka pokazuje „{{order.total_hidden}}” bez rabatu B2B, pod nią „{{order.total_b2b_extra_discount}}” (procent i kwota) i „{{order.total_after_b2b_discount}}”.
 
 ## PDF i Excel
 - „{{base.generate_pdf_tooltip}}” — pełny PDF oferty/zamówienia.

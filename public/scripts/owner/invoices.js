@@ -665,6 +665,7 @@ function initRowActions() {
       const action = button.dataset.action;
 
       if (action === 'cancel' && !window.confirm(L.confirm_cancel || 'Cancel?')) return;
+      if (action === 'rebuild' && !(await confirmPrompt({ title: L.rebuild, message: L.rebuild_confirm, confirmLabel: L.rebuild }))) return;
 
       button.disabled = true;
       try {
@@ -677,6 +678,9 @@ function initRowActions() {
             body: JSON.stringify({ status: 'paid' })
           });
           showToast('success', L.mark_paid || 'OK');
+        } else if (action === 'rebuild') {
+          const result = await api(`/api/v1/invoices/${id}/rebuild`, { method: 'POST', body: '{}' });
+          showToast('success', L.rebuild_done.replace('{number}', result.number || ''), 4);
         } else if (action === 'cancel') {
           await api(`/api/v1/invoices/${id}/status`, {
             method: 'POST',

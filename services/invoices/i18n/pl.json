@@ -101,5 +101,9 @@
   "blank.rebill_note": "Refaktura kosztów",
   "blank.tpl.transport": "Transport",
   "blank.tpl.montage": "Montaż",
-  "blank.tpl.repair": "Naprawa"
+  "blank.tpl.repair": "Naprawa",
+  "reminder.subject": "Przypomnienie o płatności",
+  "reminder.intro": "przypominamy, że dziś mija termin płatności poniższej faktury. Fakturę ponownie przesyłamy w załączniku.",
+  "reminder.paid_note": "Jeśli płatność została już zlecona, prosimy potraktować tę wiadomość jako nieaktualną.",
+  "reminder.amount_left": "Pozostało do zapłaty"
 }

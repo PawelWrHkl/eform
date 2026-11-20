@@ -74,6 +74,11 @@ function isHklOrganization(organizationId) {
   return organizationId != null && Number(organizationId) === Number(HKL_ORG_ID);
 }
 
+/** Czy wystawcą faktury jest HKL: producent (poziom 1) albo organizacja HKL. */
+function isHklIssuer(issuerType, issuerId) {
+  return issuerType === 'manufacturer' || (issuerType === 'organization' && isHklOrganization(issuerId));
+}
+
 /**
  * Która warstwa cenowa obowiązuje w tej relacji.
  *
@@ -150,4 +155,4 @@ function resolvePriceBasis({ level, issuerType, issuerId, organizationId, overri
   };
 }
 
-module.exports = { PriceBasis, HKL_ORG_ID, isHklOrganization, resolvePriceBasis };
+module.exports = { PriceBasis, HKL_ORG_ID, isHklOrganization, isHklIssuer, resolvePriceBasis };

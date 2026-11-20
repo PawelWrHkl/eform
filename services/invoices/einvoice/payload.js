@@ -13,10 +13,13 @@
  *   - ilości do trzech miejsc („2”, „2.5”), stawki w procentach („19”, „0”),
  *   - daty RRRR-MM-DD, kraje ISO-2 — przekazywane tak, jak są w EFOR (wolny tekst
  *     typu „Austria” ma dostać HOLD w usłudze, a nie być po cichu obcięty tutaj),
- *   - nieznane pola usługa odrzuca (400), więc wysyłamy wyłącznie pola z kontraktu.
+ *   - nieznane pola usługa odrzuca (400), więc wysyłamy wyłącznie pola z kontraktu,
+ *   - pola tekstowe NIGDY null (schemat usługi, sprawdzone 19.11.2026: 400 „Input should be
+ *     a valid string”) — brak wartości = „”; null wolno w datach, `payment.days`, wymiarach
+ *     i numerach pozycji/zamówienia.
  *
  * Czego EFOR jeszcze nie ma (kontrakt pkt 6.6, przed trybem live): adres do faktur
- * nabywcy (`invoice_email` = null), skonto (null), mandat SEPA, umowa bonusowa (false),
+ * nabywcy (`invoice_email` = „”), skonto (null), mandat SEPA, umowa bonusowa (false),
  * osobna uwaga do faktury (`notes_de` = „”), niemieckie nazwy towarów (idzie nazwa
  * z faktury), numer taryfy celnej (`hs_code` = „”). W trybie cienia usługa zgłasza
  * je jako ostrzeżenia — nie blokują porównania.
@@ -55,8 +58,6 @@ function rate(value) {
 
 const day = (value) => toIsoDay(value) || null;
 const text = (value) => (value === null || value === undefined ? '' : String(value).trim());
-/** Pole opcjonalne kontrahenta: pusty napis → null (usługa odróżnia „brak” od wartości). */
-const opt = (value) => text(value) || null;
 
 /**
  * Numer VAT-UE sprzedawcy taki, jaki jest NA WYDRUKU: `vatEuId`, a gdy go nie ma —
@@ -68,7 +69,7 @@ function sellerVatId(invoice) {
   if (text(seller.vatEuId)) return text(seller.vatEuId);
   const registry = (invoice.compliance && invoice.compliance.sellerRegistry) || [];
   const printed = registry.find((r) => r && r.key === 'USTIDNR' && text(r.value));
-  return printed ? text(printed.value) : null;
+  return printed ? text(printed.value) : '';
 }
 
 /** Rodzaj nabywcy jak w EFOR: `user`, `group_user` (sklep grupy), `organization`, `end_client`. */
@@ -150,6 +151,10 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
   if (number !== null && !NUMBER_RE.test(String(number))) {
     throw new Error(`e-faktura: numer „${number}” — dozwolone litery, cyfry, „/”, „-”, do 40 znaków`);
   }
+  // Usługa wymaga liczby (null → 400); skrypt wsadowy podaje -order_id (Wiktoria, 19.11.2026)
+  if (!Number.isInteger(Number(invoice.id)) || invoice.id === null || invoice.id === undefined) {
+    throw new Error('e-faktura: invoice_id musi być liczbą (dokument bez id — skrypt wsadowy podaje -order_id)');
+  }
   if (invoice.currency && invoice.currency !== 'EUR') throw new Error(`e-faktura: tylko EUR (dokument w ${invoice.currency})`);
 
   const orderItemsById = new Map((sources.orderItems || []).map((r) => [Number(r.id), r]));
@@ -190,7 +195,7 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
     schema_version: SCHEMA_VERSION,
     source: SOURCE,
     efor_env: env,
-    invoice_id: invoice.id == null ? null : Number(invoice.id),
+    invoice_id: Number(invoice.id),
     level: Number(invoice.level),
     issuer: { type: invoice.issuerType, id: Number(invoice.issuerId) || 0, ident: sources.issuer.ident },
     document_type: invoice.documentType,
@@ -201,30 +206,30 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
     delivery_date: deliveryDate,
     due_date: day(invoice.dueDate),
     currency: 'EUR',
-    lang: text(invoice.lang) || null,
+    lang: text(invoice.lang),
     seller: {
       name: text(seller.name),
-      street: opt(seller.street),
-      zip: opt(seller.zip),
-      city: opt(seller.city),
-      country: opt(seller.country),
+      street: text(seller.street),
+      zip: text(seller.zip),
+      city: text(seller.city),
+      country: text(seller.country),
       vat_eu_id: sellerVatId(invoice),
-      tax_id: opt(seller.taxId),
-      email: opt(sources.issuer.email),
+      tax_id: text(seller.taxId),
+      email: text(sources.issuer.email),
       ident: sources.issuer.ident
     },
     buyer: {
       name: text(buyer.name),
-      street: opt(buyer.street),
-      zip: opt(buyer.zip),
-      city: opt(buyer.city),
-      country: opt(buyer.country),
-      vat_eu_id: opt(buyer.vatEuId),
-      tax_id: opt(buyer.taxId),
-      invoice_email: null,
-      email: opt(sources.buyer.email) || opt(buyer.email),
-      phone: opt(sources.buyer.phone),
-      ident: opt(sources.buyer.ident),
+      street: text(buyer.street),
+      zip: text(buyer.zip),
+      city: text(buyer.city),
+      country: text(buyer.country),
+      vat_eu_id: text(buyer.vatEuId),
+      tax_id: text(buyer.taxId),
+      invoice_email: '',
+      email: text(sources.buyer.email) || text(buyer.email),
+      phone: text(sources.buyer.phone),
+      ident: text(sources.buyer.ident),
       source_type: buyerSourceType(invoice)
     },
     delivery_address: deliverySource
@@ -246,7 +251,7 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
       order_id: Number(o.id),
       order_idx: text(o.order_idx),
       commission: text(o.commision),
-      user_ident: opt(o.user_ident)
+      user_ident: text(o.user_ident)
     })),
     items: invoice.items.map((item) => {
       const meta = item.meta || {};
@@ -255,7 +260,7 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
       const orderPosition = Number(meta.orderPosition || (row && row.orderpos)) || null;
       return {
         position: Number(item.position),
-        order_idx: row ? text(row.order_idx) : (opt(item.orderNumber)),
+        order_idx: row ? text(row.order_idx) : text(item.orderNumber),
         order_item_id: item.orderItemId ? Number(item.orderItemId) : null,
         order_position: orderPosition,
         name_de: text(item.name),
@@ -273,7 +278,7 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
         kom: row ? text(row.commision) : '',
         hs_code: '',
         price_group: row ? priceGroup(row.json_parameters) : '',
-        user_ident: row ? opt(row.user_ident) : null
+        user_ident: row ? text(row.user_ident) : ''
       };
     }),
     tax_lines: invoice.taxLines.map((l) => ({

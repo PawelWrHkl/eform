@@ -322,6 +322,8 @@ function decorateInvoices(rows, lang) {
     netFmt: money.format(money.toMinor(r.total_net, r.currency), r.currency, lang),
     grossFmt: money.format(money.toMinor(r.total_gross, r.currency), r.currency, lang),
     dueFmt: money.format(money.toMinor(r.amount_due, r.currency), r.currency, lang),
+    // Wpłata częściowa z księgowości (`invoicePayments.js`): faktura otwarta, ale coś już zapłacono
+    paidFmt: Number(r.paid_amount) > 0 && r.status !== 'paid' ? money.format(money.toMinor(r.paid_amount, r.currency), r.currency, lang) : '',
     issueDateFmt: formatDate(r.issue_date, lang),
     dueDateFmt: formatDate(r.due_date, lang),
     isAuto: r.created_by_pin === AUTO_ACTOR || r.created_by_pin === DAILY_ACTOR,

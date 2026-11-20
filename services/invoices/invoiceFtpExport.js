@@ -430,6 +430,7 @@ module.exports = {
   MAX_ATTEMPTS,
   defaultRootDir,
   readInvoiceFtpConfig,
+  defaultConnect,
   pathSegment,
   invoiceFileName,
   buildRemoteTarget,

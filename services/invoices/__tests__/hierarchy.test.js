@@ -482,3 +482,20 @@ test('adres identyczny z rejestrowym nie jest drukowany drugi raz', () => {
 test('pusty adres dostawy nie tworzy pustej sekcji', () => {
   assert.equal(buildDeliveryAddress({ street: 'Rynek 1', print_delivery_address: 1 }), null);
 });
+
+test('poziom 2: klient z płatnikiem (contractors.txt PAYMASTER_IDENT) — nabywcą dane płatnika, puste z konta klienta (19.11.2026)', () => {
+  const payer = { ident: 'SALON_RECH', client_name: 'Salon Firan Ewa Sp. z o.o.', tax_id: 'PL8519999999', street: 'Fakturowa 1', city: '-', zip: '', country: 'PL', email: 'faktury@salon.pl', phone: '-' };
+  const bank = { bankName: 'ING BANK ŚLĄSKI S.A.', iban: 'PL56 1050 1559 1000 0090 3311 9588', swift: 'INGBPLPW' };
+  const r = resolveParties({ level: InvoiceLevel.ORGANIZATION_TO_USER, issuerProfile: orgProfile, context: { organization, user: { ...user, bankAccount: bank, phone: '600' }, payer } });
+  assert.equal(r.buyerId, 600, 'faktura zostaje przy koncie klienta (zlecenia, katalog FTP)');
+  assert.equal(r.buyer.name, 'Salon Firan Ewa Sp. z o.o.');
+  assert.equal(r.buyer.taxId, 'PL8519999999');
+  assert.equal(r.buyer.street, 'Fakturowa 1');
+  assert.equal(r.buyer.city, 'Wrocław', '„-” u płatnika → miasto klienta');
+  assert.equal(r.buyer.email, 'faktury@salon.pl');
+  assert.equal(r.buyer.phone, '600');
+  assert.deepEqual(r.buyer.bankAccount, bank);
+  // Bez płatnika — jak dotąd; sprzedawca na poziomie 3 (salon) nie przejmuje danych płatnika
+  assert.equal(resolveParties({ level: InvoiceLevel.ORGANIZATION_TO_USER, issuerProfile: orgProfile, context: { organization, user } }).buyer.name, 'Salon Firan Ewa');
+  assert.equal(resolveParties({ level: InvoiceLevel.USER_TO_END_CLIENT, issuerProfile: userProfile, context: { organization, user, payer, endClient } }).buyer.name, endClient.name);
+});
