@@ -65,27 +65,6 @@
         flex: 1 !important;
         width: 100% !important;
     }
-    .color-dialog-btn {
-        display: block !important;
-        width: 100% !important;
-        background-color: var(--bg-surface) !important;
-        color: var(--text-primary) !important;
-        font-weight: 600 !important;
-        border: 2px solid var(--border-default) !important;
-        border-radius: 12px !important;
-        padding: 15px !important;
-        transition: background-color 0.3s, border-color 0.3s !important;
-        white-space: normal !important;
-        word-break: break-word !important;
-        text-align: left !important;
-        box-shadow: none !important;
-        margin-bottom: 10px !important;
-    }
-    .color-dialog-btn:hover {
-        background-color: var(--bg-active) !important;
-        border-color: var(--brand-primary) !important;
-        color: var(--brand-primary) !important;
-    }
     .diag-image {
         width: 100% !important;
         height: 200px !important;

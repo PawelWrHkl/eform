@@ -23,12 +23,6 @@
         margin: 0 !important;
         padding: 0 !important;
     }
-    .app-container {
-        padding: calc(env(safe-area-inset-top) + 12px) 14px calc(env(safe-area-inset-bottom) + 18px);
-        max-width: 720px;
-        margin: 0 auto;
-        box-sizing: border-box;
-    }
     .card {
         background: var(--surface);
         border-radius: var(--radius);

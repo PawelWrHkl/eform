@@ -13,23 +13,6 @@
         margin: 0 !important;
         width: 100% !important;
     }
-    .position-sent {
-        padding: 0 !important;
-        background: var(--bg-surface) !important;
-    }
-    .position-card {
-        background: var(--bg-surface) !important;
-        padding: 15px !important;
-        border-radius: var(--radius-md) !important;
-        border: 1px solid var(--border-default) !important;
-        box-shadow: var(--shadow-sm) !important;
-        margin-bottom: 15px !important;
-    }
-    .position-card .meta {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 10px !important;
-    }
     .order-header {
         font-size: 1.2rem !important;
         margin-bottom: 20px !important;

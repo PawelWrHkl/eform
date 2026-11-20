@@ -135,7 +135,7 @@
                     <td class="ta-r inv-nowrap">{{ inv.netFmt }}</td>
                     <td class="ta-r inv-nowrap">{{ inv.grossFmt }}</td>
                     <td class="ta-r inv-nowrap">{{ inv.dueFmt }}</td>
-                    <td><span class="inv-status inv-status--{{ inv.status }}" title="{{ L.status_paid_title }}">{{ L['status_' + inv.status] or inv.status }}</span>{% if inv.paidFmt %}<span class="inv-order-ref">{{ L.status_partial }} {{ inv.paidFmt }}</span>{% endif %}</td>
+                    <td><span class="inv-status inv-status--{{ inv.status }}" title="{{ L.status_paid_title }}">{{ L['status_' + (inv.statusKey or inv.status)] or inv.status }}</span>{% if inv.paidFmt %}<span class="inv-order-ref">{{ L.status_partial }} {{ inv.paidFmt }}</span>{% endif %}</td>
                     <td class="inv-actions">
                       <a class="inv-link" href="/invoices/{{ inv.id }}/view" target="_blank" rel="noopener">{{ L.preview }}</a>
                       <a class="inv-link" href="/api/v1/invoices/{{ inv.id }}/pdf?download=1">{{ L.pdf }}</a>

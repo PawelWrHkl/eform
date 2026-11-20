@@ -473,7 +473,7 @@ test('status wysyłki do poniedziałku zdąży na fakturę tygodnia; spóźniony
 
 const dailyConfig = () => readAutoInvoiceConfig({ INVOICE_AUTOGEN_ENABLED: 'true', INVOICE_AUTOGEN_SINCE: '2026-01-01', INVOICE_DAILY_SINCE: '2026-11-01', INVOICE_AUTOGEN_LEVELS: '1' }, { invoicesEnabled: true });
 const lateM2 = { id: 12, level: 1, organization_id: 1, organization_ident: 'Cozy', user_id: 31, user_ident: 'M2', order_idx: '6', delivery_date: '2026-11-16' };
-const issuedDaily = (extra = {}) => ({ id: 70, number: '26000001', status: 'issued', issueDate: '2026-11-17', related: 0, orders: [{ id: 11, order_idx: '19', user_id: 30, user_ident: 'Wonen' }], ...extra });
+const issuedDaily = (extra = {}) => ({ id: 70, number: '26000001', status: 'issued', issueDate: '2026-11-17', dueDate: '2026-12-01', related: 0, orders: [{ id: 11, order_idx: '19', user_id: 30, user_ident: 'Wonen' }], ...extra });
 
 test('automat: dzienna za ten dzień już jest — druga NIE powstaje, zlecenie czeka na „Przelicz dzienne ponownie”', async () => {
   const calls = [];
@@ -522,7 +522,8 @@ test('przelicz dzienne: spóźnione zlecenie trafia do tej samej faktury — ten
   const svc = { createCollective: async (p) => { calls.push(p); return { id: 71, number: p.replace ? p.replace.number : 'NOWY' }; } };
   const result = await recalculateDailyInvoices({ config: dailyConfig(), deps: { repository, service: svc, log: quiet, now: () => new Date(2026, 10, 18, 10, 0) } });
   assert.deepEqual(calls.map((c) => [c.level, c.orderIds, c.period.key, c.createdByPin, c.issue]), [[1, [12, 11], '2026-11-16', DAILY_ACTOR, true]]);
-  assert.deepEqual(calls[0].replace, { id: 70, number: '26000001', issueDate: '2026-11-17' });
+  // Termin zostaje z wystawionej faktury (20.11.2026) — nowy PAYMENT_DAYS nie przesuwa go przy przeliczeniu
+  assert.deepEqual(calls[0].replace, { id: 70, number: '26000001', issueDate: '2026-11-17', dueDate: '2026-12-01' });
   assert.deepEqual(result.recalculated.map((r) => r.number), ['26000001']);
   assert.equal(result.failed.length, 0);
 });
@@ -542,6 +543,7 @@ test('przelicz dzienne: dzień bez dziennej dostaje nową; opłaconej, z korekt�
   for (const [existing, reason] of [
     [[issuedDaily({ status: 'paid' })], /ma status paid/],
     [[issuedDaily({ related: 1 })], /ma korektę/],
+    [[issuedDaily({ accepted: 1 })], /przyjęta przez system zewnętrzny/],
     [[issuedDaily({ edited: true })], /edytowana ręcznie/],
     [[issuedDaily(), issuedDaily({ id: 80, number: '2026/00820' })], /połącz ręcznie/]
   ]) {
@@ -585,6 +587,7 @@ test('pobierz ponownie z zamówienia: ten sam numer, daty i autor z aktualnych c
     [issued({ status: 'paid' }), {}, /status paid/],
     [issued({ documentType: 'proforma' }), {}, /tylko faktura VAT/],
     [issued(), { blockers: { related: 1 } }, /korektę/],
+    [issued(), { blockers: { accepted: 1 } }, /przyjęta przez system zewnętrzny/],
     [issued({ compliance: { manualEdit: { edited: true } } }), {}, /edytowana ręcznie/],
     [issued({ orderId: null }), { pin: 'AUTO' }, /ani dzienna/]
   ]) {
@@ -592,4 +595,26 @@ test('pobierz ponownie z zamówienia: ten sam numer, daty i autor z aktualnych c
     await assert.rejects(service(bad).rebuildFromOrders(77), re);
     assert.equal(bad.saved.length, 0);
   }
+});
+
+test('createCollective: linia transportu (taxAsGoods) z VAT jak towar i z meta.transport; inna usługa nadal odrzucona', async () => {
+  const repository = fakeRepository({ 1: source(1, { idx: '201', country: 'NL' }), 2: source(2, { idx: '202', country: 'NL' }) });
+  const transport = { name: 'Transportkosten Sendung 20.11.2026, Kom. 201', netAmount: 8.5, quantity: 1, taxAsGoods: true, meta: { transport: { key: '2026-11-20|201', day: '2026-11-20' } } };
+  await service(repository).createCollective({ orderIds: [1, 2], period: SEPT, serviceItems: [transport] });
+  const inv = repository.saved[0];
+  const goods = inv.items[0];
+  const line = inv.items.at(-1);
+  assert.equal(line.name, transport.name);
+  assert.equal(line.orderItemId ?? null, null);
+  assert.deepEqual([line.taxCategory, line.taxRate], [goods.taxCategory, goods.taxRate], 'VAT jak towar na tej fakturze');
+  assert.equal(line.meta.isService, false);
+  assert.deepEqual(line.meta.transport, transport.meta.transport);
+  const plain = fakeRepository({ 1: source(1, { idx: '201', country: 'NL' }), 2: source(2, { idx: '202', country: 'NL' }) });
+  await service(plain).createCollective({ orderIds: [1, 2], period: SEPT });
+  assert.equal(inv.totalNet - plain.saved[0].totalNet, 850);
+  await assert.rejects(
+    service(fakeRepository({ 1: source(1, { idx: '201' }), 2: source(2, { idx: '202' }) }))
+      .createCollective({ orderIds: [1, 2], period: SEPT, serviceItems: [{ name: 'Montaż', netAmount: 10 }] }),
+    /bez usług dodatkowych/
+  );
 });

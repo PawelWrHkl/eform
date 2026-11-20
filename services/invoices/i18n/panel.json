@@ -384,7 +384,8 @@
     "status_cancelled": "anulowana",
     "status_corrected": "skorygowana",
     "status_partial": "zapłacono",
-    "status_paid_title": "Status płatności z księgowości (plik platnosci.tsv); „opłacona” można też ustawić ręcznie"
+    "status_paid_title": "Status płatności z księgowości (plik platnosci.tsv); „opłacona” można też ustawić ręcznie",
+    "status_issued_untracked": "wystawiona"
   },
   "en": {
     "title": "Invoices",
@@ -764,7 +765,8 @@
     "status_cancelled": "cancelled",
     "status_corrected": "corrected",
     "status_partial": "paid",
-    "status_paid_title": "Payment status from accounting (platnosci.tsv); “paid” can also be set manually"
+    "status_paid_title": "Payment status from accounting (platnosci.tsv); “paid” can also be set manually",
+    "status_issued_untracked": "issued"
   },
   "de": {
     "title": "Rechnungen",
@@ -1144,6 +1146,7 @@
     "status_cancelled": "storniert",
     "status_corrected": "korrigiert",
     "status_partial": "bezahlt",
-    "status_paid_title": "Zahlungsstatus aus der Buchhaltung (platnosci.tsv); „bezahlt“ kann auch manuell gesetzt werden"
+    "status_paid_title": "Zahlungsstatus aus der Buchhaltung (platnosci.tsv); „bezahlt“ kann auch manuell gesetzt werden",
+    "status_issued_untracked": "ausgestellt"
   }
 }

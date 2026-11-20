@@ -31,7 +31,6 @@
 	align-items: center;
 }
 
-@media (max-width: 1000px) {}
 
 .last-config-info .collapsed {
 	left: 40%;

@@ -1125,13 +1125,15 @@ const AUTO_LEVEL_SQL = Object.freeze({
  * @param {{ level: number, since: string, organizationIds?: number[], excludeOrganizationId?: number|null, limit?: number }} params
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function findAutoInvoiceCandidates({ level, since, organizationIds = [], excludeOrganizationId = null, limit = 100 }) {
+async function findAutoInvoiceCandidates({ level, since, organizationIds = [], excludeOrganizationId = null, excludeOrderIds = [], limit = 100 }) {
   const levelSql = AUTO_LEVEL_SQL[Number(level)];
   if (levelSql === undefined) throw new Error(`Automat nie obsługuje poziomu ${level}`);
   const values = [since];
   let filters = '';
   if (organizationIds.length) { filters += ' AND o.organization_id IN (?)'; values.push(organizationIds); }
   if (excludeOrganizationId) { filters += ' AND o.organization_id <> ?'; values.push(Number(excludeOrganizationId)); }
+  // Zlecenia czekające na transport (`transport.js`) nie zajmują okna kolejnej rundy
+  if (excludeOrderIds.length) { filters += ' AND o.id NOT IN (?)'; values.push(excludeOrderIds); }
   // Klient z fakturowaniem niestandardowym (tygodniowe/miesięczne) dostaje
   // fakturę ZBIORCZĄ za okres (`findCollectiveCandidates`), nie za każde zlecenie
   const scheduleSql = Number(level) === 2 && (await supportsInvoiceSchedule())
@@ -1197,7 +1199,14 @@ async function hasLevelInvoice({ orderId, level }) {
  * @param {{ since: string, doneEvent: string, failedEvent: string, maxAttempts?: number, createdByPin?: string|string[], limit?: number }} params
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts = 3, createdByPin = 'AUTO', limit = 50 }) {
+async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts = 3, createdByPin = 'AUTO', limit = 50, ksefGate = false }) {
+  const { HKL_ORG_ID } = require('../../subPrices');
+  // KSeF (INVOICE_KSEF_MAIL_GATE): faktura HKL — poziom 1 albo poziom 2 organizacji HKL, jak w `numery_ksef.tsv` —
+  // dopiero z `ksef_accepted`; filtr w SQL, żeby czekające nie zajmowały limitu przebiegu
+  const ksefSql = ksefGate
+    ? `AND NOT ((i.level = 1 OR (i.level = 2 AND i.organization_id = ${Number(HKL_ORG_ID)}))
+               AND NOT EXISTS (SELECT 1 FROM invoice_event k WHERE k.invoice_id = i.id AND k.event_type = 'ksef_accepted'))`
+    : '';
   return strictQuery(
     `SELECT i.id, i.number, i.level, i.buyer_name, i.buyer_email, i.created_at,
             (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) AS failures
@@ -1208,6 +1217,7 @@ async function findInvoicesToMail({ since, doneEvent, failedEvent, maxAttempts =
         AND i.created_at >= ?
         AND NOT EXISTS (SELECT 1 FROM invoice_event e WHERE e.invoice_id = i.id AND e.event_type = ?)
         AND (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) < ?
+        ${ksefSql}
       ORDER BY i.id
       LIMIT ?`,
     [failedEvent, [].concat(createdByPin), since, doneEvent, failedEvent, maxAttempts, limit]
@@ -1330,7 +1340,9 @@ async function listBlankIssuers() {
  * od pierwszej — plik `zafakturowane_pozycje.tsv` na FTP (`invoiceFtpExport.js`): z niego
  * automat Wiktorii stawia blokadę DSPR_NUM w PROD i porównuje faktury z PROD (16.11.2026).
  * Daty jako tekst, żeby strefa czasowa nie przesunęła dnia. Błąd bazy rzuca wyjątek —
- * pusta lista po awarii nadpisałaby plik odbiorcy.
+ * pusta lista po awarii nadpisałaby plik odbiorcy. Pozycja bez zlecenia (transport,
+ * in blanco) dostaje klienta faktury: właściciela jej zlecenia albo konto nabywcy, a linia
+ * transportu typ `transport` (Wiktoria 18.11: „typ transport i klient — tak, tego potrzebuję”).
  *
  * @returns {Promise<Array<Record<string, any>>>}
  */
@@ -1339,15 +1351,83 @@ async function findInvoicedPositions() {
     `SELECT i.id, i.level, i.number, DATE_FORMAT(i.issue_date, '%Y-%m-%d') AS issue_date,
             DATE_FORMAT(i.sale_date, '%Y-%m-%d') AS sale_date, i.order_id, i.order_name,
             i.created_by_pin, i.document_type, org.ident AS organization_ident,
-            u.ident AS user_ident, o.order_idx, oi.orderpos, it.quantity, it.net_amount
+            COALESCE(u.ident, iu.ident, bu.ident) AS user_ident, o.order_idx, oi.orderpos, it.quantity, it.net_amount,
+            CASE WHEN JSON_EXTRACT(it.meta, '$.transport') IS NOT NULL THEN 'transport' ELSE '' END AS item_type
        FROM invoice i
        JOIN invoice_item it ON it.invoice_id = i.id
        LEFT JOIN organization org ON org.id = i.organization_id
        LEFT JOIN order_item oi ON oi.id = it.order_item_id
        LEFT JOIN \`order\` o ON o.id = oi.order_id
        LEFT JOIN \`user\` u ON u.id = o.user_id
+       LEFT JOIN \`order\` io ON io.id = i.order_id
+       LEFT JOIN \`user\` iu ON iu.id = io.user_id
+       LEFT JOIN \`user\` bu ON bu.id = i.buyer_user_id
       WHERE i.number IS NOT NULL AND i.status IN ('issued', 'paid', 'overdue')
       ORDER BY i.id, it.position, it.id`
+  );
+}
+
+/**
+ * Transport (`transport.js`): zlecenia po id albo po parach (ident klienta, numer zlecenia)
+ * z status.txt, z organizacją, płatnikiem i adresem dostawy. Adres jak w e-fakturze: adres
+ * wysyłki zlecenia, inaczej adres dostawy, inaczej konto klienta. Płatnik osobnym zapytaniem,
+ * bo kolumny `paymaster_ident` nie ma w bazie bez `add_user_paymaster_bank.sql`.
+ *
+ * @param {{ orderIds?: number[], pairs?: Array<[string, string]> }} params
+ */
+async function getTransportOrders({ orderIds = [], pairs = [] }) {
+  if (!orderIds.length && !pairs.length) return [];
+  const rows = await strictQuery(
+    `SELECT o.id, o.order_idx, o.commision, u.id AS user_id, u.ident AS user_ident, org.ident AS org_ident,
+            COALESCE(NULLIF(sa.country, ''), NULLIF(da.country, ''), u.country) AS country,
+            COALESCE(NULLIF(sa.zip, ''), NULLIF(da.zip, ''), u.zip) AS zip,
+            CASE WHEN sa.id IS NOT NULL THEN CONCAT('S', sa.id) WHEN da.id IS NOT NULL THEN CONCAT('D', da.id) ELSE '' END AS address_key
+       FROM \`order\` o
+       JOIN \`user\` u ON u.id = o.user_id
+       JOIN organization org ON org.id = o.organization_id
+       LEFT JOIN send_address sa ON sa.id = o.send_address_id
+       LEFT JOIN delivery_address da ON da.id = o.delivery_address_id
+      WHERE ${orderIds.length ? 'o.id IN (?)' : '(u.ident, o.order_idx) IN (?)'}`,
+    [orderIds.length ? orderIds : pairs]
+  );
+  if (!rows.length) return rows;
+  const users = await strictQuery('SELECT * FROM `user` WHERE id IN (?)', [[...new Set(rows.map((r) => r.user_id))]]);
+  const { cleanValue } = require('../core/contractorAccounts');
+  // „-” w contractors.txt = brak płatnika
+  const payer = new Map(users.map((u) => [u.id, cleanValue(u.paymaster_ident) || '']));
+  return rows.map((r) => ({ ...r, paymaster_ident: payer.get(r.user_id) || '' }));
+}
+
+/** Transport: pozycje zleceń z cenami (kwota jak na fakturze liczy `core/orderMapper.js`). */
+async function getTransportItems(orderIds) {
+  if (!orderIds.length) return [];
+  return strictQuery(
+    `SELECT oi.id, oi.order_id, oi.orderpos, oi.name, oi.amount, oi.total_price, oi.total_price_sub, oi.json_parameters
+       FROM order_item oi WHERE oi.order_id IN (?) ORDER BY oi.order_id, oi.id`,
+    [orderIds]
+  );
+}
+
+/** Transport: najniższy numer wystawionej faktury poziomu 2 (organizacja → klient) każdej pozycji. */
+async function findIssuedTransportInvoices(orderItemIds) {
+  if (!orderItemIds.length) return [];
+  return strictQuery(
+    `SELECT it.order_item_id, MIN(i.number) AS number
+       FROM invoice_item it JOIN invoice i ON i.id = it.invoice_id
+      WHERE it.order_item_id IN (?) AND i.level = 2 AND i.number IS NOT NULL
+        AND i.status IN ('issued', 'paid', 'overdue') AND i.document_type IN ('invoice', 'final')
+      GROUP BY it.order_item_id`,
+    [orderItemIds]
+  );
+}
+
+/** Transport: linie transportu na wystawionych fakturach — ochrona przed drugim dopisaniem opłaty. */
+async function findTransportLines() {
+  return strictQuery(
+    `SELECT i.number, it.meta
+       FROM invoice_item it JOIN invoice i ON i.id = it.invoice_id
+      WHERE i.number IS NOT NULL AND i.status IN ('issued', 'paid', 'overdue')
+        AND JSON_EXTRACT(it.meta, '$.transport') IS NOT NULL`
   );
 }
 
@@ -1446,10 +1526,13 @@ async function getEinvoiceSources(invoice) {
   const itemIds = [...new Set((invoice.items || []).map((it) => Number(it.orderItemId)).filter(Boolean))];
   const orderItems = itemIds.length
     ? await strictQuery(
-      `SELECT oi.id, oi.order_id, oi.orderpos, oi.commision, oi.json_parameters, o.order_idx, u.ident AS user_ident
+      `SELECT oi.id, oi.order_id, oi.orderpos, oi.commision, oi.json_parameters, oi.asortment_group_number,
+              o.order_idx, u.ident AS user_ident, pg.name_de AS group_de, d.name_de AS department_de
          FROM order_item oi
          JOIN \`order\` o ON o.id = oi.order_id
          JOIN \`user\` u ON u.id = o.user_id
+         LEFT JOIN product_group pg ON pg.group_number = oi.asortment_group_number
+         LEFT JOIN department d ON d.id = pg.department_id
         WHERE oi.id IN (?)
         ORDER BY oi.order_id, oi.orderpos, oi.id`,
       [itemIds]
@@ -1480,17 +1563,26 @@ async function getEinvoiceSources(invoice) {
     ? await strictQuery('SELECT id, name, street, zip, city, country FROM send_address WHERE id IN (?)', [sendIds])
     : [];
 
-  let buyer = { ident: null, email: null, phone: null };
+  let buyer = { ident: null, email: null, phone: null, invoiceEmail: '' };
   if (invoice.buyerGroupUserId) {
     const [g] = await strictQuery('SELECT ident, email, phone FROM group_user WHERE id = ?', [invoice.buyerGroupUserId]);
-    if (g) buyer = g;
+    if (g) buyer = { ...g, invoiceEmail: '' };
   } else if (invoice.buyerUserId) {
-    const [u] = await strictQuery('SELECT ident, email, phone FROM `user` WHERE id = ?', [invoice.buyerUserId]);
-    if (u) buyer = u;
+    // `SELECT *`: `invoice_email`/`paymaster_ident` są od migracji — bez nich puste. Adres do faktur
+    // (contractors.txt INVOICE_EMAIL) płatnika, gdy faktura idzie na płatnika, inaczej klienta
+    const { cleanValue } = require('../core/contractorAccounts');
+    const [u] = await strictQuery('SELECT * FROM `user` WHERE id = ?', [invoice.buyerUserId]);
+    if (u) {
+      const paymaster = cleanValue(u.paymaster_ident);
+      const [payer] = paymaster && paymaster.toUpperCase() !== String(u.ident || '').toUpperCase()
+        ? await strictQuery('SELECT * FROM `user` WHERE ident = ? LIMIT 1', [paymaster])
+        : [];
+      buyer = { ident: u.ident, email: u.email, phone: u.phone, invoiceEmail: cleanValue(payer && payer.invoice_email) || cleanValue(u.invoice_email) };
+    }
   } else if (invoice.buyerType === 'organization') {
     // Poziom 1: nabywcą jest organizacja faktury
     const [o] = await strictQuery('SELECT ident, invoice_email AS email, NULL AS phone FROM organization WHERE id = ?', [invoice.organizationId]);
-    if (o) buyer = o;
+    if (o) buyer = { ...o, invoiceEmail: '' };
   }
 
   let paymentTermsDays = null;
@@ -1569,16 +1661,19 @@ async function addInvoiceEvent({ invoiceId, eventType, actorPin = null, payload 
 }
 
 /**
- * Faktury na przypomnienie o płatności (`invoiceMailer.js`, szef 19.11.2026): termin płatności DZIŚ,
- * nieopłacone (status i kwota z księgowości — `invoicePayments.js`), wysłane wcześniej mailem w tym
- * samym trybie (`mailedEvent`: klient dostaje przypomnienie tylko o fakturze, którą dostał), bez
- * przypomnienia (`doneEvent`) i z mniej niż `maxAttempts` nieudanymi próbami.
+ * Faktury na przypomnienie o płatności (`invoiceMailer.js`, szef 19.11.2026; ustalenia Wiktorii 20.11):
+ * tylko faktury HKL (tylko ich wpłaty zna księgowość — plik płatności), tylko z numerem KSeF (faktura
+ * powtarzająca fakturę PROD zostałaby „otwarta” na zawsze), termin minął co najmniej N dni temu
+ * (`dueOnOrBefore`; wpłata trafia do ksiąg do ~3 dni po wyciągu), nieopłacone, wysłane wcześniej mailem
+ * w tym samym trybie (`mailedEvent`), bez przypomnienia (`doneEvent`), mniej niż `maxAttempts` porażek.
+ * `<=`, nie `=`: numer KSeF może przyjść po N-tym dniu — przypomnienie pójdzie wtedy od razu, raz.
  *
- * @param {{ today: string, since: string, mailedEvent: string, doneEvent: string, failedEvent: string, maxAttempts?: number, limit?: number }} params
+ * @param {{ dueOnOrBefore: string, since: string, mailedEvent: string, doneEvent: string, failedEvent: string, maxAttempts?: number, limit?: number }} params
  *        `since` — tylko faktury wystawione od tego dnia (`INVOICE_REMINDERS_SINCE`)
  * @returns {Promise<Array<Record<string, any>>>}
  */
-async function findInvoicesToRemind({ today, since, mailedEvent, doneEvent, failedEvent, maxAttempts = 3, limit = 50 }) {
+async function findInvoicesToRemind({ dueOnOrBefore, since, mailedEvent, doneEvent, failedEvent, maxAttempts = 3, limit = 50 }) {
+  const { HKL_ORG_ID } = require('../../subPrices');
   return strictQuery(
     `SELECT i.id, i.number, i.buyer_name, i.due_date, i.amount_due, i.paid_amount, i.currency,
             (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) AS failures
@@ -1586,35 +1681,61 @@ async function findInvoicesToRemind({ today, since, mailedEvent, doneEvent, fail
       WHERE i.status IN ('issued', 'overdue')
         AND i.document_type IN ('invoice', 'final')
         AND i.number IS NOT NULL
-        AND i.due_date = ?
+        AND i.due_date <= ?
         AND i.issue_date >= ?
+        AND (i.issuer_type = 'manufacturer' OR (i.issuer_type = 'organization' AND i.issuer_id = ?))
         AND i.amount_due - i.paid_amount >= 0.01
+        AND EXISTS (SELECT 1 FROM invoice_event k WHERE k.invoice_id = i.id AND k.event_type = 'ksef_accepted')
         AND EXISTS (SELECT 1 FROM invoice_event m WHERE m.invoice_id = i.id AND m.event_type = ?)
         AND NOT EXISTS (SELECT 1 FROM invoice_event e WHERE e.invoice_id = i.id AND e.event_type = ?)
         AND (SELECT COUNT(*) FROM invoice_event f WHERE f.invoice_id = i.id AND f.event_type = ?) < ?
       ORDER BY i.id
       LIMIT ?`,
-    [failedEvent, today, since, mailedEvent, doneEvent, failedEvent, maxAttempts, limit]
+    [failedEvent, dueOnOrBefore, since, Number(HKL_ORG_ID), mailedEvent, doneEvent, failedEvent, maxAttempts, limit]
   );
 }
 
 /**
- * Faktury po numerach — do pliku płatności z księgowości (`invoicePayments.js`). Organizacja jak
- * w pliku pozycji (`organization_ident` = organizacja faktury: na poziomie 1 nabywca, na 2 wystawca).
+ * Faktury HKL po numerach — do pliku płatności z księgowości (`invoicePayments.js`; plik obejmuje tylko
+ * faktury HKL — Wiktoria 20.11.2026). Organizacja jak w pliku pozycji (`organization_ident` = organizacja
+ * faktury: na poziomie 1 nabywca, na 2 wystawca).
  *
  * @param {string[]} numbers
  * @returns {Promise<Array<Record<string, any>>>}
  */
 async function findInvoicesByNumbers(numbers) {
   if (!numbers.length) return [];
+  const { HKL_ORG_ID } = require('../../subPrices');
   return strictQuery(
     `SELECT i.id, i.number, i.level, i.status, i.document_type, i.amount_due, i.paid_amount, i.paid_at, i.currency,
-            org.ident AS organization_ident
+            DATE_FORMAT(i.issue_date, '%Y-%m-%d') AS issue_date, org.ident AS organization_ident
        FROM invoice i
        LEFT JOIN organization org ON org.id = i.organization_id
-      WHERE i.number IN (?)`,
-    [numbers]
+      WHERE i.number IN (?)
+        AND (i.issuer_type = 'manufacturer' OR (i.issuer_type = 'organization' AND i.issuer_id = ?))`,
+    [numbers, Number(HKL_ORG_ID)]
   );
+}
+
+/**
+ * Stan KSeF faktur (`invoiceKsef.js`): ostatnie zdarzenie `ksef_*` każdej faktury.
+ *
+ * @param {number[]} invoiceIds
+ * @returns {Promise<Map<number, { status: string, ksefNumber: string, ksefDate: string, verifyUrl: string, reason: string }>>}
+ */
+async function getKsefStates(invoiceIds) {
+  const ids = [...new Set(invoiceIds.map(Number).filter(Boolean))];
+  if (!ids.length) return new Map();
+  const rows = await strictQuery(
+    `SELECT e.invoice_id, e.payload FROM invoice_event e
+      WHERE e.invoice_id IN (?) AND e.event_type LIKE 'ksef\\_%'
+        AND e.id = (SELECT MAX(x.id) FROM invoice_event x WHERE x.invoice_id = e.invoice_id AND x.event_type LIKE 'ksef\\_%')`,
+    [ids]
+  );
+  return new Map(rows.map((r) => {
+    const p = parseJsonColumn(r.payload) || {};
+    return [Number(r.invoice_id), { status: p.status || '', ksefNumber: p.ksefNumber || '', ksefDate: p.ksefDate || '', verifyUrl: p.verifyUrl || '', reason: p.reason || '' }];
+  }));
 }
 
 /**
@@ -1812,7 +1933,7 @@ async function searchInvoices({ q, limit = 100 }) {
   const like = `%${term.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
   return strictQuery(
     `SELECT i.id, i.number, i.level, i.status, i.document_type, i.currency, i.total_net, i.total_gross, i.amount_due, i.paid_amount,
-            i.issue_date, i.due_date, i.seller_name, i.buyer_name, i.order_ref, i.order_name, i.created_by_pin,
+            i.issue_date, i.due_date, i.seller_name, i.buyer_name, i.order_ref, i.order_name, i.created_by_pin, i.issuer_type, i.issuer_id,
             JSON_EXTRACT(i.compliance, '$.manualEdit') IS NOT NULL AS manual_edit, bu.ident AS buyer_ident
        FROM invoice i
        LEFT JOIN \`user\` bu ON bu.id = i.buyer_user_id
@@ -1857,14 +1978,24 @@ async function findOrderInvoiceForEdit({ orderId, level }) {
   return rows[0] ? Number(rows[0].id) : null;
 }
 
-/** Co blokuje edycję w miejscu: korekta/dokument powiązany, alokacje częściowego fakturowania. */
+/**
+ * Liczba zdarzeń „przyjęta przez system zewnętrzny” dokumentu `idSql` (`core/statuses.acceptedLockMessage`):
+ * e-faktura ZUGFeRD przyjęta w trybie LIVE (w cieniu dokument „MUSTER” niczego nie blokuje) i KSeF ACCEPTED.
+ * Nowy system z akceptacją = kolejny warunek tutaj.
+ */
+const acceptedSql = (idSql) => `(SELECT COUNT(*) FROM invoice_event x WHERE x.invoice_id = ${idSql}
+     AND (x.event_type = 'ksef_accepted'
+       OR (x.event_type = 'einvoice_ready' AND JSON_UNQUOTE(JSON_EXTRACT(x.payload, '$.mode')) = 'live')))`;
+
+/** Co blokuje edycję w miejscu: korekta/dokument powiązany, alokacje częściowego fakturowania, przyjęcie e-faktury/KSeF. */
 async function getEditBlockers(invoiceId) {
   const [row] = await strictQuery(
     `SELECT (SELECT COUNT(*) FROM invoice r WHERE r.corrected_invoice_id = ? OR r.parent_invoice_id = ?) AS related,
-            (SELECT COUNT(*) FROM invoice_item_allocation a WHERE a.invoice_id = ?) AS allocations`,
-    [Number(invoiceId), Number(invoiceId), Number(invoiceId)]
+            (SELECT COUNT(*) FROM invoice_item_allocation a WHERE a.invoice_id = ?) AS allocations,
+            ${acceptedSql('?')} AS accepted`,
+    [Number(invoiceId), Number(invoiceId), Number(invoiceId), Number(invoiceId)]
   );
-  return { related: Number(row.related), allocations: Number(row.allocations) };
+  return { related: Number(row.related), allocations: Number(row.allocations), accepted: Number(row.accepted) };
 }
 
 /** Zamówienia na fakturze (nagłówek albo pozycje — dzienna/zbiorcza ma ich wiele). */
@@ -1976,8 +2107,10 @@ async function findDailyInvoices({ level, organizationId, userId = null, groupUs
   const lvl = Number(level);
   const rows = await strictQuery(
     `SELECT i.id, i.number, i.status, DATE_FORMAT(i.issue_date, '%Y-%m-%d') AS issue_date,
+            DATE_FORMAT(i.due_date, '%Y-%m-%d') AS due_date,
             JSON_UNQUOTE(JSON_EXTRACT(i.compliance, '$.manualEdit.edited')) AS edited,
-            (SELECT COUNT(*) FROM invoice r WHERE r.corrected_invoice_id = i.id OR r.parent_invoice_id = i.id) AS related
+            (SELECT COUNT(*) FROM invoice r WHERE r.corrected_invoice_id = i.id OR r.parent_invoice_id = i.id) AS related,
+            ${acceptedSql('i.id')} AS accepted
        FROM invoice i
       WHERE i.created_by_pin = '${DAILY_ACTOR}' AND i.level = ? AND i.sale_date = ? AND i.organization_id = ?
         ${lvl === 1 ? '' : 'AND i.buyer_user_id = ? AND COALESCE(i.buyer_group_user_id, 0) = ?'}
@@ -1996,7 +2129,7 @@ async function findDailyInvoices({ level, organizationId, userId = null, groupUs
         WHERE ii.invoice_id = ?`,
       [r.id]
     );
-    result.push({ id: Number(r.id), number: r.number, status: r.status, issueDate: r.issue_date, related: Number(r.related), edited: r.edited === 'true', orders });
+    result.push({ id: Number(r.id), number: r.number, status: r.status, issueDate: r.issue_date, dueDate: r.due_date, related: Number(r.related), accepted: Number(r.accepted), edited: r.edited === 'true', orders });
   }
   return result;
 }
@@ -2525,17 +2658,23 @@ async function getOrderInvoiceSource(orderId) {
     : null;
   // Płatnik i konto z contractors.txt (Tomek/Paweł 19.11.2026). `SELECT *`: kolumny są od migracji
   // `add_user_paymaster_bank.sql` — bez niej po prostu ich nie ma i faktura idzie jak dotąd.
-  const { cleanValue, accountFromContractor } = require('../core/contractorAccounts');
+  const { cleanValue, accountFromContractor, paymentDaysOf } = require('../core/contractorAccounts');
   const extra = ((await selectQuery('SELECT * FROM `user` WHERE id = ?', [order.u_id])) || [])[0] || {};
   const paymaster = cleanValue(extra.paymaster_ident);
   const payerRow = paymaster && paymaster.toUpperCase() !== String(order.u_ident || '').toUpperCase()
     ? ((await selectQuery('SELECT * FROM `user` WHERE ident = ? LIMIT 1', [paymaster])) || [])[0] || null
     : null;
+  // Termin organizacji-nabywcy (poziom 1): jej konto w contractors.txt — ident konta = ident organizacji
+  // (Cozy, LuxanGmbH; porównanie bez wielkości liter). Nie `invoice_organization_profile.default_payment_days`:
+  // to termin, który organizacja daje swoim klientom (Paweł 20.11.2026)
+  const orgIdent = orgs && orgs[0] && orgs[0].ident;
+  const orgAccount = orgIdent ? ((await selectQuery('SELECT * FROM `user` WHERE ident = ? LIMIT 1', [orgIdent])) || [])[0] : null;
 
   return {
     order,
     orderItems,
     organization: (orgs && orgs[0]) || null,
+    organizationPaymentDays: paymentDaysOf(orgAccount),
     // Dane płatnika na fakturę (`hierarchy.resolveParties`) — bez haseł i reszty konta
     payer: payerRow
       ? { ident: payerRow.ident, client_name: payerRow.client_name, tax_id: payerRow.tax_id, street: payerRow.street,
@@ -2544,6 +2683,8 @@ async function getOrderInvoiceSource(orderId) {
     user: {
       // Konto do wpłaty z contractors.txt: płatnika, a gdy go nie ma albo nie ma konta — klienta
       bankAccount: accountFromContractor(payerRow) || accountFromContractor(extra),
+      // Termin z contractors.txt (PAYMENT_DAYS, 20.11.2026): płatnika, a bez niego klienta
+      paymentDays: paymentDaysOf(payerRow) ?? paymentDaysOf(extra),
       id: order.u_id,
       client_name: order.client_name,
       tax_id: order.u_tax_id,
@@ -2791,8 +2932,13 @@ module.exports = {
   findInvoicesToMail,
   findInvoicesForFtp,
   findInvoicesForEinvoice,
+  getKsefStates,
   getEinvoiceSources,
   findInvoicedPositions,
+  getTransportOrders,
+  getTransportItems,
+  findIssuedTransportInvoices,
+  findTransportLines,
   getUserForInvoice,
   searchBlankBuyers,
   listBlankIssuers,

@@ -3,23 +3,6 @@
         background-color: var(--bg-body) !important;
         padding-bottom: 0%;
     }
-    .home-hero {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 12px;
-    }
-    .home-hero .welcome {
-        font-size: 1.05rem;
-        font-weight: 700;
-    }
-    .quick-actions {
-        display: flex;
-        gap: 8px;
-        overflow: auto;
-        padding-bottom: 6px;
-    }
     .container{
         margin-top: 13% !important;
     }
@@ -29,14 +12,6 @@
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
-    }
-    .quick-actions .action {
-        min-width: 88px;
-        padding: 10px;
-        border-radius: 10px;
-        background: var(--surface);
-        box-shadow: var(--card-shadow);
-        text-align: center;
     }
     .orders-list {
         display: grid;

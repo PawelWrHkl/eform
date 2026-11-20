@@ -87,6 +87,7 @@
   "header.delivery_date": "Leveringsdatum",
   "party.delivery_address": "Afleveradres",
   "header.order_name": "Naam bestelling",
+  "ksef.number": "KSeF-nummer",
   "totals.net_before_discount": "Netto vóór korting",
   "totals.client_discount": "Klantkorting",
   "collective.note": "Verzamelfactuur voor de periode {start} – {end}. Bestellingen: {orders}.",
@@ -103,7 +104,7 @@
   "blank.tpl.montage": "Montage",
   "blank.tpl.repair": "Reparatie",
   "reminder.subject": "Betalingsherinnering",
-  "reminder.intro": "wij herinneren u eraan dat de betaling van onderstaande factuur vandaag vervalt. De factuur sturen wij u opnieuw als bijlage.",
+  "reminder.intro": "wij herinneren u eraan dat de betalingstermijn van onderstaande factuur is verstreken. De factuur sturen wij u opnieuw als bijlage.",
   "reminder.paid_note": "Heeft u de betaling al gedaan, dan kunt u dit bericht als niet verzonden beschouwen.",
   "reminder.amount_left": "Openstaand bedrag"
 }

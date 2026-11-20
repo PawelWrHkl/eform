@@ -41,6 +41,8 @@
  *   INVOICE_AUTOGEN_ISSUE=true          `false` → szkice do przejrzenia zamiast faktur z numerem
  *   INVOICE_AUTOGEN_MAX_PER_RUN=100     bezpiecznik na jeden przebieg
  *   INVOICE_DAILY_SINCE=2026-11-06      faktury dzienne HKL za dni wysyłki od tego dnia; puste = wyłączone
+ *   TRANSPORT_ENABLED / TRANSPORT_SINCE koszty transportu na fakturach organizacja → klient (`transport.js`):
+ *                                       faktura czeka, aż każdy dzień wysyłki jej zleceń ma wycenę
  *                                       (wtedy relacje HKL wracają do faktur per zlecenie)
  *
  * ⚠️ `SINCE` jest wymagane świadomie: w bazie są setki wysłanych zamówień
@@ -56,12 +58,14 @@
 
 const { InvoiceService, DocumentType, ZERO_TOTAL_ERROR_CODE, NO_LETTERHEAD_ERROR_CODE } = require('./main');
 const { MANUAL_EDIT_CONFLICT_CODE } = require('./core/manualEdit');
+const statuses = require('./core/statuses');
 const defaultRepository = require('./db/repository');
 const { InvoiceLevel } = require('./core/hierarchy');
 const { HKL_ORG_ID } = require('./core/pricing');
 const { features } = require('../../config');
 const { groupCollectiveCandidates, groupDailyCandidates, sortDailyOrders, DAILY_ACTOR } = require('./core/collective');
 const { todayIso } = require('./core/dates');
+const { readTransportConfig, createTransportSession } = require('./transport');
 const { log: defaultLog } = require('../../utils/logging');
 
 /** `created_by_pin` dokumentów automatu — po nim panel oznacza je na liście. */
@@ -146,7 +150,8 @@ function readAutoInvoiceConfig(env = process.env, { invoicesEnabled = !!features
     organizationIds: parseIdList(env.INVOICE_AUTOGEN_ORGS),
     issue: String(env.INVOICE_AUTOGEN_ISSUE ?? 'true').toLowerCase() !== 'false',
     maxPerRun: Number.isInteger(maxPerRun) && maxPerRun > 0 ? maxPerRun : DEFAULT_MAX_PER_RUN,
-    problems
+    problems,
+    transport: readTransportConfig(env)
   };
 }
 
@@ -180,7 +185,7 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
   const repository = deps.repository || defaultRepository;
   const log = deps.log || defaultLog;
   const now = deps.now || (() => new Date());
-  const result = { created: [], failed: [], skippedZero: [], skippedNoLetterhead: [], waitingRecalc: [], waitingReview: [], planned: [], skippedExisting: 0 };
+  const result = { created: [], failed: [], skippedZero: [], skippedNoLetterhead: [], waitingRecalc: [], waitingReview: [], waitingTransport: [], planned: [], skippedExisting: 0 };
 
   if (config.problems.length) {
     config.problems.forEach((p) => log(`[invoices:auto] konfiguracja: ${p}`));
@@ -191,6 +196,12 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
   }
 
   const service = deps.service || new InvoiceService({ repository, log });
+  // Koszty transportu (organizacja → klient): bramka i linie, jedna sesja na przebieg
+  const transport = deps.transport || createTransportSession({ config: config.transport, repository, log, now });
+  const transportFor = async (orderIds, level) => (level === InvoiceLevel.ORGANIZATION_TO_USER && !dryRun
+    ? transport.forOrders(orderIds)
+    : { wait: false, serviceItems: [] });
+  const withLines = (lines) => (lines.length ? { serviceItems: lines } : {});
   let budget = config.maxPerRun;
   // Relacje HKL (poziom 1 i klienci HKL) mają tylko fakturę dzienną, póki dzienne są włączone
   const hklDailyOnly = !!config.dailySince;
@@ -211,6 +222,12 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
         continue;
       }
       try {
+        const t = await transportFor([Number(d.order_id)], level);
+        if (t.wait) {
+          budget++;
+          result.waitingTransport.push({ orderId: Number(d.order_id), level, reason: t.reason, label: `${d.order_idx} (szkic #${d.id}, ${d.user_ident})` });
+          continue;
+        }
         const draft = await repository.getInvoice(Number(d.id));
         const meta = (draft && draft.compliance && draft.compliance.manualEdit) || {};
         const created = await service.createFromOrder({
@@ -221,7 +238,8 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
           createdByPin: AUTO_ACTOR,
           requireLetterhead: true,
           replaceId: Number(d.id),
-          manualEdit: { ...meta, issuedAt: now().toISOString() }
+          manualEdit: { ...meta, issuedAt: now().toISOString() },
+          ...withLines(t.serviceItems)
         });
         result.created.push({ orderId: Number(d.order_id), level, invoiceId: created.id, number: created.number, prepared: true });
         log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
@@ -250,19 +268,31 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
   for (const level of config.levels) {
     if (budget <= 0) break;
     if (hklDailyOnly && level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION) continue;
-    const candidates = await repository.findAutoInvoiceCandidates({
-      level,
-      since: config.since,
-      organizationIds: config.organizationIds,
-      // Poziom 1: HKL nie sprzedaje sam sobie. Poziom 2: klienci HKL mają fakturę dzienną
-      excludeOrganizationId: level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION
-        || (hklDailyOnly && level === InvoiceLevel.ORGANIZATION_TO_USER) ? HKL_ORG_ID : null,
-      limit: budget
-    });
+    // Zlecenie czekające na transport oddaje budżet, a kolejna runda pobiera kandydatów
+    // bez zleceń już obsłużonych — inaczej czekające zajęłyby okno i zablokowały resztę
+    const waitingIds = [];
+    const seenIds = [];
+    const rounds = async function* () {
+      for (let round = 0; round < 50 && budget > 0; round++) {
+        const waitingBefore = waitingIds.length;
+        yield* await repository.findAutoInvoiceCandidates({
+          level,
+          since: config.since,
+          organizationIds: config.organizationIds,
+          // Poziom 1: HKL nie sprzedaje sam sobie. Poziom 2: klienci HKL mają fakturę dzienną
+          excludeOrganizationId: level === InvoiceLevel.MANUFACTURER_TO_ORGANIZATION
+            || (hklDailyOnly && level === InvoiceLevel.ORGANIZATION_TO_USER) ? HKL_ORG_ID : null,
+          limit: budget,
+          ...(round ? { excludeOrderIds: [...seenIds] } : {})
+        });
+        if (waitingIds.length === waitingBefore) return;
+      }
+    };
 
-    for (const order of candidates) {
+    for await (const order of rounds()) {
       if (budget <= 0) break;
       budget--;
+      seenIds.push(order.id);
       const label = `zamówienie ${order.order_idx} (id ${order.id}, ${order.user_ident}), poziom ${level}`;
 
       if (dryRun) {
@@ -276,13 +306,21 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
           result.skippedExisting++;
           continue;
         }
+        const t = await transportFor([order.id], level);
+        if (t.wait) {
+          budget++;
+          waitingIds.push(order.id);
+          result.waitingTransport.push({ orderId: order.id, level, reason: t.reason, label: `${order.order_idx} (id ${order.id}, ${order.user_ident})` });
+          continue;
+        }
         const created = await service.createFromOrder({
           orderId: order.id,
           level,
           documentType: DocumentType.INVOICE,
           issue: config.issue,
           createdByPin: AUTO_ACTOR,
-          requireLetterhead: true
+          requireLetterhead: true,
+          ...withLines(t.serviceItems)
         });
         result.created.push({ orderId: order.id, level, invoiceId: created.id, number: created.number });
         log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
@@ -351,13 +389,20 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
         result.skippedExisting += group.orderIds.length;
         continue;
       }
+      const t = daily ? { wait: false, serviceItems: [] } : await transportFor(orderIds, level);
+      if (t.wait) {
+        budget++;
+        result.waitingTransport.push({ ...kind, orderIds, level, reason: t.reason, label: short });
+        continue;
+      }
       const created = await service.createCollective({
         orderIds,
         period: group.period,
         level,
         issue: config.issue,
         createdByPin: group.actor,
-        requireLetterhead: true
+        requireLetterhead: true,
+        ...withLines(t.serviceItems)
       });
       result.created.push({ ...kind, userId: group.userId, period: group.period.key, orderIds, level, invoiceId: created.id, number: created.number });
       log(`[invoices:auto] ${created.number ? `faktura ${created.number}` : `szkic #${created.id}`} — ${label}`);
@@ -390,6 +435,10 @@ async function runAutoInvoicing({ dryRun = false, config = readAutoInvoiceConfig
   if (result.waitingReview.length) {
     log(`[invoices:auto] do przejrzenia ${result.waitingReview.length} — ręczna edycja faktury nie pasuje do zmienionego zamówienia; `
       + `otwórz edytor faktury i zapisz ponownie: ${result.waitingReview.map((w) => w.label).join('; ')}`);
+  }
+  if (result.waitingTransport.length) {
+    log(`[invoices:auto] czeka ${result.waitingTransport.length} — koszty transportu jeszcze niepoliczone (transport.js): `
+      + result.waitingTransport.map((w) => `${w.label}: ${w.reason}`).join('; '));
   }
   if (result.waitingRecalc.length) {
     log(`[invoices:auto] czeka ${result.waitingRecalc.length} — zlecenia doszły po fakturze dziennej za swój dzień; `
@@ -438,6 +487,7 @@ async function recalculateDailyInvoices({ config = readAutoInvoiceConfig(), deps
           throw new Error(`za ten dzień są ${existing.length} faktury dzienne (${existing.map((e) => e.number).join(', ')}) — połącz ręcznie`);
         }
         const old = existing[0] || null;
+        if (old && old.accepted) throw new Error(statuses.acceptedLockMessage(old.number));
         if (old && (old.status !== 'issued' || old.related)) {
           throw new Error(`faktura ${old.number} ${old.related ? 'ma korektę' : `ma status ${old.status}`} — przelicz ręcznie`);
         }
@@ -455,7 +505,7 @@ async function recalculateDailyInvoices({ config = readAutoInvoiceConfig(), deps
           issue: old ? true : config.issue,
           createdByPin: DAILY_ACTOR,
           requireLetterhead: true,
-          replace: old ? { id: old.id, number: old.number, issueDate: old.issueDate } : null
+          replace: old ? { id: old.id, number: old.number, issueDate: old.issueDate, dueDate: old.dueDate } : null
         });
         (old ? result.recalculated : result.created).push({ level, period: group.period.key, orderIds, invoiceId: created.id, number: created.number });
         log(`[invoices:auto] ${old ? 'przeliczona' : 'wystawiona'} ${label}: ${created.number || `szkic #${created.id}`}, zamówienia ${orderIds.join(', ')}`);

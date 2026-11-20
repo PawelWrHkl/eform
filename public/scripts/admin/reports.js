@@ -63,6 +63,11 @@ function updateSelectionInfo() {
     document.getElementById('selected-count').textContent = selected;
 }
 
+// Bulk actions and loaded configs replace the selection, so quick filters no longer describe it.
+function clearClientFilters() {
+    document.querySelectorAll('#client-filters input:checked').forEach(cb => { cb.checked = false; });
+}
+
 function initClientList() {
     const list = document.getElementById('client-list');
 
@@ -89,6 +94,7 @@ function initClientList() {
             item.classList.toggle('selected', visible);
             item.querySelector('input[type="checkbox"]').checked = visible;
         });
+        clearClientFilters();
         updateSelectionInfo();
     });
 
@@ -96,6 +102,20 @@ function initClientList() {
         document.querySelectorAll('#client-list .client-list-item').forEach(item => {
             item.classList.remove('selected');
             item.querySelector('input[type="checkbox"]').checked = false;
+        });
+        clearClientFilters();
+        updateSelectionInfo();
+    });
+
+    // Organization / group-client filters add up (union); none checked = all clients.
+    document.getElementById('client-filters').addEventListener('change', () => {
+        const checked = [...document.querySelectorAll('#client-filters input:checked')];
+        const orgs = new Set(checked.map(cb => cb.dataset.filterOrg).filter(Boolean));
+        const groups = checked.some(cb => cb.dataset.filterGroup);
+        document.querySelectorAll('#client-list .client-list-item').forEach(item => {
+            const sel = !checked.length || orgs.has(item.dataset.org) || (groups && !!item.dataset.group);
+            item.classList.toggle('selected', sel);
+            item.querySelector('input[type="checkbox"]').checked = sel;
         });
         updateSelectionInfo();
     });
@@ -939,6 +959,7 @@ function loadConfig(cfg) {
         cb.checked = sel;
         item.classList.toggle('selected', sel);
     });
+    clearClientFilters();
     updateSelectionInfo();
     runReport();
 }

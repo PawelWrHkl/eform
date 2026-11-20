@@ -257,14 +257,14 @@
     /* ============================================ 3. SIATKA KAFELKOW === */
     /* Sedno zmiany: `styles/mobile/dialog.css` robilo z listy `display: flex`
        przy `.image-box { width: 100% }`, wiec w rzedzie miescil sie JEDEN
-       kafelek. Teraz to siatka o czterech rownych kolumnach.
-       `minmax(0, 1fr)` zamiast `1fr` - inaczej dluga nazwa wartosci rozpycha
-       kolumne (domyslne `min-width: auto` elementu siatki) i wraca poziomy
-       scroll. */
+       kafelek. Teraz to siatka kolumn min. 104 px: 3 w rzedzie od 360 px,
+       2 przy 320 (PRJ-06: przy czterech nazwa miala ~70 px i 9 px tekstu).
+       `minmax(104px, 1fr)` w `auto-fill` nie rozpycha kolumny dluga nazwa
+       (szerokosc kolumny wyznacza siatka, nie tresc) - bez poziomego scrolla. */
     #color-dialog #dynamic-options-list {
         flex: 1 1 auto !important;
         display: grid !important;
-        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)) !important;
         align-content: start !important;
         gap: 8px !important;
         width: 100% !important;
@@ -370,9 +370,9 @@
         max-width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
-        font-size: 10px !important;
+        font-size: 12px !important;
         font-weight: 600 !important;
-        line-height: 1.2 !important;
+        line-height: 1.25 !important;
         color: var(--m-text) !important;
         text-align: left !important;
         overflow-wrap: anywhere;
@@ -542,5 +542,13 @@
         background: rgba(255, 255, 255, 0.16) !important;
         color: #fff !important;
         box-shadow: none !important;
+    }
+
+    /* Toast w oknie (np. „Brak ulubionych” przy kazdym otwarciu) siedzial na
+       tytule okna (`.toast-top-right` z toastr). Na telefonie: nad dolnym
+       paskiem okna, gdzie nie zaslania ani tytulu, ani kafelkow u gory. */
+    #color-dialog #custom-toast-container {
+        top: auto !important;
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
     }
 }

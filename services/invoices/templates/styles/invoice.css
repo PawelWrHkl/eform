@@ -646,6 +646,33 @@ body {
     margin-top: 0;
 }
 
+/* KSeF: kod QR (link weryfikacyjny) z numerem KSeF pod spodem, po lewej od podsumowania VAT */
+.row--summary .ksef {
+    flex: 0 0 auto;
+    width: 30mm;
+    text-align: center;
+    break-inside: avoid;
+}
+
+.ksef__qr {
+    display: block;
+    width: 26mm;
+    height: 26mm;
+    margin: 0 auto 1mm;
+}
+
+.ksef__label {
+    font-size: 6.5pt;
+    color: #555;
+}
+
+.ksef__number {
+    font-size: 6.5pt;
+    font-weight: 600;
+    /* Łamanie po myślnikach numeru KSeF (NIP-data-…), nie w środku członu */
+    overflow-wrap: anywhere;
+}
+
 .row--summary .totals {
     flex: 0 0 auto;
     margin-top: 0;

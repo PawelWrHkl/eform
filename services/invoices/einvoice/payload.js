@@ -18,14 +18,22 @@
  *     a valid string”) — brak wartości = „”; null wolno w datach, `payment.days`, wymiarach
  *     i numerach pozycji/zamówienia.
  *
- * Czego EFOR jeszcze nie ma (kontrakt pkt 6.6, przed trybem live): adres do faktur
- * nabywcy (`invoice_email` = „”), skonto (null), mandat SEPA, umowa bonusowa (false),
- * osobna uwaga do faktury (`notes_de` = „”), niemieckie nazwy towarów (idzie nazwa
- * z faktury), numer taryfy celnej (`hs_code` = „”). W trybie cienia usługa zgłasza
- * je jako ostrzeżenia — nie blokują porównania.
+ * Źródła pól, których faktura EFOR nie drukuje (Wiktoria, 19.11.2026):
+ *   - `name_de`: dział + grupa po niemiecku (`department.name_de`, `product_group.name_de`) według
+ *     reguły nazwy faktury (`orderMapper.buildItemName`) — niezależnie od języka zamówienia; nazwa
+ *     zmieniona ręcznie w edytorze i linia ręczna idą tak, jak są na fakturze,
+ *   - `hs_code`: tylko eksport poza UE (`tax_category = export`) — z tabeli Wiktorii według numeru
+ *     grupy E-Form (`taryfy_celne_Luxan_grupy_EFOR.csv`); przy DE i WDT pusty, bo drukuje się na fakturze,
+ *   - `invoice_email`: contractors.txt INVOICE_EMAIL (`user.invoice_email`), płatnika albo klienta.
+ * Czego EFOR jeszcze nie ma (kontrakt pkt 6.6, przed trybem live): skonto (null), mandat SEPA,
+ * umowa bonusowa (false), osobna uwaga do faktury (`notes_de` = „”). W trybie cienia usługa
+ * zgłasza je jako ostrzeżenia — nie blokują porównania.
  */
 
+const fs = require('fs');
+const path = require('path');
 const money = require('../core/money');
+const { buildItemName } = require('../core/orderMapper');
 const { toIsoDay } = require('../core/dates');
 const { DocumentType } = require('../domain/constants');
 const { alignStatusesToItems } = require('../../prodStatus');
@@ -58,6 +66,38 @@ function rate(value) {
 
 const day = (value) => toIsoDay(value) || null;
 const text = (value) => (value === null || value === undefined ? '' : String(value).trim());
+
+/** Numer grupy asortymentu w postaci z tabeli Wiktorii: „1” → „01”. */
+const groupKey = (value) => {
+  const raw = String(value ?? '').trim();
+  return /^\d+$/.test(raw) ? raw.padStart(2, '0') : raw;
+};
+
+/**
+ * Tabela taryf celnych Wiktorii (CSV z „;”, UTF-8 z BOM): `grupa_EFOR` → `hs_code`; puste kody
+ * (np. 01 komponenty, 14, 80 — czekają na Franka) pomijane.
+ *
+ * @param {string} csv
+ * @returns {Map<string, string>}
+ */
+function parseHsCodes(csv) {
+  const [header, ...lines] = String(csv).replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
+  const cols = header.split(';').map((c) => c.trim());
+  const g = cols.indexOf('grupa_EFOR');
+  const h = cols.indexOf('hs_code');
+  if (g < 0 || h < 0) throw new Error('taryfy celne: brak kolumn grupa_EFOR / hs_code');
+  return new Map(lines.map((l) => l.split(';')).filter((c) => (c[h] || '').trim()).map((c) => [groupKey(c[g]), c[h].trim()]));
+}
+
+const HS_CODES = parseHsCodes(fs.readFileSync(path.join(__dirname, 'taryfy_celne_Luxan_grupy_EFOR.csv'), 'utf8'));
+
+/** Niemiecka nazwa pozycji z nazw grupy w bazie; nazwa zmieniona ręcznie i linia ręczna — jak na fakturze. */
+function germanName(item, row) {
+  const meta = item.meta || {};
+  const editedName = Array.isArray(meta.edited) && meta.edited.includes('name');
+  if (!row || meta.manual || editedName || (!text(row.group_de) && !text(row.department_de))) return text(item.name);
+  return buildItemName({ department: row.department_de, group_name: row.group_de });
+}
 
 /**
  * Numer VAT-UE sprzedawcy taki, jaki jest NA WYDRUKU: `vatEuId`, a gdy go nie ma —
@@ -226,8 +266,8 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
       country: text(buyer.country),
       vat_eu_id: text(buyer.vatEuId),
       tax_id: text(buyer.taxId),
-      invoice_email: '',
-      email: text(sources.buyer.email) || text(buyer.email),
+      invoice_email: text(sources.buyer.invoiceEmail),
+      email: text(buyer.email) || text(sources.buyer.email),
       phone: text(sources.buyer.phone),
       ident: text(sources.buyer.ident),
       source_type: buyerSourceType(invoice)
@@ -263,7 +303,7 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
         order_idx: row ? text(row.order_idx) : text(item.orderNumber),
         order_item_id: item.orderItemId ? Number(item.orderItemId) : null,
         order_position: orderPosition,
-        name_de: text(item.name),
+        name_de: germanName(item, row),
         description_de: text(item.description),
         quantity: quantity(item.quantity),
         unit: item.unit,
@@ -276,7 +316,7 @@ function buildPayload({ invoice, env, sources, number = invoice.number, period =
         width_mm: Number(meta.widthMm) || null,
         height_mm: Number(meta.heightMm) || null,
         kom: row ? text(row.commision) : '',
-        hs_code: '',
+        hs_code: item.taxCategory === 'export' ? (HS_CODES.get(groupKey(row ? row.asortment_group_number : meta.asortmentGroup)) || '') : '',
         price_group: row ? priceGroup(row.json_parameters) : '',
         user_ident: row ? text(row.user_ident) : ''
       };
@@ -315,6 +355,8 @@ module.exports = {
   rate,
   sellerVatId,
   priceGroup,
+  parseHsCodes,
+  HS_CODES,
   statusesByOrderItem,
   buildPayload
 };

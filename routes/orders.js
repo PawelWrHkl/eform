@@ -22,6 +22,7 @@ const { formatClientLabel } = require('../utils/formatClient');
 const { buildOrderItemStructure } = require('../services/itemBuilder.js');
 const { getPriceAfterDiscount } = require('../services/getDiscount.js');
 const { setParcelHref, parseSpeditionNumbers, alignStatusesToItems } = require('../services/prodStatus.js');
+const { canceledPositions } = require('../services/prodProgress');
 const invoiceRepository = require('../services/invoices/db/repository');
 const { getExtraAttachments } = require('../services/mailBot/extraAttachments');
 const { applySubPriceLocals, canSeeAllPriceLayers } = require('../services/subPriceContext');
@@ -696,6 +697,17 @@ router.get('/history/order/:orderId', requireLogin, checkOrderOwnership, loadEmp
     // podpozycje `1-1`, `1-2` rozjeżdżają parowanie po indeksie (patrz
     // `services/prodStatus.js:alignStatusesToItems`).
     statuses = alignStatusesToItems(statuses, orderItems);
+    // Pozycja anulowana w PROD przy zleceniu, które idzie dalej → „Anulowane” na pozycji (Wiktoria 20.11.2026).
+    if (orderDetails?.status === 'sent' && orderItems?.length) {
+        try {
+            const canceledPos = await canceledPositions(await db.getOrderCancellationState(orderDetails.id));
+            if (canceledPos.size) {
+                statuses = orderItems.map((item, i) => (canceledPos.has(Number(item.orderpos) || i + 1) ? { ...(statuses[i] || {}), canceled: true } : statuses[i]));
+            }
+        } catch (err) {
+            log(`[history/order] pozycje anulowane w PROD, zlecenie ${orderDetails.id}:`, err);
+        }
+    }
     const productionTimes = currentUser?.orgId ? await db.getGroupDeliveryTimes(currentUser.orgId) : {};
 
     if (orderItems) {

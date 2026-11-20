@@ -47,6 +47,18 @@ function cleanValue(value) {
 }
 
 /**
+ * Termin płatności z wiersza `user` (contractors.txt PAYMENT_DAYS → `user.payment_days`, Paweł 20.11.2026).
+ * Brak kolumny (baza przed migracją), NULL albo śmieci → `null`, czyli termin z dalszych źródeł.
+ *
+ * @param {Record<string, any>|null|undefined} row
+ * @returns {number|null}
+ */
+function paymentDaysOf(row) {
+  const v = row ? row.payment_days : null;
+  return v === null || v === undefined || v === '' || !Number.isInteger(Number(v)) || Number(v) < 0 ? null : Number(v);
+}
+
+/**
  * Konto z wiersza `user` (kolumny bank_name / bank_account / swift z contractors.txt, 19.11.2026).
  * Błędny IBAN → `null` (lepiej plik księgowości albo konto domyślne niż zły numer).
  *
@@ -107,4 +119,4 @@ function withPaymentAccountWarning(context, invoice, table) {
   return context;
 }
 
-module.exports = { DEFAULT_ACCOUNT, normalizeTaxId, isValidIban, formatIban, cleanValue, accountFromContractor, hklPaymentAccount, paymentAccountWarning, withPaymentAccountWarning };
+module.exports = { DEFAULT_ACCOUNT, normalizeTaxId, isValidIban, formatIban, cleanValue, accountFromContractor, paymentDaysOf, hklPaymentAccount, paymentAccountWarning, withPaymentAccountWarning };

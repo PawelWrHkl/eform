@@ -201,12 +201,17 @@ async function syncAllProdStatuses({ dryRun = false, full = false, filePath = ST
         }
     }
 
-    // Anulowane w produkcji (każda pozycja) → anulowane w eFormie (Paweł 19.11.2026).
+    // Anulowane w produkcji → anulowane w eFormie (Paweł 19.11.2026), ale tylko gdy „Anulacja” ma
+    // KAŻDA pozycja zlecenia w eFormie, nie tylko te, które zostały w pliku (Wiktoria 20.11.2026).
     try {
-        const keys = [...require('./prodProgress').buildCanceledOrders(fileRows).values()];
-        const ids = await statusDb.cancelOrdersFromProd(keys, { canceledAt: getDbTimestamp(), dryRun });
+        const prodProgress = require('./prodProgress');
+        const canceled = prodProgress.buildCanceledOrders(fileRows);
+        const keys = [...canceled.values()].filter((order) => order.positions.size).map((order) => order.ids);
+        const ids = await statusDb.cancelOrdersFromProd(
+            prodProgress.fullyCanceledOrderIds(await statusDb.getOrderItemsByKeys(keys), canceled),
+            { canceledAt: getDbTimestamp(), dryRun });
         summary.canceledByProd = ids.length;
-        if (ids.length) logger(`[prodStatus] ${dryRun ? 'DRY-RUN do anulowania' : 'anulowane'} przez produkcję (Anulacja na każdej pozycji): zlecenia ${ids.join(', ')}`);
+        if (ids.length) logger(`[prodStatus] ${dryRun ? 'DRY-RUN do anulowania' : 'anulowane'} przez produkcję (Anulacja na każdej pozycji w eFormie): zlecenia ${ids.join(', ')}`);
     } catch (error) {
         summary.failed++;
         logger(`[prodStatus] ⚠️ anulowanie zleceń anulowanych przez produkcję nie powiodło się: ${error.message}`);

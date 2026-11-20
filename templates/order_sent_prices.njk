@@ -1,8 +1,10 @@
 {% extends "order_prices.njk" %}
 {% block head %}
     <link rel="stylesheet" href="/styles/order_details.css">
+    <link rel="stylesheet" href="/styles/mobile/order_details.css">
         <link rel="stylesheet" href="/styles/order_sent.css">
             <link rel="stylesheet" href="/styles/mobile/order_sent.css">
+            <link rel="stylesheet" href="/styles/mobile/order-view.css?v={{ assetVersion }}">
             <link rel="stylesheet" href="/styles/orderCancel.css?v={{ assetVersion }}">
                 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
                 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -11,6 +13,8 @@
             {% endblock head %}
 
             {% block order_del_btn %}{% endblock %}
+{% block mobile_order_buttons %}{% endblock %}
+                {% block order_title_mobile %}{{ __('history_order.title') }}{% endblock %}
             {% block order_notice %}
                 {% include 'partials/order_cancellation.njk' %}
             {% endblock %}
@@ -23,6 +27,7 @@
                         {% endblock %}
                         {% block btns_head %}{% endblock %}
                         {% block pos_btns %}{% endblock %}
+            {% block mobile_item_actions %}{% endblock %}
                         {% block new_pos_btn %}{% endblock %}
                         {% block send_order_btn %}
                             {# Telefon: ten sam komunikat przy sumie (patrz partials/order_cancellation.njk). #}
@@ -40,7 +45,7 @@
                             {% endif %}
                         {% endblock %}
                         {% block order_space %}
-                            <div class="floating-history-order">
+                            <div class="floating-history-order d-none d-md-block">
                             {% endblock %}
 
                         {% block edit_order_btn %}{% endblock %}

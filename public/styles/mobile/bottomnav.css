@@ -197,51 +197,34 @@
     }
 
     /* ---------------------------------------------------------------- stopka */
-    /* Stopka byla `position: sticky; bottom: 0` - z dolnym paskiem wpadalaby
-       pod niego i linki RODO/regulamin/kontakt bylyby nieklikalne. Puszczamy ja
-       normalnym przeplywem na koniec strony; `main` rezerwuje juz miejsce na
-       pasek, wiec stopka konczy sie nad nim. */
+    /* Stopka (RODO / regulamin / kontakt) stala na stale nad paskiem kart i
+       zabierala ~60 px kazdego ekranu (<main> jest przewijany, stopka za nim).
+       Linki sa w arkuszu „Wiecej”: A - `.m-nav-legal`, B - `.efor-sheet-legal`. */
     .site-footer {
-        position: static !important;
-        height: auto !important;
-        margin-bottom: 0 !important;
-        padding: 12px 0 calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 12px) !important;
-        background: transparent !important;
+        display: none !important;
+    }
+
+    .mobile-nav .m-nav-legal {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 16px;
+        padding: 8px 16px 4px;
         border-top: 1px solid var(--m-border);
     }
 
-    .site-footer .footer-inner {
-        height: auto !important;
-        flex-wrap: wrap;
-        padding: 0 var(--m-gutter);
+    .mobile-nav .m-nav-legal a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        font-size: 13px;
+        color: var(--m-text-soft);
+        text-decoration: none;
     }
 
-    /* Trzy dlugie niemieckie rzeczowniki ("Datenschutzerklarung",
-       "Nutzungsbedingungen") nie zmieszcza sie w jednej linii na telefonie -
-       maja zawijac sie MIEDZY linkami, a nie w srodku slowa. */
-    .site-footer .footer-links {
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 2px 10px !important;
-        font-size: 12px !important;
-        line-height: 1.4;
-        overflow-wrap: normal;
-        text-align: center;
-    }
-
-    .site-footer .footer-links a {
-        margin: 0 !important;
-        color: var(--m-text-soft) !important;
-    }
-
-    .site-footer .footer-dot {
-        opacity: 0.5;
-    }
-
-    /* Gradientowa kreska nad stopka - ten sam jezyk co belki `.container::before`,
-       na telefonie tylko szum. */
-    .site-footer .footer-accent {
-        display: none !important;
+    /* Otwarte „Wiecej”: piesek i dymek Eforka staly NA arkuszu (zaslanialy
+       „Zmien wyglad” w A). Arkusz przykrywa je jak w aplikacji. */
+    body.m-more-open #eform-assistant {
+        visibility: hidden !important;
     }
 
     /* FAB z haslami (konto admina) musi stac nad paskiem, nie na nim. */

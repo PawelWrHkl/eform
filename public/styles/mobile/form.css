@@ -42,26 +42,12 @@
         border: none !important;
         box-shadow: none !important;
     }
-    .form-wrapper {
-        padding: 0 !important;
-        background: var(--bg-body) !important;
-        width: 100% !important;
-    }
     .gr-select {
         width: 80% !important;
     }
     .filter-controls {
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
-    }
-    .form-section {
-        background: var(--bg-body) !important;
-        padding: 0 !important;
-        border-radius: 0 !important;
-        border: none !important;
-        box-shadow: none !important;
-        margin-bottom: 20px !important;
-        width: 100% !important;
     }
     .commission-space {
         width: 100% !important;
@@ -89,13 +75,6 @@
     .asortment-inputs>div {
         width: 80% !important;
         max-width: 80% !important;
-    }
-    .form-row {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 8px !important;
-        align-items: flex-start !important;
-        margin-bottom: 20px !important;
     }
     .form-label {
         color: var(--text-primary) !important;
@@ -273,6 +252,20 @@
         max-width: 250px !important;
         font-size: 11px !important;
         padding: 7px 9px !important;
+    }
+    /* Ukryty dymek „i” (form.css: `visibility: hidden`) i tak liczyl sie do
+       przewijania - nowe zlecenie: poziomy scroll do 446 px przy 390 (PRJ-06).
+       Poza najechaniem/fokusem nie zajmuje miejsca, a pokazany jest
+       zaczepiony prawa krawedzia przy ikonie (ikony stoja na koncu wiersza).
+       Kafelki okna wyboru maja ikone w lewym rogu - tam zostaje uklad z dialog.css. */
+    .param-info-icon:not(:hover):not(:focus):not(:focus-within) > .param-info-tooltip {
+        display: none !important;
+    }
+    :not(.image-box-top) > .param-info-icon > .param-info-tooltip {
+        left: auto !important;
+        right: -6px !important;
+        max-width: min(250px, calc(100vw - 48px)) !important;
+        transform: none !important;
     }
     .param-info-icon::before {
         border-left-width: 5px !important;

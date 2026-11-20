@@ -76,6 +76,7 @@
 		"pdfkit": "^0.17.1",
 		"playwright": "^1.54.2",
 		"puppeteer": "^24.10.2",
+		"qrcode-generator": "^2.0.4",
 		"sharp": "^0.34.5",
 		"shepherd.js": "^14.5.1",
 		"smb-enumerate-files": "^1.0.4",

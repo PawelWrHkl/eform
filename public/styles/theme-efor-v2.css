@@ -5863,6 +5863,24 @@ html:not(.theme-efor-v2) .nav-icon-v2 {
         display: none !important;
     }
 
+    /* PRJ-06 (20.11): akcje z podpisem (mobile/order-view.css) — kółko nosi ikona, podpis pod nią */
+    .theme-efor-v2[data-efor-group="order"] #order-nav .mobile-top-row :is(.btn, .action-btn):has(> .m-act-label) > :first-child {
+        width: 42px !important;
+        height: 42px !important;
+        padding: 11px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--ios-group);
+        box-shadow: 0 0 0 .5px var(--ios-sep-inset);
+    }
+    .theme-efor-v2[data-efor-group="order"] #order-nav #new-order-button:has(> .m-act-label) > :first-child {
+        background: var(--efor-amber);
+        box-shadow: none;
+    }
+    .theme-efor-v2[data-efor-group="order"] .m-act-label {
+        color: var(--efor-text-2);
+    }
+
     .theme-efor-v2[data-efor-group="order"] .content > .container {
         margin: 0 !important;
         padding: 0 !important;

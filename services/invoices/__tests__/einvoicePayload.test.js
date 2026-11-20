@@ -8,7 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildPayload, amount, quantity, rate, sellerVatId, priceGroup, statusesByOrderItem } = require('../einvoice/payload');
+const { buildPayload, amount, quantity, rate, sellerVatId, priceGroup, statusesByOrderItem, parseHsCodes, HS_CODES } = require('../einvoice/payload');
 
 /** Faktura Luxan GmbH → klient jak z `repository.getInvoice` (kwoty w centach) — przykład skrócony z kontraktu. */
 function invoiceFixture(overrides = {}) {
@@ -290,4 +290,74 @@ test('grupa cenowa z parametrów pozycji; zepsuty JSON → pusto', () => {
   assert.equal(priceGroup(JSON.stringify(JSON.stringify({ KOLOR_ALIAS___DESCRIPTION: '#A' }))), 'A');
   assert.equal(priceGroup('{zepsuty'), '');
   assert.equal(priceGroup(null), '');
+});
+
+test('name_de: dział i grupa po niemiecku z bazy (jak PROD), niezależnie od języka zamówienia; ręczna nazwa zostaje', () => {
+  const row = { ...sourcesFixture().orderItems[0], asortment_group_number: '43', group_de: 'COSIFLOR', department_de: 'PLISSEE' };
+  const items = [
+    { ...invoiceFixture().items[0], position: 1, name: 'PLISY – COSIFLOR' },
+    { ...invoiceFixture().items[0], position: 2, name: 'Plissee Bad nach Maß', meta: { ...invoiceFixture().items[0].meta, edited: ['name'] } },
+    { position: 3, name: 'Montage', description: '', unit: 'usl', quantity: 1, netAmount: 5000, taxCategory: 'standard', taxRate: 19, orderItemId: null, meta: { manual: true } }
+  ];
+  const payload = buildPayload({ invoice: invoiceFixture({ lang: 'pl', items }), env: 'test', sources: sourcesFixture({ orderItems: [row] }) });
+  assert.deepEqual(payload.items.map((i) => i.name_de), ['PLISSEE – COSIFLOR', 'Plissee Bad nach Maß', 'Montage']);
+  // Grupa, której nazwa zawiera dział — bez dubla (reguła faktury): VERTIKAL + VERTIKALJALOUSIE
+  const vert = buildPayload({ invoice: invoiceFixture(), env: 'test', sources: sourcesFixture({ orderItems: [{ ...row, group_de: 'VERTIKALJALOUSIE', department_de: 'VERTIKAL' }] }) });
+  assert.equal(vert.items[0].name_de, 'VERTIKALJALOUSIE');
+  // Grupa bez nazw w bazie — nazwa z faktury
+  const none = buildPayload({ invoice: invoiceFixture(), env: 'test', sources: sourcesFixture({ orderItems: [{ ...row, group_de: null, department_de: null }] }) });
+  assert.equal(none.items[0].name_de, 'Plissee EOS AO30');
+});
+
+test('hs_code tylko przy eksporcie poza UE, według grupy E-Form; DE i WDT puste; grupy bez kodu (01) puste', () => {
+  const rowFor = (group) => ({ ...sourcesFixture().orderItems[0], asortment_group_number: group });
+  const build = (taxCategory, group) => buildPayload({
+    invoice: invoiceFixture({ items: [{ ...invoiceFixture().items[0], taxCategory, taxRate: taxCategory === 'standard' ? 19 : 0 }] }),
+    env: 'test',
+    sources: sourcesFixture({ orderItems: [rowFor(group)] })
+  }).items[0].hs_code;
+  assert.equal(build('export', '43'), '63039290');
+  assert.equal(build('export', '59'), '44219999');
+  assert.equal(build('export', '01'), '', 'komponenty — kod czeka na Franka');
+  assert.equal(build('standard', '43'), '');
+  assert.equal(build('intra_eu_goods', '43'), '');
+});
+
+test('tabela taryf: BOM, puste kody pominięte, grupa „2” = „02”; zły nagłówek = błąd', () => {
+  const map = parseHsCodes('﻿grupa_EFOR;nazwa;hs_code;glowne_grupy_PROD;uwaga\r\n01;Komponenty;;22;otwarte\r\n2;Żaluzje;76101000;03;\r\n');
+  assert.deepEqual([...map], [['02', '76101000']]);
+  assert.throws(() => parseHsCodes('grupa;kod\n01;1'), /grupa_EFOR/);
+  // Plik w repo (od Wiktorii 19.11.2026, przepisany z uszkodzonego załącznika): 11 grup z kodem
+  assert.equal(HS_CODES.size, 11);
+  assert.equal(HS_CODES.get('11'), '56081930');
+});
+
+test('invoice_email z contractors.txt; e-mail nabywcy z faktury (płatnik), dopiero potem z konta', () => {
+  const payload = buildPayload({
+    invoice: invoiceFixture({ buyer: { ...invoiceFixture().buyer, email: 'rechnung@zahler.example' } }),
+    env: 'test',
+    sources: sourcesFixture({ buyer: { ident: 'Muster_Raum', email: 'login@muster.example', phone: '', invoiceEmail: 'buchhaltung@zahler.example' } })
+  });
+  assert.equal(payload.buyer.invoice_email, 'buchhaltung@zahler.example');
+  assert.equal(payload.buyer.email, 'rechnung@zahler.example');
+});
+
+test('przypadek Pawła: Luxan GmbH 2026/00170 → Wohn-Art Gloor (CH, zamówienie 4431, 14 × Cosiflor gr. 43) — eksport z hs_code', () => {
+  // Pozycje i konto ze zrzutu produkcji 20.11.2026 05:00 (zamówienie jeszcze !production!, faktura po wysyłce)
+  const orderItems = Array.from({ length: 14 }, (_, i) => ({
+    id: 10391 + i, order_id: 4431, orderpos: i + 1, commision: '', asortment_group_number: '43',
+    order_idx: '5', user_ident: 'Gloor_WohnArt_CH_SV', group_de: 'COSIFLOR', department_de: 'PLISSEE'
+  }));
+  const invoice = invoiceFixture({
+    number: '2026/00170',
+    buyer: { name: 'Wohn-Art Gloor Inh. Andrea Walter Gloor', country: 'CH', taxId: 'CHE168726398', vatEuId: '' },
+    orderId: 4431,
+    items: orderItems.map((r, i) => ({ position: i + 1, name: 'PLISSEE – COSIFLOR', description: '', unit: 'szt', quantity: 1, netAmount: 10000, taxCategory: 'export', taxRate: 0, orderItemId: r.id, meta: { orderPosition: i + 1, asortmentGroup: '43' } })),
+    taxLines: [{ taxCategory: 'export', taxRate: 0, netAmount: 140000, taxAmount: 0, grossAmount: 140000 }],
+    totalNet: 140000, totalTax: 0, totalGross: 140000, amountDue: 140000
+  });
+  const payload = buildPayload({ invoice, env: 'prod', sources: sourcesFixture({ orders: [{ id: 4431, order_idx: '5', commision: '', delivery_date: '2026-11-20', user_ident: 'Gloor_WohnArt_CH_SV' }], orderItems, statuses: [] }) });
+  assert.equal(payload.buyer.country, 'CH');
+  assert.deepEqual([...new Set(payload.items.map((i) => `${i.tax_category} ${i.hs_code} ${i.name_de}`))], ['export 63039290 PLISSEE – COSIFLOR']);
+  assert.equal(payload.items.length, 14);
 });

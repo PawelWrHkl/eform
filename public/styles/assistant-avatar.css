@@ -372,3 +372,9 @@
 .ea-reduced-motion .ea-runner,
 .ea-reduced-motion .ea-runner .ea-avatar { animation: none !important; transition: none !important; }
 .ea-reduced-motion .ea-runner-bark.ea-on { animation: none; opacity: 1; transform: translate(-50%, -4px); }
+
+/* Telefon: dymek Eforka zasłaniał treść — w A i B zostaje sam piesek, rozmowa po dotknięciu
+   (decyzja Pawła 20.11.2026; wcześniej tylko B i formularz A). */
+@media (max-width: 767.98px) {
+	#eform-assistant .ea-bubble-wrap { display: none !important; }
+}

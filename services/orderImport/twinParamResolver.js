@@ -119,6 +119,19 @@ function pickInputTwin(inputNames, selectName) {
   })[0];
 }
 
+/**
+ * Numeric option lists (group 75 DLUGOSC_STER: 500…2500 every 250 mm) — the
+ * smallest option >= value, so a copy of an older order with 900 keeps a chain
+ * at least that long (1000). null for coded lists (EC100…), non-numeric values
+ * and values above the last option: those keep the old "clear the select" path.
+ */
+function nextNumericOption(options, value) {
+  const n = Number(value);
+  const keys = [...options];
+  if (!Number.isFinite(n) || keys.some((k) => !Number.isFinite(Number(k)))) return null;
+  return keys.sort((a, b) => a - b).find((k) => Number(k) >= n) || null;
+}
+
 function clearParam(parameters, paramName) {
   parameters[paramName] = '';
   const descKey = `${paramName}___DESCRIPTION`;
@@ -136,13 +149,15 @@ function clearParam(parameters, paramName) {
  * @param {object} [opts.dict]      Pre-fetched `{ params, paramdict }` (skips the read).
  * @param {object} [opts.fileScanner]          `readDataFile` provider override (tests).
  * @param {Set<string>} [opts.declaredDictParams]  Pre-resolved paramdict columns (tests).
- * @returns {Promise<{parameters: object, notes: string[]}>}
+ * @returns {Promise<{parameters: object, notes: string[], snapped?: Object<string, {from: string, to: string}>}>}
+ *   `snapped`: select twins set to the next numeric option (see nextNumericOption).
  */
 async function resolveTwinParameters(groupNumber, parameters, lang, opts = {}) {
   if (!parameters || typeof parameters !== 'object') return { parameters, notes: [] };
 
   const result = { ...parameters };
   const notes = [];
+  const snapped = {};
 
   let dict = opts.dict;
   if (!dict) {
@@ -189,6 +204,12 @@ async function resolveTwinParameters(groupNumber, parameters, lang, opts = {}) {
     if (!isEmptyValue(selectValue)) {
       if (options.has(String(selectValue).trim())) continue;   // valid selection, nothing to do
 
+      // The input twin gets the raw value either way; on a numeric list the select
+      // also gets the next option up instead of '' — which of the two the form
+      // keeps (metal → DLUGSTER, plastic bead → DLUGOSC_STER) is decided later by
+      // the ENABLE pass (clearHiddenParams), not here.
+      const snappedTo = nextNumericOption(options, selectValue);
+      const selectOutcome = snappedTo ? `"${selectName}" set to next option "${snappedTo}"` : `"${selectName}" cleared`;
       const filledInputs = inputs.filter((name) => !isEmptyValue(result[name]));
       if (filledInputs.length) {
         // The input twin already carries the value (senders usually write both),
@@ -197,7 +218,7 @@ async function resolveTwinParameters(groupNumber, parameters, lang, opts = {}) {
         notes.push(
           `group ${groupNumber}: "${selectName}"="${selectValue}" is not a valid option; `
           + `value kept in input twin(s) ${filledInputs.map((n) => `"${n}"="${result[n]}"`).join(', ')} `
-          + `and "${selectName}" cleared`
+          + `and ${selectOutcome}`
         );
       } else {
         const target = pickInputTwin(inputs, selectName);
@@ -205,8 +226,12 @@ async function resolveTwinParameters(groupNumber, parameters, lang, opts = {}) {
         clearParam(result, selectName);
         notes.push(
           `group ${groupNumber}: "${selectName}"="${selectValue}" is not a valid option; `
-          + `moved to input twin "${target}" and "${selectName}" cleared`
+          + `moved to input twin "${target}" and ${selectOutcome}`
         );
+      }
+      if (snappedTo) {
+        result[selectName] = snappedTo;
+        snapped[selectName] = { from: String(selectValue).trim(), to: snappedTo };
       }
       continue;
     }
@@ -225,7 +250,7 @@ async function resolveTwinParameters(groupNumber, parameters, lang, opts = {}) {
     }
   }
 
-  return { parameters: result, notes };
+  return { parameters: result, notes, snapped };
 }
 
 module.exports = {

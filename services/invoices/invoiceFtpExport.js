@@ -204,13 +204,14 @@ async function defaultConnect(config) {
 
 /**
  * Plik zafakturowanych pozycji w katalogu głównym (`/invoices/zafakturowane_pozycje.tsv`):
+ * TYPE na końcu (20.11): `transport` przy linii kosztów transportu, inaczej pusty.
  * jedna linia na pozycję każdej faktury E-Form, każdy poziom, od pierwszej. Z niego automat
  * Wiktorii stawia blokadę DSPR_NUM w PROD i porównuje faktury z PROD (mail z 16.11.2026).
  * Cały plik od nowa w każdym przebiegu — odbiorca nie musi pamiętać, co już wczytał.
  */
 const POSITIONS_FILE = 'zafakturowane_pozycje.tsv';
 const POSITIONS_HEADER = ['LEVEL', 'INVOICENO', 'INVOICEDATE', 'PERIODFROM', 'PERIODTO', 'DOCTYPE',
-  'ORGANIZATIONIDENT', 'USERIDENT', 'ORDERNO', 'ORDERPOS', 'QUANTITY', 'NETAMOUNT'];
+  'ORGANIZATIONIDENT', 'USERIDENT', 'ORDERNO', 'ORDERPOS', 'QUANTITY', 'NETAMOUNT', 'TYPE'];
 
 /**
  * Okres faktury zbiorczej: dzienna HKL = jej dzień, tygodniowa/miesięczna = okres z klucza
@@ -242,7 +243,7 @@ function buildPositionsTsv(rows) {
   const lines = rows.map((r) => {
     const [from, to] = collectivePeriod(r);
     return [r.level, r.number, r.issue_date, from, to, r.document_type === 'correction' ? 'korekta' : 'faktura',
-      r.organization_ident, r.user_ident, r.order_idx, r.orderpos, Number(r.quantity), Number(r.net_amount).toFixed(2)]
+      r.organization_ident, r.user_ident, r.order_idx, r.orderpos, Number(r.quantity), Number(r.net_amount).toFixed(2), r.item_type]
       .map(cell).join('\t');
   });
   return Buffer.from([POSITIONS_HEADER.join('\t'), ...lines].join('\r\n') + '\r\n', 'utf8');

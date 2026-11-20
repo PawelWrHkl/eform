@@ -71,14 +71,14 @@ async function getReportClients(dateFrom = null, dateTo = null) {
     }
 
     const query = `
-        SELECT u.id, u.ident, u.client_name, u.organization_id, o.ident AS org_ident,
+        SELECT u.id, u.ident, u.client_name, u.organization_id, u.role, o.ident AS org_ident,
                COUNT(DISTINCT ord.id) AS order_count
         FROM user u
         LEFT JOIN organization o ON o.id = u.organization_id
         LEFT JOIN \`order\` ord ON ord.user_id = u.id AND ord.status = 'sent'${dateClause}
         WHERE (u.role IS NULL OR u.role NOT IN ('admin','owner','employee'))
           AND u.ident IS NOT NULL
-        GROUP BY u.id, u.ident, u.client_name, u.organization_id, o.ident
+        GROUP BY u.id, u.ident, u.client_name, u.organization_id, u.role, o.ident
         ORDER BY order_count DESC, u.ident ASC
     `;
     return selectQuery(query, params);

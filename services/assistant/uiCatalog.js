@@ -167,7 +167,7 @@ const CATALOG = [
 	{ key: 'dynamic_form', selectors: ['#dynamic-form'], labelKey: null, description: 'formularz parametrów produktu (wypełniać po kolei)', screens: ['configurator'], appears: 'choice' },
 	{ key: 'info_icon', selectors: ['.param-info-icon'], labelKey: null, description: 'ikonka „i" z opisem parametru', screens: ['configurator'], appears: 'choice', js: true },
 	{ key: 'comment_link', selectors: ['#show-comment-button'], labelKey: 'form.add_comment_button', description: 'link „dodaj komentarz" do pozycji (odsłania pole)', screens: ['configurator'], appears: 'choice', click: true, js: true },
-	{ key: 'save_position', selectors: ['#show-button'], labelKey: 'form.save_button', description: 'zapis pozycji (klika użytkownik)', screens: ['configurator'], appears: 'choice' },
+	{ key: 'save_position', selectors: ['#show-button', '.m-actionbar__save'], labelKey: 'form.save_button', description: 'zapis pozycji (klika użytkownik)', screens: ['configurator'], appears: 'choice' },
 	{ key: 'reset_form', selectors: ['#reset-button'], labelKey: 'form.reset_button', description: 'wyczyszczenie wartości formularza', screens: ['configurator'], appears: 'choice' },
 
 	// ── panel użytkownika ──

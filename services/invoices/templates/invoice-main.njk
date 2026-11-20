@@ -30,6 +30,14 @@
   {% include "partials/items_table.njk" %}
 
   <div class="row row--summary">
+    {# KSeF: kod QR z linku weryfikacyjnego i numer KSeF pod nim (tylko faktura przyjęta w KSeF) #}
+    {% if invoice.ksef %}
+      <div class="ksef">
+        {% if invoice.ksef.qrDataUri %}<img class="ksef__qr" src="{{ invoice.ksef.qrDataUri }}" alt="KSeF QR">{% endif %}
+        <div class="ksef__label">{{ t('ksef.number') }}</div>
+        <div class="ksef__number">{{ invoice.ksef.number }}</div>
+      </div>
+    {% endif %}
     {% include "partials/vat_summary.njk" %}
   </div>
 

@@ -38,3 +38,40 @@ test('porównanie: email, kraj, płatnik i bank do aktualizacji; „-” w email
   const bez = compareClients(plik, baza);
   assert.ok(bez.toUpdate.every((u) => !Object.keys(u.changes).some((k) => EXTRA_FIELDS.includes(k))));
 });
+
+test('INVOICE_EMAIL (Wiktoria 19.11.2026): adres do faktur → invoice_email; plik bez kolumny niczego nie kasuje', () => {
+  const baza = [{ pin: '1', ident: 'Golser', name: 'G', email: 'login@golser.at', country: 'AT', invoice_email: 'rechnung@golser.at', password: 'p' }];
+  const nowy = compareClients([{ pin: '1', ident: 'Golser', name: 'G', email: 'login@golser.at', country: 'AT', invoice_email: 'buchhaltung@golser.at', password: 'p' }], baza, { extraFields: ['invoice_email'] });
+  assert.deepEqual(nowy.toUpdate[0].changes, { invoice_email: 'buchhaltung@golser.at' });
+  // Starszy plik (bez kolumny) — nic do zmiany, adres w bazie zostaje
+  const stary = compareClients([{ pin: '1', ident: 'Golser', name: 'G', email: 'login@golser.at', country: 'AT', password: 'p' }], baza, { extraFields: ['invoice_email'] });
+  assert.equal(stary.toUpdate.length, 0);
+});
+
+test('PAYMENT_DAYS (Paweł 20.11.2026): liczba dni → payment_days, „-”/puste = NULL; plik bez kolumny i baza bez kolumny niczego nie ruszają', () => {
+  const [z60, kreska, pusty, bez] = parseClients([
+    { IDENT: 'Cozy', OWNER: 'COZY', PAYMENT_DAYS: ' 060 ' },
+    { IDENT: 'A', OWNER: 'HKL', PAYMENT_DAYS: '-' },
+    { IDENT: 'B', OWNER: 'HKL', PAYMENT_DAYS: '' },
+    { IDENT: 'C', OWNER: 'HKL' }
+  ]);
+  assert.deepEqual([z60.payment_days, kreska.payment_days, pusty.payment_days, bez.payment_days], ['60', '', '', undefined]);
+
+  const baza = [
+    { pin: '1', ident: 'Cozy', name: 'C', password: 'p', payment_days: 14 },
+    { pin: '2', ident: 'A', name: 'A', password: 'p', payment_days: 30 },
+    { pin: '3', ident: 'B', name: 'B', password: 'p', payment_days: null },
+    { pin: '4', ident: 'C', name: 'C', password: 'p', payment_days: 60 }
+  ];
+  const plik = [
+    { pin: '1', ident: 'Cozy', name: 'C', password: 'p', payment_days: '60' },
+    { pin: '2', ident: 'A', name: 'A', password: 'p', payment_days: '' },
+    { pin: '3', ident: 'B', name: 'B', password: 'p', payment_days: '' },
+    { pin: '4', ident: 'C', name: 'C', password: 'p' }
+  ];
+  const diff = compareClients(plik, baza, { extraFields: ['payment_days'] });
+  assert.deepEqual(Object.fromEntries(diff.toUpdate.map((u) => [u.ident, u.changes])), { Cozy: { payment_days: '60' }, A: { payment_days: '' } },
+    'liczba z bazy porównana jako tekst; puste w pliku czyści (NULL), plik bez kolumny nie kasuje 60');
+  // Baza bez migracji: `supportsContractorExtras` nie zwraca payment_days — pole nie trafia do UPDATE
+  assert.equal(compareClients(plik, baza, { extraFields: ['invoice_email'] }).toUpdate.length, 0);
+});

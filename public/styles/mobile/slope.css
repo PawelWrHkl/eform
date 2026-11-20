@@ -116,60 +116,6 @@
         background: var(--bg-surface) !important;
         box-shadow: none !important;
     }
-    .slope-form-buttons {
-        display: flex !important;
-        gap: 10px !important;
-        margin-top: auto !important;
-        padding: 20px !important;
-        background: var(--bg-surface) !important;
-        border-top: 1px solid var(--border-default) !important;
-        position: sticky !important;
-        bottom: 0 !important;
-    }
-    .slope-form-buttons button {
-        flex: 1 !important;
-        padding: 15px !important;
-        cursor: pointer !important;
-        font-size: 1.1rem !important;
-        border-radius: 10px !important;
-        border: none !important;
-        box-shadow: none !important;
-    }
-    .slope-form-buttons button.cancel-btn {
-        background-color: var(--bg-surface-sunken) !important;
-        border: 2px solid var(--border-default) !important;
-        color: var(--text-primary) !important;
-    }
-    .slope-form-buttons button.submit-btn {
-        background: var(--brand-gradient) !important;
-        color: var(--text-on-brand) !important;
-        border: none !important;
-    }
-    .slope-form-buttons button.cancel-btn:hover {
-        background-color: var(--bg-hover) !important;
-        border-color: var(--brand-primary) !important;
-    }
-    .slope-form-buttons button.submit-btn:hover {
-        filter: brightness(1.1) !important;
-    }
-    .slope-note {
-        background: var(--bg-surface-sunken) !important;
-        padding: 15px !important;
-        border-radius: var(--radius-md) !important;
-        box-shadow: none !important;
-        font-size: 1rem !important;
-        margin: 10px 0 !important;
-        border: 1px solid var(--border-default) !important;
-        color: var(--text-primary) !important;
-        line-height: 1.4 !important;
-    }
-    #slope-modal .form-content,
-    #slope-modal .form-section {
-        flex: 1 !important;
-        padding: 15px !important;
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
-    }
     #slope-modal .row {
         margin: 0 !important;
         width: 100% !important;
@@ -195,11 +141,6 @@
     #slope-modal .col-6[style*="display: grid"],
     #slope-modal .col-12[style*="display: grid"] {
         display: block !important;
-    }
-    #slope-modal .form-group {
-        margin-bottom: 15px !important;
-        width: 100% !important;
-        overflow: hidden !important;
     }
     #slope-modal label {
         font-weight: bold !important;

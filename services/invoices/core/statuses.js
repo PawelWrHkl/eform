@@ -74,4 +74,17 @@ function isAccountingDocument(invoice) {
   return invoice.status !== InvoiceStatus.DRAFT && invoice.status !== InvoiceStatus.CANCELLED;
 }
 
-module.exports = { ALLOWED_TRANSITIONS, canTransition, assertTransition, isOverdue, isAccountingDocument };
+/**
+ * Dokument przyjęty przez system zewnętrzny (`repository.getEditBlockers().accepted`): e-faktura
+ * ZUGFeRD w trybie live albo KSeF ACCEPTED. Treść i status pod tym numerem są zamrożone — bez edycji,
+ * przebudowy i anulowania; poprawka = korekta (nota). Wiktoria 19.11.2026: „faktura przyjęta (ready)
+ * albo wysłana nie może się zmienić pod tym samym numerem”.
+ *
+ * @param {string} label numer faktury do komunikatu
+ * @returns {string}
+ */
+function acceptedLockMessage(label) {
+  return `Faktura ${label} jest przyjęta przez system zewnętrzny (e-faktura / KSeF) — treści i statusu pod tym numerem nie wolno zmienić, popraw korektą`;
+}
+
+module.exports = { ALLOWED_TRANSITIONS, canTransition, assertTransition, isOverdue, isAccountingDocument, acceptedLockMessage };

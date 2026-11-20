@@ -26,7 +26,7 @@ const repository = require('../db/repository');
 const { selectQuery } = require('../../../db/core');
 const { organizationIdFromSession, scopeFromSession, canAccessInvoice } = require('./session');
 const hierarchy = require('../core/hierarchy');
-const { resolvePriceBasis, PriceBasis, HKL_ORG_ID } = require('../core/pricing');
+const { resolvePriceBasis, PriceBasis, HKL_ORG_ID, isHklIssuer } = require('../core/pricing');
 const { parseSpeditionNumbers } = require('../../prodStatus');
 const { AUTO_ACTOR, readAutoInvoiceConfig } = require('../autoInvoicing');
 const { DAILY_ACTOR } = require('../core/collective');
@@ -326,6 +326,9 @@ function decorateInvoices(rows, lang) {
     paidFmt: Number(r.paid_amount) > 0 && r.status !== 'paid' ? money.format(money.toMinor(r.paid_amount, r.currency), r.currency, lang) : '',
     issueDateFmt: formatDate(r.issue_date, lang),
     dueDateFmt: formatDate(r.due_date, lang),
+    // Płatności zna księgowość tylko dla faktur HKL (Wiktoria 20.11.2026) — u innych wystawców
+    // niezapłacona faktura to po prostu „wystawiona”, nie „otwarta” na zawsze
+    statusKey: ['issued', 'overdue'].includes(r.status) && !isHklIssuer(r.issuer_type, r.issuer_id) ? 'issued_untracked' : r.status,
     isAuto: r.created_by_pin === AUTO_ACTOR || r.created_by_pin === DAILY_ACTOR,
     isEdited: !!Number(r.manual_edit)
   }));

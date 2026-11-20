@@ -7,31 +7,22 @@
         padding: 15px !important;
         width: 100% !important;
     }
-    .sent-card {
-        background: var(--bg-surface) !important;
-        padding: 20px !important;
-        border-radius: var(--radius-md) !important;
-        border: 1px solid var(--border-default) !important;
-        box-shadow: var(--shadow-sm) !important;
-        text-align: center !important;
-        margin-bottom: 20px !important;
-    }
-    .sent-actions {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 10px !important;
-        margin-top: 20px !important;
-    }
-    .sent-actions .btn {
-        width: 100% !important;
-        padding: 15px !important;
-        border-radius: 8px !important;
-        font-size: 1.1rem !important;
-    }
     h1,
     h2,
     h3 {
         font-size: 1.3rem !important;
         margin-bottom: 15px !important;
+    }
+    /* Status pozycji w karcie telefonu (order_sent.njk, blok mobile_item_actions):
+       status na całą szerokość, termin i przewoźnik obok siebie. */
+    .mobile-item-status .status-cards {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        max-width: none;
+        margin-top: 8px;
+        padding-bottom: 0 !important; /* order_sent.css: 12px !important */
+    }
+    .mobile-item-status .status-card-main {
+        grid-column: 1 / -1;
     }
 }

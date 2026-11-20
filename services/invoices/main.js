@@ -200,6 +200,8 @@ class InvoiceService {
    *        zamówienia eForm są ZAWSZE towarem — w `json_parameters` nie ma flagi
    *        usługi (`MONTAZ` to kod uchwytu, patrz `core/orderMapper.js`).
    *        `isInstallation: true` kwalifikuje usługę do stawki obniżonej w PL.
+   *        `taxAsGoods: true` (linia transportu, `transport.js`): VAT jak towar na tej
+   *        fakturze, nie jak usługa; `meta` trafia do pozycji (np. `meta.transport`).
    * @param {string} [params.saleDate]               Domyślnie dziś (lub `sent_date` zamówienia).
    * @param {boolean} [params.allowZeroTotal=false] Pozwala wystawić dokument na 0,00.
    * @param {boolean} [params.includeDeliveryAddress] Nadpisuje flagę odbiorcy
@@ -231,6 +233,7 @@ class InvoiceService {
     if (inv.status !== InvoiceStatus.ISSUED) throw new Error(`Faktura ${label} ma status ${inv.status} — ponownie z zamówienia tylko wystawiona i nieopłacona`);
     if (inv.documentType !== DocumentType.INVOICE) throw new Error(`Dokument ${label} (${inv.documentType}) — ponownie z zamówienia tylko faktura VAT`);
     const blockers = await this.repository.getEditBlockers(inv.id);
+    if (blockers.accepted) throw new Error(statuses.acceptedLockMessage(label));
     if (blockers.related) throw new Error(`Faktura ${label} ma korektę albo dokument powiązany — przelicz ręcznie`);
     if (blockers.allocations) throw new Error(`Faktura ${label} jest częściowa (alokacje ilości) — przelicz ręcznie`);
     const edit = inv.compliance && inv.compliance.manualEdit;
@@ -238,7 +241,7 @@ class InvoiceService {
     if (edit && edit.edited && !edit.overlay) throw new Error(`Faktura ${label} była edytowana ręcznie — przebudowa skasowałaby zmiany, popraw w edytorze faktury`);
 
     const { createdByPin, orderIds } = await this.repository.getRebuildSource(inv.id);
-    const replace = { id: inv.id, number: inv.number, issueDate: inv.issueDate };
+    const replace = { id: inv.id, number: inv.number, issueDate: inv.issueDate, dueDate: inv.dueDate };
     if (inv.orderId) {
       // Daty sprzedaży i dostawy z faktury: ponowne wysłanie zlecenia (korekta) zmienia mu sent_date
       return this.createFromOrder({
@@ -279,7 +282,7 @@ class InvoiceService {
    * @param {boolean} [params.requireLetterhead=false] tylko na formatce wystawcy (automat) — patrz `NO_LETTERHEAD_ERROR_CODE`
    * @returns {Promise<{ id: number, number: string|null, invoice: Invoice }>}
    */
-  async createCollective({ orderIds, period, level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, issue = true, lang, createdByPin, requireLetterhead = false, replace = null }) {
+  async createCollective({ orderIds, period, level = hierarchy.InvoiceLevel.ORGANIZATION_TO_USER, issue = true, lang, createdByPin, requireLetterhead = false, replace = null, serviceItems = [] }) {
     if (!Array.isArray(orderIds) || !orderIds.length) throw new Error('Faktura zbiorcza wymaga listy zamówień');
     const toOrganization = Number(level) === hierarchy.InvoiceLevel.MANUFACTURER_TO_ORGANIZATION;
     if (!toOrganization && Number(level) !== hierarchy.InvoiceLevel.ORGANIZATION_TO_USER) {
@@ -312,7 +315,8 @@ class InvoiceService {
       collective: { period },
       saleDate: period.end,
       deliveryDate: period.end,
-      replace
+      replace,
+      serviceItems
     });
   }
 
@@ -725,7 +729,8 @@ class InvoiceService {
     const inv = t.invoice;
     if (inv.status === InvoiceStatus.CANCELLED) throw new Error('Faktura anulowana — edycja niedostępna');
     if (inv.status === InvoiceStatus.PAID && !actor.isAdmin) throw new Error('Faktura opłacona — poprawia ją tylko admin');
-    const blockers = this.repository.getEditBlockers ? await this.repository.getEditBlockers(inv.id) : { related: 0, allocations: 0 };
+    const blockers = this.repository.getEditBlockers ? await this.repository.getEditBlockers(inv.id) : { related: 0, allocations: 0, accepted: 0 };
+    if (blockers.accepted) throw new Error(statuses.acceptedLockMessage(inv.number));
     if (blockers.related) throw new Error('Faktura ma korektę albo dokument powiązany — edycja niedostępna');
     if (blockers.allocations) throw new Error('Faktura częściowa (alokacje ilości) — edycja niedostępna');
 
@@ -858,8 +863,9 @@ class InvoiceService {
     const ref = collective
       ? `zbiorcza ${collective.period.key} (${sources.length} zam.)`
       : (source.order.order_idx || orderId);
+    // Faktura zbiorcza przyjmuje tylko linie transportu (`taxAsGoods`), inne usługi nie
     if (collective && (documentType !== DocumentType.INVOICE
-      || (Array.isArray(params.allocations) && params.allocations.length) || serviceItems.length)) {
+      || (Array.isArray(params.allocations) && params.allocations.length) || serviceItems.some((svc) => !svc.taxAsGoods))) {
       throw new Error('Faktura zbiorcza: wyłącznie typ invoice, bez częściowego fakturowania i bez usług dodatkowych');
     }
 
@@ -915,8 +921,15 @@ class InvoiceService {
     const saleDate = toIsoDay(params.saleDate) || toIsoDay(header.saleDate) || toIsoDay(source.order.sent_date) || today;
     // Przeliczona faktura dzienna zachowuje numer i datę wystawienia (`params.replace`)
     const issueDate = (params.replace && toIsoDay(params.replace.issueDate)) || today;
+    // Termin (Paweł 20.11.2026): ręczna zmiana → przeliczona wystawiona faktura zachowuje swój → contractors.txt
+    // PAYMENT_DAYS: płatnik/klient (nabywca-konto, `source.user.paymentDays`) albo konto organizacji-nabywcy
+    // (poziom 1) → wystawca → profil organizacji (14)
     const paymentDays = params.paymentDays ?? header.paymentDays;
-    const dueDate = addDays(issueDate, paymentDays ?? issuerProfile.paymentDays ?? profile.defaultPaymentDays);
+    const buyerPaymentDays = levelDef.buyerType === hierarchy.BuyerType.USER ? source.user?.paymentDays
+      : levelDef.buyerType === hierarchy.BuyerType.ORGANIZATION ? source.organizationPaymentDays : null;
+    const dueDate = paymentDays != null ? addDays(issueDate, paymentDays)
+      : (params.replace && toIsoDay(params.replace.dueDate))
+        || addDays(issueDate, buyerPaymentDays ?? issuerProfile.paymentDays ?? profile.defaultPaymentDays);
     // Data dostawy/usługi — wymagana na fakturze niemieckiej (Leistungsdatum)
     const deliveryDate = toIsoDay(params.deliveryDate) || toIsoDay(header.deliveryDate) || toIsoDay(source.order.delivery_date) || saleDate;
 
@@ -1109,7 +1122,7 @@ class InvoiceService {
     // Usługi dokładane jawnie — jedyna droga, żeby na fakturze pojawiła się
     // pozycja usługowa (i ewentualnie stawka obniżona za montaż).
     for (const svc of serviceItems) {
-      const tax = resolveTax({ isService: true, isInstallation: svc.isInstallation === true });
+      const tax = resolveTax({ isService: !svc.taxAsGoods, isInstallation: svc.isInstallation === true });
       rawItems.push({
         name: svc.name,
         description: svc.description || '',
@@ -1120,7 +1133,7 @@ class InvoiceService {
           : money.toMinor(svc.unitPriceNet, currency),
         taxRate: tax.taxRate,
         taxCategory: tax.taxCategory,
-        meta: { isService: true, isInstallation: svc.isInstallation === true }
+        meta: { isService: !svc.taxAsGoods, isInstallation: svc.isInstallation === true, ...(svc.meta || {}) }
       });
     }
 
@@ -1431,6 +1444,11 @@ class InvoiceService {
     const invoice = await this.repository.getInvoice(invoiceId);
     if (!invoice) throw new Error(`Faktura ${invoiceId} nie istnieje`);
     statuses.assertTransition(invoice.status, status);
+    // Dokumentu przyjętego w KSeF / jako e-faktura live nie anulujemy — tylko korekta
+    if (status === InvoiceStatus.CANCELLED && this.repository.getEditBlockers
+      && (await this.repository.getEditBlockers(invoiceId)).accepted) {
+      throw new Error(statuses.acceptedLockMessage(invoice.number || `#${invoiceId}`));
+    }
 
     const patch = { status, fromStatus: invoice.status, actorPin: opts.actorPin };
     if (status === InvoiceStatus.PAID) {
@@ -1516,6 +1534,11 @@ class InvoiceService {
     const profile = await this.repository.getOrganizationProfile(invoice.organizationId);
     const template = await this.repository.getTemplate(invoice.templateCode);
     const logoDataUri = renderer.loadLogoDataUri(profile?.logoFile || '');
+    // Faktura przyjęta w KSeF (plik Wiktorii `numery_ksef.tsv`): kod QR z linku weryfikacyjnego + numer KSeF pod nim
+    const ksef = this.repository.getKsefStates ? (await this.repository.getKsefStates([invoice.id])).get(Number(invoice.id)) : null;
+    if (ksef && ksef.status === 'ACCEPTED') {
+      invoice.ksef = { number: ksef.ksefNumber, qrDataUri: require('./invoiceKsef').ksefQrDataUri(ksef.verifyUrl) };
+    }
     return { invoice, profile: profile || {}, template, logoDataUri };
   }
 

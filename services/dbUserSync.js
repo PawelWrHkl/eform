@@ -11,19 +11,23 @@ const { isDemoPin } = require('./demoMode');
  * Kolumny contractors.txt od 19.11.2026 (Tomek): PAYMASTER_IDENT (konto płatnika — faktura idzie
  * na jego dane), BANK_NAME / BANK_ACCOUNT / SWIFT (konto, na które klient płaci). „-” = brak.
  * W bazie od migracji `migrations/add_user_paymaster_bank.sql`; bez niej synchronizacja je pomija.
+ * INVOICE_EMAIL (Wiktoria 19.11.2026: adres do faktur z PROD — CONTRACTORDOCCONF, inaczej EMAIL2;
+ * EMAIL to adres logowania) → `user.invoice_email`, migracja `migrations/add_user_invoice_email.sql`.
+ * PAYMENT_DAYS (Paweł 20.11.2026: termin płatności klienta w dniach; puste/„-” = brak) → `user.payment_days`
+ * (INT, NULL = brak), migracja `migrations/add_user_payment_days.sql`.
  */
-const EXTRA_FIELDS = ['paymaster_ident', 'bank_name', 'bank_account', 'swift'];
+const EXTRA_FIELDS = ['paymaster_ident', 'bank_name', 'bank_account', 'swift', 'invoice_email', 'payment_days'];
 
-/** @type {Promise<boolean>|null} */
+/** @type {Promise<string[]>|null} */
 let extrasSupport = null;
-/** Czy baza ma kolumny `EXTRA_FIELDS` — raz na proces (kod bywa wdrażany przed migracją). */
+/** Które z `EXTRA_FIELDS` baza ma — raz na proces, każda kolumna osobno (migracje bywają wdrażane po kodzie). */
 function supportsContractorExtras() {
   if (!extrasSupport) {
     extrasSupport = Promise.resolve(db.selectQuery(
-      `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+      `SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user' AND COLUMN_NAME IN (?)`,
       [EXTRA_FIELDS]
-    )).then((rows) => Number(rows && rows[0] && rows[0].c) === EXTRA_FIELDS.length).catch(() => false);
+    )).then((rows) => EXTRA_FIELDS.filter((f) => (rows || []).some((r) => r.c === f))).catch(() => []);
   }
   return extrasSupport;
 }
@@ -44,7 +48,7 @@ async function updateClients() {
   const extras = await supportsContractorExtras();
   const dbClientsObj = await db.getUsers({ extras });
 
-  const diff = compareClients(fileClientsObj, dbClientsObj, { extraFields: extras ? EXTRA_FIELDS : [] });
+  const diff = compareClients(fileClientsObj, dbClientsObj, { extraFields: extras });
 
   if (Object.keys(diff.toAdd).length === 0) {
     log('Baza klientów aktualna');
@@ -153,7 +157,7 @@ function compareClients(fileClients, allDbClients, { extraFields = [] } = {}) {
 
       for (const field of fieldsToCheck) {
         const fileValue = (fileClient[field] || '').trim();
-        const dbValue = (dbClient[field] || '').trim();
+        const dbValue = String(dbClient[field] ?? '').trim(); // payment_days to liczba
 
         // ⚠️ Hasło ustawione WEWNĄTRZ aplikacji (panel /admin/users, zakładanie
         // konta) leży w bazie jako hash bcrypt, a w contractors.txt jest jawny
@@ -166,6 +170,10 @@ function compareClients(fileClients, allDbClients, { extraFields = [] } = {}) {
         }
         // Pusty albo „-” email w pliku nie kasuje adresu z bazy (bywa wpisany w aplikacji, idą na niego faktury)
         if (field === 'email' && (fileValue === '' || fileValue === '-')) {
+          continue;
+        }
+        // Plik bez nowej kolumny (starszy format) nie kasuje jej wartości w bazie — 19.11 tak zniknął kraj
+        if (extraFields.includes(field) && fileClient[field] === undefined) {
           continue;
         }
 
@@ -246,6 +254,11 @@ function parseClients(inputArray) {
     // Kraj: kolumna COUNTRY (od 19.11.2026), w starszych plikach KRAJ
     if (lowerObj.country === undefined && lowerObj.kraj !== undefined) lowerObj.country = lowerObj.kraj;
     delete lowerObj.kraj;
+    // PAYMENT_DAYS (20.11.2026): liczba dni; „-”, puste i nieliczbowe = brak ('' → NULL w bazie)
+    if (lowerObj.payment_days !== undefined) {
+      const days = String(lowerObj.payment_days).trim();
+      lowerObj.payment_days = /^\d{1,3}$/.test(days) ? String(Number(days)) : '';
+    }
 
     delete lowerObj.owner;
     return lowerObj;
@@ -280,6 +293,8 @@ async function updateExistingClients(clientsToUpdate) {
     bank_name: 'bank_name',
     bank_account: 'bank_account',
     swift: 'swift',
+    invoice_email: 'invoice_email',
+    payment_days: 'payment_days',
   };
 
   let updated = 0;
@@ -296,7 +311,7 @@ async function updateExistingClients(clientsToUpdate) {
         const dbField = fieldMapping[fileField];
         if (dbField) {
           updateFields.push(`\`${dbField}\` = ?`);
-          updateValues.push(dbValue);
+          updateValues.push(dbField === 'payment_days' && dbValue === '' ? null : dbValue);
         }
       }
 

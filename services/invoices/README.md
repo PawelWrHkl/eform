@@ -686,27 +686,58 @@ bez niej nowe pola są pomijane). Pusty/„-” e-mail w pliku nie kasuje adresu
   faktura HKL zapisuje je w `compliance.paymentAccount`. Kolejność przy druku: zapisane w fakturze → plik
   księgowości po NIP (`data/hkl-contractor-accounts.json`) → domyślne ING EUR.
 
+## Termin płatności (v24, 20.11.2026)
+
+Pytanie Wiktorii (PROD daje HKL → Cozy i HKL → Luxan GmbH 60 dni, eForm 14), decyzja Pawła „jedno i drugie”.
+`dueDate` w `InvoiceService.createFromOrder` (także zbiorcze i dzienne) — pierwsze, które jest:
+
+1. **ręczna zmiana**: `params.paymentDays` albo nagłówek nakładki edytora (`overlay.header.paymentDays`);
+2. **przeliczenie wystawionej** (`params.replace.dueDate` — „Pobierz ponownie z zlecenia”, „Przelicz dzienne
+   ponownie”): termin z faktury zostaje, nowe dane klienta go nie przesuwają;
+3. **contractors.txt `PAYMENT_DAYS`** → `user.payment_days` (migracja `migrations/add_user_payment_days.sql`,
+   synchronizacja `services/dbUserSync.js`; puste/„-” = NULL, plik bez kolumny niczego nie kasuje, baza bez
+   kolumny jest pomijana):
+   - poziom 2 (nabywca = konto): płatnik (`paymaster_ident`), potem klient — `source.user.paymentDays`;
+   - poziom 1 (nabywca = organizacja): konto organizacji w contractors.txt, ident konta = ident organizacji
+     (Cozy, LuxanGmbH; bez wielkości liter) — `source.organizationPaymentDays`;
+   - poziomy 3/4 (odbiorca końcowy): nie dotyczy;
+4. **wystawca** (`invoice_issuer_profile.payment_days`, w profilu zastępczym organizacji
+   `invoice_organization_profile.default_payment_days`) → 14.
+
+⚠️ `invoice_organization_profile.default_payment_days` to termin, który organizacja daje SWOIM klientom
+(edytuje go owner w `/invoices/profile`) — nie termin HKL → organizacja. Stąd termin organizacji-nabywcy na jej
+koncie klienta. 60 dni dla Cozy i Luxan GmbH: `services/invoices/db/data_payment_days_cozy_luxangmbh.sql`
+(po migracji; gdy plik dostanie kolumnę `PAYMENT_DAYS`, wygrywa wartość z pliku).
+In blanco i korekty bez zmian (termin z formularza / profilu organizacji). E-faktura ZUGFeRD bierze dni z
+dat faktury, chyba że kartoteka klientów (`customer_commercial_terms`) ma własny termin.
+
 ## Płatności z księgowości i przypomnienia (`invoicePayments.js`, v18, 19.11.2026)
 
 Statusy „otwarta” (`issued`/`overdue`) i „opłacona” (`paid`); wpłata częściowa w `paid_amount`.
 
 **Plik od księgowości** (automat Wiktorii, decyzja Pawła 19.11): `<INVOICE_FTP_DIR>/platnosci.tsv`, UTF-8,
-tabulatory, nagłówek w pierwszym wierszu, cały stan przy każdej aktualizacji (co ~15 min):
+tabulatory, nagłówek w pierwszym wierszu, cały stan przy każdej aktualizacji (co ~15 min). Tylko faktury
+HKL (LEVEL 1 i LEVEL 2 z ORGANIZATIONIDENT = HKL — ustalenie Wiktorii 20.11): `findInvoicesByNumbers` dopasowuje
+tylko je, a w panelu faktury innych wystawców mają status „wystawiona” zamiast „otwarta” (`statusKey`).
+Wiktoria zrobi plik, gdy faktury E-Form trafią do ksiąg pod swoimi numerami.
 
 | Kolumna | Znaczenie |
 |---|---|
 | `LEVEL` | poziom faktury — jak w `zafakturowane_pozycje.tsv` |
 | `INVOICENO` | numer faktury, np. `26000002` |
 | `ORGANIZATIONIDENT` | jak w `zafakturowane_pozycje.tsv` (ten sam numer bywa u dwóch wystawców: 26000009 HKL i Cozy) |
-| `PAIDAMOUNT` | ile ŁĄCZNIE zapłacono, w walucie faktury (`442.18` albo `442,18`) |
-| `PAIDDATE` | data ostatniej wpłaty `RRRR-MM-DD` (pusta, gdy `PAIDAMOUNT` = 0) |
+| `PAIDAMOUNT` | ile ŁĄCZNIE księgowość rozliczyła z fakturą (przelewy i kompensaty), w walucie faktury (`442.18` albo `442,18`) |
+| `PAIDDATE` | data ostatniego wyciągu `RRRR-MM-DD` (pusta, gdy `PAIDAMOUNT` = 0) |
 
 Cykl tła (`prodStatusCycle`, PRZED mailami): pełna wpłata → `paid` + `paid_at`, częściowa → `paid_amount`,
 zdarzenie `payment_synced`; opłaconej nie cofa (log „UWAGA”); brak pliku = nic. `INVOICE_PAYMENTS_ENABLED=true`.
 
 **Przypomnienie** (`invoiceMailer.js`, `INVOICE_REMINDERS_ENABLED=true` + WYMAGANE `INVOICE_REMINDERS_SINCE`):
-faktura z terminem płatności dziś, wystawiona od `SINCE`, nieopłacona, wcześniej wysłana mailem w tym samym
-trybie (klient nie dostanie przypomnienia o fakturze, której nie dostał) → od 7:00 mail w języku faktury:
+faktura HKL z numerem KSeF (`ksef_accepted`), termin płatności minął co najmniej N dni temu
+(`INVOICE_REMINDER_DAYS_AFTER_DUE`, domyślnie 5 — wpłata jest w księgach do ~3 dni po wyciągu; `<=`, więc
+numer KSeF, który przyjdzie później, nie gubi przypomnienia), wystawiona od `SINCE`, nieopłacona, wcześniej
+wysłana mailem w tym samym trybie (klient nie dostanie przypomnienia o fakturze, której nie dostał) → od 7:00
+mail w języku faktury („termin płatności minął”):
 „Przypomnienie o płatności: …”, pozostała kwota, ten sam PDF w załączniku; raz na fakturę (`reminder_sent` /
 `reminder_redirected`, 3 próby `reminder_failed`). UDW do skrzynki fakturowej wystawcy
 (`organization.invoice_email`, zapasowo adres z profilu) — tylko przy wysyłce do klientów; w trybie testowym

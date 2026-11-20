@@ -544,7 +544,8 @@ router.get('/reports', requireLogin, requireAdmin, async (req, res) => {
     try {
         const clients = await reportsDb.getReportClients();
         const savedConfigs = await reportsDb.getReportConfigs(req.session.user.userId);
-        res.render('admin/reports.njk', { clients, savedConfigs });
+        const orgs = [...new Set(clients.map(c => c.org_ident).filter(Boolean))].sort();
+        res.render('admin/reports.njk', { clients, savedConfigs, orgs });
     } catch (error) {
         log('Error loading reports page:', error);
         res.status(500).render('error.njk', { message: 'Błąd ładowania raportów' });

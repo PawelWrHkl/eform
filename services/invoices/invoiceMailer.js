@@ -28,6 +28,10 @@
  *   INVOICE_MAIL_TO_BUYER=true         tryb do nabywcy — patrz wyżej
  *   INVOICE_MAIL_BCC=ksiegowosc@x      opcjonalnie: ukryta kopia maili do nabywców
  *   INVOICE_MAIL_MAX_PER_RUN=50        bezpiecznik na jeden przebieg
+ *   INVOICE_KSEF_MAIL_GATE=true        faktury HKL (poziom 1 i 2 HKL) wychodzą dopiero po ACCEPTED
+ *                                      w KSeF (`invoiceKsef.js`); brak wiersza = czeka, REJECTED/WITHHELD
+ *                                      = nie wysyłamy. Domyślnie wyłączone (Wiktoria 19.11.2026: „włącz,
+ *                                      gdy dam znać, że plik jest na FTP”)
  *
  * NADAWCA = adres fakturowy wystawcy (`organization.invoice_email`; poziom 1 → HKL),
  * wysyłka przez jego skrzynkę: hasło `organization.invoice_email_password`, zapasowo
@@ -47,7 +51,7 @@ const nodemailer = require('nodemailer');
 const defaultRepository = require('./db/repository');
 const renderer = require('./render/renderer');
 const money = require('./core/money');
-const { todayIso } = require('./core/dates');
+const { todayIso, addDays } = require('./core/dates');
 const { AUTO_ACTOR } = require('./autoInvoicing');
 const { DAILY_ACTOR } = require('./core/collective');
 const { sanitizeFilename } = require('../../utils/sanitizeFilename');
@@ -65,6 +69,8 @@ const MailMode = Object.freeze({ REDIRECT: 'redirect', BUYER: 'buyer' });
 const ReminderEvent = Object.freeze({ SENT: 'reminder_sent', REDIRECTED: 'reminder_redirected', FAILED: 'reminder_failed' });
 /** Przypomnienia nie wychodzą w nocy — pierwszy przebieg od tej godziny (czas procesu). */
 const REMINDER_FROM_HOUR = 7;
+/** Ile dni po terminie płatności idzie przypomnienie (`INVOICE_REMINDER_DAYS_AFTER_DUE`). */
+const DEFAULT_REMINDER_DAYS_AFTER_DUE = 5;
 
 /** Po tylu nieudanych próbach faktura przestaje wracać (np. błędny adres nabywcy). */
 const MAX_ATTEMPTS = 3;
@@ -109,7 +115,7 @@ function isoDay(value) {
 
 /**
  * @param {Record<string, string|undefined>} [env]
- * @returns {{ enabled: boolean, active: boolean, mode: string|null, since: string|null, redirect: string[], bcc: string[], maxPerRun: number, from: string, smtp: Record<string, { pass: string, host: string }>, envLabel: string, reminders: boolean, remindersSince: string|null, problems: string[] }}
+ * @returns {{ enabled: boolean, active: boolean, mode: string|null, since: string|null, redirect: string[], bcc: string[], maxPerRun: number, from: string, smtp: Record<string, { pass: string, host: string }>, envLabel: string, reminders: boolean, remindersSince: string|null, reminderDaysAfterDue: number, problems: string[] }}
  */
 function readInvoiceMailConfig(env = process.env) {
   const enabled = String(env.INVOICE_MAIL_ENABLED).toLowerCase() === 'true';
@@ -162,6 +168,9 @@ function readInvoiceMailConfig(env = process.env) {
     // WYMAGANY próg dat wystawienia: stare faktury z okresu testów (prod 20.11: 562 z terminem tego dnia) nie dostają przypomnień
     reminders: String(env.INVOICE_REMINDERS_ENABLED).toLowerCase() === 'true' && !!isoDay(env.INVOICE_REMINDERS_SINCE),
     remindersSince: isoDay(env.INVOICE_REMINDERS_SINCE),
+    // Przypomnienie N dni PO terminie (Wiktoria 20.11: wpłata jest w księgach do ~3 dni po wyciągu)
+    reminderDaysAfterDue: /^\d+$/.test(String(env.INVOICE_REMINDER_DAYS_AFTER_DUE ?? '').trim()) ? Number(env.INVOICE_REMINDER_DAYS_AFTER_DUE) : DEFAULT_REMINDER_DAYS_AFTER_DUE,
+    ksefGate: String(env.INVOICE_KSEF_MAIL_GATE).toLowerCase() === 'true',
     problems
   };
 }
@@ -374,7 +383,8 @@ async function runInvoiceMailing({ dryRun = false, config = readInvoiceMailConfi
     maxAttempts: MAX_ATTEMPTS,
     // Faktury dzienne HKL też (2026-11-06: „maile tylko do nas" — REDIRECT jak reszta)
     createdByPin: [AUTO_ACTOR, DAILY_ACTOR],
-    limit: config.maxPerRun
+    limit: config.maxPerRun,
+    ksefGate: !!config.ksefGate
   });
 
   let service = null;
@@ -436,15 +446,15 @@ async function runInvoiceMailing({ dryRun = false, config = readInvoiceMailConfi
 
   for (const row of pending) await deliver(row, { reminder: false, done: doneEvent, failedEvent: MailEvent.FAILED, out: result });
 
-  // Przypomnienia w dniu terminu płatności (szef 19.11.2026): faktura wysłana mailem w tym samym trybie,
-  // nieopłacona (płatności z księgowości wczytuje wcześniej `invoicePayments.js`), od 7:00, raz na fakturę.
-  // W trybie testowym idą tylko do testerów, jak same faktury.
+  // Przypomnienia o płatności (szef 19.11.2026, ustalenia Wiktorii 20.11): faktura HKL z numerem KSeF,
+  // N dni po terminie, nieopłacona (płatności z księgowości wczytuje wcześniej `invoicePayments.js`),
+  // wysłana mailem w tym samym trybie, od 7:00, raz. W trybie testowym tylko testerzy, jak same faktury.
   const budget = config.maxPerRun - pending.length;
   if (config.reminders && budget > 0 && now().getHours() >= REMINDER_FROM_HOUR) {
     result.reminders = { sent: [], failed: [], planned: [] };
     const reminderDone = config.mode === MailMode.REDIRECT ? ReminderEvent.REDIRECTED : ReminderEvent.SENT;
     const due = await repository.findInvoicesToRemind({
-      today: todayIso(now()), since: config.remindersSince, mailedEvent: doneEvent, doneEvent: reminderDone, failedEvent: ReminderEvent.FAILED, maxAttempts: MAX_ATTEMPTS, limit: budget
+      dueOnOrBefore: addDays(todayIso(now()), -config.reminderDaysAfterDue), since: config.remindersSince, mailedEvent: doneEvent, doneEvent: reminderDone, failedEvent: ReminderEvent.FAILED, maxAttempts: MAX_ATTEMPTS, limit: budget
     });
     for (const row of due) await deliver(row, { reminder: true, done: reminderDone, failedEvent: ReminderEvent.FAILED, out: result.reminders });
     if (due.length || dryRun) {

@@ -81,6 +81,7 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
         let invoiceMails = null;
         let invoiceFtp = null;
         let invoicePayments = null;
+        let invoiceKsef = null;
         let einvoices = null;
         if (invoices) {
             // Leniwie: sama synchronizacja statusów nie potrzebuje modułu faktur
@@ -98,6 +99,15 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
                 } catch (err) {
                     log(`[invoices:payments] przebieg przerwany: ${err && err.message ? err.message : err}`);
                     invoicePayments = { updated: [], unknown: [], errors: [String(err && err.message ? err.message : err)] };
+                }
+                // Numery KSeF faktur HKL (plik Wiktorii) też PRZED mailami: przyjęta faktura wychodzi
+                // w tym samym przebiegu, z numerem i kodem QR (`INVOICE_KSEF_ENABLED`)
+                try {
+                    const runKsefSync = deps.runKsefSync || require('./invoices/invoiceKsef').runKsefSync;
+                    invoiceKsef = await runKsefSync({ dryRun });
+                } catch (err) {
+                    log(`[invoices:ksef] przebieg przerwany: ${err && err.message ? err.message : err}`);
+                    invoiceKsef = { changed: [], unknown: [], errors: [String(err && err.message ? err.message : err)] };
                 }
             }
             if (mail) {
@@ -148,7 +158,7 @@ async function runProdStatusCycle({ dryRun = false, full = false, invoices = tru
                 serviceExports = { retried: [], failed: [{ error: String(err && err.message ? err.message : err) }], planned: [] };
             }
         }
-        return { statuses, autoInvoices, invoicePayments, invoiceMails, invoiceFtp, einvoices, serviceExports };
+        return { statuses, autoInvoices, invoicePayments, invoiceKsef, invoiceMails, invoiceFtp, einvoices, serviceExports };
     } finally {
         await lock.release();
     }

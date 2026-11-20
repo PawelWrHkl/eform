@@ -225,196 +225,358 @@
         box-shadow: none !important;
     }
 
-    /* ======================================== 2c. NAWIGACJA KROKOW === */
-    /* [Wstecz] [Dalej] pod polami aktywnego kroku. Na ostatnim kroku "Dalej"
-       znika, a pod spodem pojawia sie `#buttons-space` z zapisem. */
-    .m-steppager {
-        display: flex;
-        gap: 10px;
-        width: 100%;
-        margin: 4px 0 0;
-        padding: 0;
+    /* ================================== 2c. KREATOR: NAGLOWEK KROKU === */
+    /* Wstrzykiwany przez scripts/mobile/configuratorStepper.js nad polami.
+       Tytul kroku z licznikiem obok (nie nad nim - bez napisu nad tytulem),
+       pod spodem pasek postepu: segment = przycisk skoku do kroku, cel
+       dotyku 44 px, widoczna kreska 4 px. */
+    .m-stephead {
+        margin: 0 0 6px;
     }
 
-    .m-steppager__btn {
-        flex: 1 1 0;
-        min-width: 0;
-        min-height: var(--m-control-h);
-        padding: 12px 14px;
-        border-radius: var(--m-radius-sm);
-        font-size: var(--m-font);
-        font-weight: 700;
-        line-height: 1.3;
-        cursor: pointer;
-        overflow-wrap: anywhere;
-        touch-action: manipulation;
-    }
-
-    .m-steppager__btn[hidden] {
+    .m-stephead[hidden],
+    .m-summary[hidden],
+    .m-actionbar[hidden],
+    .m-actionbar__btn[hidden] {
         display: none !important;
     }
 
-    .m-steppager__back {
-        flex: 1 1 38%;
-        background: transparent;
-        border: 1px solid var(--m-border-strong);
-        color: var(--m-text-muted);
+    .m-stephead__row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
     }
 
-    .m-steppager__back:disabled {
-        opacity: 0.4;
-        cursor: default;
-    }
-
-    .m-steppager__next {
-        flex: 1 1 62%;
-        background: var(--m-accent);
-        border: 1px solid var(--m-accent);
-        color: var(--m-on-accent);
-    }
-
-    .m-steppager__next:active {
-        background: var(--m-accent-press);
-        border-color: var(--m-accent-press);
-    }
-
-    /* ==================================================== 3. STEPPER === */
-    /* Wstrzykiwany przez scripts/mobile/configuratorStepper.js. Sluzy do
-       NAWIGACJI (scroll do sekcji) - nie ukrywa zadnego pola, wiec nie moze
-       kolidowac z logika ENABLE/FORMULA.
-
-       Przypiety na stale do DOLU ekranu, widoczny niezaleznie od przewiniecia.
-       `position: fixed`, a nie `sticky`: element siedzi w DOM wewnatrz <main>,
-       ktory ma wlasne `overflow-y: auto` (mobile/layout.css), wiec `sticky`
-       przywieralby do krawedzi TEGO kontenera, a nie ekranu - i na starszym
-       WebKicie potrafi w takim ukladzie w ogole nie zadzialac. `fixed` liczy sie
-       wzgledem okna, wiec zachowanie jest takie samo w kazdej przegladarce.
-
-       Miejsce pod pasek rezerwuje `padding-bottom` na <main> (nizej), wlaczane
-       klasa `m-stepper-fixed` na <body> - skrypt nadaje ja tylko wtedy, gdy
-       pasek naprawde ma co pokazac (wiecej niz jedna sekcja). Bez tego przy
-       formularzu bez krokow zostawalaby pusta luka pod przyciskiem zapisu.
-
-       z-index 1040: nad trescia i nad naglowkiem-rodzenstwem (1030), ale
-       ponizej `.overlay`/`.hourglass` (148/150 w osobnym kontekscie) i ponizej
-       modalnych <dialog>, ktore i tak renderuja sie w warstwie wierzchniej. */
-    .m-stepper {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 1040;
+    .m-stephead .m-stephead__title {
         margin: 0 !important;
-        padding: 0 0 env(safe-area-inset-bottom, 0px);
-        background: var(--m-card);
-        border: none;
-        border-top: 1px solid var(--m-border);
-        border-radius: 0;
-        box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.07);
-        overflow: hidden;
-        box-sizing: border-box;
-    }
-
-    [data-theme="dark"] .m-stepper {
-        box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.4);
-    }
-
-    /* Wysokosc paska + zapas, zeby ostatni przycisk formularza dalo sie
-       dosunac nad niego. `--m-stepper-h` ustawia skrypt POMIAREM (etykiety
-       krokow roznia sie dlugoscia miedzy jezykami i przy 320px potrafia zawinac
-       sie do dwoch linii); 68px to wartosc awaryjna, gdyby skrypt nie zdazyl. */
-    body.m-stepper-fixed main {
-        padding-bottom: calc(var(--m-stepper-h, 68px) + env(safe-area-inset-bottom, 0px) + 18px) !important;
-    }
-
-    /* Asystent (piesek 68px + dymek, assistant-avatar.css) stoi nad paskiem
-       krokow - zapas, zeby „Dalej” / „Zapisz” dalo sie wyprowadzic nad niego. */
-    body.m-stepper-fixed:has(.ea-pet) main {
-        padding-bottom: calc(var(--m-stepper-h, 68px) + env(safe-area-inset-bottom, 0px) + 130px) !important;
-    }
-
-    .m-stepper__list {
-        display: flex;
-        align-items: stretch;
-        list-style: none;
-        margin: 0;
-        padding: 8px 4px;
-        gap: 2px;
-    }
-
-    .m-stepper__item {
-        flex: 1 1 0;
-        min-width: 0;          /* pozwala kolumnom sie skurczyc zamiast
-                                  rozpychac pasek poza ekran */
-        display: flex;
-    }
-
-    .m-stepper__btn {
-        flex: 1 1 auto;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 2px;
-        border: none;
-        background: transparent;
-        color: var(--m-text-soft);
-        font: inherit;
-        cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
-    }
-
-    .m-stepper__num {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 26px;
-        height: 26px;
-        flex: 0 0 26px;
-        border-radius: 50%;
-        border: 1px solid var(--m-border-strong);
-        background: var(--m-field);
-        color: var(--m-text-muted);
-        font-size: 12px;
-        font-weight: 700;
-        line-height: 1;
-        transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-    }
-
-    /* Etykieta zawija sie do dwoch linii zamiast byc ucieta - wymog briefu
-       dotyczy takze niemieckich nazw krokow. */
-    .m-stepper__label {
-        font-size: 10.5px;
+        padding: 0 !important;
+        text-align: left !important;
+        font-size: 22px;
         line-height: 1.2;
-        font-weight: 600;
-        text-align: center;
-        width: 100%;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--m-text);
         overflow-wrap: anywhere;
         hyphens: auto;
         -webkit-hyphens: auto;
     }
 
-    .m-stepper__item.is-active .m-stepper__num {
-        background: var(--m-accent);
-        border-color: var(--m-accent);
-        color: var(--m-on-accent);
+    .m-stephead__count {
+        flex: 0 0 auto;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--m-text-muted);
+        font-variant-numeric: tabular-nums;
     }
 
-    .m-stepper__item.is-active .m-stepper__btn {
-        color: var(--m-text);
+    .m-stephead__bar {
+        display: flex;
+        gap: 6px;
+        margin: 2px 0 0;
+        padding: 0;
+        list-style: none;
     }
 
-    .m-stepper__item.is-done .m-stepper__num {
+    .m-stephead__bar > li {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .m-stephead__seg {
+        display: block;
+        width: 100%;
+        height: 44px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        position: relative;
+    }
+
+    .m-stephead__seg::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: 4px;
+        margin-top: -2px;
+        border-radius: 2px;
+        background: var(--m-border-strong);
+        transition: background-color 0.2s ease;
+    }
+
+    .m-stephead__seg.is-done::before {
         background: var(--m-accent-soft);
-        border-color: var(--m-accent);
-        color: var(--m-text);
+        box-shadow: inset 0 0 0 1px var(--m-accent);
     }
 
-    .m-stepper__btn:focus-visible {
+    .m-stephead__seg.is-active::before {
+        background: var(--m-accent);
+    }
+
+    .m-stephead__seg:focus-visible {
         outline: none;
         border-radius: var(--m-radius-sm);
         box-shadow: 0 0 0 3px var(--m-focus);
+    }
+
+    /* Wejscie kroku: sama nieprzezroczystosc - `transform` na #dynamic-form
+       zrobilby z niego blok zawierajacy dla `fixed` (okienka pol). */
+    #dynamic-form.m-step-enter {
+        animation: m-step-enter 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    @keyframes m-step-enter {
+        from { opacity: 0.35; }
+        to { opacity: 1; }
+    }
+
+    /* ======================================= 2d. KREATOR: PODSUMOWANIE === */
+    /* Ostatni krok: co wybrano, pogrupowane po krokach; wiersz = powrot do
+       kroku i pola. Same teksty pol - zadnych cen (te zostaja w polach silnika,
+       z maska liczenia). */
+    .m-summary {
+        margin: 0 0 var(--m-gap);
+        padding: 4px 0 6px;
+        background: var(--m-card);
+        border: 1px solid var(--m-border);
+        border-radius: var(--m-radius);
+        box-shadow: var(--m-shadow-card);
+        overflow: hidden;
+    }
+
+    /* Globalne style h3/h4 (wysrodkowanie, marginesy) - reset w karcie. */
+    .m-summary .m-summary__title {
+        margin: 12px 14px 2px !important;
+        padding: 0 !important;
+        font-size: 17px !important;
+        line-height: 1.3 !important;
+        font-weight: 700 !important;
+        text-align: left !important;
+        color: var(--m-text) !important;
+    }
+
+    .m-summary__group + .m-summary__group {
+        border-top: 1px solid var(--m-border);
+    }
+
+    .m-summary .m-summary__step {
+        padding: 0 !important;
+        text-align: left !important;
+        margin: 10px 14px 0 !important;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.3;
+        color: var(--m-text-muted);
+    }
+
+    .m-summary__list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .m-summary__row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 16px;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 48px;
+        margin: 0;
+        padding: 8px 14px;
+        border: 0;
+        background: none;
+        text-align: left;
+        font: inherit;
+        color: var(--m-text);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .m-summary__list li + li .m-summary__row {
+        box-shadow: inset 0 1px 0 var(--m-border);
+    }
+
+    .m-summary__row:active {
+        background: var(--m-field-press);
+    }
+
+    .m-summary__row:focus-visible {
+        outline: none;
+        box-shadow: inset 0 0 0 3px var(--m-focus);
+    }
+
+    .m-summary__label {
+        font-size: 13px;
+        line-height: 1.3;
+        font-weight: 600;
+        color: var(--m-text-muted);
+        overflow-wrap: anywhere;
+    }
+
+    .m-summary__value {
+        font-size: 15px;
+        line-height: 1.35;
+        font-weight: 500;
+        color: var(--m-text);
+        overflow-wrap: anywhere;
+    }
+
+    .m-summary__row.is-empty .m-summary__value {
+        color: var(--m-text-soft);
+    }
+
+    .m-summary .m-ico {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .m-summary .m-ico--chevron {
+        color: var(--m-text-soft);
+    }
+
+    .m-summary__value .m-ico--check {
+        width: 20px;
+        height: 20px;
+        color: var(--m-text);
+        vertical-align: middle;
+    }
+
+    /* ===================================== 3. KREATOR: PASEK AKCJI === */
+    /* Przy kciuku, przypiety do dolu ekranu: [Wstecz] [Dalej] / [Zapisz].
+       `fixed`, nie `sticky` - przewija sie <main> z wlasnym overflow.
+       z-index 1040: nad trescia i naglowkiem (1030), pod modalnymi <dialog>.
+       Asystent (piesek) staje nad paskiem przez `--m-stepper-h` (assistant.css). */
+    .m-actionbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1040;
+        display: flex;
+        gap: 10px;
+        margin: 0;
+        padding: 10px var(--m-gutter, 16px) calc(10px + env(safe-area-inset-bottom, 0px));
+        background: var(--m-card);
+        border-top: 1px solid var(--m-border);
+        box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.07);
+        box-sizing: border-box;
+    }
+
+    [data-theme="dark"] .m-actionbar {
+        box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .m-actionbar__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        min-width: 0;
+        min-height: var(--m-control-h, 52px);
+        margin: 0;
+        padding: 10px 16px;
+        border-radius: var(--m-radius-sm);
+        font: inherit;
+        font-size: var(--m-font, 16px);
+        font-weight: 700;
+        line-height: 1.25;
+        text-align: center;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        box-shadow: none;
+        transition: background-color 0.15s ease;
+    }
+
+    /* globalny polysk `button:not(.has-tooltip)::after` z theme.css */
+    .m-actionbar__btn::after {
+        content: none !important;
+    }
+
+    .m-actionbar__back {
+        flex: 0 0 auto;
+        padding-left: 10px;
+        background: transparent;
+        border: 1px solid var(--m-border-strong);
+        color: var(--m-text);
+    }
+
+    .m-actionbar__back:active {
+        background: var(--m-field-press);
+    }
+
+    .m-actionbar__next,
+    .m-actionbar__save {
+        flex: 1 1 auto;
+        background: var(--m-accent);
+        border: 1px solid var(--m-accent);
+        color: var(--m-on-accent);
+    }
+
+    .m-actionbar__next:active,
+    .m-actionbar__save:active {
+        background: var(--m-accent-press);
+        border-color: var(--m-accent-press);
+    }
+
+    /* Silnik wylacza zapis na czas przeliczania - pasek pokazuje to samo. */
+    .m-actionbar__save:disabled {
+        background: var(--m-field-press);
+        border-color: var(--m-border);
+        color: var(--m-text-soft);
+        cursor: default;
+    }
+
+    .m-actionbar__btn:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px var(--m-focus);
+    }
+
+    .m-actionbar .m-ico {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    /* Miejsce pod pasek: ostatni element formularza ma dac sie wyprowadzic
+       nad niego. `--m-stepper-h` = zmierzona wysokosc paska (skrypt). */
+    body.m-stepper-fixed main {
+        padding-bottom: calc(var(--m-stepper-h, 76px) + 18px) !important;
+    }
+
+    /* Asystent (piesek 68px, assistant-avatar.css) stoi nad paskiem przy
+       prawej krawedzi - zapas, zeby ostatnie pole dalo sie wyprowadzic nad niego. */
+    body.m-stepper-fixed:has(.ea-pet) main {
+        padding-bottom: calc(var(--m-stepper-h, 76px) + 90px) !important;
+    }
+
+    /* Dymek Eforka na formularzu zaslanial pola - zostaje sam piesek (jak w B).
+       Rozmowa otwiera sie dotknieciem pieska. */
+    body.m-stepper-fixed #eform-assistant .ea-bubble-wrap {
+        display: none !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        #dynamic-form.m-step-enter { animation: none; }
+        .m-stephead__seg::before,
+        .m-actionbar__btn { transition: none; }
     }
 
     /* ============================================ 4. WIERSZE PARAMETROW === */
@@ -491,7 +653,7 @@
        Tutaj staje sie plaskim polem wyboru z szewronem - zgodnie z makieta
        "Etykieta + Bitte auswählen ›". */
     #dynamic-form [class*="-select-area"] button.button,
-    #dynamic-form [class*="-select-area"] > button {
+    #dynamic-form [class*="-select-area"] > button:not(.efor-qty-btn) {
         display: flex !important;
         align-items: center !important;
         justify-content: flex-start !important;
@@ -536,7 +698,7 @@
           ignorowany) oraz bez `opacity: 1` szewron powstawal, ale byl
           przezroczysty i po lewej stronie przycisku. */
     #dynamic-form [class*="-select-area"] button.button::after,
-    #dynamic-form [class*="-select-area"] > button::after {
+    #dynamic-form [class*="-select-area"] > button:not(.efor-qty-btn)::after {
         content: "" !important;
         display: block !important;
         position: absolute !important;
@@ -557,7 +719,7 @@
     }
 
     #dynamic-form [class*="-select-area"] button.button:hover,
-    #dynamic-form [class*="-select-area"] > button:hover {
+    #dynamic-form [class*="-select-area"] > button:not(.efor-qty-btn):hover {
         transform: none !important;
         filter: none !important;
         box-shadow: none !important;
@@ -565,7 +727,7 @@
     }
 
     #dynamic-form [class*="-select-area"] button.button:active,
-    #dynamic-form [class*="-select-area"] > button:active {
+    #dynamic-form [class*="-select-area"] > button:not(.efor-qty-btn):active {
         transform: none !important;
         background: var(--m-field-press) !important;
         border-color: var(--m-accent) !important;
@@ -949,5 +1111,160 @@
         position: static !important;
         width: max-content;
         margin: 12px 0 0 auto;
+    }
+
+    /* ========================= 7. POLA NA TELEFONIE (PRJ-06, 20.11) ===== */
+
+    /* Jednostka w polu wymiaru (z etykiety „SZEROKOSC [MM]”) - atrybut
+       `data-m-unit` ustawia configuratorStepper.js. Pseudo-element i pole
+       stoja w tej samej komorce siatki wiersza; bez jawnego `grid-row` pola
+       automatyczne rozmieszczenie zepchneloby je wiersz nizej. */
+    #dynamic-form [data-m-unit] > input[type="number"] {
+        grid-row: 2;
+        grid-column: 1;
+        padding-right: 52px !important;
+    }
+
+    #dynamic-form [data-m-unit]::before {
+        content: attr(data-m-unit);
+        grid-row: 2;
+        grid-column: 1;
+        justify-self: end;
+        align-self: center;
+        z-index: 1;
+        margin-right: 14px;
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--m-text-muted);
+        pointer-events: none;
+    }
+
+    /* Pole liczone (disabled, bez ramki) - jednostka tuz przy wartosci. */
+    #dynamic-form [data-m-unit]:has(> input:disabled)::before {
+        margin-right: 0;
+    }
+
+    /* Pole slownikowe bez wyboru przy zapisie: obok czerwonej ramki tekst
+       jak przy polach wpisywanych (`form.obligo_field`, zmienna z kreatora). */
+    #dynamic-form [class*="-select-area"]:has(> button.button.invalid-input)::after {
+        content: var(--m-t-required, "");
+        font-size: 13px;
+        line-height: 1.3;
+        font-weight: 600;
+        color: var(--m-danger);
+    }
+
+    /* „Ostatnia konfiguracja” na pustym formularzu: przycisk z podpisem
+       zamiast samotnej ikony (podpis jest w przycisku, form.css chowa go
+       wizualnie; dymek po najechaniu na dotyku nie istnieje). */
+    #commission-form .asortment-inputs > .last-config-inline {
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    #commission-form .last-config-inline #last-config-confirm {
+        width: 100%;
+        height: auto;
+        min-height: 48px;
+        gap: 10px;
+        padding: 10px 16px;
+        border: 1px solid var(--m-border-strong);
+        border-radius: var(--m-radius-sm);
+        background: var(--m-card);
+        box-shadow: none;
+        color: var(--m-text);
+        font-size: 15px;
+        font-weight: 600;
+        animation: none;
+        transform: none;
+    }
+
+    #commission-form .last-config-inline #last-config-confirm:active {
+        background: var(--m-field-press);
+    }
+
+    #commission-form .last-config-inline #last-config-confirm::after {
+        content: none;
+    }
+
+    #commission-form .last-config-inline .last-config-label {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip: auto;
+        white-space: normal;
+    }
+
+    #commission-form .last-config-inline .last-config-icon {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+    }
+
+    /* „Ostatni wybor”: etykieta (label for) jako cel dotyku 44 px. */
+    #commission-form #check-form .form-check-label {
+        display: inline-block;
+        padding: 12px 4px;
+    }
+
+    /* Wariant B: ilosc jako [−] 2 [+] (uiVariantView.js dokłada przyciski;
+       na komputerze ten sam uklad ma theme-efor-v2.css sekcja 16). */
+    .theme-efor-v2 #dynamic-form > .efor-qty-area {
+        grid-template-columns: 52px minmax(0, 1fr) 52px !important;
+        column-gap: 0 !important;
+    }
+
+    .theme-efor-v2 #dynamic-form > .efor-qty-area > * {
+        grid-column: 1 / -1;
+    }
+
+    .theme-efor-v2 #dynamic-form > .efor-qty-area > input#ILOSC {
+        grid-column: 2;
+        grid-row: 2;
+        border-radius: 0 !important;
+        text-align: center;
+        font-weight: 600 !important;
+    }
+
+    .theme-efor-v2 #dynamic-form > .efor-qty-area > .efor-qty-btn {
+        grid-row: 2;
+        display: grid !important;
+        place-items: center;
+        width: auto !important;
+        min-width: 0 !important;
+        height: auto !important;
+        min-height: var(--m-control-h) !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 1px solid var(--m-border-strong) !important;
+        background: var(--m-field-press) !important;
+        color: var(--m-text) !important;
+        font-size: 22px !important;
+        font-weight: 500 !important;
+        line-height: 1 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+        touch-action: manipulation;
+    }
+
+    .theme-efor-v2 #dynamic-form > .efor-qty-area > .efor-qty-btn:active {
+        background: var(--m-border) !important;
+    }
+
+    .theme-efor-v2 #dynamic-form > .efor-qty-area > .efor-qty-btn::after {
+        content: none !important;
+    }
+
+    .theme-efor-v2 #dynamic-form > .efor-qty-area > .efor-qty-btn--minus {
+        grid-column: 1;
+        border-right: 0 !important;
+        border-radius: var(--m-radius-sm) 0 0 var(--m-radius-sm) !important;
+    }
+
+    .theme-efor-v2 #dynamic-form > .efor-qty-area > .efor-qty-btn--plus {
+        grid-column: 3;
+        border-left: 0 !important;
+        border-radius: 0 var(--m-radius-sm) var(--m-radius-sm) 0 !important;
     }
 }

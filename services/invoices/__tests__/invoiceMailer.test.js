@@ -300,7 +300,8 @@ test('przebieg (tryb testowy): faktury automatu → PDF → mail tylko do Pawła
     failedEvent: MailEvent.FAILED,
     maxAttempts: MAX_ATTEMPTS,
     createdByPin: [AUTO_ACTOR, 'AUTO-DAILY'],
-    limit: 50
+    limit: 50,
+    ksefGate: false
   });
   assert.equal(result.sent.length, 2);
   assert.equal(result.failed.length, 0);
@@ -460,7 +461,7 @@ test('przypomnienie: temat, wstęp, pozostała kwota; UDW do skrzynki wystawcy t
     from: 'faktury@hkl.eu', config: buyer, reminder: true, copyTo: 'faktury@hkl.eu' });
   assert.equal(message.subject, 'Przypomnienie o płatności: Faktura VAT 2026/00121 — HKL Dekoracja Okien Sp. z o.o.');
   assert.match(message.text, /^PRZYPOMNIENIE O PŁATNOŚCI/);
-  assert.match(message.text, /dziś mija termin płatności/);
+  assert.match(message.text, /termin płatności poniższej faktury minął/);
   assert.match(message.text, /Pozostało do zapłaty: 100,00 EUR/);
   assert.match(message.html, /Przypomnienie o płatności/);
   assert.equal(message.bcc, 'faktury@hkl.eu');
@@ -481,7 +482,8 @@ test('przebieg: przypomnienia po fakturach — termin dziś, od 7:00, kwota pozo
   deps.repository.findInvoicesToRemind = async (p) => { asked.push(p); return [{ id: 9, number: '26000002', buyer_name: 'Luxan GmbH', amount_due: '442.18', paid_amount: '100.00', failures: 0 }]; };
   deps.now = () => new Date(2026, 10, 20, 8, 5);
   const result = await runInvoiceMailing({ config, deps });
-  assert.deepEqual(asked, [{ today: '2026-11-20', since: '2026-11-16', mailedEvent: 'mail_redirected', doneEvent: 'reminder_redirected', failedEvent: 'reminder_failed', maxAttempts: 3, limit: config.maxPerRun }]);
+  // Domyślnie 5 dni po terminie (Wiktoria 20.11): 20.11 → terminy do 15.11
+  assert.deepEqual(asked, [{ dueOnOrBefore: '2026-11-15', since: '2026-11-16', mailedEvent: 'mail_redirected', doneEvent: 'reminder_redirected', failedEvent: 'reminder_failed', maxAttempts: 3, limit: config.maxPerRun }]);
   assert.equal(result.reminders.sent.length, 1);
   assert.match(calls.sent[0].subject, /Przypomnienie o płatności: Faktura VAT 26000002/);
   assert.match(calls.sent[0].text, /Pozostało do zapłaty: 342,18 EUR/);
@@ -495,4 +497,12 @@ test('przebieg: przypomnienia po fakturach — termin dziś, od 7:00, kwota pozo
   assert.equal((await runInvoiceMailing({ config, deps: early.deps })).reminders, undefined);
   early.deps.now = () => new Date(2026, 10, 20, 9, 5);
   assert.equal((await runInvoiceMailing({ config: readInvoiceMailConfig(BASE_ENV), deps: early.deps })).reminders, undefined);
+});
+
+test('przypomnienie: N dni po terminie z .env (INVOICE_REMINDER_DAYS_AFTER_DUE), domyślnie 5, zła wartość = 5 (20.11.2026)', () => {
+  const base = { ...BASE_ENV, INVOICE_REMINDERS_ENABLED: 'true', INVOICE_REMINDERS_SINCE: '2026-11-16' };
+  assert.equal(readInvoiceMailConfig(base).reminderDaysAfterDue, 5);
+  assert.equal(readInvoiceMailConfig({ ...base, INVOICE_REMINDER_DAYS_AFTER_DUE: '7' }).reminderDaysAfterDue, 7);
+  assert.equal(readInvoiceMailConfig({ ...base, INVOICE_REMINDER_DAYS_AFTER_DUE: '0' }).reminderDaysAfterDue, 0);
+  assert.equal(readInvoiceMailConfig({ ...base, INVOICE_REMINDER_DAYS_AFTER_DUE: 'tydzień' }).reminderDaysAfterDue, 5);
 });

@@ -239,6 +239,111 @@
         border-color: var(--m-accent) !important;
     }
 
+    /* Akcje z podpisami (PRJ-06, 20.11): kafel = ikona w kwadracie 48 px + podpis
+       pod spodem (`.m-act-label` w order.njk), siatka 3 kolumn przy 320 px, 4 od 375.
+       Przycisk jest przezroczysty, kształt nosi ikona (pierwsze dziecko: img albo
+       emoji linku) — B nadpisuje go kółkiem w theme-efor-v2.css. `#order-nav`
+       w selektorach, bo reguły wyżej mają po jednym id i !important. */
+    #order-nav .mobile-top-row:has(.m-act-label) {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+        gap: 12px 8px !important;
+        align-items: start !important; /* mobile/order_details.css: center !important */
+    }
+    #order-nav .mobile-top-row:has(.m-act-label) #order-buttons,
+    #order-nav .mobile-top-row:has(.m-act-label) #generate-container-mobile {
+        display: contents !important;
+    }
+    #order-nav .mobile-top-row .btn:has(> .m-act-label),
+    #order-nav .mobile-top-row .action-btn:has(> .m-act-label) {
+        width: auto !important;
+        min-width: 0 !important;
+        height: auto !important;
+        min-height: 44px;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        gap: 4px;
+        background: transparent !important;
+        border: 0 !important;
+        text-decoration: none;
+    }
+    #order-nav .mobile-top-row :is(.btn, .action-btn):has(> .m-act-label) > :first-child {
+        box-sizing: border-box;
+        display: grid;
+        place-items: center;
+        width: 48px !important;
+        height: 48px !important;
+        max-width: none !important; /* .icon: max 30px */
+        max-height: none !important;
+        padding: 12px;
+        object-fit: contain;
+        background: var(--m-field);
+        border: 1px solid var(--m-border);
+        border-radius: var(--m-radius-sm);
+        line-height: 1;
+    }
+    #order-nav .mobile-top-row :is(.btn, .action-btn):has(> .m-act-label):active > :first-child {
+        background: var(--m-field-press);
+    }
+    #order-nav #order-buttons #new-order-button:has(> .m-act-label) {
+        background: transparent !important;
+    }
+    #order-nav #new-order-button:has(> .m-act-label) > :first-child {
+        background: var(--m-accent);
+        border-color: var(--m-accent);
+    }
+    /* „Wyślij zamówienie” przy kciuku w A (jak w B, theme-efor-v2.css): pasek nad
+       paskiem kart. `.custom-order-btn` jest tylko w ofercie (order.njk, blok
+       send_order_btn), więc inne strony A się nie zmieniają. Piesek staje nad
+       paskiem przez `--m-stepper-h` (assistant.css liczy z niej `--ea-bottom`). */
+    html:not(.theme-efor-v2) .send-order-actions:has(.custom-order-btn) {
+        position: fixed !important;
+        left: 0;
+        right: 0;
+        bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px));
+        z-index: 1020;
+        display: flex !important;
+        flex-wrap: wrap;
+        justify-content: center !important;
+        gap: 8px;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 10px var(--m-gutter) !important;
+        background: var(--m-card) !important;
+        border-top: 1px solid var(--m-border);
+    }
+    html:not(.theme-efor-v2) .send-order-actions .custom-order-btn,
+    html:not(.theme-efor-v2) .send-order-actions #send-order { /* order_details.css: #send-order margin 3% !important */
+        flex: 1 1 0;
+        min-height: 50px !important;
+        margin: 0 !important;
+    }
+    html:not(.theme-efor-v2) .send-order-actions .custom-order-btn p {
+        margin: 0 !important;
+    }
+    html:not(.theme-efor-v2):has(.send-order-actions .custom-order-btn) {
+        --m-stepper-h: 72px;
+    }
+    /* fadeInUp zostawia transform na .content i karcie — fixed liczyłby się od nich, nie od ekranu */
+    html:not(.theme-efor-v2) :is(.content, .mobile-rm-card):has(.send-order-actions .custom-order-btn) {
+        animation: none !important;
+        transform: none !important;
+    }
+    html:not(.theme-efor-v2) main:has(.send-order-actions .custom-order-btn) {
+        padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 96px) !important;
+    }
+
+    .m-act-label {
+        max-width: 100%;
+        color: var(--m-text-muted);
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1.25;
+        text-align: center;
+        white-space: normal; /* .btn: nowrap */
+        overflow-wrap: anywhere;
+    }
+
     #order-buttons #new-order-button .ico {
         /* Ikona jest ciemnym PNG-iem; na zlotym tle zostawiamy ja bez filtra,
            bo `--m-on-accent` jest rowniez ciemny (kontrast ~6:1). */
@@ -433,6 +538,7 @@
 
     .sub-param-value {
         color: var(--m-text) !important;
+        white-space: nowrap; /* kwota nie łamie się w środku („305.” / „14”) przez overflow-wrap wyżej */
     }
 
     .mobile-item-actions {
@@ -535,5 +641,13 @@
         font-weight: 700 !important;
         color: var(--m-text) !important;
         overflow-wrap: anywhere;
+    }
+}
+
+/* Akcje karty pozycji przy 320 px: Duplikuj / Edytuj / Usuń w jednym rzędzie,
+   strzałki kolejności pod nimi (razem 319 px przy 258 px miejsca — „Usuń” spadała sama). */
+@media (max-width: 359.98px) {
+    .mobile-item-actions > .position-controls {
+        order: 1;
     }
 }

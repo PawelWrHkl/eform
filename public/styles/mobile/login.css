@@ -41,11 +41,6 @@
 		margin-top: 30rem !important;
 		padding: 5px !important;
 	}
-	.login-actions {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
 	.login-box .btn {
 		width: 80%;
 		padding: 14px;
@@ -57,11 +52,5 @@
 	}
 	.login-box .btn:hover {
 		background: var(--text);
-	}
-	.login-footer {
-		margin-top: auto;
-		font-size: 0.9rem;
-		color: var(--muted-text);
-		text-align: center;
 	}
 }

@@ -1,0 +1,92 @@
+{# Karty statusu pozycji wysłanego zlecenia — wspólne dla tabeli (komputer, extra_rows)
+   i karty pozycji na telefonie (mobile_item_actions) w order_sent.njk.
+   Wymaga: orderDetails, statuses, statusIdx, itemProdDays. #}
+{% if orderDetails.status == 'canceled' or statuses[statusIdx].canceled %}
+{# Anulowane zlecenie: zamiast statusu produkcji (który mógł
+   jeszcze spłynąć z `status.txt`) jeden jasny komunikat.
+   Także pojedyncza pozycja anulowana w PROD (`canceled`, routes/orders.js). #}
+        <div class="status-cards">
+            <div class="status-card status-card-main" data-status="cancelled">
+                <div class="status-card-header">
+                    <span class="status-indicator"></span>
+                    <span class="status-card-label">{{ __('order.status_label') }}</span>
+                </div>
+                <div class="status-card-value">{{ __('cancel_order.status_canceled') }}</div>
+            </div>
+        </div>
+{% elif statuses[statusIdx] %}
+{# Identyfikator z POZYCJI, nie z `order_pos`: przełącznik
+   (`public/scripts/order_sent.js`) szuka wiersza po id pozycji,
+   a `order_pos` bywa teraz podpozycją `1-2` albo kodem produkcyjnym. #}
+        <div class="status-cards">
+            <div class="status-card status-card-main" data-status="{{ statuses[statusIdx].status }}">
+                <div class="status-card-header">
+                    <span class="status-indicator"></span>
+                    <span class="status-card-label">{{ __('order.status_label') }}</span>
+                </div>
+                <div class="status-card-value">{{ __(statuses[statusIdx].status) }}</div>
+            </div>
+            <div class="status-card">
+                <div class="status-card-header">
+                    <span class="status-card-label">
+                        {% if statuses[statusIdx].status == 'sent' %}
+                            {{ __('order.shipping_date_label') }}
+                        {% else %}
+                            {{ __('order.pred_shipping_date_label') }}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="status-card-value">{{ (statuses[statusIdx].shipping_date) }}</div>
+            </div>
+            {% if statuses[statusIdx].parcel_href %}
+                <div class="status-card" id='parcel-link-card'>
+                    <div class="status-card-header">
+                        <span class="status-card-label">{{ __('order.shipping_method_label') }}</span>
+                    </div>
+                    <a href="{{ statuses[statusIdx].parcel_href }}" id='parcel-link' target="_blank" rel="noopener noreferrer">
+                        <div class="status-card-value status-card-code">
+                            <img src="/img/express-delivery.png" alt="delivery icon" class="icon ms-1">
+                                <span>
+                                    {{ statuses[statusIdx].parcel_code }}</span>
+                            </div>
+                        </div>
+                    </a>
+                {% else %}
+                    <div class="status-card">
+                        <div class="status-card-header">
+                            <span class="status-card-label">{{ __('order.shipping_method_label') }}</span>
+                        </div>
+                        <div class="status-card-value status-card-code">{{ statuses[statusIdx].parcel_code }}</div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+{% else %}
+        <div class="status-cards">
+            <div class="status-card status-card-main" data-status="default">
+                <div class="status-card-header">
+                    <span class="status-indicator"></span>
+                    <span class="status-card-label">{{ __('order.status_label') }}</span>
+                </div>
+                <div class="status-card-value">{{ __('order.status_order_sent') }}</div>
+            </div>
+            <div class="status-card">
+                <div class="status-card-header">
+                    <span class="status-card-label">{{ __('order.pred_shipping_date_label') }}</span>
+                </div>
+                <div class="status-card-value">
+                    {% if itemProdDays %}
+                        {{ itemProdDays }} {{ __('termin.days') }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </div>
+            </div>
+            <div class="status-card">
+                <div class="status-card-header">
+                    <span class="status-card-label">{{ __('order.shipping_method_label') }}</span>
+                </div>
+                <div class="status-card-value status-card-code">-</div>
+            </div>
+        </div>
+{% endif %}

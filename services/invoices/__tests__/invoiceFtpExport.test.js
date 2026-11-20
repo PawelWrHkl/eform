@@ -470,17 +470,21 @@ test('plik pozycji: nagłówek, TAB, CRLF, kwota z kropką, okres tylko przy fak
     { level: 2, number: '26000008', issue_date: '2026-11-17', sale_date: '2026-11-15', order_id: null, created_by_pin: 'AUTO', order_name: 'Verzamelfactuur 2026-W46 · 3 bestellingen',
       document_type: 'invoice', organization_ident: 'Cozy', user_ident: 'Wonen', order_idx: '19', orderpos: 2, quantity: '1.000', net_amount: '99' },
     { level: 2, number: 'KOR/2026/11/1', issue_date: '2026-11-18', sale_date: '2026-11-18', order_id: 7, created_by_pin: 'admin', document_type: 'correction',
-      organization_ident: 'Cozy', user_ident: 'M2\tvloeren', order_idx: '6', orderpos: 1, quantity: '1', net_amount: '0' }
+      organization_ident: 'Cozy', user_ident: 'M2\tvloeren', order_idx: '6', orderpos: 1, quantity: '1', net_amount: '0' },
+    { level: 2, number: '2026/00031', issue_date: '2026-11-21', sale_date: '2026-11-20', order_id: 3400, created_by_pin: 'AUTO', document_type: 'invoice',
+      organization_ident: 'LUXANGMBH', user_ident: 'Plissee_de', order_idx: null, orderpos: null, quantity: '1.000', net_amount: '8.5', item_type: 'transport' }
   ];
   const text = buildPositionsTsv(rows).toString('utf8');
   const lines = text.split('\r\n');
-  assert.equal(lines[0], 'LEVEL\tINVOICENO\tINVOICEDATE\tPERIODFROM\tPERIODTO\tDOCTYPE\tORGANIZATIONIDENT\tUSERIDENT\tORDERNO\tORDERPOS\tQUANTITY\tNETAMOUNT');
-  assert.equal(lines[1], '1\t2026/00811\t2026-11-12\t\t\tfaktura\tLUXANGMBH\tKN_Wohnen\t151\t3\t2\t120.50');
-  assert.equal(lines[2], '1\t2026/00812\t2026-11-13\t2026-11-12\t2026-11-12\tfaktura\tLUXANGMBH\tGolser\t9\t1\t2.5\t11.40');
-  assert.equal(lines[3], '2\t26000008\t2026-11-17\t2026-11-09\t2026-11-15\tfaktura\tCozy\tWonen\t19\t2\t1\t99.00');
+  assert.equal(lines[0], 'LEVEL\tINVOICENO\tINVOICEDATE\tPERIODFROM\tPERIODTO\tDOCTYPE\tORGANIZATIONIDENT\tUSERIDENT\tORDERNO\tORDERPOS\tQUANTITY\tNETAMOUNT\tTYPE');
+  assert.equal(lines[1], '1\t2026/00811\t2026-11-12\t\t\tfaktura\tLUXANGMBH\tKN_Wohnen\t151\t3\t2\t120.50\t');
+  assert.equal(lines[2], '1\t2026/00812\t2026-11-13\t2026-11-12\t2026-11-12\tfaktura\tLUXANGMBH\tGolser\t9\t1\t2.5\t11.40\t');
+  assert.equal(lines[3], '2\t26000008\t2026-11-17\t2026-11-09\t2026-11-15\tfaktura\tCozy\tWonen\t19\t2\t1\t99.00\t');
+  // Linia transportu: bez zlecenia i pozycji, klient faktury, typ `transport`
+  assert.equal(lines[5], '2\t2026/00031\t2026-11-21\t\t\tfaktura\tLUXANGMBH\tPlissee_de\t\t\t1\t8.50\ttransport');
   assert.equal(lines[4].split('\t')[5], 'korekta');
-  assert.equal(lines.length, 6, 'cztery pozycje + nagłówek + pusta po ostatnim CRLF');
-  assert.equal(lines[5], '');
+  assert.equal(lines.length, 7, 'pięć pozycji + nagłówek + pusta po ostatnim CRLF');
+  assert.equal(lines[6], '');
   assert.deepEqual(collectivePeriod({ order_id: null, created_by_pin: 'AUTO', order_name: 'Sammelrechnung 2026-10 · 4 Aufträge', sale_date: '2026-10-31' }), ['2026-10-01', '2026-10-31']);
 });
 
@@ -493,7 +497,7 @@ test('przebieg: plik pozycji ląduje w katalogu głównym, cały od nowa, także
   const server = fakeFtpServer();
   const result = await runInvoiceFtpExport({ config: readInvoiceFtpConfig(BASE_ENV), deps: { repository: repo, service: fakeService(), connect: server.connect, log: quiet } });
   assert.deepEqual([...server.files.keys()], ['/invoices-test/zafakturowane_pozycje.tsv']);
-  assert.match(server.files.get('/invoices-test/zafakturowane_pozycje.tsv').toString(), /\r\n2\t26000008\t2026-11-17\t\t\tfaktura\tCozy\tWonen\t19\t1\t1\t10\.00\r\n$/);
+  assert.match(server.files.get('/invoices-test/zafakturowane_pozycje.tsv').toString(), /\r\n2\t26000008\t2026-11-17\t\t\tfaktura\tCozy\tWonen\t19\t1\t1\t10\.00\t\r\n$/);
   assert.deepEqual(result.positions, { path: '/invoices-test/zafakturowane_pozycje.tsv', lines: 1 });
   assert.equal(result.failed.length, 0);
   assert.ok(server.clients.every((c) => c.closed));

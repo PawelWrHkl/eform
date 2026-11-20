@@ -284,6 +284,10 @@ async function getUserData(pin) {
  * @param {{ extras?: boolean }} [opts]
  */
 async function getUsers({ extras = false } = {}) {
+    // `extras`: lista kolumn z contractors.txt, które baza ma (`dbUserSync.supportsContractorExtras`);
+    // `true` = dawne cztery (płatnik i bank) — ręczny podgląd różnic
+    const extraCols = extras === true ? ['paymaster_ident', 'bank_name', 'bank_account', 'swift']
+        : (Array.isArray(extras) ? extras.filter((c) => /^[a-z_]+$/.test(c)) : []);
     const sql = `
         SELECT
             ident,
@@ -298,7 +302,7 @@ async function getUsers({ extras = false } = {}) {
             email,
             country,
             country AS kraj,
-            ${extras ? 'paymaster_ident, bank_name, bank_account, swift,' : ''}
+            ${extraCols.map((c) => `${c},`).join(' ')}
             role
         FROM eform.\`user\`
     `;

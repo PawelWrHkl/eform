@@ -13,6 +13,52 @@
 /** @type {Array<{ version: number, date: string, env: 'produkcja'|'test', title: string, changes: string[] }>} */
 const INVOICE_VERSIONS = Object.freeze([
   {
+    version: 24,
+    date: '2026-11-20',
+    env: 'test',
+    title: 'Termin płatności: 60 dni dla HKL → Cozy i HKL → Luxan GmbH, termin klienta z contractors.txt',
+    changes: [
+      'Pytanie Wiktorii z 20.11, decyzja Pawła „jedno i drugie”. Faktury HKL → Cozy i HKL → Luxan GmbH dostają termin 60 dni, jak faktury PROD z 16–17.11. Termin organizacji jest zapisany przy jej koncie klienta (Cozy, LuxanGmbH). Faktury Cozy i Luxan GmbH dla ich klientów zostają przy 14 dniach.',
+      'contractors.txt może mieć nową kolumnę PAYMENT_DAYS (termin w dniach; puste albo „-” = brak). Faktura bierze termin w tej kolejności: ręczna zmiana na fakturze → płatnik (PAYMASTER_IDENT) → klient → organizacja-nabywca → wystawca → 14 dni. Dopóki plik nie ma tej kolumny, wszystko zostaje jak dziś.',
+      'Faktury już wystawione zachowują swój termin, także po „Pobierz ponownie z zlecenia” i „Przelicz dzienne ponownie”. Nowy termin dostają faktury wystawione od teraz, także z szkiców.'
+    ]
+  },
+  {
+    version: 23,
+    date: '2026-11-20',
+    env: 'test',
+    title: 'Płatności i przypomnienia tylko dla faktur HKL; przypomnienie 5 dni po terminie, tylko z numerem KSeF',
+    changes: [
+      'Ustalenia Wiktorii z 20.11: plik płatności z księgowości obejmuje tylko faktury wystawiane przez HKL (do organizacji i do klientów HKL). Tylko one mają status „otwarta/opłacona”. Faktury Cozy i Luxan GmbH dla ich klientów pokazują w panelu „wystawiona” zamiast „otwarta”, bo ich wpłat eForm nie zna.',
+      'Przypomnienie o płatności idzie kilka dni PO terminie (domyślnie 5, INVOICE_REMINDER_DAYS_AFTER_DUE w .env), bo wpłata jest w księgach do ok. 3 dni po wyciągu. Treść: „termin płatności poniższej faktury minął”.',
+      'Przypomnienie dostaje tylko faktura HKL z numerem KSeF (plik numery_ksef). Faktura bez numeru, np. powtarzająca fakturę PROD, nie dostaje przypomnienia. Gdy numer KSeF przyjdzie później, przypomnienie pójdzie od razu, raz.',
+      'W pliku płatności: zapłacono = suma narastająca wszystkiego, co księgowość rozliczyła z fakturą (przelewy i kompensaty), data = data ostatniego wyciągu.'
+    ]
+  },
+  {
+    version: 22,
+    date: '2026-11-20',
+    env: 'test',
+    title: 'Koszty transportu na fakturach Luxan GmbH → klient (kalkulator Wiktorii)',
+    changes: [
+      'Raz na dzień wysyłki eForm wysyła do kalkulatora Wiktorii wszystkie sztuki wysłane tego dnia klientom Luxan GmbH (z pliku statusów, tylko wysłane), także te już zafakturowane. Faktura Luxan GmbH → klient zlecenia wysłanego od 20.11 powstaje dopiero po wycenie każdego jego dnia wysyłki i dostaje linię „Transportkosten …” z kwotą z kalkulatora, z VAT jak towar.',
+      'Kwota 0 nic nie dopisuje, opłata miesięczna trafia raz na klienta i miesiąc, a ta sama opłata nie trafi na fakturę drugi raz. Opłata przy fakturze już wystawionej (z PROD albo bez tej linii) i przypadek bez kwoty idą mailem „do doliczenia przez biuro”.',
+      'Gdy kalkulator odrzuca zapytanie albo nie odpowiada, faktury czekają, a eForm ponawia próby i wysyła alarm (na razie do Wiktorii). Plik zafakturowanych pozycji ma nową ostatnią kolumnę TYPE („transport”), a linie bez zlecenia mają klienta faktury.'
+    ]
+  },
+  {
+    version: 21,
+    date: '2026-11-20',
+    env: 'test',
+    title: 'KSeF: numer i kod QR na fakturach HKL, blokada przyjętych faktur',
+    changes: [
+      'eForm czyta z FTP plik Wiktorii numery_ksef.tsv (stan każdej faktury HKL w KSeF: przyjęta, odrzucona albo wstrzymana). Na teście, na produkcji wyłączone, dopóki Wiktoria nie da znać, że plik jest na FTP.',
+      'Faktura HKL przyjęta w KSeF ma na PDF kod QR z linku weryfikacyjnego KSeF, a pod nim numer KSeF — także na FTP i w mailu, jeśli PDF powstaje po przyjęciu.',
+      'Faktury przyjętej w KSeF nie da się już edytować, pobrać ponownie z zlecenia, przeliczyć jako dziennej ani anulować — tylko korekta. Ta sama blokada obejmie faktury Luxan GmbH przyjęte przez niemiecką usługę e-faktur (tryb live od stycznia).',
+      'Przygotowane, domyślnie wyłączone: PDF faktury HKL wychodzi do klienta dopiero po przyjęciu w KSeF; bez wiersza w pliku faktura czeka, przy odrzuceniu albo wstrzymaniu nie wychodzi. Włączenie: INVOICE_KSEF_MAIL_GATE=true.'
+    ]
+  },
+  {
     version: 20,
     date: '2026-11-19',
     env: 'produkcja',

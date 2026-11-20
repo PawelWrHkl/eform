@@ -404,14 +404,6 @@
         margin: 10px 0 !important;
         font-size: 0.9rem !important;
     }
-    .mobile-item-qty {
-        background: var(--bg-surface-sunken) !important;
-        padding: 4px 8px !important;
-        border-radius: 4px !important;
-        font-weight: bold !important;
-        min-width: 40px !important;
-        text-align: center !important;
-    }
     .mobile-item-card.expanded .mobile-item-details {
         display: block !important;
         margin: 10px 0 !important;
@@ -430,58 +422,6 @@
         padding: 6px 12px !important;
         font-size: 0.85rem !important;
         border-radius: 6px !important;
-    }
-    .order-metadata {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 15px !important;
-        margin-top: 20px !important;
-    }
-    .summary-card {
-        background: var(--bg-surface) !important;
-        padding: 20px !important;
-        border-radius: var(--radius-md) !important;
-        border: 1px solid var(--border-default) !important;
-        box-shadow: var(--shadow-sm) !important;
-        margin-top: 20px !important;
-    }
-    .summary-card h3 {
-        font-size: 1.2rem !important;
-        margin-bottom: 15px !important;
-        text-align: center !important;
-        border-bottom: 1px solid var(--border-default) !important;
-        padding-bottom: 10px !important;
-    }
-    .mobile-hide {
-        display: none !important;
-    }
-    .comments-section {
-        background: var(--bg-surface) !important;
-        padding: 15px !important;
-        border-radius: var(--radius-md) !important;
-        border: 1px solid var(--border-default) !important;
-        margin-top: 20px !important;
-    }
-    .comments-section textarea {
-        width: 100% !important;
-        min-height: 100px !important;
-        padding: 12px !important;
-        border-radius: 8px !important;
-        border: 1px solid var(--border-default) !important;
-        font-size: 16px !important;
-        resize: vertical !important;
-    }
-    .pdf-print-buttons {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 10px !important;
-        margin-top: 20px !important;
-    }
-    .pdf-print-buttons .btn {
-        width: 100% !important;
-        padding: 15px !important;
-        border-radius: 8px !important;
-        font-size: 1.1rem !important;
     }
     .col-9 {
         width: 100% !important;
@@ -568,9 +508,6 @@
     }
     #comment {
         margin-left: 5% !important;
-    }
-    .mobe-down-btn {
-        height: 20px !;
     }
     .position-controls {
         gap: 2px !important;

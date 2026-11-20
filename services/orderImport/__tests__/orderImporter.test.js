@@ -733,3 +733,75 @@ test('importResolvedOrder without orderno leaves numbering to the trigger', asyn
     assert.deepEqual(res.warnings, []);
   }
 });
+
+// Group 75: DLUGOSC_STER (plastic bead, list every 250 mm) vs DLUGSTER (metal, free).
+const GROUP75_PARAM_TXT = [
+  'NAME\tDESCRIPTION\tTYPE\tPROC\tENABLE\tSOURCE\tFORMROW\tLISTROW',
+  'KOLOR_STEROWANIA\tKOLOR STER.\tdict\t<NULL>\t<NULL>\t<NULL>\t1\t1',
+  'DLUGOSC_STER\tDLUGOŚĆ STER.[MM]\tnumeric\t<NULL>\t=NOT(WSROD(KOLOR_STEROWANIA,"V15M"))\t<NULL>\t1\t1',
+  'DLUGSTER\tDLUGOŚĆ STER.[MM]\tnumeric\t<NULL>\t=WSROD(KOLOR_STEROWANIA,"V15M")\t<NULL>\t1\t1'
+].join('\n');
+
+async function importSnappedLength(kolor) {
+  const { parseParamDefinitions } = require('../paramVisibility');
+  const inserted = [];
+  const metal = kolor === 'V15M';
+  const result = await importResolvedOrder({
+    payload: { userIdent: 'RD', items: [{ product: '75', posid: 3, parameters: { KOLOR_STEROWANIA: kolor, DLUGOSC_STER: 900 } }] },
+    user: { id: 1, ident: 'RD', org_ident: 'HKL' },
+    lang: 'pl',
+    deps: {
+      orders: { async insertSendAddress() { return null; }, async insertNewOrder() { return 1; }, async getOrderNo() { return '1'; } },
+      positions: {
+        async insertNewForm(formData) { inserted.push(formData); return [{ insertId: 1 }]; },
+        async reindexOrderPositions() {},
+        async updateOrderPrice() {},
+        async getAppVersion() { return '0.3.494'; }
+      },
+      itemBuilder: { buildOrderItemStructure: (...args) => ({ jsonValues: args[9] }) },
+      translator: async (p) => p,
+      twinResolver: async (_g, p) => ({
+        parameters: { ...p, DLUGSTER: p.DLUGOSC_STER, DLUGOSC_STER: '1000' },
+        notes: [],
+        snapped: { DLUGOSC_STER: { from: '900', to: '1000' } }
+      }),
+      optionValidator: async () => ({ ok: true, errors: [] }),
+      formEngine: {
+        async calculatePrices({ values }) {
+          return {
+            values: { ...values, DLUGOSC_STER___VISIBLE: !metal, DLUGSTER___VISIBLE: metal, CENA: 100 },
+            displayValues: {},
+            total: { total: 100, total_hidden: 100, total_sub: 0 },
+            shortJson: { data: {}, order: [] },
+            formMeta: { params: [], lockedParams: [], subParams: [], skipCountParams: [] }
+          };
+        },
+        displayValuesToWireFormat: (dv) => JSON.stringify(Object.entries(dv || {})),
+        stubDisplayEntries: (v) => Object.entries(v || {})
+      },
+      displayBuilder: async () => ({}),
+      groupNameResolver: async () => 'ROLETA',
+      departmentNameResolver: async () => 'ROLETY',
+      translationRepo: { async getGroupTranslations() { return { params: {}, paramdict: {} }; } },
+      loadClientDescriptions: async () => new Map(),
+      readFormParamDefs: async () => parseParamDefinitions(GROUP75_PARAM_TXT),
+      log: () => {}
+    }
+  });
+  return { values: inserted[0].jsonValues, warnings: result.warnings };
+}
+
+test('importResolvedOrder reports a snapped plastic-bead length and keeps it', async () => {
+  const { values, warnings } = await importSnappedLength('V15DP');
+  assert.equal(values.DLUGOSC_STER, '1000');
+  assert.equal(values.DLUGSTER, '');
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /Pozycja 3 \(grupa 75\): DLUGOSC_STER 900 spoza listy — przyjęto 1000/);
+});
+
+test('importResolvedOrder keeps the raw metal length and says nothing about the hidden select', async () => {
+  const { values, warnings } = await importSnappedLength('V15M');
+  assert.equal(values.DLUGSTER, 900);
+  assert.equal(values.DLUGOSC_STER, '');
+  assert.deepEqual(warnings, []);
+});

@@ -16,6 +16,7 @@
 
 const { connetToDb } = require('../../db/core');
 const { log } = require('../../utils/logging');
+const translationDict = require('../translationDict');
 
 // ─── Data loaders ────────────────────────────────────────────────────────────
 
@@ -214,38 +215,70 @@ async function resolveItemAliases(parameters, groupNumber, paramCollectionMap) {
   return { resolved, errors };
 }
 
-async function resolvePayloadAliases(items, userIdent) {
+/**
+ * @param {object} [deps]  Test overrides: `resolveItemAliases`, `syncGroup`.
+ */
+async function resolvePayloadAliases(items, userIdent, deps = {}) {
+  const resolveItem = deps.resolveItemAliases || resolveItemAliases;
+  const syncGroup = deps.syncGroup || translationDict.syncGroup;
+
   // Resolve org/user for collection config lookup
   const userOrg = userIdent ? await resolveUserOrg(userIdent) : null;
   const orgIdent = userOrg ? userOrg.orgIdent : '';
   const resolvedUserIdent = userOrg ? userOrg.userIdent : '';
 
-  const allErrors = [];
-  const resolvedItems = [];
+  const resolveAll = async () => {
+    const allErrors = [];
+    const resolvedItems = [];
+    const failedGroups = new Set();
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const groupNumber = item.product || item.asortment || '';
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const groupNumber = item.product || item.asortment || '';
 
-    if (!groupNumber) {
-      resolvedItems.push(item);
-      continue;
+      if (!groupNumber) {
+        resolvedItems.push(item);
+        continue;
+      }
+
+      // Load collection config for this org/user/group
+      const paramCollectionMap = (orgIdent && resolvedUserIdent)
+        ? await loadParamCollectionConfig(groupNumber, orgIdent, resolvedUserIdent)
+        : new Map();
+
+      const { resolved, errors } = await resolveItem(item.parameters || {}, groupNumber, paramCollectionMap);
+      resolvedItems.push({ ...item, parameters: resolved });
+
+      if (errors.length) failedGroups.add(String(groupNumber));
+      for (const err of errors) {
+        allErrors.push(`Item[${i}] (group=${groupNumber}): ${err}`);
+      }
     }
+    return { resolvedItems, allErrors, failedGroups };
+  };
 
-    // Load collection config for this org/user/group
-    const paramCollectionMap = (orgIdent && resolvedUserIdent)
-      ? await loadParamCollectionConfig(groupNumber, orgIdent, resolvedUserIdent)
-      : new Map();
-
-    const { resolved, errors } = await resolveItemAliases(item.parameters || {}, groupNumber, paramCollectionMap);
-    resolvedItems.push({ ...item, parameters: resolved });
-
-    for (const err of errors) {
-      allErrors.push(`Item[${i}] (group=${groupNumber}): ${err}`);
+  let out = await resolveAll();
+  if (out.failedGroups.size) {
+    // translation_dictionary is refreshed only by the admin "Synchronizuj" button,
+    // while a form export changes param/paramdict at once — re-read the failing
+    // groups from their files and try once more before the file goes to error/.
+    const synced = [];
+    for (const groupNumber of out.failedGroups) {
+      try {
+        const r = await syncGroup(groupNumber);
+        synced.push(groupNumber);
+        log(`aliasResolver: unknown value in group ${groupNumber} — translation_dictionary synced from files (${r && r.status}, ${r && r.entries} entries)`);
+      } catch (err) {
+        log(`aliasResolver: syncGroup(${groupNumber}) failed: ${err.message}`);
+      }
+    }
+    out = await resolveAll();
+    if (out.allErrors.length && synced.length) {
+      out.allErrors.push(`Słownik grup(y) ${synced.join(', ')} zsynchronizowany z plików formularza tuż przed tą próbą — tych wartości nie ma w formularzu.`);
     }
   }
 
-  return { items: resolvedItems, errors: allErrors };
+  return { items: out.resolvedItems, errors: out.allErrors };
 }
 
 module.exports = { resolveItemAliases, resolvePayloadAliases, resolveUserOrg };

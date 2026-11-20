@@ -1,9 +1,5 @@
 /* Mobile responsive overrides */
 @media (max-width: 767.98px) {
-    .form-content {
-        margin-left: 0;
-        max-width: 100%;
-    }
 
     #dynamic-form {
         grid-template-columns: 1fr;
@@ -34,5 +30,64 @@
     [class$="-select-area"] > button {
         display: block;
         width: 100% !important;
+    }
+}
+
+/* PRJ-06 (20.11): elementy szersze od ekranu 320 px.
+   Panel: kafelki-łącza w siatce `1fr` (orderCancel.css) - element siatki ma
+   `min-width: auto`, więc długi napis rozpychał kolumnę do 327 px.
+   Serwis: plakietki statusu z `white-space: nowrap` (service.css) do 358 px. */
+@media (max-width: 767.98px) {
+    .panel-links { grid-template-columns: minmax(0, 1fr); }
+    .panel-link-card { min-width: 0; overflow-wrap: anywhere; }
+    main .svc-badge { white-space: normal; max-width: 100%; }   /* `main` - service.css laduje sie po tym pliku */
+}
+
+/* PRJ-06 (20.11): dymki `.has-tooltip` (layout.css) działają na :hover - na
+   dotyku zostają przyklejone po stuknięciu, a ukryte (opacity 0) i tak
+   poszerzały stronę (oferta A: 391 px przy 390). Fokus z klawiatury zostaje. */
+@media (max-width: 767.98px) {
+    main .has-tooltip:not(:focus-visible):not(#last-config-confirm)::before,
+    main .has-tooltip:not(:focus-visible):not(#last-config-confirm)::after {
+        display: none;
+    }
+}
+
+/* PRJ-06 (20.11): nagłówki panelu, Serwisu i faktur w A — do lewej, 24 px, bez pustego
+   pasa nad nimi (jak listy w mobile/orders.css). `.content h1` z mobile/form.css centruje
+   każde h1 z !important, stąd !important tutaj. B ma własne nagłówki (theme-efor-v2.css). */
+@media (max-width: 767.98px) {
+    html:not(.theme-efor-v2) .content :is(.panel-title, .svc-title),
+    html:not(.theme-efor-v2) .content .inv-topbar .header {
+        text-align: left !important;
+        font-size: 24px !important;
+        padding: 0 !important;
+        margin-bottom: 4px !important;
+    }
+    /* panel: main 16 + .content 15 + .panel-wrap 16 + karta 24 z każdej strony — przy 320 px pole miało 164 px */
+    html:not(.theme-efor-v2) .content:has(> .panel-wrap) {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    html:not(.theme-efor-v2) main .panel-wrap {
+        padding: 8px 0 0;
+    }
+    html:not(.theme-efor-v2) main .panel-card {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    html:not(.theme-efor-v2) main .panel-field .form-control {
+        width: 100% !important; /* mobile/components.css: 93% !important */
+    }
+    html:not(.theme-efor-v2) main .svc-wrap {
+        text-align: left;
+    }
+    html:not(.theme-efor-v2) .container.mobile-rm-card:has(.inv-topbar) {
+        margin-top: 8px !important;
+    }
+    /* nowe zlecenie (A i B): zagnieżdżony .row (-12 px z Bootstrapa) wychodził 7 px za lewą krawędź */
+    main .row.mobile-rm-row-paddding {
+        margin-left: 0;
+        margin-right: 0;
     }
 }

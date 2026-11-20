@@ -141,3 +141,120 @@
         border-radius: 6px !important;
     }
 }
+/* PRJ-06 (20.11) — wygląd A na telefonie: lista widoczna od pierwszego ekranu.
+   Pierwsza karta stała na 719 px z 844: tytuł 32 px + 32 px odstępu, pole
+   szukania 91×24 (form.css `.filter-group { align-items: center }` +
+   orders.css `max-width: calc(50% - 8px)`), daty w kolumnie z `margin-left: 15%`.
+   Teraz: tytuł do lewej, szukanie na całą szerokość, „od – do” w jednym wierszu.
+   B ma własny układ list (theme-efor-v2.css), stąd `html:not(.theme-efor-v2)`. */
+@media (max-width: 767.98px) {
+    /* Odstępy zagnieżdżone: main 16 + .content 15 + .container 15 + karta 15
+       z każdej strony - przy 320 px na treść karty zostawało 196 px. */
+    html:not(.theme-efor-v2) .content {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    html:not(.theme-efor-v2) .container.mobile-rm-card {
+        margin-top: 8px !important;
+        padding: 12px !important;
+    }
+
+    html:not(.theme-efor-v2) .mobile-order-card {
+        padding: 12px !important;
+    }
+
+    html:not(.theme-efor-v2) .orders-topbar {
+        margin-bottom: 8px !important;
+    }
+
+    html:not(.theme-efor-v2) .orders-topbar .header {
+        font-size: 24px !important;
+        text-align: left !important;
+        padding-bottom: 0 !important;
+    }
+
+    html:not(.theme-efor-v2) .orders-filters-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+        padding-top: 0;
+    }
+
+    html:not(.theme-efor-v2) .orders-filters-bar .filter-group {
+        align-items: stretch;
+        margin: 0;
+        text-align: left;
+    }
+
+    html:not(.theme-efor-v2) .orders-filters-bar > .orders-status-filter {
+        width: auto !important;
+        max-width: none !important;
+        margin: 0 !important;
+    }
+
+    html:not(.theme-efor-v2) .orders-status-filter .form-select {
+        max-width: none !important;
+        width: 100%;
+    }
+
+    /* Akcje karty oferty: 4 przyciski w rzędzie miały po 45-55 px
+       („Kopiuj ofertę” w dwóch liniach). Trzy w rzędzie, „Wyślij” pod nimi
+       na całą szerokość - jak w B. */
+    html:not(.theme-efor-v2) .mobile-order-actions:has(.action-btn-send) {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px !important;
+    }
+
+    html:not(.theme-efor-v2) .mobile-order-actions .action-btn {
+        width: auto !important;
+        min-height: 44px;
+        margin: 0 !important;
+        padding: 4px 6px !important;
+        line-height: 1.15;
+    }
+
+    html:not(.theme-efor-v2) .mobile-order-actions .action-btn-send {
+        grid-column: 1 / -1;
+    }
+
+    html:not(.theme-efor-v2) .orders-filters-bar > .filter-group:first-child,
+    html:not(.theme-efor-v2) .orders-filters-bar > .orders-status-filter {
+        grid-column: 1 / -1;
+        max-width: none;
+    }
+
+    /* „SZUKAJ” nad polem z podpowiedzią „Szukaj zamówień” - powtórzenie. */
+    html:not(.theme-efor-v2) .orders-filters-bar > .filter-group:first-child > label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+    }
+
+    html:not(.theme-efor-v2) .orders-search {
+        min-height: 44px;
+        padding: 0 12px;
+    }
+
+    html:not(.theme-efor-v2) .orders-search__input {
+        height: 42px;
+        font-size: 16px;              /* < 16 px = iOS powiększa stronę przy fokusie */
+    }
+
+    html:not(.theme-efor-v2) .orders-date-filter {
+        display: contents;
+    }
+
+    html:not(.theme-efor-v2) .orders-date-filter .filters-separator {
+        display: none;
+    }
+
+    html:not(.theme-efor-v2) .orders-date-filter .form-control,
+    html:not(.theme-efor-v2) .orders-status-filter .form-select {
+        min-height: 44px;
+        font-size: 16px;
+    }
+}

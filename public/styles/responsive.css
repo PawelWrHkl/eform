@@ -39,15 +39,6 @@
 		width: 100%;
 		z-index: 110;
 	}
-	.form-content {
-		margin-top: 70px;
-		margin-left: 10px;
-		max-width: calc(100% - 20px);
-	}
-	.update-info{
-		margin-top: 10%;
-		margin-bottom: 10%;
-	}
 	.mobile-nav .nav-link {
 		color: var(--text-primary) !important;
 		font-weight: 475;

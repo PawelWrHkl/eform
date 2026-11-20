@@ -183,21 +183,31 @@ async function getProdStatusHistoryMax(keys) {
 
 
 /**
- * Zlecenia anulowane przez produkcję → `canceled` (Paweł 19.11.2026). Bez znacznika `.cancel` —
- * produkcja już wie. `keys` = `[organizacja, klient, nr]` z pliku; kolacja porównuje bez wielkości liter
- * (plik `LuxanGmbH`, baza `LUXANGMBH`). Zlecenie w korekcie też, żeby korekta nie poszła na anulowane.
- * @returns {Promise<number[]>} id zleceń anulowanych teraz (`dryRun`: do anulowania); rzuca przy błędzie bazy
+ * Pozycje wysłanych zleceń (także w korekcie) o kluczach `[organizacja, klient, nr]` z pliku — do
+ * decyzji o anulowaniu przez produkcję (prodProgress.fullyCanceledOrderIds). Kolacja porównuje bez
+ * wielkości liter (plik `LuxanGmbH`, baza `LUXANGMBH`). Rzuca przy błędzie bazy.
  */
-async function cancelOrdersFromProd(keys, { canceledAt, dryRun = false } = {}) {
+async function getOrderItemsByKeys(keys) {
     if (!keys.length) return [];
-    const rows = await strictSelect(
-        `SELECT o.id FROM \`order\` o
+    return strictSelect(
+        `SELECT o.id, org.ident AS org_ident, u.ident AS user_ident, o.order_idx, i.orderpos
+         FROM \`order\` o
          JOIN \`user\` u ON u.id = o.user_id
          JOIN organization org ON org.id = o.organization_id
-         WHERE o.status IN ('sent', 'correction') AND (org.ident, u.ident, o.order_idx) IN (?)`,
+         JOIN order_item i ON i.order_id = o.id
+         WHERE o.status IN ('sent', 'correction') AND (org.ident, u.ident, o.order_idx) IN (?)
+         ORDER BY o.id, i.id`,
         [keys]
     );
-    const ids = rows.map((r) => r.id);
+}
+
+/**
+ * Zlecenia anulowane przez produkcję → `canceled` (Paweł 19.11.2026). Bez znacznika `.cancel` —
+ * produkcja już wie. Zlecenie w korekcie też, żeby korekta nie poszła na anulowane.
+ * @param {number[]} ids z `prodProgress.fullyCanceledOrderIds`
+ * @returns {Promise<number[]>} id zleceń anulowanych teraz (`dryRun`: do anulowania); rzuca przy błędzie bazy
+ */
+async function cancelOrdersFromProd(ids, { canceledAt, dryRun = false } = {}) {
     if (!ids.length || dryRun) return ids;
     const result = await updateQuery(
         `UPDATE \`order\` SET status = 'canceled', canceled_at = ?, canceled_by = 'PROD: Anulacja w status.txt'
@@ -210,6 +220,7 @@ async function cancelOrdersFromProd(keys, { canceledAt, dryRun = false } = {}) {
 
 
 module.exports = {
+    getOrderItemsByKeys,
     cancelOrdersFromProd,
     recordProdStatusHistory,
     getProdStatusHistoryMax,

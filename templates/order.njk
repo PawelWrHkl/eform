@@ -32,6 +32,7 @@
                             <div class="order-nav-main">
                                 <div class="mobile-top-row d-block d-md-none">
                                     <div id="order-buttons">
+                                        {% block mobile_order_buttons %}
                                         {# Zamówienie klienta grupy (`group_type = client`) jest dla
                                            grupy-matki tylko do wglądu i zatwierdzenia — bez nowej
                                            pozycji i bez edycji (utils/orderStatusGuard.js). #}
@@ -41,14 +42,15 @@
                                             class="action-btn action-btn-send "
                                             id="new-order-button"
                                             type="button">
-                                            <img class='ico' src="/img/new-position.png" alt=""></a>
+                                            <img class='ico' src="/img/new-position.png" alt=""><span class="m-act-label">{{ __('order.add_position_btn') }}</span></a>
                                             <a href="/orders/edit/{{ orderDetails.id }}" class="action-btn action-btn-edit" id="edit-order-button" type="button">
-                                                <img class='ico' src="/img/edit-text.png" alt="{{ __('orders.edit') }}"></a>
+                                                <img class='ico' src="/img/edit-text.png" alt=""><span class="m-act-label">{{ __('orders.edit') }}</span></a>
                                             {% endif %}
+                                        {% endblock %}
                                             </div>
                                             <div id="generate-container-mobile">
                                                 <button class="btn open-link-manager-btn" type="button" aria-label="{{ __('order.link_manager_title') }}">
-                                                    <span style="font-size:22px;">&#128279;</span></button>
+                                                    <span style="font-size:22px;">&#128279;</span><span class="m-act-label">{{ __('order.link_manager_title') }}</span></button>
                                                 {# Jeden przycisk „Pokaż cenę po rabacie" dla grupy i klienta końcowego:
                                                    odsłania NARAZ wiersz cen SUB i wiersz rabatu, po podaniu hasła tego konta
                                                    (public/scripts/order.js). Zastąpił dwa osobne przyciski — `unlockSubBtn`
@@ -58,36 +60,36 @@
                                                    odsłania złoty wiersz (rabat, po rabacie, VAT, brutto). #}
                                                 {% if (isGroup or isGroupShop) and not hidePrices and groupDiscountLock %}
                                                     <button id="showDiscountPriceBtn" class="btn has-tooltip" type="button" data-unlocked="{{ 'true' if discountPricesUnlocked else 'false' }}" data-tooltip="{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}">
-                                                        <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="padlock icon" class='icon'>
+                                                        <img src="{{ '/img/open-padlock.png' if discountPricesUnlocked else '/img/padlock.png' }}" alt="" class='icon'><span class="m-act-label">{{ __('form.hide_discounted_price') if discountPricesUnlocked else __('form.show_discounted_price') }}</span>
                                                     </button>
                                                 {% endif %}
                                                 {# Kłódka także przy wyłączonych cenach HKL (2026-11-16, oferty Luxan): po otwarciu
                                                    order_prices.njk i PDF pokazują wtedy cenę katalogową + złotą cenę zakupu klienta, bez HKL. #}
                                                 {% if not isGroup and not isGroupShop and not hidePrices and not isHklClient %}
                                                 <button id="unlockBtn" class="btn">
-                                                    <img src="/img/padlock.png" alt="padlock icon" class='icon'></button>
+                                                    <img src="/img/padlock.png" alt="" class='icon'><span class="m-act-label">{{ __('order.unlock') }}</span></button>
                                                 {% endif %}
                                                     {% if (canViewSubPrices or viewAsOrganization) and not isGroup and not isGroupShop %}
                                                         <button id="unlockSubBtn" class="btn has-tooltip{% if showSub %} active{% endif %}" data-tooltip="{{ __('group.toggle_sub_params_tooltip') }}">
-                                                            <img src="/img/sub-prices.png" alt="sub params icon" class='icon'></button>
+                                                            <img src="/img/sub-prices.png" alt="" class='icon'><span class="m-act-label">{{ __('group.toggle_sub_params_tooltip') }}</span></button>
                                                     {% endif %}
                                                     {# Specyfikacja ceny (services/priceSpec, public/scripts/priceSpec.js):
                                                        admin zawsze, reszta po PRICE_SPEC_CLIENTS_ENABLED=true — `priceSpecUi`
                                                        ustawia routes/orders.js. #}
                                                     {% if priceSpecUi and not hidePrices and orderDetails and orderDetails.id %}
                                                         <button type="button" class="btn has-tooltip" data-price-spec-open data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.button }}" aria-label="{{ priceSpecUi.button }}" aria-haspopup="dialog">
-                                                            <img src="/img/price-spec.svg" alt="" class='icon'></button>
+                                                            <img src="/img/price-spec.svg" alt="" class='icon'><span class="m-act-label">{{ priceSpecUi.button }}</span></button>
                                                         {# Specyfikacja zaawansowana — tylko po kłódce (cen albo rabatu grupy); serwer też odmawia bez niej. #}
                                                         {% if prices or discountPricesUnlocked %}
                                                         <button type="button" class="btn has-tooltip" data-price-spec-open data-price-spec-mode="advanced" data-order-id="{{ orderDetails.id }}" data-ui="{{ priceSpecUi | dump }}" data-tooltip="{{ priceSpecUi.advancedButton }}" aria-label="{{ priceSpecUi.advancedButton }}" aria-haspopup="dialog">
-                                                            <img src="/img/price-spec-advanced.svg" alt="" class='icon'></button>
+                                                            <img src="/img/price-spec-advanced.svg" alt="" class='icon'><span class="m-act-label">{{ priceSpecUi.advancedButton }}</span></button>
                                                         {% endif %}
                                                         <script type="module" src="/scripts/priceSpec.js?v={{ assetVersion }}"></script>
                                                     {% endif %}
                                                     <button class="btn has-tooltip" data-tooltip="{{ __('base.generate_pdf_tooltip') }}" id='print-button'>
-                                                        <img src="/img/pdf.png" alt="pdf icon" class='icon'></button>
+                                                        <img src="/img/pdf.png" alt="" class='icon'><span class="m-act-label">{{ __('order.generate_pdf_tooltip') }}</span></button>
                                                         <button id="generate-excel-btn" class="btn has-tooltip" data-tooltip="{{ __('order.generate_excel_tooltip') }}">
-                                                            <img src="/img/excel-file.png" alt="excel-file-image" class='icon'></button>
+                                                            <img src="/img/excel-file.png" alt="" class='icon'><span class="m-act-label">{{ __('order.generate_excel_tooltip') }}</span></button>
                                                         </div>
                                                     </div>
                                                     <div id="order-buttons" class="d-none d-md-flex">
@@ -198,7 +200,7 @@
                                                                         </div>
                                                                         <div class="floating-order w-100 mobile d-block d-md-none">
                                                                             <h2 class="fw-bold header text-center p-4" id='order-title-mobile' data-id="{{ orderDetails.id }}" data-org-id="{{ orderDetails.organization_id }}">
-                                                                                {{ __('order.title') }}
+                                                                                {% block order_title_mobile %}{{ __('order.title') }}{% endblock %}
                                                                                 {{ orderDetails.order_idx }} <br/>
                                                                                 {% if orderDetails.commision %}
                                                                                     <p id='commission-name-mobile' data-name='{{ orderDetails.commision }}'>"{{ orderDetails.commision }}"</p>
@@ -455,7 +457,7 @@
                                                                                                     </tbody>
                                                                                                 </table>
                                                                                                 <div class="mobile-items-list d-block d-md-none">
-                                                                                                    {% set mobileIndex = globalIndex - table.rows.length %}
+                                                                                                    {% set mobileIndex = globalIndex - table.rows.length - 1 %}
                                                                                                     {% for rowObj in table.rows %}
                                                                                                         {% set mobileIndex = mobileIndex + 1 %}
                                                                                                         {% set itemHasSubPrices = rowObj.item.subParamValues and rowObj.item.subParamValues.length > 0 %}
@@ -578,6 +580,7 @@
                                                                                                                             {% endif %}
                                                                                                                             {% endif %}
                                                                                                                         {% endif %}
+                                                                                                                        {% block mobile_item_actions %}
                                                                                                                         <div class="mobile-item-actions">
                                                                                                                             {# ⚠️ `{% if %}` NIE MOŻE obejmować atrybutów otwartego `<div` — przy
                                                                                                                                zamówieniu klienta (`clientOwnedOrder`) znikało `class=…>` i tag zostawał
@@ -629,6 +632,7 @@
                                                                                                                             </button>
                                                                                                                                 {% endif %}
                                                                                                                         </div>
+                                                                                                                        {% endblock %}
                                                                                                                     </div>
                                                                                                                 {% endfor %}
                                                                                                             </div>

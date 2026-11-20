@@ -506,7 +506,7 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
       );
     }
 
-    preparedItems.push({ item, groupNumber, canonicalParams });
+    preparedItems.push({ item, groupNumber, canonicalParams, twinSnaps: twinFix.snapped });
   }
 
   // 1. Send address — only if any field is non-empty.
@@ -537,7 +537,7 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
 
   // 3. Items.
   const itemIds = [];
-  for (const { item, groupNumber, canonicalParams } of preparedItems) {
+  for (const { item, groupNumber, canonicalParams, twinSnaps } of preparedItems) {
     // Resolve form version (mirrors what main.js getAppVersion does in the UI).
     const version = await positionsDb.getAppVersion(
       groupNumber,
@@ -658,6 +658,13 @@ async function importResolvedOrder({ payload, user, lang, deps = {} }) {
     if (cleared.length) {
       logger(`orderImport visibility (item ${item.posid != null ? item.posid : '?'}, group ${groupNumber}): `
         + `wyczyszczono pole(a) wyłączone w param.txt: ${cleared.join(', ')}`);
+    }
+    // Only a snapped select the form keeps changed what the customer ordered (plastic bead);
+    // on metal it is blanked above and the raw length stays in the input twin.
+    for (const [name, { from, to }] of Object.entries(twinSnaps || {})) {
+      if (String(persistedValues[name]) !== to) continue;
+      warnings.push(`Pozycja ${item.posid != null ? item.posid : '?'} (grupa ${groupNumber}): ${name} ${from} `
+        + `spoza listy — przyjęto ${to} (najbliższa pozycja listy w górę).`);
     }
     // The display builder treats import params as "the customer ordered this, keep
     // it visible" — so it must see the cleaned set, not the raw payload.

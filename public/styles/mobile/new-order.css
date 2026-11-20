@@ -27,12 +27,6 @@
         padding: 0 !important;
     }
 
-    .new-order-form {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 15px !important;
-        background: var(--bg-surface) !important;
-    }
 
     .mb-3 {
         margin-bottom: 15px !important;
@@ -60,20 +54,7 @@
         margin-bottom: 8px !important;
     }
 
-    .submit-row {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 10px !important;
-        margin-top: 20px !important;
-    }
 
-    .submit-row .btn {
-        width: 100% !important;
-        padding: 15px !important;
-        border-radius: 8px !important;
-        font-size: 1.1rem !important;
-        font-weight: 600 !important;
-    }
 
     .my-5 {
         margin-bottom: 0 !important;
@@ -147,9 +128,6 @@
         resize: vertical !important;
     }
 
-    .mobiler-rm-b {
-        margin-bottom: 0 !important;
-    }
 
     .country-select {
         width: 100% !important;

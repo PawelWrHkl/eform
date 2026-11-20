@@ -87,6 +87,7 @@
   "header.delivery_date": "Leistungsdatum",
   "party.delivery_address": "Lieferadresse",
   "header.order_name": "Auftragsname",
+  "ksef.number": "KSeF-Nummer",
   "totals.net_before_discount": "Netto vor Rabatt",
   "totals.client_discount": "Kundenrabatt",
   "collective.note": "Sammelrechnung für den Zeitraum {start} – {end}. Aufträge: {orders}.",
@@ -103,7 +104,7 @@
   "blank.tpl.montage": "Montage",
   "blank.tpl.repair": "Reparatur",
   "reminder.subject": "Zahlungserinnerung",
-  "reminder.intro": "wir möchten Sie daran erinnern, dass die Zahlung der unten genannten Rechnung heute fällig ist. Die Rechnung senden wir Ihnen erneut im Anhang.",
+  "reminder.intro": "wir möchten Sie daran erinnern, dass die Zahlungsfrist der unten genannten Rechnung abgelaufen ist. Die Rechnung senden wir Ihnen erneut im Anhang.",
   "reminder.paid_note": "Sollten Sie die Zahlung bereits veranlasst haben, betrachten Sie diese Nachricht bitte als gegenstandslos.",
   "reminder.amount_left": "Offener Betrag"
 }

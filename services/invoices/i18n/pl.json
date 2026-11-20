@@ -87,6 +87,7 @@
   "header.delivery_date": "Data dostawy",
   "party.delivery_address": "Adres dostawy",
   "header.order_name": "Nazwa zamówienia",
+  "ksef.number": "Numer KSeF",
   "totals.net_before_discount": "Wartość przed rabatem",
   "totals.client_discount": "Rabat dla odbiorcy",
   "collective.note": "Faktura zbiorcza za okres {start} – {end}. Zamówienia: {orders}.",
@@ -103,7 +104,7 @@
   "blank.tpl.montage": "Montaż",
   "blank.tpl.repair": "Naprawa",
   "reminder.subject": "Przypomnienie o płatności",
-  "reminder.intro": "przypominamy, że dziś mija termin płatności poniższej faktury. Fakturę ponownie przesyłamy w załączniku.",
+  "reminder.intro": "przypominamy, że termin płatności poniższej faktury minął. Fakturę ponownie przesyłamy w załączniku.",
   "reminder.paid_note": "Jeśli płatność została już zlecona, prosimy potraktować tę wiadomość jako nieaktualną.",
   "reminder.amount_left": "Pozostało do zapłaty"
 }

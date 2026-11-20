@@ -24,18 +24,6 @@
         overflow-y: auto !important;
         min-height: calc(100vh - 140px) !important;
     }
-    .app-bar {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 0;
-        background: transparent;
-    }
-    .app-title {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--text);
-    }
     .back-btn {
         background: var(--surface);
         padding: 8px;
@@ -48,33 +36,6 @@
     }
     .has-tooltip {
         z-index: 0 !important;
-    }
-    .site-footer {
-        position: sticky;
-        bottom: 0;
-        margin-left: 0 !important;
-        left: 0;
-        right: 0;
-        font-size: 13px !important;
-        width: 100% !important;
-        background: var(--bg-surface-solid, #fff);
-        z-index: 1000;
-        padding: 0;
-        height: 36px;
-        overflow: hidden;
-    }
-    .footer-inner {
-        flex-direction: row;
-        justify-content: center;
-        gap: 12px;
-        height: 36px;
-    }
-    .footer-copy {
-        display: none;
-    }
-    .footer-links {
-        margin-right: 0% !important;
-        gap: 0 !important;
     }
     .navbar {
         position: fixed !important;
@@ -166,20 +127,6 @@
         margin: 0 !important;
         text-align: center !important;
     }
-    #delete-dialog .confirmation-buttons {
-        display: flex !important;
-        gap: 10px !important;
-        padding: 16px !important;
-        border-top: 1px solid var(--border-default) !important;
-    }
-    #delete-dialog .confirmation-buttons button {
-        flex: 1 !important;
-        padding: 12px !important;
-        border: none !important;
-        border-radius: 8px !important;
-        cursor: pointer !important;
-        font-size: 1rem !important;
-    }
     .mobile-nav .navbar-toggler {
         border: none;
         background: var(--muted);
@@ -220,9 +167,6 @@
     .order-date {
         display: none !important;
     }
-    .footer-links a {
-        margin: 0 5px;
-    }
     .arrow {
         display: none;
     }
@@ -247,69 +191,6 @@
         border: none !important;
         margin: 0 !important;
         padding: 0 !important;
-    }
-    .mobile-hide {
-        display: none !important;
-    }
-    .mobile-full-width {
-        width: 100% !important;
-    }
-    .mobile-text-center {
-        text-align: center !important;
-    }
-    .mobile-no-margin {
-        margin: 0 !important;
-    }
-    .mobile-small-padding {
-        padding: 8px !important;
-    }
-    .mobile-table-responsive {
-        display: block !important;
-        width: 100% !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-    .mobile-table-stack {
-        display: block !important;
-    }
-    .mobile-table-stack thead {
-        display: none !important;
-    }
-    .mobile-table-stack tr {
-        display: block !important;
-        border: 1px solid var(--border-default) !important;
-        margin-bottom: 10px !important;
-        border-radius: 8px !important;
-        padding: 10px !important;
-        background: var(--bg-surface) !important;
-        box-shadow: var(--shadow-xs) !important;
-    }
-    .mobile-table-stack td {
-        display: block !important;
-        text-align: right !important;
-        border: none !important;
-        padding: 5px 0 !important;
-        border-bottom: 1px solid var(--border-default) !important;
-    }
-    .mobile-table-stack td:last-child {
-        border-bottom: none !important;
-    }
-    .mobile-table-stack td:before {
-        content: attr(data-label) ": " !important;
-        font-weight: bold !important;
-        float: left !important;
-        text-transform: uppercase !important;
-        font-size: 0.8em !important;
-        color: var(--text-secondary) !important;
-    }
-    .mobile-btn-stack {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 8px !important;
-    }
-    .mobile-btn-full {
-        width: 100% !important;
-        margin-bottom: 8px !important;
     }
     .rm-col-7 {
         width: 100% !important;

@@ -337,6 +337,13 @@
                             </button>
                         </form>
                     </li>
+                    {# Wygląd A na telefonie: stopka z linkami prawnymi jest schowana
+                       (mobile/bottomnav.css), linki są tutaj; B ma je w `.efor-sheet-legal`. #}
+                    <li class="nav-item efor-classic-only m-nav-legal">
+                        <a href="/privacy">{{ __('site.privacy') }}</a>
+                        <a href="/terms">{{ __('site.terms') }}</a>
+                        <a href="/contact">{{ __('site.contact') }}</a>
+                    </li>
                 </ul>
                 {# Wariant B na telefonie: reszta tego, co na desktopie jest w pasku
                    górnym i stopce — język, tryb ciemny, przewodnik, skróty admina,

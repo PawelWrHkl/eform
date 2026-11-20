@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { prodPercent, maxStatusProd, buildProgressIndex, buildCanceledOrders, historyRows, decide, loadIndex, clientMayChange, clientMayChangeMany, PROD_LOCK_PERCENT } = require('../prodProgress');
+const { prodPercent, maxStatusProd, buildProgressIndex, buildCanceledOrders, fullyCanceledOrderIds, historyRows, decide, loadIndex, clientMayChange, clientMayChangeMany, PROD_LOCK_PERCENT } = require('../prodProgress');
 const { parseStatusFile } = require('../prodStatus');
 
 const FILE = [
@@ -151,8 +151,41 @@ const FILE_ANUL = [
 
 test('anulowane przez produkcję = „Anulacja” na każdej pozycji; pojedyncza pozycja — nie', async () => {
     const canceled = buildCanceledOrders(parseStatusFile(FILE_ANUL));
-    assert.deepEqual([...canceled], [['HKL|RYVER|239', ['HKL', 'Ryver', '239']], ['COZY|M2|7', ['Cozy', 'M2', '7']]]);
+    assert.deepEqual([...canceled].map(([key, o]) => [key, o.ids, [...o.positions], o.all]), [
+        ['LUXANGMBH|KN|70', ['LuxanGmbH', 'KN', '70'], [2], false],
+        ['HKL|RYVER|239', ['HKL', 'Ryver', '239'], [1, 2], true],
+        ['COZY|M2|7', ['Cozy', 'M2', '7'], [1], true]
+    ]);
     const deps = { ...fakeDeps().deps, filePath: '/fake/anul.txt', fs: { stat: async () => ({ mtimeMs: Math.random() }), readFile: async () => FILE_ANUL } };
     const res = await clientMayChangeMany([order({ user_ident: 'Ryver', order_idx: 239 }), order({ org_ident: 'LUXANGMBH', user_ident: 'KN', order_idx: 70 })], deps);
     assert.deepEqual(res.map((r) => r.canceled), [true, false], 'klucz bez wielkości liter (LuxanGmbH = LUXANGMBH)');
+});
+
+// ── Anulowanie całego zlecenia po pozycjach w eFormie (Wiktoria 20.11.2026) ──
+
+const FILE_NR16 = [
+    'ORGANIZATIONIDENT\tUSERIDENT\tORDERNO\tORDERPOS\tSTATUS\tSHIPPINGDATE\tPARCELCODE\tSTATUSPROD\tMAXSTATUSPROD',
+    // KN_Wohnen_Neubrandenburg nr 16: wysłane 1–2 wypadły z pliku po 60 dniach, zostały anulowane 3–4.
+    'LuxanGmbH\tKN_Wohnen_Neubrandenburg\t16\t3\t!sent!\t\t\tAnulacja\tAnulacja',
+    'LuxanGmbH\tKN_Wohnen_Neubrandenburg\t16\t4\t!sent!\t\t\tAnulacja\tAnulacja',
+    'HKL\tRyver\t50\t1\t!sent!\t\t\tAnulacja\tAnulacja',
+    'HKL\tRyver\t50\t2\t!sent!\t\t\tAnulacja\tAnulacja',
+    // podpozycje: 1-1 anulowana, 1-2 wysłana → pozycja 1 NIE jest anulowana
+    'HKL\tRyver\t51\t1-1\t!sent!\t\t\tAnulacja\tAnulacja',
+    'HKL\tRyver\t51\t1-2\t!sent!\t2026-11-02\t\t100%Wyslane\t100%Wyslane',
+    'HKL\tRyver\t51\t2\t!sent!\t\t\tAnulacja\tAnulacja'
+].join('\r\n');
+
+test('anulowanie całego zlecenia: każda pozycja w eFormie, nie tylko te z pliku (KN_Wohnen nr 16)', () => {
+    const canceled = buildCanceledOrders(parseStatusFile(FILE_NR16));
+    assert.equal(canceled.get('LUXANGMBH|KN_WOHNEN_NEUBRANDENBURG|16').all, true, 'w pliku same anulowane…');
+    const items = (id, org, user, no, positions) => positions.map((orderpos) => ({ id, org_ident: org, user_ident: user, order_idx: no, orderpos }));
+    const rows = [
+        ...items(1967, 'LUXANGMBH', 'KN_Wohnen_Neubrandenburg', '16', [1, 2, 3, 4]),
+        ...items(10, 'HKL', 'Ryver', '50', [1, 2]),
+        ...items(11, 'HKL', 'Ryver', '50', [null, 0]), // bez orderpos → numer z kolejności (jak widok)
+        ...items(12, 'HKL', 'Ryver', '51', [1, 2])
+    ];
+    assert.deepEqual(fullyCanceledOrderIds(rows, canceled), [10, 11], '…ale nr 16 ma w eFormie wysłane 1–2; 51: pozycja 1 częściowo wysłana');
+    assert.deepEqual([...canceled.get('HKL|RYVER|51').positions], [2]);
 });

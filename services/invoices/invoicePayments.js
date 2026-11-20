@@ -9,9 +9,12 @@
  *   LEVEL  INVOICENO  ORGANIZATIONIDENT  PAIDAMOUNT  PAIDDATE
  *   1      26000002   LUXANGMBH          442.18      2026-11-20
  *
- *   PAIDAMOUNT — ile ŁĄCZNIE zapłacono, w walucie faktury (kropka albo przecinek);
- *   PAIDDATE   — data ostatniej wpłaty, RRRR-MM-DD. Plik może mieć wszystkie faktury albo tylko te
+ *   PAIDAMOUNT — ile ŁĄCZNIE księgowość rozliczyła z fakturą (przelewy i kompensaty), w walucie faktury
+ *                (kropka albo przecinek) — suma narastająca, nie pojedyncza wpłata;
+ *   PAIDDATE   — data ostatniego wyciągu, RRRR-MM-DD. Plik może mieć wszystkie faktury albo tylko te
  *   z wpłatami; brak wiersza = bez zmian. ORGANIZATIONIDENT jak w pliku pozycji (26000009 jest u HKL i u Cozy).
+ *   Tylko faktury HKL (LEVEL 1 i LEVEL 2 z ORGANIZATIONIDENT = HKL) — wpłat Cozy i Luxan GmbH księgowość
+ *   nie zna (Wiktoria 20.11.2026); wiersz innego wystawcy jest pomijany jak nieznany.
  *
  * Każdy przebieg cyklu (co godzinę, PRZED przypomnieniami) czyta cały plik: zapłacono ≥ do zapłaty →
  * „opłacona” (data zapłaty z pliku); mniej → kwota przy fakturze, status bez zmian (częściowo zapłacona).
@@ -155,9 +158,9 @@ async function runPaymentSync({ dryRun = false, env = process.env, deps = {} } =
     }
   }
   if (errors.length) log(`[invoices:payments] pominięte złe wiersze ${remotePath}: ${errors.slice(0, 5).join('; ')}${errors.length > 5 ? ` (+${errors.length - 5})` : ''}`);
-  if (plan.unknown.length) log(`[invoices:payments] ${plan.unknown.length} wierszy bez faktury w eFormie (np. ${plan.unknown.slice(0, 3).map((r) => `${r.level}/${r.number}/${r.organization}`).join(', ')})`);
+  if (plan.unknown.length) log(`[invoices:payments] ${plan.unknown.length} wierszy bez faktury HKL w eFormie (np. ${plan.unknown.slice(0, 3).map((r) => `${r.level}/${r.number}/${r.organization}`).join(', ')})`);
   log(`[invoices:payments] ${dryRun ? 'DRY-RUN: ' : ''}${remotePath}: ${rows.length} wierszy, zmienione ${result.updated.length}`);
   return result;
 }
 
-module.exports = { PAYMENTS_FILE, PAYMENTS_HEADER, PAYMENT_EVENT, parseAmount, parsePaymentsTsv, planPayments, runPaymentSync };
+module.exports = { PAYMENTS_FILE, PAYMENTS_HEADER, PAYMENT_EVENT, parseAmount, parsePaymentsTsv, planPayments, downloadFile, runPaymentSync };

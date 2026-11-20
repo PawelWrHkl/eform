@@ -229,3 +229,45 @@ test('skips the fix when reading the paramdict header throws', async () => {
 
   assert.equal(parameters.DLUGOSC_STER, '900');
 });
+
+// Group 75 (pl) since 11.2026: plastic-bead DLUGOSC_STER is a list every 250 mm,
+// metal DLUGSTER stays a free input; copies of older orders carry 900, 700, 1460.
+function dict75() {
+  const list = {};
+  for (let mm = 500; mm <= 2500; mm += 250) list[String(mm)] = `${mm} MM`;
+  return {
+    params: { DLUGOSC_STER: 'DLUGOŚĆ STER.[MM]', DLUGSTER: 'DLUGOŚĆ STER.[MM]' },
+    paramdict: { DLUGOSC_STER: list }
+  };
+}
+const declared75 = new Set(['DLUGOSC_STER']);
+
+test('numeric list: off-list length goes to the input twin and the select gets the next option up', async () => {
+  for (const [raw, expected] of [[900, '1000'], [700, '750'], ['1460', '1500'], [500.5, '750'], [100, '500']]) {
+    const { parameters, snapped } = await resolveTwinParameters(
+      '75', { DLUGOSC_STER: raw, DLUGOSC_STER___DESCRIPTION: '900 MM' }, 'pl',
+      { dict: dict75(), declaredDictParams: declared75 }
+    );
+    assert.equal(parameters.DLUGSTER, raw);
+    assert.equal(parameters.DLUGOSC_STER, expected);
+    assert.equal(parameters.DLUGOSC_STER___DESCRIPTION, '');
+    assert.deepEqual(snapped, { DLUGOSC_STER: { from: String(raw), to: expected } });
+  }
+});
+
+test('numeric list: a length above the last option is not guessed — select cleared as before', async () => {
+  const { parameters, snapped } = await resolveTwinParameters(
+    '75', { DLUGOSC_STER: 2600 }, 'pl', { dict: dict75(), declaredDictParams: declared75 }
+  );
+  assert.equal(parameters.DLUGOSC_STER, '');
+  assert.equal(parameters.DLUGSTER, 2600);
+  assert.deepEqual(snapped, {});
+});
+
+test('coded list (group 39) keeps clearing the select — no numeric snapping', async () => {
+  const { parameters, snapped } = await resolveTwinParameters(
+    '39', { MODEL: 'U25MV', DLUGOSC_STER: '900' }, 'nl', { dict: dict39(), declaredDictParams: declared39 }
+  );
+  assert.equal(parameters.DLUGOSC_STER, '');
+  assert.deepEqual(snapped, {});
+});

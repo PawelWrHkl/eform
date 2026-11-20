@@ -121,8 +121,8 @@ test('statusKey: klucz niewrażliwy na wielkość liter i spacje', () => {
 });
 
 /** Atrapa `db/statuses.js` z zapisem wywołań. */
-function fakeStatusDb({ rows = [], idents = ['Ryver'], failInsert = false, canceledIds = [] } = {}) {
-  const calls = { insert: [], update: [], sync: [], cancel: [] };
+function fakeStatusDb({ rows = [], idents = ['Ryver'], failInsert = false, items = [] } = {}) {
+  const calls = { insert: [], update: [], sync: [], cancel: [], itemKeys: [] };
   return {
     calls,
     getAllPositionStatuses: async () => rows,
@@ -130,7 +130,8 @@ function fakeStatusDb({ rows = [], idents = ['Ryver'], failInsert = false, cance
     insertStatus: async (r) => { calls.insert.push(r); return !failInsert; },
     updateStatus: async (r) => { calls.update.push(r); return true; },
     syncOrderFromStatuses: async (u, o) => { calls.sync.push([u, o]); return { affectedRows: 1 }; },
-    cancelOrdersFromProd: async (keys, opts) => { if (keys.length) calls.cancel.push([keys, opts.dryRun]); return canceledIds; }
+    getOrderItemsByKeys: async (keys) => { if (keys.length) calls.itemKeys.push(keys); return items; },
+    cancelOrdersFromProd: async (ids, opts) => { if (ids.length) calls.cancel.push([ids, opts.dryRun]); return ids; }
   };
 }
 
@@ -157,7 +158,7 @@ test('syncAllProdStatuses: dry-run niczego nie zapisuje', async () => {
     deps: { db, log: () => {}, readFile: async () => file('HKL\tRyver\t1\t1\t!sent!\t2026-08-05\tBUS') }
   });
   assert.equal(summary.inserted, 1);
-  assert.deepEqual(db.calls, { insert: [], update: [], sync: [], cancel: [] });
+  assert.deepEqual(db.calls, { insert: [], update: [], sync: [], cancel: [], itemKeys: [] });
 });
 
 test('syncAllProdStatuses: nieudany zapis liczony jako błąd (insertStatus zwraca false)', async () => {
@@ -201,15 +202,35 @@ test('syncAllProdStatuses: zlecenie z „Anulacja” na każdej pozycji → anul
     'HKL\tRyver\t5\t2\t!production!\t\t\t11%Akcept.p.prod.\t11%Akcept.p.prod.'
   ].join('\r\n');
   const logs = [];
-  const db = fakeStatusDb({ idents: ['Ryver', 'KN'], canceledIds: [4012] });
+  // Pozycje w eFormie: KN 70 ma dwie (obie anulowane), Ryver 5 — dwie (druga w produkcji).
+  const items = [
+    { id: 4012, org_ident: 'LUXANGMBH', user_ident: 'KN', order_idx: '70', orderpos: 1 },
+    { id: 4012, org_ident: 'LUXANGMBH', user_ident: 'KN', order_idx: '70', orderpos: 2 },
+    { id: 4013, org_ident: 'HKL', user_ident: 'Ryver', order_idx: '5', orderpos: 1 },
+    { id: 4013, org_ident: 'HKL', user_ident: 'Ryver', order_idx: '5', orderpos: 2 }
+  ];
+  const db = fakeStatusDb({ idents: ['Ryver', 'KN'], items });
   const summary = await syncAllProdStatuses({ deps: { db, log: (m) => logs.push(m), readFile: async () => content } });
-  assert.deepEqual(db.calls.cancel, [[[['LuxanGmbH', 'KN', '70']], false]], 'tylko całe zlecenie; MAXSTATUSPROD przy wysłanej i pojedyncza pozycja — nie');
+  assert.deepEqual(db.calls.itemKeys, [[['LuxanGmbH', 'KN', '70'], ['HKL', 'Ryver', '5']]], 'MAXSTATUSPROD przy wysłanej (Ryver 239) — nie kandydat');
+  assert.deepEqual(db.calls.cancel, [[[4012], false]], 'tylko całe zlecenie; pojedyncza pozycja — nie');
   assert.equal(summary.canceledByProd, 1);
   assert.match(logs.join('\n'), /anulowane przez produkcję .*4012/);
 
-  const dry = fakeStatusDb({ idents: ['KN'] });
+  const dry = fakeStatusDb({ idents: ['KN'], items });
   await syncAllProdStatuses({ dryRun: true, deps: { db: dry, log: () => {}, readFile: async () => content } });
   assert.equal(dry.calls.cancel[0][1], true, 'dry-run tylko liczy');
+});
+
+test('syncAllProdStatuses: pozycja z eFormu, której nie ma w pliku, blokuje anulowanie (KN_Wohnen nr 16, Wiktoria 20.11.2026)', async () => {
+  const content = [`${HEADER}\tSTATUSPROD\tMAXSTATUSPROD`,
+    'LuxanGmbH\tKN_Wohnen_Neubrandenburg\t16\t3\t!sent!\t\t\tAnulacja\tAnulacja',
+    'LuxanGmbH\tKN_Wohnen_Neubrandenburg\t16\t4\t!sent!\t\t\tAnulacja\tAnulacja'
+  ].join('\r\n');
+  const items = [1, 2, 3, 4].map((orderpos) => ({ id: 1967, org_ident: 'LUXANGMBH', user_ident: 'KN_Wohnen_Neubrandenburg', order_idx: '16', orderpos }));
+  const db = fakeStatusDb({ idents: ['KN_Wohnen_Neubrandenburg'], items });
+  const summary = await syncAllProdStatuses({ deps: { db, log: () => {}, readFile: async () => content } });
+  assert.deepEqual(db.calls.cancel, []);
+  assert.equal(summary.canceledByProd, 0);
 });
 
 test('syncAllProdStatuses: błąd anulowania liczony jako błąd, cykl idzie dalej', async () => {

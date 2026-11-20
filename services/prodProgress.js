@@ -66,17 +66,53 @@ function isCanceledRow(row) {
 }
 
 /**
- * Zlecenia anulowane przez produkcję — KAŻDA pozycja w pliku anulowana (pojedyncze pozycje — nie).
- * @returns {Map<string, [string, string, string]>} klucz zlecenia → `[organizacja, klient, nr]` z pliku
+ * Pozycje anulowane przez produkcję, per zlecenie z co najmniej jedną taką pozycją.
+ *  • `positions` — numery pozycji, których WSZYSTKIE wiersze (podpozycje `1-1`, `1-2`) mają „Anulacja”,
+ *  • `all` — każdy wiersz zlecenia w pliku anulowany.
+ * Plik trzyma zakończone pozycje tylko 60 dni (Wiktoria 20.11.2026), więc samo `all` nie
+ * oznacza anulowanego zlecenia — o tym decyduje `fullyCanceledOrderIds` po pozycjach w eFormie.
+ * @returns {Map<string, { ids: [string, string, string], positions: Set<number>, all: boolean }>}
  */
 function buildCanceledOrders(rows) {
-    const all = new Map();
+    const { positionNumber } = require('./prodStatus');
+    const orders = new Map();
     for (const row of rows || []) {
         const key = orderKey(row.ORGANIZATIONIDENT, row.USERIDENT, row.ORDERNO);
-        const canceled = (all.get(key)?.canceled ?? true) && isCanceledRow(row);
-        all.set(key, { canceled, ids: [String(row.ORGANIZATIONIDENT).trim(), String(row.USERIDENT).trim(), normOrderNo(row.ORDERNO)] });
+        if (!orders.has(key)) {
+            orders.set(key, { ids: [String(row.ORGANIZATIONIDENT).trim(), String(row.USERIDENT).trim(), normOrderNo(row.ORDERNO)], byPos: new Map(), all: true });
+        }
+        const order = orders.get(key);
+        const canceled = isCanceledRow(row);
+        order.all = order.all && canceled;
+        const pos = positionNumber(row.ORDERPOS);
+        if (pos !== null) order.byPos.set(pos, (order.byPos.get(pos) ?? true) && canceled);
     }
-    return new Map([...all].filter(([, order]) => order.canceled).map(([key, order]) => [key, order.ids]));
+    const result = new Map();
+    for (const [key, { ids, byPos, all }] of orders) {
+        const positions = new Set([...byPos].filter(([, canceled]) => canceled).map(([pos]) => pos));
+        if (positions.size || all) result.set(key, { ids, positions, all });
+    }
+    return result;
+}
+
+/**
+ * Id zleceń, w których KAŻDA pozycja w eFormie jest anulowana w pliku (pozycji z bazy nie ma w
+ * pliku = nie anulujemy — KN_Wohnen_Neubrandenburg nr 16: wysłane 1–2 wypadły, zostały anulowane 3–4).
+ * Numer pozycji jak w widoku (prodStatus.alignStatusesToItems): `orderpos`, bez niego kolejność.
+ * @param {Array<{ id, org_ident, user_ident, order_idx, orderpos }>} itemRows pozycje zleceń, kolejno po `order_item.id`
+ * @param {Map} canceledOrders wynik `buildCanceledOrders`
+ * @returns {number[]}
+ */
+function fullyCanceledOrderIds(itemRows, canceledOrders) {
+    const byOrder = new Map();
+    for (const row of itemRows || []) {
+        if (!byOrder.has(row.id)) byOrder.set(row.id, []);
+        byOrder.get(row.id).push(row);
+    }
+    return [...byOrder].filter(([, items]) => {
+        const positions = canceledOrders.get(orderKey(items[0].org_ident, items[0].user_ident, items[0].order_idx))?.positions;
+        return !!positions && items.every((item, i) => positions.has(Number(item.orderpos) || i + 1));
+    }).map(([id]) => id);
 }
 
 /** Wiersze pliku → wiersze `prod_status_history` (`db/statuses.js recordProdStatusHistory`). */
@@ -192,8 +228,20 @@ async function clientMayChangeMany(orders, deps = {}) {
     const history = index ? await loadHistory(orders, deps) : null;
     return (orders || []).map(order => {
         const key = orderKey(order?.org_ident, order?.user_ident, order?.order_idx);
-        return { ...decide(order, index, history?.get(key) || null), canceled: !!index && cache.canceled.has(key) };
+        return { ...decide(order, index, history?.get(key) || null), canceled: !!index && !!cache.canceled.get(key)?.all };
     });
+}
+
+/**
+ * Numery pozycji zlecenia anulowanych w PROD — znacznik „Anulowane” na pozycji w podglądzie
+ * (Wiktoria 20.11.2026: zlecenie anulowane częściowo).
+ * shortcut: tylko bieżący status.txt (zakończone pozycje 60 dni, potem znacznik znika) — trwały zapis
+ * po decyzji, co STATUS „cancelled” w position_statuses ma zrobić z automatem faktur.
+ * @returns {Promise<Set<number>>}
+ */
+async function canceledPositions(order, deps = {}) {
+    await loadIndex(deps);
+    return cache.canceled.get(orderKey(order?.org_ident, order?.user_ident, order?.order_idx))?.positions || new Set();
 }
 
 /** Czy klient może jeszcze anulować / korygować to zlecenie. */
@@ -208,6 +256,8 @@ module.exports = {
     orderKey,
     buildProgressIndex,
     buildCanceledOrders,
+    fullyCanceledOrderIds,
+    canceledPositions,
     historyRows,
     decide,
     recordHistory,

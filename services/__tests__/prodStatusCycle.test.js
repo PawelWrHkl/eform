@@ -158,6 +158,25 @@ test('cykl: e-faktury po FTP (dry-run przekazany); ich awaria nie przerywa cyklu
   assert.equal(skipped.einvoices, null);
 });
 
+test('cykl: numery KSeF wczytane PRZED mailami (przyjęta faktura wychodzi w tym samym przebiegu); awaria nie przerywa cyklu', async () => {
+  const order = [];
+  const result = await runProdStatusCycle({
+    deps: {
+      log: quiet,
+      acquireLock: async () => fakeLock(),
+      syncStatuses: async () => ({}),
+      runAutoInvoicing: async () => ({ created: [] }),
+      runPaymentSync: async () => { order.push('payments'); return { updated: [], unknown: [], errors: [] }; },
+      runKsefSync: async () => { order.push('ksef'); throw new Error('FTP leży'); },
+      runInvoiceMailing: async () => { order.push('mail'); return { sent: [], failed: [], planned: [] }; },
+      runInvoiceFtpExport: async () => EMPTY_FTP(),
+      runEinvoiceExport: async () => ({ done: [], failed: [], planned: [] })
+    }
+  });
+  assert.deepEqual(order, ['payments', 'ksef', 'mail']);
+  assert.deepEqual(result.invoiceKsef, { changed: [], unknown: [], errors: ['FTP leży'] });
+});
+
 test('cykl: blokadę trzyma inny proces → nic nie robimy', async () => {
   let ran = false;
   const result = await runProdStatusCycle({

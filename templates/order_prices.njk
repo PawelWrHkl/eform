@@ -58,7 +58,7 @@
         </div>
         <div class="floating-order w-100 mobile d-block d-md-none">
           <h2 class="fw-bold header text-center p-4" id='order-title-mobile' data-id="{{ orderDetails.id }}">
-            {{ __('order.title') }}
+            {% block order_title_mobile %}{{ __('order.title') }}{% endblock %}
             {{ orderDetails.order_idx }} <br/>
             {% if orderDetails.commision %}
               <p id='commission-name-mobile' data-name='{{ orderDetails.commision }}'>"{{ orderDetails.commision }}"</p>
@@ -333,7 +333,7 @@
                           </table>
 
                           <div class="mobile-items-list d-block d-md-none">
-                            {% set mobileIndex = globalIndex - table.rows.length %}
+                            {% set mobileIndex = globalIndex - table.rows.length - 1 %}
                             {% for rowObj in table.rows %}
                               {% set mobileIndex = mobileIndex + 1 %}
                               <div class="mobile-item-card" data-position-url="/position/{{ rowObj.item.id }}">
@@ -468,6 +468,7 @@
                                         {{ rowObj.item.comment }}
                                       </div>
                                     {% endif %}
+                                    {% block mobile_item_actions %}
                                     <div class="mobile-item-actions">
                                       <div
                                         {# Pozycje zamówienia klienta grupy: bez przenoszenia, duplikowania,
@@ -507,6 +508,7 @@
                                       </button>
                                         {% endif %}
                                     </div>
+                                    {% endblock %}
                                   </div>
                                 {% endfor %}
                               </div>

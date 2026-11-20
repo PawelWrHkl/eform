@@ -87,6 +87,7 @@
   "header.delivery_date": "Date de livraison",
   "party.delivery_address": "Adresse de livraison",
   "header.order_name": "Nom de la commande",
+  "ksef.number": "Numéro KSeF",
   "totals.net_before_discount": "HT avant remise",
   "totals.client_discount": "Remise client",
   "collective.note": "Facture récapitulative pour la période du {start} au {end}. Commandes : {orders}.",
@@ -103,7 +104,7 @@
   "blank.tpl.montage": "Installation",
   "blank.tpl.repair": "Réparation",
   "reminder.subject": "Rappel de paiement",
-  "reminder.intro": "nous vous rappelons que le paiement de la facture ci-dessous arrive à échéance aujourd'hui. La facture est à nouveau jointe à ce message.",
+  "reminder.intro": "nous vous rappelons que le délai de paiement de la facture ci-dessous est dépassé. La facture est à nouveau jointe à ce message.",
   "reminder.paid_note": "Si vous avez déjà effectué le paiement, veuillez ne pas tenir compte de ce message.",
   "reminder.amount_left": "Montant restant dû"
 }
