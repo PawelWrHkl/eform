@@ -15,7 +15,7 @@ const INVOICE_VERSIONS = Object.freeze([
   {
     version: 24,
     date: '2026-11-20',
-    env: 'test',
+    env: 'produkcja',
     title: 'Termin płatności: 60 dni dla HKL → Cozy i HKL → Luxan GmbH, termin klienta z contractors.txt',
     changes: [
       'Pytanie Wiktorii z 20.11, decyzja Pawła „jedno i drugie”. Faktury HKL → Cozy i HKL → Luxan GmbH dostają termin 60 dni, jak faktury PROD z 16–17.11. Termin organizacji jest zapisany przy jej koncie klienta (Cozy, LuxanGmbH). Faktury Cozy i Luxan GmbH dla ich klientów zostają przy 14 dniach.',
@@ -26,7 +26,7 @@ const INVOICE_VERSIONS = Object.freeze([
   {
     version: 23,
     date: '2026-11-20',
-    env: 'test',
+    env: 'produkcja',
     title: 'Płatności i przypomnienia tylko dla faktur HKL; przypomnienie 5 dni po terminie, tylko z numerem KSeF',
     changes: [
       'Ustalenia Wiktorii z 20.11: plik płatności z księgowości obejmuje tylko faktury wystawiane przez HKL (do organizacji i do klientów HKL). Tylko one mają status „otwarta/opłacona”. Faktury Cozy i Luxan GmbH dla ich klientów pokazują w panelu „wystawiona” zamiast „otwarta”, bo ich wpłat eForm nie zna.',
@@ -49,7 +49,7 @@ const INVOICE_VERSIONS = Object.freeze([
   {
     version: 21,
     date: '2026-11-20',
-    env: 'test',
+    env: 'produkcja',
     title: 'KSeF: numer i kod QR na fakturach HKL, blokada przyjętych faktur',
     changes: [
       'eForm czyta z FTP plik Wiktorii numery_ksef.tsv (stan każdej faktury HKL w KSeF: przyjęta, odrzucona albo wstrzymana). Na teście, na produkcji wyłączone, dopóki Wiktoria nie da znać, że plik jest na FTP.',
