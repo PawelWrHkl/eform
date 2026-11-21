@@ -28,7 +28,7 @@
     border: 1px solid var(--color-warning-border);
     border-top: none;
 }
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
     .staff-bar { left: 8px; right: 8px; transform: none; max-width: none; font-size: 12px; }
 }
 

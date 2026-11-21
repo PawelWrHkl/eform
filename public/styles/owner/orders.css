@@ -37,7 +37,7 @@
 .dropdown-separator.hidden {
     display: none;
 }
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     #userSelectContainer {
         max-width: 100%;
     }

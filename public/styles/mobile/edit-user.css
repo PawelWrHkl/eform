@@ -5,18 +5,18 @@
 }
 .justify-content-center{
     justify-content: flex-start !important;
-    width:100% !important;
-    margin-left:1% !important;
+    width:100%;
+    margin-left:1%;
 }
 .ms-4{
     margin-left: 0 !important;
 }
 input{
-    width:70% !important;
+    width:70%;
 }
 .col-6 {
-    width: 100% !important;
+    width: 100%;
 }
 .d-flex{
-    margin-left: -2% !important;
+    margin-left: -2%;
 }}

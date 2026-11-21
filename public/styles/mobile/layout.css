@@ -4,25 +4,25 @@
 @media (max-width: 767.98px) {
     html,
     body {
-        height: 100% !important;
-        min-height: 100vh !important;
-        background-color: var(--bg-body) !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        height: 100%;
+        min-height: 100vh;
+        background-color: var(--bg-body);
+        margin: 0;
+        padding: 0;
     }
     body {
-        display: flex !important;
-        flex-direction: column !important;
+        display: flex;
+        flex-direction: column;
     }
     main {
-        flex: 1 !important;
-        background-color: var(--bg-body) !important;
+        flex: 1;
+        background-color: var(--bg-body);
         padding-top: 70px !important;
         padding-bottom: 70px !important;
         padding-left: 15px !important;
         padding-right: 15px !important;
-        overflow-y: auto !important;
-        min-height: calc(100vh - 140px) !important;
+        overflow-y: auto;
+        min-height: calc(100vh - 140px);
     }
     .back-btn {
         background: var(--surface);
@@ -38,7 +38,7 @@
         z-index: 0 !important;
     }
     .navbar {
-        position: fixed !important;
+        position: fixed;
         top: 0;
         left: 0;
         right: 0;
@@ -83,14 +83,14 @@
         display: block;
     }
     .mobile-rm-card {
-        box-shadow: none !important;
-        border: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        box-shadow: none;
+        border: none;
+        margin: 0;
+        padding: 0;
     }
     .languages {
-        top: 1rem !important;
-        left: 11rem !important;
+        top: 1rem;
+        left: 11rem;
     }
     #delete-dialog[open] {
         display: grid !important;
@@ -117,15 +117,15 @@
         -webkit-transform: translate(-50%, -50%) !important;
     }
     #delete-dialog h3 {
-        padding: 16px !important;
+        padding: 16px;
         margin: 0 !important;
-        text-align: center !important;
-        border-bottom: 1px solid var(--border-default) !important;
+        text-align: center;
+        border-bottom: 1px solid var(--border-default);
     }
     #delete-dialog p {
-        padding: 20px !important;
+        padding: 20px;
         margin: 0 !important;
-        text-align: center !important;
+        text-align: center;
     }
     .mobile-nav .navbar-toggler {
         border: none;
@@ -151,13 +151,13 @@
         background: var(--muted); 
     }
     .logo {
-        margin-top: 1vh !important;
-        margin-left: 1vh !important;
-        max-width: 40vw !important;
+        margin-top: 1vh;
+        margin-left: 1vh;
+        max-width: 40vw;
     }
     .language-switcher {
         border-radius: 15%;
-        display: flex !important;
+        display: flex;
         top: 10px;
         right: 18vh;
         z-index: 20;
@@ -165,7 +165,7 @@
         width: fit-content;
     }
     .order-date {
-        display: none !important;
+        display: none;
     }
     .arrow {
         display: none;
@@ -174,29 +174,29 @@
         display: none;
     }
     .content {
-        padding: 10px !important;
-        margin-left: 0 !important;
-        margin-top: 23% !important;
-        min-width: 100% !important;
-        max-width: 100% !important;
+        padding: 10px;
+        margin-left: 0;
+        margin-top: 23%;
+        min-width: 100%;
+        max-width: 100%;
     }
     .mobile-bg-white {
-        background: var(--bg-surface) !important;
+        background: var(--bg-surface);
     }
     .col-9 {
-        width: 100% !important;
+        width: 100%;
     }
     .mobile-rm-card {
-        box-shadow: none !important;
-        border: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        box-shadow: none;
+        border: none;
+        margin: 0;
+        padding: 0;
     }
     .rm-col-7 {
-        width: 100% !important;
+        width: 100%;
     }
     .rm-p-5 {
-        padding: 0 !important;
+        padding: 0;
     }
     .mobile-pwd-fab {
         display: flex !important;

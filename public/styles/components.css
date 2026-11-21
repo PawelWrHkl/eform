@@ -113,7 +113,7 @@
     pointer-events: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
     /* Na telefonie środek paska zajmuje logo. */
     .demo-badge {
         left: auto;

@@ -15,11 +15,11 @@
     }
 
     .commission-space {
-        display: grid !important;
+        display: grid;
     }
 
     .comm-input {
-        width: 100% !important;
+        width: 100%;
     }
 
     [class$="-select-area"] {
@@ -29,7 +29,7 @@
 
     [class$="-select-area"] > button {
         display: block;
-        width: 100% !important;
+        width: 100%;
     }
 }
 
@@ -53,16 +53,15 @@
     }
 }
 
-/* PRJ-06 (20.11): nagłówki panelu, Serwisu i faktur w A — do lewej, 24 px, bez pustego
-   pasa nad nimi (jak listy w mobile/orders.css). `.content h1` z mobile/form.css centruje
-   każde h1 z !important, stąd !important tutaj. B ma własne nagłówki (theme-efor-v2.css). */
+/* PRJ-06 (20.11): nagłówek faktur w A — do lewej, 24 px, bez pustego pasa nad nim (jak listy
+   w mobile/orders.css). To nie h1, więc reguła nagłówka strony z mobile/form.css go nie łapie
+   (panel i Serwis mają h1 i biorą ją stamtąd). Wyśrodkowanie dokłada layout.css (.header). B ma własny (theme-efor-v2.css). */
 @media (max-width: 767.98px) {
-    html:not(.theme-efor-v2) .content :is(.panel-title, .svc-title),
     html:not(.theme-efor-v2) .content .inv-topbar .header {
-        text-align: left !important;
-        font-size: 24px !important;
-        padding: 0 !important;
-        margin-bottom: 4px !important;
+        text-align: left;
+        font-size: 24px;
+        padding: 0;
+        margin-bottom: 4px;
     }
     /* panel: main 16 + .content 15 + .panel-wrap 16 + karta 24 z każdej strony — przy 320 px pole miało 164 px */
     html:not(.theme-efor-v2) .content:has(> .panel-wrap) {
@@ -79,7 +78,8 @@
     html:not(.theme-efor-v2) main .panel-field .form-control {
         width: 100% !important; /* mobile/components.css: 93% !important */
     }
-    html:not(.theme-efor-v2) main .svc-wrap {
+    /* Serwis A i B: do lewej jak nagłówek strony (layout.css .center-content centruje całą treść) */
+    main .svc-wrap {
         text-align: left;
     }
     html:not(.theme-efor-v2) .container.mobile-rm-card:has(.inv-topbar) {

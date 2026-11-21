@@ -66,6 +66,13 @@
         {% set eforT = eforStrings.dict[locale] or eforStrings.dict["en"] %}
         <style id="efor-v2-strings">:root{ {%- for key in eforStrings.cssKeys %}--efor-t-{{ key }}:"{{ eforT[key] | safe }}";{% endfor -%} }</style>
         <script>window.eforV2I18n = {{ eforT | dump | safe }};</script>
+        {# Bootstrap PRZED warstwą mobilną (PRJ-06 Z2, 20.11): reguły telefonu wygrywają z nim
+           kolejnością, bez !important. Względem arkuszy desktopu (wyżej) kolejność bez zmian. #}
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
         <link rel="stylesheet" href="/styles/mobile/main.css">
         <link rel="stylesheet" href="/scripts/components/mobile-toast.css">
         <link rel="stylesheet" href="/styles/mobile/layout.css">
@@ -83,10 +90,12 @@
         <link rel="preconnect" href="https://fonts.googleapis.com"/>
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin"/>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet"/>
+        {# Narzędzia Bootstrapa (.p-0, .d-flex, .mb-1…, wszystkie !important) jeszcze raz, w starym miejscu
+           Bootstrapa: klasy z szablonów wygrywają z warstwą mobilną tak jak przed przestawieniem. #}
         <link
-            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap-utilities.min.css"
             rel="stylesheet"
-            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            integrity="sha384-Q51rgXP88lzrflg5bs/XnX/2BpyaSqnUXdNLptG3K+bDUcIxjjls1yD3RZIKZE+o"
             crossorigin="anonymous">
         <script
             src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
@@ -271,6 +280,11 @@
                     {% if canManageCustomers %}
                         <li class="nav-item">
                             <a href="/org/customers" class="nav-link">Klienci organizacji</a>
+                        </li>
+                    {% endif %}
+                    {% if orgReportsEnabled %}
+                        <li class="nav-item">
+                            <a href="/org/reports" class="nav-link">{{ __('reports.nav_label') }}</a>
                         </li>
                     {% endif %}
                     {% if isGroup and not isStaff %}
@@ -461,6 +475,14 @@
                         <img src="/img/employee.png" class='nav-icon' alt="customers-ico">
                         <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-contacts"/></svg>
                         <span class="nav-text">Klienci</span>
+                    </a>
+                {% endif %}
+                {# Raporty organizacji (ORG_REPORTS, routes/orgReports.js) — tylko owner organizacji. #}
+                {% if orgReportsEnabled %}
+                    <a href="/org/reports" id='org-reports-nav-btn' class="custom-nav-link has-tooltip" data-tooltip="{{ __('reports.nav_label') }}">
+                        <img src="/img/orders_history.png" class='nav-icon' alt="reports-ico">
+                        <svg class="nav-icon-v2" aria-hidden="true"><use href="#efor-i-chart"/></svg>
+                        <span class="nav-text">{{ __('reports.nav_label') }}</span>
                     </a>
                 {% endif %}
                 {% if isGroup and not isStaff %}

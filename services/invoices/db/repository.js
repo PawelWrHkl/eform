@@ -1568,8 +1568,8 @@ async function getEinvoiceSources(invoice) {
     const [g] = await strictQuery('SELECT ident, email, phone FROM group_user WHERE id = ?', [invoice.buyerGroupUserId]);
     if (g) buyer = { ...g, invoiceEmail: '' };
   } else if (invoice.buyerUserId) {
-    // `SELECT *`: `invoice_email`/`paymaster_ident` są od migracji — bez nich puste. Adres do faktur
-    // (contractors.txt INVOICE_EMAIL) płatnika, gdy faktura idzie na płatnika, inaczej klienta
+    // `SELECT *`: `paymaster_ident` jest od migracji — bez niej puste. Adres do faktur (Paweł 20.11.2026):
+    // EMAIL konta płatnika (PAYMASTER_IDENT), a bez płatnika EMAIL klienta — osobnej kolumny INVOICE_EMAIL nie ma
     const { cleanValue } = require('../core/contractorAccounts');
     const [u] = await strictQuery('SELECT * FROM `user` WHERE id = ?', [invoice.buyerUserId]);
     if (u) {
@@ -1577,7 +1577,7 @@ async function getEinvoiceSources(invoice) {
       const [payer] = paymaster && paymaster.toUpperCase() !== String(u.ident || '').toUpperCase()
         ? await strictQuery('SELECT * FROM `user` WHERE ident = ? LIMIT 1', [paymaster])
         : [];
-      buyer = { ident: u.ident, email: u.email, phone: u.phone, invoiceEmail: cleanValue(payer && payer.invoice_email) || cleanValue(u.invoice_email) };
+      buyer = { ident: u.ident, email: u.email, phone: u.phone, invoiceEmail: cleanValue(payer && payer.email) || cleanValue(u.email) };
     }
   } else if (invoice.buyerType === 'organization') {
     // Poziom 1: nabywcą jest organizacja faktury

@@ -38,6 +38,7 @@ const { resolveOrderAbPolicy, resolveConfirmationRecipients, resolveStaffCopy } 
 const { resolveVatLocals, vatFeatureEnabled, resolveGrossAfterDiscountForOrder } = require('../services/vatCalculator');
 const { features } = require('../config');
 const { buildOrderPriceSpec } = require('../services/priceSpec');
+const orderOffer = require('../services/orderOffer');
 const { resolveScriptsByGroup } = require('../services/priceSpec/orderContext');
 const { renderPriceSpecPdf } = require('../services/priceSpec/pdf');
 const { translator: priceSpecTranslator } = require('../services/priceSpec/i18n');
@@ -1069,6 +1070,7 @@ router.get('/order/:orderId/price-spec.pdf', requireLogin, checkOrderOwnership, 
         const asciiName = fileName.normalize('NFD').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, '-');
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+        if (!req.session.user?.isAdmin) orderOffer.markOffer(req.params.orderId);
         return res.send(pdf);
     } catch (err) {
         log(`[priceSpec] Błąd PDF specyfikacji zlecenia ${req.params.orderId}:`, err);
@@ -1449,6 +1451,8 @@ router.get('/orderpdf/:orderId/:showPrices?/:short?', requireLogin, checkOrderOw
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Length', pdfBuffer.length);
         res.send(pdfBuffer);
+        // PDF aktywnego zlecenia = oferta (raport ofert, services/orderOffer.js); admin się nie liczy.
+        if (!req.session.user?.isAdmin) orderOffer.markOffer(req.params.orderId);
 
     } catch (error) {
         log('Błąd generowania PDF:', error);

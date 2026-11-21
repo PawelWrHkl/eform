@@ -44,22 +44,22 @@
         padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 24px) !important;
         padding-left: var(--m-gutter) !important;
         padding-right: var(--m-gutter) !important;
-        background: var(--m-bg) !important;
+        background: var(--m-bg);
     }
 
     /* Gradientowa belka `.container::before` (theme.css) na waskim ekranie
        czyta sie jak zablakana kreska nad kazda sekcja. */
     main .container::before,
     main .container::after {
-        content: none !important;
-        display: none !important;
+        content: none;
+        display: none;
     }
 
     main > .content.center-content {
-        width: 100% !important;
+        width: 100%;
         max-width: 100% !important;
         padding: 0 !important;
-        margin: 0 !important;
+        margin: 0;
         background: transparent !important;
     }
 
@@ -71,7 +71,7 @@
         gap: 12px !important;
         background: var(--m-card) !important;
         border: 1px solid var(--m-border) !important;
-        border-radius: var(--m-radius) !important;
+        border-radius: var(--m-radius);
         box-shadow: var(--m-shadow-card) !important;
         overflow: visible !important;
     }
@@ -79,7 +79,7 @@
     .order-nav-main {
         height: auto !important;      /* bylo 100px na sztywno */
         gap: 12px !important;
-        order: 2 !important;          /* pasek akcji POD tytulem, jak w makiecie */
+        order: 2;          /* pasek akcji POD tytulem, jak w makiecie */
     }
 
     /* --- tytul: "Angebot Nr. 17" + nazwa zlecenia --- */
@@ -87,21 +87,21 @@
     #order-nav .floating-order.mobile,
     #order-nav .floating-order.w-100 {
         order: 1 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        background: transparent !important;
+        padding: 0;
+        margin: 0;
+        background: transparent;
         text-align: left !important;
-        box-shadow: none !important;
+        box-shadow: none;
     }
 
     #order-title-mobile {
         font-size: 20px !important;
-        line-height: 1.25 !important;
-        font-weight: 700 !important;
+        line-height: 1.25;
+        font-weight: 700;
         color: var(--m-text) !important;
         text-align: left !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        margin: 0;
+        padding: 0;
         overflow-wrap: anywhere;
     }
 
@@ -109,12 +109,12 @@
     #commission-name {
         font-size: 15px !important;
         font-weight: 500 !important;
-        color: var(--m-text-muted) !important;
-        background: transparent !important;
+        color: var(--m-text-muted);
+        background: transparent;
         margin: 4px 0 0 !important;
         padding: 0 !important;
         box-shadow: none !important;
-        text-align: left !important;
+        text-align: left;
         overflow-wrap: anywhere;
     }
 
@@ -128,12 +128,12 @@
        pusty prostokat na kazdym zamowieniu bez komentarza. #comment nie ma na
        tej stronie zadnego handlera (sprawdzone), wiec nic nie tracimy. */
     #order-nav .comment-space {
-        order: 3 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+        order: 3;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
         justify-content: flex-start !important;
     }
 
@@ -141,16 +141,16 @@
         /* mobile/main.css daje `.btn { min-height: 44px }`, a `#comment` nosi
            klase `btn` - bez tego pusty komentarz zostawial 44px bialej dziury
            w karcie zamowienia. */
-        min-height: 0 !important;
+        min-height: 0;
         line-height: 1.45 !important;
         font-size: 14px !important;
         font-weight: 500 !important;
         color: var(--m-text-muted) !important;
         text-align: left !important;
         margin: 0 !important;
-        padding: 0 !important;
-        background: transparent !important;
-        border: none !important;
+        padding: 0;
+        background: transparent;
+        border: none;
         overflow-wrap: anywhere;
     }
 
@@ -161,27 +161,27 @@
        polowe ekranu. */
 
     .mobile-top-row {
-        flex-wrap: wrap !important;
+        flex-wrap: wrap;
         justify-content: flex-start !important;
-        gap: 8px !important;
+        gap: 8px;
     }
 
     #order-buttons:not(.d-none) {
-        display: flex !important;
-        flex: 0 0 auto !important;
-        gap: 8px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        width: auto !important;
+        display: flex;
+        flex: 0 0 auto;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+        width: auto;
     }
 
     #generate-container-mobile {
         flex: 1 1 auto !important;
-        justify-content: flex-end !important;
+        justify-content: flex-end;
         gap: 8px !important;
-        margin: 0 !important;
+        margin: 0;
         padding: 0 !important;
-        flex-wrap: wrap !important;
+        flex-wrap: wrap;
     }
 
     #order-buttons .btn,
@@ -193,17 +193,17 @@
         margin: 0 !important;
         padding: 0 !important;
         display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        background: var(--m-field) !important;
-        border: 1px solid var(--m-border) !important;
+        align-items: center;
+        justify-content: center;
+        background: var(--m-field);
+        border: 1px solid var(--m-border);
         border-radius: var(--m-radius-sm) !important;
         box-shadow: none !important;
-        backdrop-filter: none !important;
+        backdrop-filter: none;
         -webkit-backdrop-filter: none !important;
         color: var(--m-text-muted) !important;
         font-size: 20px !important;
-        transform: none !important;
+        transform: none;
     }
 
     #order-buttons .btn:active,
@@ -223,10 +223,10 @@
 
     #order-buttons .ico,
     #generate-container-mobile .icon {
-        width: 22px !important;
-        height: 22px !important;
-        object-fit: contain !important;
-        filter: none !important;
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+        filter: none;
     }
 
     #generate-container-mobile .btn:hover .icon {
@@ -235,7 +235,7 @@
 
     /* Jedyna wyrozniona akcja na tym ekranie. */
     #order-buttons #new-order-button {
-        background: var(--m-accent) !important;
+        background: var(--m-accent);
         border-color: var(--m-accent) !important;
     }
 
@@ -260,11 +260,11 @@
         min-width: 0 !important;
         height: auto !important;
         min-height: 44px;
-        flex-direction: column !important;
+        flex-direction: column;
         justify-content: flex-start !important;
         gap: 4px;
         background: transparent !important;
-        border: 0 !important;
+        border: 0;
         text-decoration: none;
     }
     #order-nav .mobile-top-row :is(.btn, .action-btn):has(> .m-act-label) > :first-child {
@@ -273,8 +273,8 @@
         place-items: center;
         width: 48px !important;
         height: 48px !important;
-        max-width: none !important; /* .icon: max 30px */
-        max-height: none !important;
+        max-width: none; /* .icon: max 30px */
+        max-height: none;
         padding: 12px;
         object-fit: contain;
         background: var(--m-field);
@@ -286,7 +286,7 @@
         background: var(--m-field-press);
     }
     #order-nav #order-buttons #new-order-button:has(> .m-act-label) {
-        background: transparent !important;
+        background: transparent;
     }
     #order-nav #new-order-button:has(> .m-act-label) > :first-child {
         background: var(--m-accent);
@@ -297,37 +297,37 @@
        send_order_btn), więc inne strony A się nie zmieniają. Piesek staje nad
        paskiem przez `--m-stepper-h` (assistant.css liczy z niej `--ea-bottom`). */
     html:not(.theme-efor-v2) .send-order-actions:has(.custom-order-btn) {
-        position: fixed !important;
+        position: fixed;
         left: 0;
         right: 0;
         bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px));
         z-index: 1020;
-        display: flex !important;
+        display: flex;
         flex-wrap: wrap;
         justify-content: center !important;
         gap: 8px;
-        width: auto !important;
-        margin: 0 !important;
+        width: auto;
+        margin: 0;
         padding: 10px var(--m-gutter) !important;
-        background: var(--m-card) !important;
+        background: var(--m-card);
         border-top: 1px solid var(--m-border);
     }
     html:not(.theme-efor-v2) .send-order-actions .custom-order-btn,
     html:not(.theme-efor-v2) .send-order-actions #send-order { /* order_details.css: #send-order margin 3% !important */
         flex: 1 1 0;
-        min-height: 50px !important;
+        min-height: 50px;
         margin: 0 !important;
     }
     html:not(.theme-efor-v2) .send-order-actions .custom-order-btn p {
-        margin: 0 !important;
+        margin: 0;
     }
     html:not(.theme-efor-v2):has(.send-order-actions .custom-order-btn) {
         --m-stepper-h: 72px;
     }
     /* fadeInUp zostawia transform na .content i karcie — fixed liczyłby się od nich, nie od ekranu */
     html:not(.theme-efor-v2) :is(.content, .mobile-rm-card):has(.send-order-actions .custom-order-btn) {
-        animation: none !important;
-        transform: none !important;
+        animation: none;
+        transform: none;
     }
     html:not(.theme-efor-v2) main:has(.send-order-actions .custom-order-btn) {
         padding-bottom: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom, 0px) + 96px) !important;
@@ -430,7 +430,7 @@
     .container.my-5.padding-top,
     .order-table-container,
     .table-scroll {
-        width: 100% !important;
+        width: 100%;
         max-width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -440,7 +440,7 @@
     .mobile-items-list {
         gap: var(--m-gap) !important;
         margin: 0 !important;
-        padding: 0 !important;
+        padding: 0;
     }
 
     .mobile-item-card {
@@ -450,21 +450,21 @@
         border: 1px solid var(--m-border) !important;
         border-radius: var(--m-radius) !important;
         box-shadow: var(--m-shadow-card) !important;
-        transform: none !important;
+        transform: none;
     }
 
     .mobile-item-header {
-        gap: 10px !important;
+        gap: 10px;
         margin: 0 !important;
         padding: 0 !important;
         align-items: flex-start !important;
     }
 
     .mobile-item-basic {
-        min-width: 0 !important;
+        min-width: 0;
         gap: 2px !important;
-        align-items: flex-start !important;
-        text-align: left !important;
+        align-items: flex-start;
+        text-align: left;
         /* mobile/order_details.css wpycha ten blok o `margin-left: 20%` -
            nazwa pozycji wygladala przez to na wysrodkowana i traciła 70px
            szerokosci, przez co dluzsze nazwy lamaly sie bez potrzeby. */
@@ -472,36 +472,36 @@
     }
 
     .mobile-item-name {
-        text-align: left !important;
+        text-align: left;
         font-size: 15px !important;
-        font-weight: 700 !important;
+        font-weight: 700;
         color: var(--m-text) !important;
         overflow-wrap: anywhere;
     }
 
     .mobile-item-group {
-        text-align: left !important;
+        text-align: left;
         font-size: 13px !important;
-        font-weight: 500 !important;
+        font-weight: 500;
         color: var(--m-text-muted) !important;
         overflow-wrap: anywhere;
     }
 
     .mobile-item-number {
-        flex: 0 0 auto !important;
+        flex: 0 0 auto;
         margin-right: 0 !important;
         font-size: 12px !important;
-        font-weight: 700 !important;
+        font-weight: 700;
         color: var(--m-text-muted) !important;
         background: var(--m-field) !important;
-        border: 1px solid var(--m-border) !important;
+        border: 1px solid var(--m-border);
         border-radius: 999px !important;
         padding: 3px 9px !important;
     }
 
     /* Szewron rozwijania (klasa `.expanded` przelacza scripts/mobileCards.js) */
     .mobile-item-header::after {
-        border-color: var(--m-text-soft) !important;
+        border-color: var(--m-text-soft);
     }
 
     .mobile-item-details,
@@ -510,15 +510,15 @@
     .mobile-item-comment,
     .mobile-sub-params {
         /* ⚠️ Bez `display` - patrz naglowek pliku. */
-        font-size: 13.5px !important;
-        line-height: 1.45 !important;
-        color: var(--m-text-muted) !important;
+        font-size: 13.5px;
+        line-height: 1.45;
+        color: var(--m-text-muted);
         overflow-wrap: anywhere;
     }
 
     .mobile-item-specs {
         background: var(--m-field) !important;
-        border: 1px solid var(--m-border) !important;
+        border: 1px solid var(--m-border);
         border-radius: var(--m-radius-sm) !important;
         padding: 10px 12px !important;
     }
@@ -533,7 +533,7 @@
     .mobile-sub-param-item strong,
     .mobile-item-detail strong {
         color: var(--m-text) !important;
-        font-weight: 600 !important;
+        font-weight: 600;
     }
 
     .sub-param-value {
@@ -542,9 +542,9 @@
     }
 
     .mobile-item-actions {
-        gap: 8px !important;
+        gap: 8px;
         margin-top: 12px !important;
-        padding-top: 10px !important;
+        padding-top: 10px;
         border-top: 1px solid var(--m-border) !important;
     }
 
@@ -554,56 +554,56 @@
        miejsca niz sama pozycja i zawijaly sie do dwoch rzedow.
        `.action-btn` to osobna rodzina klas niz `.btn` - stad dwa selektory. */
     .mobile-item-actions .btn {
-        flex: 0 0 auto !important;
-        width: 40px !important;
-        min-width: 40px !important;
-        height: 40px !important;
-        padding: 0 !important;
+        flex: 0 0 auto;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        padding: 0;
         margin: 0 !important;
-        background: var(--m-field) !important;
-        border: 1px solid var(--m-border) !important;
-        border-radius: var(--m-radius-sm) !important;
-        box-shadow: none !important;
-        color: var(--m-text-muted) !important;
+        background: var(--m-field);
+        border: 1px solid var(--m-border);
+        border-radius: var(--m-radius-sm);
+        box-shadow: none;
+        color: var(--m-text-muted);
     }
 
     .mobile-item-actions .btn svg {
-        width: 16px !important;
-        height: 16px !important;
+        width: 16px;
+        height: 16px;
         fill: currentColor;
     }
 
     .mobile-item-actions .action-btn {
-        flex: 0 1 auto !important;
-        width: auto !important;
+        flex: 0 1 auto;
+        width: auto;
         min-width: 0 !important;
-        height: 40px !important;
-        margin: 0 !important;
-        padding: 0 12px !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        background: var(--m-field) !important;
-        border: 1px solid var(--m-border) !important;
-        border-radius: var(--m-radius-sm) !important;
-        color: var(--m-text-muted) !important;
-        font-size: 13px !important;
-        font-weight: 600 !important;
-        text-decoration: none !important;
-        box-shadow: none !important;
+        height: 40px;
+        margin: 0;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--m-field);
+        border: 1px solid var(--m-border);
+        border-radius: var(--m-radius-sm);
+        color: var(--m-text-muted);
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: none;
         white-space: nowrap;
     }
 
     .mobile-item-actions .action-btn-delete {
-        color: var(--m-danger) !important;
-        border-color: var(--m-danger) !important;
-        background: var(--m-danger-soft) !important;
+        color: var(--m-danger);
+        border-color: var(--m-danger);
+        background: var(--m-danger-soft);
     }
 
     .mobile-item-actions {
-        flex-wrap: wrap !important;
+        flex-wrap: wrap;
         justify-content: flex-start !important;
-        align-items: center !important;
+        align-items: center;
     }
 
     /* ==================================================== 6. PODSUMOWANIE === */
@@ -613,32 +613,32 @@
         padding: 12px 14px !important;
         background: var(--m-card) !important;
         border: 1px solid var(--m-border) !important;
-        border-radius: var(--m-radius) !important;
-        box-shadow: var(--m-shadow-card) !important;
+        border-radius: var(--m-radius);
+        box-shadow: var(--m-shadow-card);
     }
 
     #total-container .total-price {
         justify-content: space-between !important;
-        margin: 0 !important;
-        padding: 4px 0 !important;
+        margin: 0;
+        padding: 4px 0;
     }
 
     #total-container .total-price .total,
     #total-container .price-label {
         background: transparent !important;
         border: none !important;
-        box-shadow: none !important;
+        box-shadow: none;
         padding: 0 !important;
-        margin: 0 !important;
+        margin: 0;
     }
 
     #total-container .price-label {
         width: auto !important;
         max-width: 100% !important;
-        flex: 1 1 auto !important;
+        flex: 1 1 auto;
         text-align: right !important;
         font-size: 15px !important;
-        font-weight: 700 !important;
+        font-weight: 700;
         color: var(--m-text) !important;
         overflow-wrap: anywhere;
     }

@@ -1,11 +1,11 @@
 @media (max-width: 767.98px) {
     body {
-        background-color: var(--bg-surface) !important;
+        background-color: var(--bg-surface);
     }
     .content {
-        background-color: var(--bg-surface) !important;
-        padding: 15px !important;
-        width: 100% !important;
+        background-color: var(--bg-surface);
+        padding: 15px;
+        width: 100%;
     }
     h1,
     h2,

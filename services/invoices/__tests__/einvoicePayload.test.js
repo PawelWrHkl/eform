@@ -332,7 +332,7 @@ test('tabela taryf: BOM, puste kody pominięte, grupa „2” = „02”; zły n
   assert.equal(HS_CODES.get('11'), '56081930');
 });
 
-test('invoice_email z contractors.txt; e-mail nabywcy z faktury (płatnik), dopiero potem z konta', () => {
+test('invoice_email = EMAIL płatnika albo klienta (repository); e-mail nabywcy z faktury (płatnik), dopiero potem z konta', () => {
   const payload = buildPayload({
     invoice: invoiceFixture({ buyer: { ...invoiceFixture().buyer, email: 'rechnung@zahler.example' } }),
     env: 'test',

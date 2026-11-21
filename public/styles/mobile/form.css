@@ -1,126 +1,138 @@
 @media (max-width: 767.98px) {
     body {
-        background-color: var(--bg-body) !important;
+        background-color: var(--bg-body);
     }
     main {
-        padding-left: 0% !important;
-        padding-right: 0% !important;
+        padding-left: 0%;
+        padding-right: 0%;
     }
     .full-form {
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
+        width: 100%;
+        max-width: 100%;
+        padding: 0;
+        margin: 0;
     }
     #show-button {
-        margin-top: 80px !important;
+        margin-top: 80px;
     }
     #show-comment-button {
-        min-width: 90% !important;
-        max-width: 90% !important;
-        margin-left: 5% !important
-    }
+        min-width: 90%;
+        max-width: 90%;
+        margin-left: 5%}
     .content {
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 15px !important;
-        margin: 0 !important;
-        background: var(--bg-body) !important;
+        width: 100%;
+        max-width: 100%;
+        padding: 15px;
+        margin: 0;
+        background: var(--bg-body);
     }
+    /* Nagłówek strony (PRJ-06 Z2): do lewej, 24 px, jak tytuły list (mobile/orders.css).
+       !important, bo main.css centruje, a theme.css ustawia rozmiar każdego h1 z !important.
+       Własne nagłówki mają kreator (configurator.css) i B (theme-efor-v2.css).
+       Wyśrodkowanie tylko jawnie, niżej. */
     .content h1 {
+        text-align: left !important;
+        margin-bottom: 4px !important;
+        font-size: 24px;
+        color: var(--text-primary);
+        padding: 0;
+    }
+    /* Celowo wyśrodkowane zostają jak były: „Brak dostępu” (.text-center) i panel grupy
+       (.gp-header jest wyśrodkowany także na komputerze, group/panel.css). */
+    .content h1.text-center,
+    .content .gp-header h1 {
         text-align: center !important;
         margin-bottom: 30px !important;
         font-size: 1.8rem !important;
-        color: var(--text-primary) !important;
-        padding: 20px 0 !important;
+        padding: 20px 0;
     }
     .container {
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        border: none !important;
-        box-shadow: none !important;
+        width: 100%;
+        max-width: 100%;
+        padding: 0;
+        margin: 0;
+        border: none;
+        box-shadow: none;
     }
     .gr-select {
-        width: 80% !important;
+        width: 80%;
     }
     .filter-controls {
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
     }
     .commission-space {
-        width: 100% !important;
-        margin: 0 0 20px 0 !important;
-        padding: 0 !important;
+        width: 100%;
+        margin: 0 0 20px 0;
+        padding: 0;
     }
     .comm-input {
-        width: 100% !important;
-        display: flex !important;
-        flex-direction: column !important;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
     }
     .asortment-container {
-        width: 100% !important;
-        padding: 20px !important;
-        margin: 20px 0 !important;
-        display: block !important;
-        visibility: visible !important;
-        border-radius: 8px !important;
+        width: 100%;
+        padding: 20px;
+        margin: 20px 0;
+        display: block;
+        visibility: visible;
+        border-radius: 8px;
     }
     .asortment-inputs {
-        flex-direction: column !important;
-        gap: 20px !important;
-        width: 80% !important;
+        flex-direction: column;
+        gap: 20px;
+        width: 80%;
     }
     .asortment-inputs>div {
-        width: 80% !important;
-        max-width: 80% !important;
+        width: 80%;
+        max-width: 80%;
     }
     .form-label {
-        color: var(--text-primary) !important;
-        font-weight: 600 !important;
-        margin-bottom: 8px !important;
-        font-size: 1rem !important;
+        color: var(--text-primary);
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 1rem;
     }
     .form-field {
         width: 100% !important;
     }
     #buttons-space {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 15px !important;
-        margin-top: 30px !important;
-        padding: 20px 0 !important;
-        width: 100% !important;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-top: 30px;
+        padding: 20px 0;
+        width: 100%;
     }
     .form-button {
-        width: 100% !important;
-        padding: 15px !important;
-        font-size: 1.1rem !important;
-        border-radius: 10px !important;
-        box-shadow: none !important;
-        font-weight: 600 !important;
-        margin: 0 !important;
+        width: 100%;
+        padding: 15px;
+        font-size: 1.1rem;
+        border-radius: 10px;
+        box-shadow: none;
+        font-weight: 600;
+        margin: 0;
     }
     .order-reminder {
-        width: 100% !important;
-        padding: 0 !important;
-        margin: 30px 0 !important;
-        background-color: var(--bg-surface) !important;
-        border: 1px solid var(--border-default) !important;
-        box-shadow: var(--shadow-sm) !important;
+        width: 100%;
+        padding: 0;
+        margin: 30px 0;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        box-shadow: var(--shadow-sm);
     }
     .order-reminder h3 {
-        text-align: center !important;
-        margin-bottom: 20px !important;
-        font-size: 1.4rem !important;
-        color: var(--text-primary) !important;
-        padding: 20px 0 !important;
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 1.4rem;
+        color: var(--text-primary);
+        padding: 20px 0;
     }
     #dynamic-form {
-        width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
+        width: 100%;
+        padding: 0;
+        margin: 0;
     }
     .hourglass {
         width: 80px !important;
@@ -129,14 +141,14 @@
     }
     .overlay {
         background: rgba(0, 0, 0, 0.6) !important;
-        backdrop-filter: blur(2px) !important;
+        backdrop-filter: blur(2px);
     }
     .btn {
-        padding: 15px 20px !important;
-        border-radius: 8px !important;
+        padding: 15px 20px;
+        border-radius: 8px;
         font-size: 1.1rem !important;
         font-weight: 600 !important;
-        width: 100% !important;
+        width: 100%;
         margin-bottom: 10px !important;
     }
     .warning-warranty-input {
@@ -210,14 +222,14 @@
         outline-offset: 2px !important;
     }
     [class*="-select-area"] {
-        flex-direction: column !important;
-        gap: 12px !important;
-        background: var(--bg-surface) !important;
-        border-radius: 12px !important;
-        margin-bottom: 20px !important;
-        width: 100% !important;
-        box-shadow: var(--shadow-sm) !important;
-        transition: all 0.3s ease !important;
+        flex-direction: column;
+        gap: 12px;
+        background: var(--bg-surface);
+        border-radius: 12px;
+        margin-bottom: 20px;
+        width: 100%;
+        box-shadow: var(--shadow-sm);
+        transition: all 0.3s ease;
     }
     [class*="-select-area"]:hover {
         border-color: var(--brand-primary) !important;
@@ -225,33 +237,33 @@
         transform: translateY(-2px) !important;
     }
     [class*="-select-area"] label {
-        font-family: var(--font-sans) !important;
-        font-size: 1.1rem !important;
-        font-weight: 600 !important;
-        color: var(--text-primary) !important;
-        margin-bottom: 8px !important;
-        padding: 0 5px !important;
+        font-family: var(--font-sans);
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+        padding: 0 5px;
     }
     .field-label-row {
-        display: inline-flex !important;
-        align-items: center !important;
-        gap: 8px !important;
-        margin-bottom: 8px !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
     }
     .field-label-row label {
-        margin-bottom: 0 !important;
+        margin-bottom: 0;
     }
     .param-info-icon {
-        width: 20px !important;
-        height: 20px !important;
-        min-width: 20px !important;
-        font-size: 12px !important;
+        width: 20px;
+        height: 20px;
+        min-width: 20px;
+        font-size: 12px;
     }
     .param-info-tooltip {
-        min-width: 150px !important;
-        max-width: 250px !important;
-        font-size: 11px !important;
-        padding: 7px 9px !important;
+        min-width: 150px;
+        max-width: 250px;
+        font-size: 11px;
+        padding: 7px 9px;
     }
     /* Ukryty dymek „i” (form.css: `visibility: hidden`) i tak liczyl sie do
        przewijania - nowe zlecenie: poziomy scroll do 446 px przy 390 (PRJ-06).
@@ -259,50 +271,50 @@
        zaczepiony prawa krawedzia przy ikonie (ikony stoja na koncu wiersza).
        Kafelki okna wyboru maja ikone w lewym rogu - tam zostaje uklad z dialog.css. */
     .param-info-icon:not(:hover):not(:focus):not(:focus-within) > .param-info-tooltip {
-        display: none !important;
+        display: none;
     }
     :not(.image-box-top) > .param-info-icon > .param-info-tooltip {
-        left: auto !important;
-        right: -6px !important;
-        max-width: min(250px, calc(100vw - 48px)) !important;
-        transform: none !important;
+        left: auto;
+        right: -6px;
+        max-width: min(250px, calc(100vw - 48px));
+        transform: none;
     }
     .param-info-icon::before {
-        border-left-width: 5px !important;
-        border-right-width: 5px !important;
-        border-top-width: 5px !important;
+        border-left-width: 5px;
+        border-right-width: 5px;
+        border-top-width: 5px;
     }
     .param-info-download-btn {
-        height: 22px !important;
-        padding: 0 8px !important;
-        font-size: 11px !important;
-        width: auto !important;
-        min-width: unset !important;
-        max-width: max-content !important;
-        align-self: flex-start !important;
+        height: 22px;
+        padding: 0 8px;
+        font-size: 11px;
+        width: auto;
+        min-width: unset;
+        max-width: max-content;
+        align-self: flex-start;
     }
     #orderComment {
-        margin-left: 5% !important;
+        margin-left: 5%;
     }
     [class*="-select-area"] button,
     [class*="-select-area"] .btn {
-        width: 89% !important;
-        padding: 15px 20px !important;
-        font-size: 1.1rem !important;
-        font-weight: 600 !important;
-        border-radius: 10px !important;
-        border: 2px solid var(--border-strong) !important;
-        background: var(--brand-gradient) !important;
-        color: var(--text-on-brand) !important;
-        cursor: pointer !important;
-        transition: all var(--transition-base) !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 8px !important;
-        text-align: center !important;
-        box-shadow: var(--shadow-sm), var(--shadow-glow) !important;
-        touch-action: manipulation !important;
+        width: 89%;
+        padding: 15px 20px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 10px;
+        border: 2px solid var(--border-strong);
+        background: var(--brand-gradient);
+        color: var(--text-on-brand);
+        cursor: pointer;
+        transition: all var(--transition-base);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-align: center;
+        box-shadow: var(--shadow-sm), var(--shadow-glow);
+        touch-action: manipulation;
     }
     [class*="-select-area"] button:hover,
     [class*="-select-area"] .btn:hover {
@@ -337,12 +349,12 @@
         box-shadow: 0 0 8px var(--color-error-glow) !important;
     }
     input[type="number"] {
-        margin-left: 15px !important;
+        margin-left: 15px;
     }
     .last-config-info {
-        left: 50% !important;
-        bottom: 2vh !important;
-        top: unset !important;
+        left: 50%;
+        bottom: 2vh;
+        top: unset;
     }
     .filter-controls.mb-2 {
         background: var(--bg-surface) !important;

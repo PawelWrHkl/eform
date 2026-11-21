@@ -31,10 +31,10 @@
     }
 
     main > .content.center-content {
-        width: 100% !important;
-        max-width: 100% !important;
+        width: 100%;
+        max-width: 100%;
         padding: 0 !important;
-        margin: 0 !important;
+        margin: 0;
         background: transparent !important;
     }
 
@@ -43,22 +43,22 @@
     }
 
     main > .content.center-content > .my-5 > h2 {
-        font-size: 20px !important;
-        line-height: 1.3 !important;
+        font-size: 20px;
+        line-height: 1.3;
         font-weight: 700 !important;
         color: var(--m-text) !important;
-        text-align: left !important;
-        margin: 4px 0 14px !important;
+        text-align: left;
+        margin: 4px 0 14px;
         padding: 0 !important;
         overflow-wrap: anywhere;
     }
 
     /* Karta Bootstrapa znika - role kart przejmuja pojedyncze sekcje nizej. */
     #new-order-card.card {
-        width: 100% !important;
-        max-width: 100% !important;
+        width: 100%;
+        max-width: 100%;
         margin: 0 !important;
-        padding: 0 !important;
+        padding: 0;
         border: none !important;
         border-radius: 0 !important;
         background: transparent !important;
@@ -66,10 +66,10 @@
     }
 
     #new-order-card > .card-body {
-        padding: 0 !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: var(--m-gap) !important;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--m-gap);
     }
 
     /* =============================================== 2. SEKCJE JAKO KARTY === */
@@ -90,48 +90,48 @@
     #new-order-card > .card-body > .row:not(.d-none),
     #new-order-card #end-client-row:not(.d-none),
     #new-order-card #mail-dropdown-container:not(.d-none) {
-        display: block !important;
-        width: 100% !important;
-        max-width: 100% !important;
+        display: block;
+        width: 100%;
+        max-width: 100%;
         margin: 0 !important;
         padding: 12px 14px !important;
         background: var(--m-card) !important;
         border: 1px solid var(--m-border) !important;
-        border-radius: var(--m-radius) !important;
+        border-radius: var(--m-radius);
         box-shadow: var(--m-shadow-card) !important;
-        box-sizing: border-box !important;
+        box-sizing: border-box;
         /* `.content.center-content` centruje tekst dla layoutu desktopowego -
            w karcie formularza etykiety i opisy checkboxow maja isc do lewej. */
-        text-align: left !important;
+        text-align: left;
     }
 
     /* `#mail-dropdown-container` jest rodzenstwem wewnatrz sekcji adresu, a nie
        osobnym `.row` - bez tego dublowalby ramke karty w karcie. */
     #new-order-card #mail-dropdown-container {
-        margin-top: 12px !important;
-        padding: 0 !important;
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+        margin-top: 12px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
     }
 
     #new-order-card > .card-body > .row > [class*="col-md-"] {
-        width: 100% !important;
-        max-width: 100% !important;
-        flex: none !important;
+        width: 100%;
+        max-width: 100%;
+        flex: none;
         padding: 0 !important;
-        margin: 0 !important;
+        margin: 0;
     }
 
     #new-order-card label,
     #new-order-card .form-label {
         display: block;
         font-size: var(--m-label) !important;
-        font-weight: 600 !important;
-        line-height: 1.3 !important;
+        font-weight: 600;
+        line-height: 1.3;
         color: var(--m-text-muted) !important;
         margin: 0 0 6px !important;
-        padding: 0 !important;
+        padding: 0;
         overflow-wrap: anywhere;
     }
 
@@ -146,19 +146,19 @@
     #new-order-card select,
     #new-order-card textarea {
         width: 100% !important;
-        max-width: 100% !important;
+        max-width: 100%;
         min-height: var(--m-control-h) !important;
         height: auto !important;
-        margin: 0 !important;
+        margin: 0;
         padding: 10px 14px !important;
-        box-sizing: border-box !important;
+        box-sizing: border-box;
         background: var(--m-field) !important;
         border: 1px solid var(--m-border-strong) !important;
         border-radius: var(--m-radius-sm) !important;
         color: var(--m-text) !important;
         font-size: var(--m-font) !important;   /* >=16px = brak auto-zoomu iOS */
-        line-height: 1.35 !important;
-        box-shadow: none !important;
+        line-height: 1.35;
+        box-shadow: none;
     }
 
     #new-order-card select,
@@ -174,8 +174,8 @@
     }
 
     #new-order-card textarea {
-        min-height: 96px !important;
-        resize: vertical !important;
+        min-height: 96px;
+        resize: vertical;
     }
 
     #new-order-card .form-control:focus,
@@ -189,9 +189,9 @@
 
     #new-order-card #charCount {
         display: block;
-        margin-top: 6px !important;
-        font-size: 12px !important;
-        color: var(--m-text-soft) !important;
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--m-text-soft);
         text-align: right;
     }
 
@@ -203,25 +203,25 @@
     #new-order-card #address-checkbox-container:not(.d-none),
     #new-order-card #send-address-checkbox-container:not(.d-none),
     #new-order-card #end-client-row .d-flex.align-items-center.gap-2:first-child {
-        display: flex !important;
-        align-items: center !important;
-        flex-wrap: nowrap !important;
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
         gap: 10px !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 0 10px !important;
-        padding: 0 !important;
-        min-width: 0 !important;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 0 10px;
+        padding: 0;
+        min-width: 0;
     }
 
     #new-order-card .form-check-input {
-        flex: 0 0 22px !important;
-        width: 22px !important;
-        height: 22px !important;
-        min-width: 22px !important;
-        margin: 0 !important;
-        border: 1px solid var(--m-border-strong) !important;
-        border-radius: 6px !important;
+        flex: 0 0 22px;
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
+        margin: 0;
+        border: 1px solid var(--m-border-strong);
+        border-radius: 6px;
         accent-color: var(--m-accent);
     }
 
@@ -231,12 +231,12 @@
     }
 
     #new-order-card .form-check-label {
-        flex: 1 1 auto !important;
-        min-width: 0 !important;
+        flex: 1 1 auto;
+        min-width: 0;
         margin: 0 !important;
         font-size: 15px !important;
         font-weight: 500 !important;
-        line-height: 1.35 !important;
+        line-height: 1.35;
         color: var(--m-text) !important;
         overflow-wrap: anywhere;
         hyphens: auto;
@@ -251,22 +251,22 @@
 
     #new-order-card #address-dropdown-container:not(.d-none),
     #new-order-card #mail-dropdown-container:not(.d-none) {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        align-items: center !important;
-        gap: 8px !important;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
     }
 
     #new-order-card #address-select,
     #new-order-card #mail-select {
-        flex: 1 1 100% !important;
+        flex: 1 1 100%;
     }
 
     #new-order-card .manipulate-address,
     #new-order-card .manipulate-mail,
     #new-order-card .add-new-address {
-        margin: 0 !important;
-        gap: 8px !important;
+        margin: 0;
+        gap: 8px;
     }
 
     #new-order-card .manipulate-address .btn:not(.d-none),
@@ -274,17 +274,17 @@
     #new-order-card .add-new-address .btn:not(.d-none),
     #new-order-card #add-end-client-btn:not(.d-none) {
         width: 44px !important;
-        min-width: 44px !important;
-        height: 44px !important;
+        min-width: 44px;
+        height: 44px;
         margin: 0 !important;
         padding: 0 !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         background: var(--m-field) !important;
         border: 1px solid var(--m-border) !important;
-        border-radius: var(--m-radius-sm) !important;
-        box-shadow: none !important;
+        border-radius: var(--m-radius-sm);
+        box-shadow: none;
         color: var(--m-text-muted) !important;
         font-size: 20px !important;
     }
@@ -292,15 +292,15 @@
     #new-order-card .manipulate-address .btn img.icon,
     #new-order-card .manipulate-mail .btn img.icon,
     #new-order-card .add-new-address .btn img.icon {
-        width: 20px !important;
-        height: 20px !important;
-        object-fit: contain !important;
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
     }
 
     /* Pole wyszukiwania odbiorcy koncowego (moduł faktur). */
     #new-order-card .end-client-combo {
-        flex: 1 1 100% !important;
-        min-width: 0 !important;
+        flex: 1 1 100%;
+        min-width: 0;
     }
 
     #new-order-card #end-client-container:not(.d-none) {
@@ -311,8 +311,8 @@
 
     #new-order-card #end-client-hint,
     #new-order-card .text-muted {
-        font-size: 12.5px !important;
-        line-height: 1.35 !important;
+        font-size: 12.5px;
+        line-height: 1.35;
         overflow-wrap: anywhere;
     }
 
@@ -322,27 +322,27 @@
 
     #new-order-card .mobile-rm-d-flex,
     #new-order-card > .card-body > div:last-child.d-flex {
-        display: flex !important;
-        flex-direction: column !important;
+        display: flex;
+        flex-direction: column;
         gap: 10px !important;
-        width: 100% !important;
+        width: 100%;
         margin: 4px 0 0 !important;
         padding: 0 !important;
     }
 
     #save-order-btn {
         order: 1;
-        width: 100% !important;
-        min-height: var(--m-control-h) !important;
+        width: 100%;
+        min-height: var(--m-control-h);
         margin: 0 !important;
         padding: 14px 16px !important;
-        background: var(--m-accent) !important;
+        background: var(--m-accent);
         border: 1px solid var(--m-accent) !important;
-        border-radius: var(--m-radius-sm) !important;
-        color: var(--m-on-accent) !important;
+        border-radius: var(--m-radius-sm);
+        color: var(--m-on-accent);
         font-size: var(--m-font) !important;
         font-weight: 700 !important;
-        box-shadow: none !important;
+        box-shadow: none;
     }
 
     #save-order-btn:active {
@@ -353,20 +353,20 @@
     #new-order-card .btn-outline-danger[href="/"],
     #new-order-card a.btn-outline-danger {
         order: 2;
-        width: 100% !important;
-        min-height: 48px !important;
+        width: 100%;
+        min-height: 48px;
         margin: 0 !important;
         padding: 12px 16px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         background: transparent !important;
         border: 1px solid var(--m-border-strong) !important;
-        border-radius: var(--m-radius-sm) !important;
+        border-radius: var(--m-radius-sm);
         color: var(--m-text-muted) !important;
         font-size: 15px !important;
-        font-weight: 600 !important;
-        text-decoration: none !important;
-        box-shadow: none !important;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: none;
     }
 }

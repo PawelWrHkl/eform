@@ -1,7 +1,24 @@
 // ── Reports module frontend ───────────────────────────────────────
-// Categories: overall | groups
+// Categories: overall | groups | dept-clients (+ org: winback | abc)
 // Overall sub-views: table | bar | trend
 // Groups sub-views:  groups-table | groups-chart
+//
+// Dwa tryby jednego pliku: admin (/admin/reports, teksty po polsku) i organizacja
+// (/org/reports, `window.REPORTS_CFG` z routes/orgReports.js — adres API, waluta,
+// kłódka, teksty `reports.*` z jezyki.xlsx).
+
+const CFG = window.REPORTS_CFG || { mode: 'admin' };
+const ORG = CFG.mode === 'org';
+const API = ORG ? CFG.api : '/admin/api/reports';
+const apiUrl = (path) => API + path + (CFG.orgQuery || '');
+const NUM_LOCALE = CFG.numberLocale || 'pl-PL';
+
+// Tekst UI: admin = polski tekst z kodu; organizacja = tłumaczenie `reports.<key>`.
+function L(key, pl, vars) {
+    let text = (ORG && typeof CFG.t?.[key] === 'string' && CFG.t[key]) || pl || key;
+    if (vars) text = text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+    return text;
+}
 
 let _currentStats = [];
 let _currentTrend = [];
@@ -17,15 +34,24 @@ let _groupsMode = 'depts';        // 'depts' | 'groups'
 let _selectedDeptIds = new Set(); // empty = all depts shown
 let _activeDeptClientDeptId = null; // null = first dept
 let _runSeq = 0;                    // guards against out-of-order responses
+let _cur = '€';                     // symbol waluty raportu (org: z odpowiedzi API)
+let _kpi = null;                    // org: kafelki KPI
+let _winback = [];                  // org: klienci do odzyskania
+let _seasonality = [];              // org: sprzedaż miesiąc × rok (cała historia)
+let _abc = { clients: [], groups: [] }; // org: analiza ABC
+let _offers = null;                 // org: raport ofert (null = baza bez order.offer_at)
+let _unlocked = false;              // org: kłódka otwarta → zakup od HKL i marża
+let _loaded = false;
+const valueLabel = () => ORG ? L('col_sales', 'Sprzedaż ({cur})', { cur: _cur }) : 'Wartość (€)';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
 function fmt(n) {
-    return Number(n).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Number(n).toLocaleString(NUM_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtInt(n) {
-    return Number(n).toLocaleString('pl-PL');
+    return Number(n).toLocaleString(NUM_LOCALE);
 }
 
 async function parseJsonResponse(res) {
@@ -34,17 +60,17 @@ async function parseJsonResponse(res) {
     if (!contentType.includes('application/json')) {
         const body = await res.text();
         if (res.status === 401 || res.status === 403) {
-            throw new Error('Brak dostępu do raportów albo sesja wygasła.');
+            throw new Error(L('err_access', 'Brak dostępu do raportów albo sesja wygasła.'));
         }
         if (body && body.trim().startsWith('<')) {
-            throw new Error('Endpoint raportów zwrócił HTML zamiast JSON. Sprawdź backend lub sesję użytkownika.');
+            throw new Error(L('err_html', 'Endpoint raportów zwrócił HTML zamiast JSON. Sprawdź backend lub sesję użytkownika.'));
         }
-        throw new Error(`Nieprawidłowa odpowiedź serwera (${res.status}).`);
+        throw new Error(L('err_response', 'Nieprawidłowa odpowiedź serwera ({status}).', { status: res.status }));
     }
 
     const data = await res.json();
     if (!res.ok) {
-        throw new Error(data?.message || `Błąd serwera (${res.status}).`);
+        throw new Error(data?.message || L('err_server', 'Błąd serwera ({status}).', { status: res.status }));
     }
 
     return data;
@@ -159,8 +185,8 @@ function updateRangeHint(dateFrom, dateTo) {
     const hint = document.getElementById('date-range-hint');
     if (!hint) return;
     hint.textContent = (!dateFrom && !dateTo)
-        ? 'Bez ograniczenia — cała historia zamówień.'
-        : `Wszystkie widoki: ${dateFrom || 'początek'} → ${dateTo || 'dziś'}`;
+        ? L('range_all', 'Bez ograniczenia — cała historia zamówień.')
+        : `${L('range_all_views', 'Wszystkie widoki:')} ${dateFrom || L('range_start', 'początek')} → ${dateTo || L('range_today', 'dziś')}`;
 }
 
 function setRange(dateFrom, dateTo) {
@@ -223,13 +249,14 @@ async function runReport() {
     const userIds = ids.length > 0 && ids.length < totalClients ? ids : null;
 
     const runId = ++_runSeq;
+    const currency = document.getElementById('report-currency')?.value || null;
 
     try {
-        const res = await fetch('/admin/api/reports/stats', {
+        const res = await fetch(apiUrl('/stats'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userIds, dateFrom, dateTo }),
+            body: JSON.stringify(ORG ? { userIds, dateFrom, dateTo, currency } : { userIds, dateFrom, dateTo }),
         });
         const data = await parseJsonResponse(res);
         if (runId !== _runSeq) return; // a newer range was requested meanwhile
@@ -239,6 +266,16 @@ async function runReport() {
         _currentTrend  = Array.isArray(data.trend)        ? data.trend        : [];
         _currentGroups = Array.isArray(data.groups)       ? data.groups       : [];
         _currentDeptClients = Array.isArray(data.deptClients) ? data.deptClients : [];
+        if (ORG) {
+            _cur = data.currencySymbol || '€';
+            _kpi = data.kpi || null;
+            _winback = Array.isArray(data.winback) ? data.winback : [];
+            _seasonality = Array.isArray(data.seasonality) ? data.seasonality : [];
+            _abc = data.abc || { clients: [], groups: [] };
+            _offers = data.offers || null;
+            _unlocked = !!data.unlocked;
+            _loaded = true;
+        }
         updateClientCounts(data.clientCounts);
         updateSummary();
         renderActiveView();
@@ -267,18 +304,19 @@ function updateClientCounts(clientCounts) {
 
 function setLoading(on) {
     if (on) {
-        showArea('<div class="reports-loading"><div class="spinner-border spinner-border-sm text-secondary"></div> Ładowanie danych...</div>');
+        showArea(`<div class="reports-loading"><div class="spinner-border spinner-border-sm text-secondary"></div> ${L('loading', 'Ładowanie danych...')}</div>`);
         document.getElementById('summary-bar').style.display = 'none';
     }
 }
 
 function updateReportMeta(dateFrom, dateTo, clientCount) {
-    let meta = `${clientCount} klientów`;
+    let meta = `${clientCount} ${L('clients_count_suffix', 'klientów')}`;
     if (dateFrom || dateTo) meta += ` · ${dateFrom || '…'} → ${dateTo || '…'}`;
     document.getElementById('report-meta').textContent = meta;
 }
 
 function updateSummary() {
+    if (ORG) return renderKpi();
     const bar = document.getElementById('summary-bar');
     bar.style.display = 'flex';
 
@@ -303,20 +341,33 @@ function renderActiveView() {
     else if (_activeView === 'groups-chart') renderGroupBarChart();
     else if (_activeView === 'dc-table')     renderDeptClientsTable();
     else if (_activeView === 'dc-chart')     renderDeptClientsChart();
+    else if (_activeView === 'winback')      renderWinback();
+    else if (_activeView === 'abc-clients')  renderAbc('clients');
+    else if (_activeView === 'abc-groups')   renderAbc('groups');
+    else if (_activeView === 'season-table') renderSeasonality();
+    else if (_activeView === 'offers')       renderOffers();
 }
 
 // ── Table view ────────────────────────────────────────────────────
 
-const COLS = [
-    { key: 'rank',           label: '#',             numeric: false, sortable: false },
-    { key: 'ident',          label: 'Klient',        numeric: false },
-    { key: 'order_count',    label: 'Zamówienia',    numeric: true,  metric: 'orders'    },
-    { key: 'total_value',    label: 'Wartość (€)',   numeric: true,  metric: 'value'     },
-    { key: 'position_count', label: 'Pozycje',       numeric: true,  metric: 'positions' },
-];
+// Kolumny tabeli klientów; w organizacji po otwarciu kłódki dochodzą zakup od HKL i marża.
+function tableCols() {
+    const cols = [
+        { key: 'rank',           label: '#',                                   numeric: false, sortable: false },
+        { key: 'ident',          label: L('col_client', 'Klient'),             numeric: false },
+        { key: 'order_count',    label: L('metric_orders', 'Zamówienia'),      numeric: true,  metric: 'orders'    },
+        { key: 'total_value',    label: valueLabel(),                          numeric: true,  metric: 'value'     },
+        { key: 'position_count', label: L('metric_positions', 'Pozycje'),      numeric: true,  metric: 'positions' },
+    ];
+    if (ORG && _unlocked) {
+        cols.push({ key: 'purchase_value', label: L('col_purchase', 'Zakup od HKL ({cur})', { cur: _cur }), numeric: true, metric: 'value' });
+        cols.push({ key: 'margin_value',   label: L('col_margin', 'Marża ({cur})', { cur: _cur }),          numeric: true, metric: 'value' });
+    }
+    return cols;
+}
 
 function sortedStats() {
-    const data = [..._currentStats];
+    const data = _currentStats.map(r => (ORG && _unlocked ? { ...r, margin_value: Number(r.total_value) - Number(r.purchase_value) } : r));
     data.sort((a, b) => {
         const av = isNaN(a[_sortCol]) ? a[_sortCol] : Number(a[_sortCol]);
         const bv = isNaN(b[_sortCol]) ? b[_sortCol] : Number(b[_sortCol]);
@@ -329,12 +380,12 @@ function sortedStats() {
 
 function renderTable() {
     if (!_currentStats.length) {
-        showArea('<div class="reports-empty">Brak danych dla wybranych filtrów.</div>');
+        showArea(`<div class="reports-empty">${L('no_data_filters', 'Brak danych dla wybranych filtrów.')}</div>`);
         return;
     }
 
     const rows = sortedStats();
-    const cols = COLS.filter(c => !c.metric || _activeMetrics[c.metric]);
+    const cols = tableCols().filter(c => !c.metric || _activeMetrics[c.metric]);
 
     const thead = cols.map(c => {
         if (c.sortable === false) return `<th>${c.label}</th>`;
@@ -350,6 +401,8 @@ function renderTable() {
             if (c.key === 'order_count')    return `<td class="num">${fmtInt(r.order_count)}</td>`;
             if (c.key === 'total_value')    return `<td class="num">${fmt(r.total_value)}</td>`;
             if (c.key === 'position_count') return `<td class="num">${fmtInt(r.position_count)}</td>`;
+            if (c.key === 'purchase_value') return `<td class="num">${fmt(r.purchase_value)}</td>`;
+            if (c.key === 'margin_value')   return `<td class="num">${fmt(r.margin_value)}</td>`;
             return '<td></td>';
         }).join('');
         return `<tr>${cells}</tr>`;
@@ -384,7 +437,7 @@ function renderTable() {
 function allDepts() {
     const map = {};
     _currentGroups.forEach(r => { map[r.department_id] = r.department_name; });
-    return Object.entries(map).sort((a, b) => a[1].localeCompare(b[1], 'pl'));
+    return Object.entries(map).sort((a, b) => a[1].localeCompare(b[1], NUM_LOCALE));
 }
 
 function filteredGroupRows() {
@@ -404,8 +457,8 @@ function buildGroupsFilterBar() {
 
     const deptPanel = `<div class="gf-dept-list" id="gf-dept-list" style="${_groupsMode === 'depts' ? '' : ''}">
         <div class="gf-dept-selrow">
-            <button class="btn btn-xs btn-outline-secondary btn-sm py-0" id="gf-select-all-depts">Wszystkie</button>
-            <button class="btn btn-xs btn-outline-secondary btn-sm py-0" id="gf-deselect-all-depts">Odznacz</button>
+            <button class="btn btn-xs btn-outline-secondary btn-sm py-0" id="gf-select-all-depts">${L('all_depts', 'Wszystkie')}</button>
+            <button class="btn btn-xs btn-outline-secondary btn-sm py-0" id="gf-deselect-all-depts">${L('deselect', 'Odznacz')}</button>
         </div>
         ${deptCheckboxes}
     </div>`;
@@ -413,10 +466,10 @@ function buildGroupsFilterBar() {
     return `<div class="groups-filter-bar" id="groups-filter-bar">
         <div class="gf-mode-toggle">
             <button class="${_groupsMode === 'depts' ? 'active' : ''}" data-gmode="depts">
-                <i class="bi bi-building me-1"></i>Całe działy
+                <i class="bi bi-building me-1"></i>${L('mode_depts', 'Całe działy')}
             </button>
             <button class="${_groupsMode === 'groups' ? 'active' : ''}" data-gmode="groups">
-                <i class="bi bi-grid-3x3-gap me-1"></i>Konkretne grupy
+                <i class="bi bi-grid-3x3-gap me-1"></i>${L('mode_groups', 'Konkretne grupy')}
             </button>
         </div>
         <div class="gf-dept-section">${deptPanel}</div>
@@ -466,7 +519,7 @@ function initGroupsFilterBar() {
 
 function renderGroupView() {
     if (!_currentGroups || !_currentGroups.length) {
-        showArea('<div class="reports-empty">Brak danych grup dla wybranych filtrów.</div>');
+        showArea(`<div class="reports-empty">${L('no_group_data', 'Brak danych grup dla wybranych filtrów.')}</div>`);
         return;
     }
 
@@ -490,10 +543,10 @@ function renderGroupView() {
             byDept[k].totOrd += Number(r.order_count);
         });
 
-        const colHeaders = [{ label: 'Dział', num: false }];
-        if (showPos)    colHeaders.push({ label: 'Pozycje',    num: true });
-        if (showOrders) colHeaders.push({ label: 'Zamówienia', num: true });
-        if (showValue)  colHeaders.push({ label: 'Wartość (€)', num: true });
+        const colHeaders = [{ label: L('col_dept', 'Dział'), num: false }];
+        if (showPos)    colHeaders.push({ label: L('metric_positions', 'Pozycje'),    num: true });
+        if (showOrders) colHeaders.push({ label: L('metric_orders', 'Zamówienia'), num: true });
+        if (showValue)  colHeaders.push({ label: valueLabel(), num: true });
 
         const bodyRows = Object.values(byDept)
             .sort((a, b) => b.totVal - a.totVal)
@@ -523,15 +576,15 @@ function renderGroupView() {
             byDept[dk].totOrd += Number(r.order_count);
         });
 
-        const colHeaders = [{ label: 'Grupa', num: false }];
-        if (showPos)    colHeaders.push({ label: 'Pozycje',    num: true });
-        if (showOrders) colHeaders.push({ label: 'Zamówienia', num: true });
-        if (showValue)  colHeaders.push({ label: 'Wartość (€)', num: true });
+        const colHeaders = [{ label: L('col_group', 'Grupa'), num: false }];
+        if (showPos)    colHeaders.push({ label: L('metric_positions', 'Pozycje'),    num: true });
+        if (showOrders) colHeaders.push({ label: L('metric_orders', 'Zamówienia'), num: true });
+        if (showValue)  colHeaders.push({ label: valueLabel(), num: true });
 
         Object.values(byDept).forEach(dept => {
-            const deptPos = showPos    ? `<span class="dept-stat">${fmtInt(dept.totPos)} poz.</span>` : '';
-            const deptOrd = showOrders ? `<span class="dept-stat">${fmtInt(dept.totOrd)} zam.</span>` : '';
-            const deptVal = showValue  ? `<span class="dept-stat">${fmt(dept.totVal)} €</span>` : '';
+            const deptPos = showPos    ? `<span class="dept-stat">${fmtInt(dept.totPos)} ${L('pos_short', 'poz.')}</span>` : '';
+            const deptOrd = showOrders ? `<span class="dept-stat">${fmtInt(dept.totOrd)} ${L('ord_short', 'zam.')}</span>` : '';
+            const deptVal = showValue  ? `<span class="dept-stat">${fmt(dept.totVal)} ${_cur}</span>` : '';
 
             const bodyRows = dept.rows.map(r => {
                 const cells = ['<td>' + escHtml(r.group_name) + '</td>'];
@@ -565,7 +618,7 @@ function renderGroupView() {
 
 function renderGroupBarChart() {
     if (!_currentGroups || !_currentGroups.length) {
-        showArea('<div class="reports-empty">Brak danych grup dla wybranych filtrów.</div>');
+        showArea(`<div class="reports-empty">${L('no_group_data', 'Brak danych grup dla wybranych filtrów.')}</div>`);
         return;
     }
 
@@ -620,16 +673,16 @@ function renderGroupBarChart() {
     const countAxis = hasValue ? 'y2' : 'y';
 
     const datasets = [];
-    if (hasValue)  datasets.push({ label: 'Wartość (€)', data: vals, backgroundColor: 'rgba(13,110,253,0.7)',  borderRadius: 4, yAxisID: 'y' });
-    if (hasOrders) datasets.push({ label: 'Zamówienia',  data: ords, backgroundColor: 'rgba(25,135,84,0.7)',   borderRadius: 4, yAxisID: countAxis });
-    if (hasPos)    datasets.push({ label: 'Pozycje',     data: pos,  backgroundColor: 'rgba(255,193,7,0.7)',   borderRadius: 4, yAxisID: countAxis });
+    if (hasValue)  datasets.push({ label: valueLabel(), money: true, data: vals, backgroundColor: 'rgba(13,110,253,0.7)',  borderRadius: 4, yAxisID: 'y' });
+    if (hasOrders) datasets.push({ label: L('metric_orders', 'Zamówienia'),  data: ords, backgroundColor: 'rgba(25,135,84,0.7)',   borderRadius: 4, yAxisID: countAxis });
+    if (hasPos)    datasets.push({ label: L('metric_positions', 'Pozycje'),     data: pos,  backgroundColor: 'rgba(255,193,7,0.7)',   borderRadius: 4, yAxisID: countAxis });
 
     const scales = {
         x: { ticks: { maxRotation: 45, font: { size: 11 } } },
-        y: { position: 'left', title: { display: true, text: hasValue ? 'Wartość (€)' : 'Ilość' } }
+        y: { position: 'left', title: { display: true, text: hasValue ? valueLabel() : L('axis_qty', 'Ilość') } }
     };
     if ((hasOrders || hasPos) && hasValue) {
-        scales.y2 = { position: 'right', title: { display: true, text: 'Ilość' }, grid: { drawOnChartArea: false } };
+        scales.y2 = { position: 'right', title: { display: true, text: L('axis_qty', 'Ilość') }, grid: { drawOnChartArea: false } };
     }
 
     const ctx = document.getElementById('report-chart').getContext('2d');
@@ -644,7 +697,7 @@ function renderGroupBarChart() {
                 tooltip: {
                     callbacks: {
                         afterTitle: depts ? (items => '📂 ' + depts[items[0].dataIndex]) : undefined,
-                        label: c => c.dataset.label + ': ' + (c.dataset.label === 'Wartość (€)' ? fmt(c.parsed.y) + ' €' : fmtInt(c.parsed.y)),
+                        label: c => c.dataset.label + ': ' + (c.dataset.money ? fmt(c.parsed.y) + ' ' + _cur : fmtInt(c.parsed.y)),
                     }
                 }
             },
@@ -660,7 +713,7 @@ function getDeptClientDepts() {
     _currentDeptClients.forEach(r => {
         if (!map[r.department_id]) map[r.department_id] = { id: r.department_id, name: r.department_name };
     });
-    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, NUM_LOCALE));
 }
 
 function getActiveDeptClientDept(depts) {
@@ -694,7 +747,7 @@ function initDeptClientDeptBar() {
 
 function renderDeptClientsTable() {
     if (!_currentDeptClients || !_currentDeptClients.length) {
-        showArea('<div class="reports-empty">Brak danych dla wybranych filtrów.</div>');
+        showArea(`<div class="reports-empty">${L('no_data_filters', 'Brak danych dla wybranych filtrów.')}</div>`);
         return;
     }
 
@@ -711,15 +764,15 @@ function renderDeptClientsTable() {
         .sort((a, b) => Number(b.total_value) - Number(a.total_value));
 
     if (!rows.length) {
-        showArea(deptBar + '<div class="reports-empty">Brak klientów w tym dziale.</div>');
+        showArea(deptBar + `<div class="reports-empty">${L('no_dept_clients', 'Brak klientów w tym dziale.')}</div>`);
         initDeptClientDeptBar();
         return;
     }
 
-    const colHeaders = [{ label: '#', num: false }, { label: 'Klient', num: false }];
-    if (showPos)    colHeaders.push({ label: 'Pozycje',     num: true });
-    if (showOrders) colHeaders.push({ label: 'Zamówienia',  num: true });
-    if (showValue)  colHeaders.push({ label: 'Wartość (€)', num: true });
+    const colHeaders = [{ label: '#', num: false }, { label: L('col_client', 'Klient'), num: false }];
+    if (showPos)    colHeaders.push({ label: L('metric_positions', 'Pozycje'),     num: true });
+    if (showOrders) colHeaders.push({ label: L('metric_orders', 'Zamówienia'),  num: true });
+    if (showValue)  colHeaders.push({ label: valueLabel(), num: true });
 
     const maxVal = Math.max(...rows.map(r => Number(r.total_value)), 1);
 
@@ -756,7 +809,7 @@ function renderDeptClientsTable() {
 
 function renderDeptClientsChart() {
     if (!_currentDeptClients || !_currentDeptClients.length) {
-        showArea('<div class="reports-empty">Brak danych dla wybranych filtrów.</div>');
+        showArea(`<div class="reports-empty">${L('no_data_filters', 'Brak danych dla wybranych filtrów.')}</div>`);
         return;
     }
 
@@ -786,16 +839,16 @@ function renderDeptClientsChart() {
     const countAxis = hasValue ? 'y2' : 'y';
 
     const datasets = [];
-    if (hasValue)  datasets.push({ label: 'Wartość (€)', data: vals, backgroundColor: 'rgba(13,110,253,0.7)',  borderRadius: 4, yAxisID: 'y' });
-    if (hasOrders) datasets.push({ label: 'Zamówienia',  data: ords, backgroundColor: 'rgba(25,135,84,0.7)',   borderRadius: 4, yAxisID: countAxis });
-    if (hasPos)    datasets.push({ label: 'Pozycje',     data: pos,  backgroundColor: 'rgba(255,193,7,0.7)',   borderRadius: 4, yAxisID: countAxis });
+    if (hasValue)  datasets.push({ label: valueLabel(), money: true, data: vals, backgroundColor: 'rgba(13,110,253,0.7)',  borderRadius: 4, yAxisID: 'y' });
+    if (hasOrders) datasets.push({ label: L('metric_orders', 'Zamówienia'),  data: ords, backgroundColor: 'rgba(25,135,84,0.7)',   borderRadius: 4, yAxisID: countAxis });
+    if (hasPos)    datasets.push({ label: L('metric_positions', 'Pozycje'),     data: pos,  backgroundColor: 'rgba(255,193,7,0.7)',   borderRadius: 4, yAxisID: countAxis });
 
     const scales = {
         x: { ticks: { maxRotation: 45, font: { size: 11 } } },
-        y: { position: 'left', title: { display: true, text: hasValue ? 'Wartość (€)' : 'Ilość' } }
+        y: { position: 'left', title: { display: true, text: hasValue ? valueLabel() : L('axis_qty', 'Ilość') } }
     };
     if ((hasOrders || hasPos) && hasValue) {
-        scales.y2 = { position: 'right', title: { display: true, text: 'Ilość' }, grid: { drawOnChartArea: false } };
+        scales.y2 = { position: 'right', title: { display: true, text: L('axis_qty', 'Ilość') }, grid: { drawOnChartArea: false } };
     }
 
     const ctx = document.getElementById('report-chart').getContext('2d');
@@ -809,7 +862,7 @@ function renderDeptClientsChart() {
                 legend: { position: 'top' },
                 tooltip: {
                     callbacks: {
-                        label: c => c.dataset.label + ': ' + (c.dataset.label === 'Wartość (€)' ? fmt(c.parsed.y) + ' €' : fmtInt(c.parsed.y)),
+                        label: c => c.dataset.label + ': ' + (c.dataset.money ? fmt(c.parsed.y) + ' ' + _cur : fmtInt(c.parsed.y)),
                     }
                 }
             },
@@ -822,7 +875,7 @@ function renderDeptClientsChart() {
 
 function renderBarChart() {
     if (!_currentStats.length) {
-        showArea('<div class="reports-empty">Brak danych.</div>');
+        showArea(`<div class="reports-empty">${L('no_data', 'Brak danych.')}</div>`);
         return;
     }
 
@@ -841,12 +894,12 @@ function renderBarChart() {
     const countAxis = hasValue ? 'y2' : 'y';
 
     const datasets = [];
-    if (hasValue)  datasets.push({ label: 'Wartość (€)', data: top.map(r => Number(r.total_value)),    backgroundColor: 'rgba(13,110,253,0.7)', borderRadius: 4, yAxisID: 'y' });
-    if (hasOrders) datasets.push({ label: 'Zamówienia',  data: top.map(r => Number(r.order_count)),    backgroundColor: 'rgba(25,135,84,0.7)',  borderRadius: 4, yAxisID: countAxis });
-    if (hasPos)    datasets.push({ label: 'Pozycje',     data: top.map(r => Number(r.position_count)), backgroundColor: 'rgba(255,193,7,0.7)',  borderRadius: 4, yAxisID: countAxis });
+    if (hasValue)  datasets.push({ label: valueLabel(), money: true, data: top.map(r => Number(r.total_value)),    backgroundColor: 'rgba(13,110,253,0.7)', borderRadius: 4, yAxisID: 'y' });
+    if (hasOrders) datasets.push({ label: L('metric_orders', 'Zamówienia'),  data: top.map(r => Number(r.order_count)),    backgroundColor: 'rgba(25,135,84,0.7)',  borderRadius: 4, yAxisID: countAxis });
+    if (hasPos)    datasets.push({ label: L('metric_positions', 'Pozycje'),     data: top.map(r => Number(r.position_count)), backgroundColor: 'rgba(255,193,7,0.7)',  borderRadius: 4, yAxisID: countAxis });
 
-    const scales = { x: { ticks: { maxRotation: 45, font: { size: 11 } } }, y: { position: 'left', title: { display: true, text: hasValue ? 'Wartość (€)' : 'Ilość' } } };
-    if ((hasOrders || hasPos) && hasValue) scales.y2 = { position: 'right', title: { display: true, text: 'Ilość' }, grid: { drawOnChartArea: false } };
+    const scales = { x: { ticks: { maxRotation: 45, font: { size: 11 } } }, y: { position: 'left', title: { display: true, text: hasValue ? valueLabel() : L('axis_qty', 'Ilość') } } };
+    if ((hasOrders || hasPos) && hasValue) scales.y2 = { position: 'right', title: { display: true, text: L('axis_qty', 'Ilość') }, grid: { drawOnChartArea: false } };
 
     _chartInstance = new Chart(ctx, {
         type: 'bar',
@@ -856,7 +909,7 @@ function renderBarChart() {
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: { position: 'top' },
-                tooltip: { callbacks: { label: c => c.dataset.label + ': ' + (c.dataset.label === 'Wartość (€)' ? fmt(c.parsed.y) + ' €' : fmtInt(c.parsed.y)) } }
+                tooltip: { callbacks: { label: c => c.dataset.label + ': ' + (c.dataset.money ? fmt(c.parsed.y) + ' ' + _cur : fmtInt(c.parsed.y)) } }
             },
             scales,
         }
@@ -867,7 +920,7 @@ function renderBarChart() {
 
 function renderTrendChart() {
     if (!_currentTrend.length) {
-        showArea('<div class="reports-empty">Brak danych trendu.</div>');
+        showArea(`<div class="reports-empty">${L('no_trend', 'Brak danych trendu.')}</div>`);
         return;
     }
 
@@ -882,12 +935,12 @@ function renderTrendChart() {
     const countAxis = hasValue ? 'y2' : 'y';
 
     const datasets = [];
-    if (hasValue)  datasets.push({ label: 'Wartość (€)', data: _currentTrend.map(r => Number(r.total_value)),    borderColor: 'rgba(13,110,253,1)', backgroundColor: 'rgba(13,110,253,0.1)', fill: true,  tension: 0.3, yAxisID: 'y' });
-    if (hasOrders) datasets.push({ label: 'Zamówienia',  data: _currentTrend.map(r => Number(r.order_count)),    borderColor: 'rgba(25,135,84,1)',  backgroundColor: 'rgba(25,135,84,0.08)', fill: false, tension: 0.3, yAxisID: countAxis });
-    if (hasPos)    datasets.push({ label: 'Pozycje',     data: _currentTrend.map(r => Number(r.position_count)), borderColor: 'rgba(255,193,7,1)',  backgroundColor: 'rgba(255,193,7,0.08)', fill: false, tension: 0.3, yAxisID: countAxis });
+    if (hasValue)  datasets.push({ label: valueLabel(), money: true, data: _currentTrend.map(r => Number(r.total_value)),    borderColor: 'rgba(13,110,253,1)', backgroundColor: 'rgba(13,110,253,0.1)', fill: true,  tension: 0.3, yAxisID: 'y' });
+    if (hasOrders) datasets.push({ label: L('metric_orders', 'Zamówienia'),  data: _currentTrend.map(r => Number(r.order_count)),    borderColor: 'rgba(25,135,84,1)',  backgroundColor: 'rgba(25,135,84,0.08)', fill: false, tension: 0.3, yAxisID: countAxis });
+    if (hasPos)    datasets.push({ label: L('metric_positions', 'Pozycje'),     data: _currentTrend.map(r => Number(r.position_count)), borderColor: 'rgba(255,193,7,1)',  backgroundColor: 'rgba(255,193,7,0.08)', fill: false, tension: 0.3, yAxisID: countAxis });
 
-    const scales = { y: { position: 'left', title: { display: true, text: hasValue ? 'Wartość (€)' : 'Ilość' } } };
-    if ((hasOrders || hasPos) && hasValue) scales.y2 = { position: 'right', title: { display: true, text: 'Ilość' }, grid: { drawOnChartArea: false } };
+    const scales = { y: { position: 'left', title: { display: true, text: hasValue ? valueLabel() : L('axis_qty', 'Ilość') } } };
+    if ((hasOrders || hasPos) && hasValue) scales.y2 = { position: 'right', title: { display: true, text: L('axis_qty', 'Ilość') }, grid: { drawOnChartArea: false } };
 
     _chartInstance = new Chart(ctx, {
         type: 'line',
@@ -906,12 +959,12 @@ function renderTrendChart() {
 function initConfigControls() {
     document.getElementById('btn-save-config').addEventListener('click', async () => {
         const name = document.getElementById('config-name-input').value.trim();
-        if (!name) { alert('Wpisz nazwę konfiguracji.'); return; }
+        if (!name) { alert(L('config_name_required', 'Wpisz nazwę konfiguracji.')); return; }
         const ids = getSelectedIds();
         const { dateFrom, dateTo } = currentRange();
         const dateToToday = document.getElementById('date-to-today').checked;
 
-        const res = await fetch('/admin/api/reports/configs', {
+        const res = await fetch(apiUrl('/configs'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -929,8 +982,8 @@ function initConfigControls() {
         if (e.target.classList.contains('config-delete-btn')) {
             e.stopPropagation();
             const name = e.target.dataset.name;
-            if (!confirm(`Usunąć konfigurację „${name}"?`)) return;
-            const res = await fetch('/admin/api/reports/configs/' + encodeURIComponent(name), {
+            if (!confirm(L('config_delete_confirm', 'Usunąć konfigurację „{name}"?', { name }))) return;
+            const res = await fetch(API + '/configs/' + encodeURIComponent(name) + (CFG.orgQuery || ''), {
                 method: 'DELETE', credentials: 'include',
             });
             const data = await parseJsonResponse(res);
@@ -979,16 +1032,17 @@ function renderSavedConfigs(configs) {
         const item = document.createElement('div');
         item.className = 'config-item';
         item.dataset.config = JSON.stringify(cfg);
-        const clientsLabel = cfg.userIds?.length ? cfg.userIds.length + ' klientów' : 'wszyscy';
+        const clientsLabel = cfg.userIds?.length ? cfg.userIds.length + ' ' + L('clients_count_suffix', 'klientów') : L('all_clients', 'wszyscy');
+        const today = L('today', 'dzisiaj');
         const dateLabel = cfg.dateFrom
-            ? `${cfg.dateFrom} → ${cfg.dateToToday ? 'dzisiaj' : (cfg.dateTo || '…')}`
-            : (cfg.dateToToday ? '→ dzisiaj' : '');
+            ? `${cfg.dateFrom} → ${cfg.dateToToday ? today : (cfg.dateTo || '…')}`
+            : (cfg.dateToToday ? '→ ' + today : '');
         item.innerHTML = `
             <div>
                 <div class="config-name">${escHtml(cfg.name)}</div>
                 <div class="config-meta">${clientsLabel}${dateLabel ? ' · ' + dateLabel : ''}</div>
             </div>
-            <button class="config-delete-btn" data-name="${escHtml(cfg.name)}" title="Usuń">×</button>`;
+            <button class="config-delete-btn" data-name="${escHtml(cfg.name)}" title="${escHtml(L('delete', 'Usuń'))}">×</button>`;
         list.appendChild(item);
     });
 
@@ -1025,7 +1079,7 @@ function initViewToggle() {
             _activeView = first.dataset.view;
         }
 
-        if (_currentStats.length || _currentGroups.length) renderActiveView();
+        if (_currentStats.length || _currentGroups.length || _loaded) renderActiveView();
     });
 
     // Sub-view (second level)
@@ -1035,13 +1089,14 @@ function initViewToggle() {
         document.querySelectorAll('#view-toggle button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         _activeView = btn.dataset.view;
-        if (_currentStats.length || _currentGroups.length) renderActiveView();
+        if (_currentStats.length || _currentGroups.length || _loaded) renderActiveView();
     });
 }
 
 // ── Utils ─────────────────────────────────────────────────────────
 
 function showArea(html) {
+    if (ORG) destroyChart(); // wykres znika z ekranu razem z kontenerem (eksport nie bierze starego)
     document.getElementById('report-area').innerHTML = html;
 }
 
@@ -1072,7 +1127,7 @@ function initMetricToggles() {
         if (!next && Object.values(_activeMetrics).filter(Boolean).length === 1) return; // keep at least one
         _activeMetrics[metric] = next;
         btn.classList.toggle('active', next);
-        if (_currentStats.length || _currentTrend.length) renderActiveView();
+        if (_currentStats.length || _currentTrend.length || _loaded) renderActiveView();
     });
 }
 
@@ -1125,6 +1180,262 @@ function initCollapsible() {
     });
 }
 
+// ── Organizacja: KPI, klienci do odzyskania, ABC, eksport, wydruk ──
+
+const pct = (v, digits = 1) => (v * 100).toLocaleString(NUM_LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits }) + ' %';
+
+// Δ% bieżącej wartości do porównania; brak bazy (0) albo brak okresu = „—”.
+function deltaHtml(cur, base, label) {
+    if (base === undefined || base === null) return '';
+    if (!Number(base)) return `<div class="kpi-delta neutral">${escHtml(label)}: —</div>`;
+    const d = (Number(cur) - Number(base)) / Math.abs(Number(base));
+    const dir = d > 0.0005 ? 'up' : d < -0.0005 ? 'down' : 'neutral';
+    const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '•';
+    const sign = d > 0 ? '+' : '';
+    return `<div class="kpi-delta ${dir}">${arrow} ${sign}${pct(d)} <span class="kpi-delta-label">${escHtml(label)}</span></div>`;
+}
+
+function renderKpi() {
+    const bar = document.getElementById('kpi-bar');
+    if (!bar || !_kpi) return;
+    const c = _kpi.current || {};
+    const tiles = [
+        { key: 'sales',     label: L('kpi_sales', 'Sprzedaż'),                    money: true },
+        { key: 'orders',    label: L('kpi_orders', 'Zlecenia') },
+        { key: 'positions', label: L('kpi_positions', 'Pozycje') },
+        { key: 'avgOrder',  label: L('kpi_avg_order', 'Średnia wartość zlecenia'), money: true },
+        { key: 'clients',   label: L('kpi_clients', 'Aktywni klienci') },
+    ];
+    if (_unlocked && c.purchase !== undefined) {
+        tiles.push({ key: 'purchase', label: L('kpi_purchase', 'Zakup od HKL'), money: true });
+        tiles.push({ key: 'margin',   label: L('kpi_margin', 'Marża'),          money: true, share: c.sales ? c.margin / c.sales : null });
+    }
+    const range = (r) => r ? `${r.dateFrom} → ${r.dateTo}` : '';
+    bar.innerHTML = tiles.map(t => `
+        <div class="kpi-tile">
+            <div class="kpi-label">${escHtml(t.label)}</div>
+            <div class="kpi-value">${t.money ? fmt(c[t.key] || 0) + ' ' + escHtml(_cur) : fmtInt(c[t.key] || 0)}${t.share != null ? ` <span class="kpi-share">${pct(t.share)}</span>` : ''}</div>
+            <div title="${escHtml(range(_kpi.ranges?.prev))}">${_kpi.prev ? deltaHtml(c[t.key], _kpi.prev[t.key], L('kpi_vs_prev', 'vs poprzedni okres')) : ''}</div>
+            <div title="${escHtml(range(_kpi.ranges?.yoy))}">${_kpi.yoy ? deltaHtml(c[t.key], _kpi.yoy[t.key], L('kpi_vs_yoy', 'vs rok wcześniej')) : ''}</div>
+        </div>`).join('')
+        + offerTilesHtml()
+        + (_kpi.prev ? '' : `<div class="kpi-note">${escHtml(L('kpi_no_compare', 'Porównanie wymaga zakresu „od–do”.'))}</div>`)
+        + (c.itemsWithoutClientPrice ? `<div class="kpi-note">${escHtml(L('kpi_no_client_price', '{n} pozycji bez ceny klienta (zapisane przed cenami klienta) — w sprzedaży liczone jako 0.', { n: fmtInt(c.itemsWithoutClientPrice) }))}</div>` : '');
+    bar.hidden = false;
+}
+
+// Kafelki ofert — tylko gdy baza ma znacznik oferty (serwer zwraca wtedy `offers`).
+function offerTilesHtml() {
+    if (!_offers) return '';
+    const o = _offers;
+    const tile = (label, value, sub) => `
+        <div class="kpi-tile kpi-tile-offer">
+            <div class="kpi-label">${escHtml(label)}</div>
+            <div class="kpi-value">${value}</div>
+            <div class="kpi-sub">${escHtml(sub)}</div>
+        </div>`;
+    return tile(L('kpi_offers_open', 'Otwarte oferty'), fmtInt(o.open.count), `${fmt(o.open.value)} ${_cur}`)
+        + tile(L('kpi_offers_conversion', 'Konwersja ofert'), pct(o.rate),
+            L('offers_sent_of', '{sent} z {total} · {value}', { sent: fmtInt(o.sent.count), total: fmtInt(o.total.count), value: `${fmt(o.sent.value)} ${_cur}` }));
+}
+
+function renderOffers() {
+    const o = _offers;
+    const days = o?.staleDays || 14;
+    const intro = `<p class="report-intro">${escHtml(L('offers_intro', 'Oferta = niewysłane zlecenie, z którego zrobiono PDF albo które przyszło importem na konto bez automatycznej wysyłki. Zakres dat liczony od dnia oferty.'))}</p>`;
+    if (!o) { showArea(intro + `<div class="reports-empty">${escHtml(L('no_data', 'Brak danych.'))}</div>`); return; }
+    const line = (label, x) => `<tr><td>${escHtml(label)}</td><td class="num">${fmtInt(x.count)}</td><td class="num">${fmt(x.value)}</td></tr>`;
+    const summary = tableHtml([{ label: L('cat_offers', 'Oferty') }, { label: L('col_count', 'Liczba'), num: true }, { label: valueLabel(), num: true }], [
+        line(L('offers_total', 'Oferty z okresu'), o.total),
+        line(L('offers_sent', 'Wysłane jako zlecenie'), o.sent),
+        line(L('offers_open', 'Otwarte'), o.open),
+        line(L('offers_stale', 'w tym bez ruchu dłużej niż {days} dni', { days }), o.staleTotal),
+    ]);
+    const title = `<h3 class="report-subtitle">${escHtml(L('offers_stale_title', 'Otwarte oferty bez ruchu dłużej niż {days} dni', { days }))}</h3>`;
+    if (!o.stale.length) {
+        showArea(intro + summary + title + `<div class="reports-empty">${escHtml(L('offers_stale_empty', 'Brak ofert bez ruchu.'))}</div>`);
+        return;
+    }
+    const head = [
+        { label: L('col_client', 'Klient') }, { label: L('col_order', 'Zlecenie') },
+        { label: L('col_offer_date', 'Data oferty'), num: true }, { label: L('col_offer_days', 'Dni bez ruchu'), num: true },
+        { label: valueLabel(), num: true },
+    ];
+    const rows = o.stale.map(s => {
+        const label = `${escHtml(`${s.id}/${s.order_idx ?? ''}`)}${s.commision ? ` — ${escHtml(s.commision)}` : ''}`;
+        // Odnośnik tylko dla ownera (serwer nie daje `href` w podglądzie admina).
+        const order = s.href ? `<a href="${escHtml(s.href)}">${label}</a>` : label;
+        return `<tr>${clientCell(s.ident, s.client_name)}<td>${order}</td><td class="num">${escHtml(s.offer_day)}</td>
+            <td class="num">${fmtInt(s.days)}</td><td class="num">${fmt(s.value)}</td></tr>`;
+    });
+    showArea(intro + summary + title + tableHtml(head, rows));
+}
+
+function tableHtml(head, rows) {
+    return `<div class="report-table-wrap"><table class="report-table">
+        <thead><tr>${head.map(h => `<th${h.num ? ' class="num"' : ''}>${escHtml(h.label)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.join('')}</tbody></table></div>`;
+}
+
+function clientCell(ident, name) {
+    return `<td><div style="font-weight:600;">${escHtml(ident)}</div><div style="font-size:0.75rem;color:var(--text-muted,#6c757d);">${escHtml(name || '')}</div></td>`;
+}
+
+function renderWinback() {
+    const intro = `<p class="report-intro">${escHtml(L('winback_intro', 'Klienci z co najmniej 3 zleceniami w ostatnich 12 miesiącach, którzy nie zamawiają dłużej niż dwukrotność swojego typowego odstępu (min. 45 dni). Niezależne od zakresu dat.'))}</p>`;
+    if (!_winback.length) {
+        showArea(intro + `<div class="reports-empty">${escHtml(L('winback_empty', 'Brak klientów do odzyskania.'))}</div>`);
+        return;
+    }
+    const head = [
+        { label: '#' }, { label: L('col_client', 'Klient') },
+        { label: L('col_last_order', 'Ostatnie zlecenie') }, { label: L('col_days_since', 'Dni od zlecenia'), num: true },
+        { label: L('col_typical_gap', 'Typowy odstęp (dni)'), num: true }, { label: L('col_orders_12m', 'Zlecenia (12 mies.)'), num: true },
+        { label: L('col_turnover_12m', 'Obrót 12 mies. ({cur})', { cur: _cur }), num: true },
+    ];
+    const rows = _winback.map((w, i) => `<tr><td><span class="rank-badge">${i + 1}</span></td>${clientCell(w.ident, w.client_name)}
+        <td>${escHtml(w.last_order)}</td><td class="num">${fmtInt(w.days_since)}</td><td class="num">${fmtInt(w.typical_gap)}</td>
+        <td class="num">${fmtInt(w.orders)}</td><td class="num">${fmt(w.value)}</td></tr>`);
+    showArea(intro + tableHtml(head, rows));
+}
+
+function renderAbc(kind) {
+    const items = (_abc && _abc[kind]) || [];
+    const intro = `<p class="report-intro">${escHtml(L('abc_intro', 'A = pozycje dające 80% sprzedaży, B = kolejne 15%, C = reszta.'))}</p>`;
+    if (!items.length) {
+        showArea(intro + `<div class="reports-empty">${escHtml(L('no_data', 'Brak danych.'))}</div>`);
+        return;
+    }
+    destroyChart();
+    const counts = { A: 0, B: 0, C: 0 };
+    items.forEach(i => { counts[i.cls]++; });
+    const summary = `<div class="abc-summary">${['A', 'B', 'C'].map(c => `<span class="abc-badge abc-${c}">${c}</span> ${fmtInt(counts[c])}`).join(' &nbsp; ')}</div>`;
+    const head = [
+        { label: '#' }, { label: kind === 'clients' ? L('col_client', 'Klient') : L('col_group', 'Grupa') },
+        { label: valueLabel(), num: true }, { label: L('col_share', 'Udział'), num: true },
+        { label: L('col_cumulative', 'Skumulowany'), num: true }, { label: L('col_class', 'Klasa') },
+    ];
+    const rows = items.map((i, idx) => `<tr><td><span class="rank-badge">${idx + 1}</span></td>
+        ${kind === 'clients' ? clientCell(i.label, i.name) : `<td><div style="font-weight:600;">${escHtml(i.label)}</div><div style="font-size:0.75rem;color:var(--text-muted,#6c757d);">${escHtml(i.dept || '')}</div></td>`}
+        <td class="num">${fmt(i.value)}</td><td class="num">${pct(i.share)}</td><td class="num">${pct(i.cumulative)}</td>
+        <td><span class="abc-badge abc-${i.cls}">${i.cls}</span></td></tr>`);
+    showArea(intro + summary + `<div class="chart-container abc-chart"><canvas id="report-chart" role="img" aria-label="${escHtml(L('abc_chart_label', 'Skumulowany udział w sprzedaży'))}"></canvas></div>` + tableHtml(head, rows));
+
+    // Jedna linia: skumulowany udział (jedna oś, %), progi 80% i 95% jako przerywane linie odniesienia.
+    const labels = items.map(i => i.label);
+    const guide = (v) => ({ label: `${v}%`, data: labels.map(() => v), borderColor: 'rgba(108,117,125,0.6)', borderWidth: 1, borderDash: [4, 4], pointRadius: 0, pointHitRadius: 0, guide: true });
+    _chartInstance = new Chart(document.getElementById('report-chart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                { label: L('abc_chart_label', 'Skumulowany udział w sprzedaży'), data: items.map(i => +(i.cumulative * 100).toFixed(2)), borderColor: 'rgba(13,110,253,1)', backgroundColor: 'rgba(13,110,253,1)', borderWidth: 2, pointRadius: items.length > 60 ? 0 : 3, pointHoverRadius: 5, tension: 0 },
+                guide(80), guide(95),
+            ],
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    filter: c => !c.dataset.guide,
+                    callbacks: {
+                        label: c => `${pct(items[c.dataIndex].cumulative)} · ${L('col_class', 'Klasa')} ${items[c.dataIndex].cls}`,
+                        afterLabel: c => `${fmt(items[c.dataIndex].value)} ${_cur}`,
+                    },
+                },
+            },
+            scales: {
+                x: { ticks: { maxRotation: 45, font: { size: 11 }, autoSkip: true } },
+                y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, title: { display: true, text: L('col_cumulative', 'Skumulowany') } },
+            },
+        },
+    });
+}
+
+// Sezonowość: miesiące × lata, kolor jednej barwy od jasnego do ciemnego (im więcej, tym ciemniej).
+function renderSeasonality() {
+    const byValue = _activeMetrics.value;
+    const key = byValue ? 'total_value' : 'order_count';
+    const cells = new Map(_seasonality.map(r => [r.month, Number(r[key]) || 0]));
+    const years = [...new Set(_seasonality.map(r => r.month.slice(0, 4)))].sort();
+    const intro = `<p class="report-intro">${escHtml(L('seasonality_intro', 'Cała historia zleceń wybranych klientów, niezależnie od zakresu dat.'))} ${escHtml(byValue ? valueLabel() : L('metric_orders', 'Zlecenia'))}</p>`;
+    if (!years.length) { showArea(intro + `<div class="reports-empty">${escHtml(L('no_data', 'Brak danych.'))}</div>`); return; }
+    const max = Math.max(...cells.values(), 1);
+    const monthName = (m) => new Date(2000, m - 1, 1).toLocaleDateString(NUM_LOCALE, { month: 'long' });
+    const show = (v) => (byValue ? fmt(v) : fmtInt(v));
+    const cell = (v) => {
+        const a = v ? 0.08 + 0.82 * (v / max) : 0;
+        return `<td class="num season-cell" style="background:rgba(13,110,253,${a.toFixed(2)});${a > 0.5 ? 'color:#fff;' : ''}">${v ? show(v) : '—'}</td>`;
+    };
+    const head = [{ label: L('col_month', 'Miesiąc') }, ...years.map(y => ({ label: y, num: true }))];
+    const rows = [];
+    for (let m = 1; m <= 12; m++) {
+        const mm = String(m).padStart(2, '0');
+        rows.push(`<tr><td>${escHtml(monthName(m))}</td>${years.map(y => cell(cells.get(`${y}-${mm}`) || 0)).join('')}</tr>`);
+    }
+    const yearTotal = (y) => [...cells.entries()].filter(([k]) => k.startsWith(y)).reduce((s, [, v]) => s + v, 0);
+    rows.push(`<tr class="season-total"><td><strong>${escHtml(L('col_total', 'Razem'))}</strong></td>${years.map(y => `<td class="num"><strong>${show(yearTotal(y))}</strong></td>`).join('')}</tr>`);
+    showArea(intro + tableHtml(head, rows));
+}
+
+// Eksport aktywnego widoku: tabele z ekranu (wszystkie sekcje), a w widoku wykresu — dane wykresu.
+function parseLocaleNumber(text) {
+    const parts = new Intl.NumberFormat(NUM_LOCALE).formatToParts(12345.6);
+    const group = parts.find(p => p.type === 'group')?.value || '';
+    const dec = parts.find(p => p.type === 'decimal')?.value || '.';
+    const t = text.replace(/ | /g, ' ').trim();
+    if (!/^-?[\d\s.,']+$/.test(t)) return text;
+    const n = Number(t.split(group).join('').replace(/\s/g, '').replace(dec, '.'));
+    return Number.isFinite(n) ? n : text;
+}
+
+function exportRows() {
+    const area = document.getElementById('report-area');
+    const tables = [...area.querySelectorAll('table.report-table')];
+    const rows = [];
+    const headerRows = [];
+    if (tables.length) {
+        tables.forEach(table => {
+            const title = table.closest('.dept-section')?.querySelector('.dept-name')?.textContent;
+            if (title) rows.push([title]);
+            headerRows.push(rows.length);
+            rows.push([...table.querySelectorAll('thead th')].map(th => th.textContent.trim()));
+            table.querySelectorAll('tbody tr').forEach(tr => {
+                rows.push([...tr.cells].map(td => parseLocaleNumber((td.innerText || td.textContent).trim().replace(/\s*\n\s*/g, ' — '))));
+            });
+        });
+    } else if (_chartInstance) {
+        const sets = _chartInstance.data.datasets.filter(d => !d.guide);
+        headerRows.push(0);
+        rows.push(['', ...sets.map(d => d.label)]);
+        _chartInstance.data.labels.forEach((label, i) => rows.push([label, ...sets.map(d => Number(d.data[i]) || 0)]));
+    }
+    return { rows, headerRows };
+}
+
+async function exportXlsx() {
+    const { rows, headerRows } = exportRows();
+    if (!rows.length) return;
+    const { ExcelJSGenerator } = await import('/scripts/components/generators_exceljs.js');
+    const { dateFrom, dateTo } = currentRange();
+    const view = document.querySelector('#view-toggle button.active')?.textContent.trim() || '';
+    const title = `${L('title', 'Raporty')} — ${view} (${dateFrom || '…'} → ${dateTo || '…'}, ${_cur})`;
+    await new ExcelJSGenerator().generateFromRows({ title, rows, headerRows, fileName: `${L('title', 'Raporty')}_${view}_${dateTo || todayStr()}` });
+}
+
+function initOrgTools() {
+    document.getElementById('btn-export-xlsx')?.addEventListener('click', () => exportXlsx().catch(err => console.error('XLSX export failed', err)));
+    document.getElementById('btn-print')?.addEventListener('click', () => window.print());
+    document.getElementById('report-currency')?.addEventListener('change', runReport);
+    // Kłódka: ta sama flaga sesji co w podglądzie zlecenia; serwer i tak liczy zakup tylko po otwarciu.
+    document.getElementById('btn-toggle-purchase')?.addEventListener('click', async () => {
+        const res = await fetch('/orders/toggle-sub', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
+        if (res.ok) window.location.reload();
+    });
+}
+
 // ── Init ──────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1137,6 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initDateControls();
 
     document.getElementById('btn-run-report').addEventListener('click', runReport);
+    if (ORG) initOrgTools();
 
     // Default date range: last 12 months
     const now = new Date();

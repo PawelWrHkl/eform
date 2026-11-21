@@ -201,7 +201,7 @@
        zabierala ~60 px kazdego ekranu (<main> jest przewijany, stopka za nim).
        Linki sa w arkuszu „Wiecej”: A - `.m-nav-legal`, B - `.efor-sheet-legal`. */
     .site-footer {
-        display: none !important;
+        display: none;
     }
 
     .mobile-nav .m-nav-legal {
@@ -224,7 +224,7 @@
     /* Otwarte „Wiecej”: piesek i dymek Eforka staly NA arkuszu (zaslanialy
        „Zmien wyglad” w A). Arkusz przykrywa je jak w aplikacji. */
     body.m-more-open #eform-assistant {
-        visibility: hidden !important;
+        visibility: hidden;
     }
 
     /* FAB z haslami (konto admina) musi stac nad paskiem, nie na nim. */

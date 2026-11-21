@@ -104,7 +104,7 @@
     html,
     body {
         overflow-x: hidden !important;
-        max-width: 100% !important;
+        max-width: 100%;
     }
 
     /* Dlugie niemieckie zlozenia (BEDIENUNGSEITE, FENSTERRAHMENHÖHE) nie moga

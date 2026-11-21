@@ -22,34 +22,34 @@
        wychodzil jasniejszy od kart pod nim. Dwie klasy (0,2,0) to rozstrzygaja. */
     .navbar.mobile-nav,
     .mobile-nav {
-        display: block !important;
-        position: fixed !important;
+        display: block;
+        position: fixed;
         top: 0;
         left: 0;
         right: 0;
-        width: 100% !important;
+        width: 100%;
         z-index: 1030;
-        margin: 0 !important;
+        margin: 0;
         padding: 0 !important;
-        padding-top: env(safe-area-inset-top, 0px) !important;
+        padding-top: env(safe-area-inset-top, 0px);
         background: var(--m-card) !important;
-        border-bottom: 1px solid var(--m-border) !important;
-        box-shadow: var(--m-shadow-header) !important;
+        border-bottom: 1px solid var(--m-border);
+        box-shadow: var(--m-shadow-header);
         box-sizing: border-box;
     }
 
     /* Wiersz naglowka. `flex-wrap` jest konieczny: #mobileNav (rozwijane menu)
        to czwarty element tego samego kontenera i musi zawinac sie POD pasek. */
     .mobile-nav > .container-fluid {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        align-items: center !important;
-        gap: 10px !important;
-        min-height: var(--m-header-h) !important;
-        padding: 0 var(--m-gutter) !important;
-        margin: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        min-height: var(--m-header-h);
+        padding: 0 var(--m-gutter);
+        margin: 0;
+        width: 100%;
+        max-width: 100%;
     }
 
     /* ----------------------------------------------------------------- logo */
@@ -57,18 +57,18 @@
         order: 2;
         flex: 1 1 auto;
         min-width: 0;            /* bez tego dlugie logo rozpycha pasek */
-        display: flex !important;
+        display: flex;
         align-items: center;
-        margin: 0 !important;
-        padding: 0 !important;
+        margin: 0;
+        padding: 0;
     }
 
     /* Logo jest podmieniane w locie przez base.js (HKL / Luxan / Maizoncozy),
        wiec ograniczamy je WYSOKOSCIA, nie szerokoscia - kazdy z trzech znakow
        ma inne proporcje i sztywne `max-width: 40vw` scinalo ten najszerszy. */
     .mobile-nav .logo {
-        max-height: 36px !important;
-        width: auto !important;
+        max-height: 36px;
+        width: auto;
         max-width: min(58vw, 230px) !important;
         margin: 0 !important;
         object-fit: contain;
@@ -78,13 +78,13 @@
     /* ------------------------------------------------------------- powrot */
     #mobile-back-btn.mobile-back-btn {
         order: 1;
-        margin: 0 !important;
+        margin: 0;
         width: 40px;
         height: 40px;
         flex: 0 0 40px;
         border-radius: var(--m-radius-sm);
         border: 1px solid var(--m-border);
-        background: var(--m-field) !important;
+        background: var(--m-field);
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
     }
@@ -105,15 +105,15 @@
         flex: 0 0 auto;
         width: 44px;
         height: 44px;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: inline-flex !important;
+        margin: 0;
+        padding: 0;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid var(--m-border) !important;
-        border-radius: var(--m-radius-sm) !important;
-        background: var(--m-field) !important;
-        box-shadow: none !important;
+        border: 1px solid var(--m-border);
+        border-radius: var(--m-radius-sm);
+        background: var(--m-field);
+        box-shadow: none;
     }
 
     .mobile-nav .navbar-toggler:focus {
@@ -128,9 +128,9 @@
     /* Ikona hamburgera jako maska w kolorze tekstu - domyslny obrazek Bootstrapa
        jest czarny na sztywno i w ciemnym motywie znikal. */
     .mobile-nav .navbar-toggler .navbar-toggler-icon {
-        width: 22px !important;
-        height: 22px !important;
-        background-image: none !important;
+        width: 22px;
+        height: 22px;
+        background-image: none;
         background-color: var(--m-text);
         -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 6h18M3 12h18M3 18h18' stroke='%23000' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E") center / contain no-repeat;
         mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 6h18M3 12h18M3 18h18' stroke='%23000' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E") center / contain no-repeat;
@@ -148,19 +148,19 @@
     }
 
     .mobile-nav .nav {
-        gap: 4px !important;
-        margin: 8px 0 12px !important;
-        padding: 0 !important;
+        gap: 4px;
+        margin: 8px 0 12px;
+        padding: 0;
     }
 
     .mobile-nav .nav-link {
-        background: transparent !important;
-        border-radius: var(--m-radius-sm) !important;
+        background: transparent;
+        border-radius: var(--m-radius-sm);
         padding: 12px 8px !important;
         min-height: 48px;
         display: flex;
         align-items: center;
-        font-size: var(--m-font) !important;
+        font-size: var(--m-font);
         color: var(--m-text) !important;
     }
 
@@ -178,7 +178,7 @@
         width: 100%;
         text-align: left;
         border: none;
-        background: transparent !important;
+        background: transparent;
         color: var(--m-danger) !important;
     }
 
@@ -217,6 +217,6 @@
        ten skrypt nie zdazy sie wykonac, absolutnie pozycjonowany blok
        (`top: 1rem; left: 11rem`) ladowal dokladnie na logo. */
     .languages {
-        display: none !important;
+        display: none;
     }
 }

@@ -838,6 +838,31 @@ class ExcelJSGenerator {
         return `${metadata.id}_${sanitizedName}.xlsx`;
     }
 
+    /**
+     * Dowolna tabela (raporty organizacji, public/scripts/admin/reports.js) w tym samym
+     * stylu co eksport zlecenia: logo, nagłówki, ramki, szerokości kolumn.
+     * @param {{title: string, rows: Array<Array<string|number>>, headerRows: number[], fileName: string}} p
+     */
+    async generateFromRows({ title, rows, headerRows, fileName }) {
+        this.reset();
+        const width = Math.max(...rows.map(r => r.length));
+        this.combinedData = rows.map(r => [...r, ...Array(width - r.length).fill('')]);
+        this.headerRows = [...headerRows];
+        this._addEmptyRowAndColumn();
+        this._adjustIndicesForOffset();
+        const worksheet = await this._createWorksheet();
+        this._applyHeaderStyles(worksheet);
+        this._applyBorderStyles(worksheet);
+        this._applyColumnWidths(worksheet);
+        await this._addLogoToWorksheet(worksheet, await this._extractLogo());
+        const titleCell = worksheet.getCell(2, 4);
+        titleCell.value = title;
+        titleCell.font = { bold: true, size: 13 };
+        worksheet.name = this._sanitizeSheetName(String(title).replace(/[\\/?*\[\]:]/g, ' '));
+        const buffer = await this.workbook.xlsx.writeBuffer();
+        saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${String(fileName).replace(/[\\/?*:"<>|]+/g, '_')}.xlsx`);
+    }
+
     reset() {
         this.workbook = null;
         this.combinedData = [];
@@ -855,3 +880,5 @@ export async function generateExcelWithLogo() {
 
 
 export { generateExcelWithLogo as generateExcel };
+// Raporty organizacji używają generateFromRows (public/scripts/admin/reports.js).
+export { ExcelJSGenerator };

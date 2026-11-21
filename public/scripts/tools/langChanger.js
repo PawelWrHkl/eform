@@ -5,7 +5,7 @@ const mobileNavCollapse = document.querySelector("#mobileNav");
 
 function changeLangStyle() {
     
-    const isMobile = window.innerWidth <= 768;
+    const isMobile = window.innerWidth < 768; // 768 = desktop (jak CSS: max-width 767.98px)
 
     if (isMobile && mobileNavCollapse) {
         

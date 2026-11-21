@@ -4,36 +4,36 @@
     }
 
     .content {
-        margin-left: 0 !important;
-        width: 100% !important;
-        background: var(--bg-body) !important;
+        margin-left: 0;
+        width: 100%;
+        background: var(--bg-body);
     }
 
     .container {
-        padding: 15px !important;
-        width: 100% !important;
+        padding: 15px;
+        width: 100%;
     }
 
     .orders-topbar {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: flex-start !important;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
         gap: 10px !important;
     }
 
     .orders-topbar-left,
     .orders-topbar-center,
     .orders-topbar-right {
-        width: 100% !important;
-        justify-content: flex-start !important;
-        justify-self: auto !important;
-        text-align: left !important;
+        width: 100%;
+        justify-content: flex-start;
+        justify-self: auto;
+        text-align: left;
     }
 
     .header {
-        font-size: 2rem !important;
-        margin-bottom: 0 !important;
-        padding-bottom: 2rem !important;
+        font-size: 2rem;
+        margin-bottom: 0;
+        padding-bottom: 2rem;
     }
 
     #delivery-btn {
@@ -46,64 +46,64 @@
     }
 
     .table {
-        display: none !important;
+        display: none;
     }
 
     .mobile-orders-list {
         display: flex !important;
-        flex-direction: column !important;
-        gap: 15px !important;
+        flex-direction: column;
+        gap: 15px;
     }
 
     .mobile-order-card {
-        background: var(--bg-surface) !important;
-        border: 1px solid var(--border-default) !important;
-        border-radius: 10px !important;
-        padding: 15px !important;
-        box-shadow: var(--shadow-sm) !important;
-        margin-bottom: 10px !important;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 10px;
     }
 
     .mobile-order-header {
-        display: flex !important;
-        justify-content: space-between !important;
+        display: flex;
+        justify-content: space-between;
         align-items: center !important;
-        margin-bottom: 10px !important;
-        border-bottom: 1px solid var(--border-default) !important;
-        padding-bottom: 8px !important;
+        margin-bottom: 10px;
+        border-bottom: 1px solid var(--border-default);
+        padding-bottom: 8px;
     }
 
     .mobile-order-number {
-        font-weight: bold !important;
-        font-size: 1.1rem !important;
-        color: var(--text-primary) !important;
+        font-weight: bold;
+        font-size: 1.1rem;
+        color: var(--text-primary);
     }
 
     .mobile-order-date {
-        font-size: 0.85rem !important;
-        color: var(--text-secondary) !important;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
     }
 
     .mobile-order-commission {
-        font-size: 1rem !important;
-        font-weight: 600 !important;
-        margin: 8px 0 !important;
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 8px 0;
     }
 
     .mobile-order-actions {
-        display: flex !important;
-        gap: 8px !important;
-        justify-content: flex-end !important;
-        flex-wrap: wrap !important;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
     }
 
     .mobile-order-actions .btn {
         padding: 6px 12px !important;
         font-size: 0.85rem !important;
         border-radius: 6px !important;
-        flex: 1 !important;
-        min-width: 80px !important;
-        text-align: center !important;
+        flex: 1;
+        min-width: 80px;
+        text-align: center;
     }
 
     .text-center.py-5 {
@@ -124,20 +124,20 @@
 
     .pagination {
         margin: 20px 0 !important;
-        padding: 0 15px !important;
-        display: flex !important;
-        justify-content: center !important;
-        flex-wrap: wrap !important;
-        gap: 5px !important;
+        padding: 0 15px;
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 5px;
     }
 
     .pagination .page-item {
-        margin: 2px !important;
+        margin: 2px;
     }
 
     .pagination .page-link {
         padding: 8px 12px !important;
-        font-size: 0.9rem !important;
+        font-size: 0.9rem;
         border-radius: 6px !important;
     }
 }
@@ -161,7 +161,7 @@
     }
 
     html:not(.theme-efor-v2) .mobile-order-card {
-        padding: 12px !important;
+        padding: 12px;
     }
 
     html:not(.theme-efor-v2) .orders-topbar {
@@ -169,9 +169,9 @@
     }
 
     html:not(.theme-efor-v2) .orders-topbar .header {
-        font-size: 24px !important;
-        text-align: left !important;
-        padding-bottom: 0 !important;
+        font-size: 24px;
+        text-align: left;
+        padding-bottom: 0;
     }
 
     html:not(.theme-efor-v2) .orders-filters-bar {
@@ -188,13 +188,13 @@
     }
 
     html:not(.theme-efor-v2) .orders-filters-bar > .orders-status-filter {
-        width: auto !important;
-        max-width: none !important;
-        margin: 0 !important;
+        width: auto;
+        max-width: none;
+        margin: 0;
     }
 
     html:not(.theme-efor-v2) .orders-status-filter .form-select {
-        max-width: none !important;
+        max-width: none;
         width: 100%;
     }
 
@@ -202,15 +202,15 @@
        („Kopiuj ofertę” w dwóch liniach). Trzy w rzędzie, „Wyślij” pod nimi
        na całą szerokość - jak w B. */
     html:not(.theme-efor-v2) .mobile-order-actions:has(.action-btn-send) {
-        display: grid !important;
+        display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 8px !important;
+        gap: 8px;
     }
 
     html:not(.theme-efor-v2) .mobile-order-actions .action-btn {
         width: auto !important;
         min-height: 44px;
-        margin: 0 !important;
+        margin: 0;
         padding: 4px 6px !important;
         line-height: 1.15;
     }

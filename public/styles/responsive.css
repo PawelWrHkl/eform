@@ -19,18 +19,13 @@
 		width:80%;
 	}
 }
-@media (max-width: 850px) {
+/* PRJ-06 Z2: nawigacja była pod 850px — przy 768–850 chowała nawigację desktopu i włączała
+   nagłówek telefonu bez jego wymiarów (mobile/header.css ≤ 767.98), więc logo i strzałka „wstecz”
+   miały 540 i 512 px. Od 768 desktop. Reszta (tabele, pola) zostaje przy 850. */
+@media (max-width: 767.98px) {
 	.desktop-nav {
 		display: none !important;
 	}
-	[class$="-select-area"] {
-		display: grid;
-		flex-direction: column;
-	  }
-	  [class$="-select-area"] > button {
-		display: block;
-		width: 90% !important;
-	  }
 	.mobile-nav {
 		display: block !important;
 		position: fixed;
@@ -42,6 +37,16 @@
 	.mobile-nav .nav-link {
 		color: var(--text-primary) !important;
 		font-weight: 475;
+	  }
+}
+@media (max-width: 850px) {
+	[class$="-select-area"] {
+		display: grid;
+		flex-direction: column;
+	  }
+	  [class$="-select-area"] > button {
+		display: block;
+		width: 90% !important;
 	  }
 	.table{
 		width:80% !important;

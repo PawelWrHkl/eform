@@ -1,4 +1,7 @@
 {% extends "base.njk" %}
+{# Wspólny szablon: /admin/reports (po polsku, jak dotąd) i /org/reports (`orgMode`, routes/orgReports.js —
+   teksty z kluczy `reports.*` w jezyki.xlsx). T(klucz, tekst admina). #}
+{% macro T(key, pl) %}{% if orgMode %}{{ __('reports.' + key) }}{% else %}{{ pl | safe }}{% endif %}{% endmacro %}
 
 {% block head %}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
@@ -7,7 +10,26 @@
 {% endblock %}
 
 {% block content %}
-<div class="content" style="padding: 1.5rem;">
+<div class="content{% if orgMode %} reports-org{% endif %}" style="padding: 1.5rem;">
+    {% if orgMode %}
+    <div class="d-flex align-items-center gap-3 mb-4 flex-wrap reports-head">
+        <a href="{{ '/admin/reports' if isAdminSession else '/' }}" class="btn btn-sm btn-outline-secondary no-print">
+            <i class="bi bi-arrow-left me-1"></i>{{ T('back') }}
+        </a>
+        <h2 class="mb-0" style="font-size:1.35rem; font-weight:700;">
+            <i class="bi bi-graph-up me-2 text-primary"></i>{{ T('title') }}{% if org %} — {{ org.name or org.ident }}{% endif %}
+        </h2>
+        {% if isAdminSession %}
+        <form method="get" action="/org/reports" class="d-flex align-items-center gap-2 no-print">
+            {% if readOnly %}<span class="badge text-bg-secondary">{{ T('read_only_badge') }}</span>{% endif %}
+            <select name="org" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()" aria-label="{{ T('pick_org') }}">
+                {% if orgPicker %}<option value="">{{ T('pick_org') }}</option>{% endif %}
+                {% for o in organizations %}<option value="{{ o.id }}" {% if org and org.id == o.id %}selected{% endif %}>{{ o.ident }}</option>{% endfor %}
+            </select>
+        </form>
+        {% endif %}
+    </div>
+    {% else %}
     <div class="d-flex align-items-center gap-3 mb-4">
         <a href="/admin" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i>Panel
@@ -16,6 +38,8 @@
             <i class="bi bi-graph-up me-2 text-primary"></i>Raporty Zamówień
         </h2>
     </div>
+    {% endif %}
+    {% if not orgPicker %}
 
     <div class="reports-layout">
         <!-- ── SIDEBAR ─────────────────────────────────────────── -->
@@ -24,33 +48,41 @@
             <!-- Date range — na samej górze, domyślnie rozwinięte -->
             <div class="reports-card collapsible-card">
                 <button class="collapsible-header" data-key="dates" data-default="open" aria-expanded="true">
-                    <span><i class="bi bi-calendar-range me-1"></i>Zakres dat</span>
+                    <span><i class="bi bi-calendar-range me-1"></i>{{ T('date_range', 'Zakres dat') }}</span>
                     <i class="bi bi-chevron-up collapsible-icon"></i>
                 </button>
                 <div class="collapsible-body">
                     <div class="date-row">
-                        <input type="date" id="date-from" title="Od">
-                        <input type="date" id="date-to" title="Do">
+                        <input type="date" id="date-from" title="{{ T('date_from', 'Od') }}">
+                        <input type="date" id="date-to" title="{{ T('date_to', 'Do') }}">
                     </div>
                     <div class="date-today-option">
                         <input type="checkbox" id="date-to-today" checked>
-                        <label for="date-to-today">Zakres „do" zawsze aktualny</label>
+                        <label for="date-to-today">{{ T('date_to_today', 'Zakres „do" zawsze aktualny') }}</label>
                     </div>
                     <div class="date-presets" id="date-presets">
-                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="month">Ten miesiąc</button>
-                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="quarter">Kwartał</button>
-                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="year">Ten rok</button>
-                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="12m">12 mies.</button>
-                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="all">Całość</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="month">{{ T('preset_month', 'Ten miesiąc') }}</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="quarter">{{ T('preset_quarter', 'Kwartał') }}</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="year">{{ T('preset_year', 'Ten rok') }}</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="12m">{{ T('preset_12m', '12 mies.') }}</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" data-preset="all">{{ T('preset_all', 'Całość') }}</button>
                     </div>
                     <div class="date-range-hint" id="date-range-hint"></div>
+                    {% if orgMode and currencies and currencies.length > 1 %}
+                    {# Kilka walut w organizacji: raport zawsze w jednej (EUR i PLN się nie sumują). #}
+                    <label class="report-currency mt-2">{{ T('currency_label') }}
+                        <select id="report-currency" class="form-select form-select-sm">
+                            {% for c in currencies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                        </select>
+                    </label>
+                    {% endif %}
                 </div>
             </div>
 
             <!-- Saved configs — zwijane -->
             <div class="reports-card collapsible-card" id="saved-configs-card" {% if not savedConfigs or not savedConfigs.length %}style="display:none;"{% endif %}>
                 <button class="collapsible-header" id="saved-configs-toggle" data-key="saved-configs" aria-expanded="false">
-                    <span><i class="bi bi-bookmark-star me-1"></i>Zapisane konfiguracje</span>
+                    <span><i class="bi bi-bookmark-star me-1"></i>{{ T('saved_configs', 'Zapisane konfiguracje') }}</span>
                     <i class="bi bi-chevron-up collapsible-icon"></i>
                 </button>
                 <div class="collapsible-body" id="saved-configs-body">
@@ -59,9 +91,9 @@
                         <div class="config-item" data-config='{{ cfg | dump }}'>
                             <div>
                                 <div class="config-name">{{ cfg.name }}</div>
-                                <div class="config-meta">{{ cfg.userIds.length }} klientów</div>
+                                <div class="config-meta">{{ cfg.userIds.length }} {{ T('clients_count_suffix', 'klientów') }}</div>
                             </div>
-                            <button class="config-delete-btn" data-name="{{ cfg.name }}" title="Usuń">×</button>
+                            <button class="config-delete-btn" data-name="{{ cfg.name }}" title="{{ T('delete', 'Usuń') }}">×</button>
                         </div>
                         {% endfor %}
                     </div>
@@ -71,16 +103,16 @@
             <!-- Run & save -->
             <div class="reports-card collapsible-card">
                 <button class="collapsible-header" data-key="actions" aria-expanded="false">
-                    <span><i class="bi bi-play-circle me-1"></i>Akcje</span>
+                    <span><i class="bi bi-play-circle me-1"></i>{{ T('actions', 'Akcje') }}</span>
                     <i class="bi bi-chevron-up collapsible-icon"></i>
                 </button>
                 <div class="collapsible-body">
                     <button class="btn btn-primary w-100 mb-2" id="btn-run-report">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Generuj raport
+                        <i class="bi bi-arrow-clockwise me-1"></i>{{ T('run', 'Generuj raport') }}
                     </button>
-                    <div class="save-config-row">
-                        <input type="text" id="config-name-input" placeholder="Nazwa konfiguracji..." maxlength="100">
-                        <button class="btn btn-outline-secondary btn-sm" id="btn-save-config" title="Zapisz konfigurację">
+                    <div class="save-config-row"{% if readOnly %} hidden{% endif %}>
+                        <input type="text" id="config-name-input" placeholder="{{ T('config_name_placeholder', 'Nazwa konfiguracji...') }}" maxlength="100">
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-save-config" title="{{ T('save_config', 'Zapisz konfigurację') }}">
                             <i class="bi bi-bookmark-plus"></i>
                         </button>
                     </div>
@@ -90,26 +122,27 @@
             <!-- Client filter -->
             <div class="reports-card collapsible-card">
                 <button class="collapsible-header" data-key="clients" aria-expanded="false">
-                    <span><i class="bi bi-people me-1"></i>Klienci</span>
+                    <span><i class="bi bi-people me-1"></i>{{ T('clients', 'Klienci') }}</span>
                     <i class="bi bi-chevron-up collapsible-icon"></i>
                 </button>
                 <div class="collapsible-body">
-                    <div class="client-filters" id="client-filters">
-                        <div class="client-filters-label">Szybki wybór — zaznaczone się sumują</div>
+                    {# Organizacja: bez chipów organizacji; „Klienci grupowi” tylko gdy ma takich klientów. #}
+                    <div class="client-filters" id="client-filters"{% if orgMode and not hasGroupClients %} hidden{% endif %}>
+                        <div class="client-filters-label">{{ T('quick_filter', 'Szybki wybór — zaznaczone się sumują') }}</div>
                         <div class="client-filter-chips">
                             {% for org in orgs %}
                             <label class="client-filter-chip"><input type="checkbox" data-filter-org="{{ org }}"><i class="bi bi-plus-lg"></i><i class="bi bi-check-lg"></i>{{ org | replace('_', ' ') }}</label>
                             {% endfor %}
                         </div>
                         <div class="client-filter-chips">
-                            <label class="client-filter-chip"><input type="checkbox" data-filter-group="1"><i class="bi bi-plus-lg"></i><i class="bi bi-check-lg"></i>Klienci grupowi</label>
+                            <label class="client-filter-chip"><input type="checkbox" data-filter-group="1"><i class="bi bi-plus-lg"></i><i class="bi bi-check-lg"></i>{{ T('group_clients', 'Klienci grupowi') }}</label>
                         </div>
                     </div>
                     <div class="select-all-row">
-                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" id="btn-select-all">Zaznacz wszystkich</button>
-                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" id="btn-deselect-all">Odznacz</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" id="btn-select-all">{{ T('select_all', 'Zaznacz wszystkich') }}</button>
+                        <button class="btn btn-xs btn-outline-secondary btn-sm py-0" id="btn-deselect-all">{{ T('deselect', 'Odznacz') }}</button>
                     </div>
-                    <input type="text" class="client-search" id="client-search" placeholder="Szukaj klienta...">
+                    <input type="text" class="client-search" id="client-search" placeholder="{{ T('search_client', 'Szukaj klienta...') }}">
                     <div class="client-list" id="client-list">
                         {% for client in clients %}
                         <div class="client-list-item selected"
@@ -127,7 +160,7 @@
                         {% endfor %}
                     </div>
                     <div class="client-selection-info" id="selection-info">
-                        Zaznaczono: <strong id="selected-count">{{ clients | length }}</strong> / {{ clients | length }}
+                        {{ T('selected', 'Zaznaczono:') }} <strong id="selected-count">{{ clients | length }}</strong> / {{ clients | length }}
                     </div>
                 </div>
             </div>
@@ -142,54 +175,105 @@
                 <!-- Level 1: category -->
                 <div class="category-toggle mb-2" id="category-toggle">
                     <button class="active" data-category="overall">
-                        <i class="bi bi-people me-1"></i>Całość
+                        <i class="bi bi-people me-1"></i>{{ T('cat_overall', 'Całość') }}
                     </button>
                     <button data-category="groups">
-                        <i class="bi bi-diagram-3 me-1"></i>Grupy asortymentowe
+                        <i class="bi bi-diagram-3 me-1"></i>{{ T('cat_groups', 'Grupy asortymentowe') }}
                     </button>
                     <button data-category="dept-clients">
-                        <i class="bi bi-person-lines-fill me-1"></i>Dział → Klienci
+                        <i class="bi bi-person-lines-fill me-1"></i>{{ T('cat_dept_clients', 'Dział → Klienci') }}
                     </button>
+                    {% if orgMode %}
+                    <button data-category="winback">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>{{ T('cat_winback') }}
+                    </button>
+                    <button data-category="abc">
+                        <i class="bi bi-sort-down me-1"></i>{{ T('cat_abc') }}
+                    </button>
+                    <button data-category="seasonality">
+                        <i class="bi bi-calendar3 me-1"></i>{{ T('cat_seasonality') }}
+                    </button>
+                    {% if reportsCfg.offers %}
+                    <button data-category="offers">
+                        <i class="bi bi-file-earmark-text me-1"></i>{{ T('cat_offers') }}
+                    </button>
+                    {% endif %}
+                    {% endif %}
                 </div>
                 <!-- Level 2: sub-views (change depending on category) -->
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
                     <div class="view-toggle" id="view-toggle">
                         <button class="active" data-view="table" data-category="overall">
-                            <i class="bi bi-table me-1"></i>Tabela
+                            <i class="bi bi-table me-1"></i>{{ T('view_table', 'Tabela') }}
                         </button>
                         <button data-view="bar" data-category="overall">
-                            <i class="bi bi-bar-chart me-1"></i>Wykres słupkowy
+                            <i class="bi bi-bar-chart me-1"></i>{{ T('view_bar', 'Wykres słupkowy') }}
                         </button>
                         <button data-view="trend" data-category="overall">
-                            <i class="bi bi-graph-up me-1"></i>Trend miesięczny
+                            <i class="bi bi-graph-up me-1"></i>{{ T('view_trend', 'Trend miesięczny') }}
                         </button>
                         <button data-view="groups-table" data-category="groups" style="display:none;">
-                            <i class="bi bi-table me-1"></i>Tabela grup
+                            <i class="bi bi-table me-1"></i>{{ T('view_groups_table', 'Tabela grup') }}
                         </button>
                         <button data-view="groups-chart" data-category="groups" style="display:none;">
-                            <i class="bi bi-bar-chart-steps me-1"></i>Wykres grup
+                            <i class="bi bi-bar-chart-steps me-1"></i>{{ T('view_groups_chart', 'Wykres grup') }}
                         </button>
                         <button data-view="dc-table" data-category="dept-clients" style="display:none;">
-                            <i class="bi bi-table me-1"></i>Tabela klientów
+                            <i class="bi bi-table me-1"></i>{{ T('view_dc_table', 'Tabela klientów') }}
                         </button>
                         <button data-view="dc-chart" data-category="dept-clients" style="display:none;">
-                            <i class="bi bi-bar-chart-fill me-1"></i>Wykres klientów
+                            <i class="bi bi-bar-chart-fill me-1"></i>{{ T('view_dc_chart', 'Wykres klientów') }}
                         </button>
+                        {% if orgMode %}
+                        <button data-view="winback" data-category="winback" style="display:none;">
+                            <i class="bi bi-table me-1"></i>{{ T('view_table') }}
+                        </button>
+                        <button data-view="abc-clients" data-category="abc" style="display:none;">
+                            <i class="bi bi-people me-1"></i>{{ T('view_abc_clients') }}
+                        </button>
+                        <button data-view="abc-groups" data-category="abc" style="display:none;">
+                            <i class="bi bi-diagram-3 me-1"></i>{{ T('view_abc_groups') }}
+                        </button>
+                        <button data-view="season-table" data-category="seasonality" style="display:none;">
+                            <i class="bi bi-table me-1"></i>{{ T('view_table') }}
+                        </button>
+                        {% if reportsCfg.offers %}
+                        <button data-view="offers" data-category="offers" style="display:none;">
+                            <i class="bi bi-table me-1"></i>{{ T('view_table') }}
+                        </button>
+                        {% endif %}
+                        {% endif %}
                     </div>
                     <div id="report-meta" class="text-muted" style="font-size:0.78rem;"></div>
                 </div>
                 <div class="metric-toggle-row">
-                    <span class="metric-toggle-label">Pokaż:</span>
+                    <span class="metric-toggle-label">{{ T('show', 'Pokaż:') }}</span>
                     <div class="metric-toggle" id="metric-toggle">
-                        <button class="active" data-metric="value"><i class="bi bi-currency-euro me-1"></i>Wartość</button>
-                        <button class="active" data-metric="orders"><i class="bi bi-hash me-1"></i>Zamówienia</button>
-                        <button data-metric="positions"><i class="bi bi-box me-1"></i>Pozycje</button>
+                        <button class="active" data-metric="value">{% if orgMode %}<i class="bi bi-cash-stack me-1"></i>{{ T('metric_sales') }}{% else %}<i class="bi bi-currency-euro me-1"></i>Wartość{% endif %}</button>
+                        <button class="active" data-metric="orders"><i class="bi bi-hash me-1"></i>{{ T('metric_orders', 'Zamówienia') }}</button>
+                        <button data-metric="positions"><i class="bi bi-box me-1"></i>{{ T('metric_positions', 'Pozycje') }}</button>
                     </div>
+                    {% if orgMode %}
+                    <div class="report-tools no-print">
+                        {% if not reportsCfg.isHkl %}
+                        {# Kłódka jak w podglądzie zlecenia (/orders/toggle-sub): po otwarciu zakup od HKL i marża. #}
+                        <button type="button" class="btn btn-sm btn-outline-secondary{% if reportsCfg.unlocked %} active{% endif %}" id="btn-toggle-purchase" aria-pressed="{{ 'true' if reportsCfg.unlocked else 'false' }}">
+                            <i class="bi {{ 'bi-unlock' if reportsCfg.unlocked else 'bi-lock' }} me-1"></i>{{ T('hide_purchase') if reportsCfg.unlocked else T('show_purchase') }}
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-export-xlsx"><i class="bi bi-file-earmark-spreadsheet me-1"></i>{{ T('export_xlsx') }}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-print"><i class="bi bi-printer me-1"></i>{{ T('print') }}</button>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 
+            {% if orgMode %}
+            <!-- KPI: wartość bieżąca + Δ% do poprzedniego okresu i do roku wcześniej (public/scripts/admin/reports.js renderKpi) -->
+            <div class="kpi-bar" id="kpi-bar" hidden></div>
+            {% endif %}
             <!-- Summary -->
-            <div class="summary-bar" id="summary-bar" style="display:none;">
+            <div class="summary-bar" id="summary-bar" style="display:none;"{% if orgMode %} hidden{% endif %}>
                 <div class="summary-tile">
                     <div class="tile-value" id="sum-clients">—</div>
                     <div class="tile-label">Klientów</div>
@@ -212,12 +296,16 @@
             <div id="report-area">
                 <div class="reports-empty">
                     <i class="bi bi-bar-chart-line" style="font-size:2.5rem; opacity:0.3;"></i>
-                    <p class="mt-2">Kliknij „Generuj raport" aby zobaczyć dane.</p>
+                    <p class="mt-2">{{ T('empty_hint', 'Kliknij „Generuj raport" aby zobaczyć dane.') }}</p>
                 </div>
             </div>
         </div>
     </div>
+    {% endif %}{# not orgPicker #}
 </div>
 
-<script type="module" src="/scripts/admin/reports.js"></script>
+{% if orgMode and reportsCfg %}
+<script>window.REPORTS_CFG = {{ reportsCfg | dump | replace('<', '\\u003c') | safe }};</script>
+{% endif %}
+{% if not orgPicker %}<script type="module" src="/scripts/admin/reports.js{% if orgMode %}?v={{ assetVersion }}{% endif %}"></script>{% endif %}
 {% endblock %}

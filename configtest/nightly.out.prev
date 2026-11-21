@@ -1,236 +1,248 @@
-=== 2026-11-19 02:00:01 — start nocnego przebiegu ===
-[2026-11-19T01:00:03.692Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-11-05)
-[2026-11-19T01:08:55.647Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 8
-[2026-11-19T01:08:55.707Z] ConfiguratorTester: pamięć po etapie „przeglądarka" — proces główny 1313 MB, wolne na hoście 1663 MB
-[2026-11-19T01:13:09.376Z] ConfiguratorTester: skrypty cenowe — sprawdzono 1891, niesparsowalnych 5
-[2026-11-19T01:18:49.465Z] ConfiguratorTester: grupa 71 — 25 błędów
-[2026-11-19T01:24:35.346Z] ConfiguratorTester: grupa 43 — 3 błędów
-[2026-11-19T01:26:34.889Z] ConfiguratorTester: grupa 20 — 1 błędów
-[2026-11-19T01:32:13.049Z] ConfiguratorTester: grupa 39 — 8 błędów
-[2026-11-19T01:36:59.029Z] ConfiguratorTester: grupa 02 — 6 błędów
-[2026-11-19T01:40:45.859Z] ConfiguratorTester: grupa 59 — 4 błędów
-[2026-11-19T01:42:30.391Z] ConfiguratorTester: grupa 04 — 35 błędów
-[2026-11-19T01:48:59.626Z] ConfiguratorTester: grupa 75 — 8 błędów
-[2026-11-19T01:49:40.302Z] ConfiguratorTester: grupa 76 — 0 błędów
-[2026-11-19T01:51:35.210Z] ConfiguratorTester: grupa 14 — 4 błędów
-[2026-11-19T01:51:47.731Z] ConfiguratorTester: grupa 01 — 0 błędów
-[2026-11-19T01:55:17.912Z] ConfiguratorTester: grupa 80 zatrzymana przez strażnika pamięci — proces grupy zajął 2145 MB RAM (limit 1700 MB)
-[2026-11-19T01:55:18.100Z] ConfiguratorTester: grupa 80 — 1 błędów
-[2026-11-19T01:56:19.802Z] ConfiguratorTester: grupa 24 — 1 błędów
-[2026-11-19T01:57:43.878Z] ConfiguratorTester: grupa 73 zatrzymana przez strażnika pamięci — proces grupy zajął 1792 MB RAM (limit 1700 MB)
-[2026-11-19T01:57:44.030Z] ConfiguratorTester: grupa 73 — 1 błędów
-[2026-11-19T01:58:33.628Z] ConfiguratorTester: grupa 11 — 2 błędów
-[2026-11-19T01:59:04.417Z] ConfiguratorTester: grupa 46 — 1 błędów
-[2026-11-19T01:59:09.194Z] ConfiguratorTester (symulacja): 10 działów, 16 grup do sprawdzenia (http://localhost:8000)
-[2026-11-19T01:59:26.298Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 22 parametrów aktywnych, 21 parametrów cenowych sprawdzonych, cena 512.05, suma do zapisu 641.63.
-[2026-11-19T01:59:59.632Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 21 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 179, suma do zapisu 191.2.
-[2026-11-19T02:00:43.673Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 18 parametrów aktywnych, 17 parametrów cenowych sprawdzonych, cena 21.12, suma do zapisu 21.12.
-[2026-11-19T02:01:07.309Z] ConfiguratorTester (symulacja): grupa 39 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 21 parametrów aktywnych, 21 parametrów cenowych sprawdzonych, cena 69.66, suma do zapisu 69.66.
-[2026-11-19T02:01:49.355Z] ConfiguratorTester (symulacja): grupa 02 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 22 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 639.54, suma do zapisu 639.54.
-[2026-11-19T02:02:20.726Z] ConfiguratorTester (symulacja): grupa 59 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 22 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 258.33, suma do zapisu 258.33.
-[2026-11-19T02:02:52.518Z] ConfiguratorTester (symulacja): grupa 04 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 20 parametrów aktywnych, 15 parametrów cenowych sprawdzonych, cena 68.7, suma do zapisu 68.7.
-[2026-11-19T02:03:30.188Z] ConfiguratorTester (symulacja): grupa 75 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 10 pól wypełnionych, 23 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 71.02, suma do zapisu 71.02.
-[2026-11-19T02:04:19.522Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
-[2026-11-19T02:05:02.610Z] ConfiguratorTester (symulacja): grupa 14 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 11 pól wypełnionych, 24 parametrów aktywnych, 21 parametrów cenowych sprawdzonych, cena 755.55, suma do zapisu 755.55.
-[2026-11-19T02:05:40.985Z] ConfiguratorTester (symulacja): grupa 01 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 2 pól wypełnionych, 10 parametrów aktywnych, 14 parametrów cenowych sprawdzonych, cena 0.61, suma do zapisu 0.61.
-[2026-11-19T02:05:59.530Z] ConfiguratorTester (symulacja): grupa 80 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 16 parametrów aktywnych, 14 parametrów cenowych sprawdzonych, cena 361, suma do zapisu 526.36.
-[2026-11-19T02:06:37.397Z] ConfiguratorTester (symulacja): grupa 24 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 11 pól wypełnionych, 30 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 597.19, suma do zapisu 638.59.
-[2026-11-19T02:07:08.530Z] ConfiguratorTester (symulacja): grupa 73 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 11 pól wypełnionych, 26 parametrów aktywnych, 18 parametrów cenowych sprawdzonych, cena 100.8, suma do zapisu 100.8.
-[2026-11-19T02:07:36.908Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
-[2026-11-19T02:08:14.357Z] ConfiguratorTester (symulacja): grupa 46 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 15 pól wypełnionych, 30 parametrów aktywnych, 16 parametrów cenowych sprawdzonych, cena 100, suma do zapisu 588.
-[2026-11-19T02:08:20.246Z] ConfiguratorTester (symulacja): zdanych 14/16, zgłoszeń: 4
-[2026-11-19T02:08:20.260Z] ConfiguratorTester (kopiowanie): start — http://localhost:8000, zlecenie symulatora 3034, przeglądarki: chromium, 24 przypadków + 14 scenariuszy na przeglądarkę, limit 50 min, ziarno 20261119
-[2026-11-19T02:08:24.321Z] ConfiguratorTester (kopiowanie): 
+=== 2026-11-20 02:00:01 — start nocnego przebiegu ===
+[2026-11-20T01:00:03.362Z] ConfiguratorTester: usunięto wyniki starsze niż 14 dni (2026-11-06)
+[2026-11-20T01:08:45.434Z] ConfiguratorTester (przeglądarka): sprawdzono 14/15 pozycji, zgłoszeń: 9
+[2026-11-20T01:08:45.474Z] ConfiguratorTester: pamięć po etapie „przeglądarka" — proces główny 1283 MB, wolne na hoście 1105 MB
+[2026-11-20T01:12:20.107Z] ConfiguratorTester: skrypty cenowe — sprawdzono 1904, niesparsowalnych 5
+[2026-11-20T01:15:10.207Z] ConfiguratorTester: grupa 71 zatrzymana przez strażnika pamięci — na hoście zostało tylko 699 MB wolnej pamięci (próg 700 MB, podniesiony — swap prawie pełny: 6 MB wolnego) przy 949 MB zajętych przez grupę
+[2026-11-20T01:15:10.293Z] ConfiguratorTester: grupa 71 — 1 błędów
+[2026-11-20T01:15:42.326Z] ConfiguratorTester: grupa 43 zatrzymana przez strażnika pamięci — na hoście zostało tylko 554 MB wolnej pamięci (próg 700 MB, podniesiony — swap prawie pełny: 7 MB wolnego) przy 1090 MB zajętych przez grupę
+[2026-11-20T01:15:42.424Z] ConfiguratorTester: grupa 43 — 1 błędów
+[2026-11-20T01:16:56.091Z] ConfiguratorTester: grupa 20 — 1 błędów
+[2026-11-20T01:17:28.127Z] ConfiguratorTester: grupa 39 zatrzymana przez strażnika pamięci — na hoście zostało tylko 669 MB wolnej pamięci (próg 700 MB, podniesiony — swap prawie pełny: 9 MB wolnego) przy 1065 MB zajętych przez grupę
+[2026-11-20T01:17:28.225Z] ConfiguratorTester: grupa 39 — 1 błędów
+[2026-11-20T01:20:47.889Z] ConfiguratorTester: grupa 02 — 2 błędów
+[2026-11-20T01:23:24.070Z] ConfiguratorTester: grupa 59 — 2 błędów
+[2026-11-20T01:24:45.854Z] ConfiguratorTester: grupa 04 — 28 błędów
+[2026-11-20T01:25:19.894Z] ConfiguratorTester: grupa 75 zatrzymana przez strażnika pamięci — na hoście zostało tylko 650 MB wolnej pamięci (próg 700 MB, podniesiony — swap prawie pełny: 12 MB wolnego) przy 1075 MB zajętych przez grupę
+[2026-11-20T01:25:19.986Z] ConfiguratorTester: grupa 75 — 1 błędów
+[2026-11-20T01:25:58.303Z] ConfiguratorTester: grupa 76 — 0 błędów
+[2026-11-20T01:26:32.338Z] ConfiguratorTester: grupa 14 zatrzymana przez strażnika pamięci — na hoście zostało tylko 601 MB wolnej pamięci (próg 700 MB, podniesiony — swap prawie pełny: 13 MB wolnego) przy 1106 MB zajętych przez grupę
+[2026-11-20T01:26:32.443Z] ConfiguratorTester: grupa 14 — 1 błędów
+[2026-11-20T01:26:59.214Z] ConfiguratorTester: grupa 01 — 0 błędów
+[2026-11-20T01:27:37.254Z] ConfiguratorTester: grupa 80 zatrzymana przez strażnika pamięci — na hoście zostało tylko 691 MB wolnej pamięci (próg 700 MB, podniesiony — swap prawie pełny: 11 MB wolnego) przy 1053 MB zajętych przez grupę
+[2026-11-20T01:27:37.351Z] ConfiguratorTester: grupa 80 — 1 błędów
+[2026-11-20T01:28:51.443Z] ConfiguratorTester: grupa 24 — 1 błędów
+[2026-11-20T01:30:28.864Z] ConfiguratorTester: grupa 73 zatrzymana przez strażnika pamięci — proces grupy zajął 1753 MB RAM (limit 1700 MB)
+[2026-11-20T01:30:31.629Z] ConfiguratorTester: grupa 73 — 1 błędów
+[2026-11-20T01:30:57.748Z] ConfiguratorTester: grupa 11 — 2 błędów
+[2026-11-20T01:31:29.032Z] ConfiguratorTester: grupa 46 — 1 błędów
+[2026-11-20T01:31:34.194Z] ConfiguratorTester (symulacja): 10 działów, 16 grup do sprawdzenia (http://localhost:8000)
+[2026-11-20T01:31:51.463Z] ConfiguratorTester (symulacja): grupa 71 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 22 parametrów aktywnych, 21 parametrów cenowych sprawdzonych, cena 512.05, suma do zapisu 641.63.
+[2026-11-20T01:32:25.404Z] ConfiguratorTester (symulacja): grupa 43 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 20 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 179, suma do zapisu 191.2.
+[2026-11-20T01:33:06.422Z] ConfiguratorTester (symulacja): grupa 20 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 5 pól wypełnionych, 18 parametrów aktywnych, 17 parametrów cenowych sprawdzonych, cena 21.12, suma do zapisu 21.12.
+[2026-11-20T01:33:30.084Z] ConfiguratorTester (symulacja): grupa 39 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 21 parametrów aktywnych, 21 parametrów cenowych sprawdzonych, cena 69.66, suma do zapisu 69.66.
+[2026-11-20T01:34:10.443Z] ConfiguratorTester (symulacja): grupa 02 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 22 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 639.54, suma do zapisu 639.54.
+[2026-11-20T01:34:40.920Z] ConfiguratorTester (symulacja): grupa 59 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 22 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 258.33, suma do zapisu 258.33.
+[2026-11-20T01:35:12.694Z] ConfiguratorTester (symulacja): grupa 04 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 6 pól wypełnionych, 20 parametrów aktywnych, 15 parametrów cenowych sprawdzonych, cena 68.7, suma do zapisu 68.7.
+[2026-11-20T01:35:49.756Z] ConfiguratorTester (symulacja): grupa 75 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 10 pól wypełnionych, 23 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 71.02, suma do zapisu 71.02.
+[2026-11-20T01:36:40.504Z] ConfiguratorTester (symulacja): grupa 76 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, DOPLATA_EL_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-11-20T01:37:24.788Z] ConfiguratorTester (symulacja): grupa 14 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 11 pól wypełnionych, 24 parametrów aktywnych, 21 parametrów cenowych sprawdzonych, cena 755.55, suma do zapisu 755.55.
+[2026-11-20T01:38:02.111Z] ConfiguratorTester (symulacja): grupa 01 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 2 pól wypełnionych, 10 parametrów aktywnych, 14 parametrów cenowych sprawdzonych, cena 0.61, suma do zapisu 0.61.
+[2026-11-20T01:38:21.183Z] ConfiguratorTester (symulacja): grupa 80 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 7 pól wypełnionych, 16 parametrów aktywnych, 14 parametrów cenowych sprawdzonych, cena 361, suma do zapisu 526.36.
+[2026-11-20T01:38:59.838Z] ConfiguratorTester (symulacja): grupa 24 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 11 pól wypełnionych, 30 parametrów aktywnych, 19 parametrów cenowych sprawdzonych, cena 597.19, suma do zapisu 638.59.
+[2026-11-20T01:39:30.628Z] ConfiguratorTester (symulacja): grupa 73 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 11 pól wypełnionych, 26 parametrów aktywnych, 18 parametrów cenowych sprawdzonych, cena 100.8, suma do zapisu 100.8.
+[2026-11-20T01:40:00.385Z] ConfiguratorTester (symulacja): grupa 11 — NIEZDANE: cena zastąpiona informacją z cennika (silnik policzył 0): CENA, DOPLATA, CENA_SUMA, SUMA_BRUTTO, CENA_RABAT, CENA_KONCOWA, WARTOSC_KONCOWA
+[2026-11-20T01:40:39.615Z] ConfiguratorTester (symulacja): grupa 46 — ZDANE: Konfiguracja zbudowana i przeszłaby walidację: 15 pól wypełnionych, 30 parametrów aktywnych, 16 parametrów cenowych sprawdzonych, cena 100, suma do zapisu 588.
+[2026-11-20T01:40:46.426Z] ConfiguratorTester (symulacja): zdanych 14/16, zgłoszeń: 4
+[2026-11-20T01:40:46.443Z] ConfiguratorTester (kopiowanie): start — http://localhost:8000, zlecenie symulatora 3034, przeglądarki: chromium, 24 przypadków + 14 scenariuszy na przeglądarkę, limit 50 min, ziarno 20261120
+[2026-11-20T01:40:50.904Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] vertical-ostatnia: Vertical (14), „ostatnia konfiguracja", MODEL 2L→1R, szerokość 910, ilość 3 — oferta Ryver 351
-[2026-11-19T02:08:26.017Z] ConfiguratorTester (kopiowanie):   baza: poz. 12804 (z 7708, wersja 0.3.344)
-[2026-11-19T02:08:33.575Z] ConfiguratorTester (kopiowanie):   kopia 1/2
-[2026-11-19T02:08:50.125Z] ConfiguratorTester (kopiowanie):     zapisano poz. 12805 (celowe zmiany: MODEL="1R", SZEROKOSC=910, ILOSC=3)
-[2026-11-19T02:08:50.126Z] ConfiguratorTester (kopiowanie):   kopia 2/2
-[2026-11-19T02:09:06.753Z] ConfiguratorTester (kopiowanie):     zapisano poz. 12806 (celowe zmiany: MODEL="1R", SZEROKOSC=910, ILOSC=3)
-[2026-11-19T02:09:10.875Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:40:52.616Z] ConfiguratorTester (kopiowanie):   baza: poz. 13012 (z 7708, wersja 0.3.348)
+[2026-11-20T01:40:59.518Z] ConfiguratorTester (kopiowanie):   kopia 1/2
+[2026-11-20T01:41:15.726Z] ConfiguratorTester (kopiowanie):     zapisano poz. 13013 (celowe zmiany: MODEL="1R", SZEROKOSC=910, ILOSC=3)
+[2026-11-20T01:41:15.732Z] ConfiguratorTester (kopiowanie):   kopia 2/2
+[2026-11-20T01:41:32.072Z] ConfiguratorTester (kopiowanie):     zapisano poz. 13014 (celowe zmiany: MODEL="1R", SZEROKOSC=910, ILOSC=3)
+[2026-11-20T01:41:36.813Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] vertical-ostatnia-bez-zmian: Vertical (14), „ostatnia konfiguracja" i zapis bez żadnej zmiany
-[2026-11-19T02:09:11.426Z] ConfiguratorTester (kopiowanie):   baza: poz. 12807 (z 7708, wersja 0.3.344)
-[2026-11-19T02:09:17.395Z] ConfiguratorTester (kopiowanie):   kopia 1/2
-[2026-11-19T02:09:21.335Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: po otwarciu kopii — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
-[2026-11-19T02:09:22.142Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: przed zapisem — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
-[2026-11-19T02:10:02.236Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
-[2026-11-19T02:10:02.236Z] ConfiguratorTester (kopiowanie):   kopia 2/2
-[2026-11-19T02:10:06.647Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: po otwarciu kopii — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
-[2026-11-19T02:10:07.455Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: przed zapisem — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
-[2026-11-19T02:10:47.535Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
-[2026-11-19T02:10:49.073Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:41:37.348Z] ConfiguratorTester (kopiowanie):   baza: poz. 13015 (z 7708, wersja 0.3.348)
+[2026-11-20T01:41:43.157Z] ConfiguratorTester (kopiowanie):   kopia 1/2
+[2026-11-20T01:41:47.124Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: po otwarciu kopii — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
+[2026-11-20T01:41:47.931Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: przed zapisem — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
+[2026-11-20T01:42:28.056Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
+[2026-11-20T01:42:28.058Z] ConfiguratorTester (kopiowanie):   kopia 2/2
+[2026-11-20T01:42:32.031Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: po otwarciu kopii — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
+[2026-11-20T01:42:32.839Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: przed zapisem — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
+[2026-11-20T01:43:12.893Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
+[2026-11-20T01:43:14.444Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] vertical-uszkodzony-localstorage: Vertical (14), „ostatnia konfiguracja" ze stanem uszkodzonym przez stary błąd (opis PASEK bez option_value)
-[2026-11-19T02:10:49.440Z] ConfiguratorTester (kopiowanie):   baza: poz. 12808 (z 7708, wersja 0.3.344)
-[2026-11-19T02:10:56.218Z] ConfiguratorTester (kopiowanie):   kopia 1/2
-[2026-11-19T02:11:41.132Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
-[2026-11-19T02:11:41.133Z] ConfiguratorTester (kopiowanie):   kopia 2/2
-[2026-11-19T02:12:25.694Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
-[2026-11-19T02:12:27.423Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:43:14.812Z] ConfiguratorTester (kopiowanie):   baza: poz. 13016 (z 7708, wersja 0.3.348)
+[2026-11-20T01:43:21.570Z] ConfiguratorTester (kopiowanie):   kopia 1/2
+[2026-11-20T01:44:06.563Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
+[2026-11-20T01:44:06.565Z] ConfiguratorTester (kopiowanie):   kopia 2/2
+[2026-11-20T01:44:51.087Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
+[2026-11-20T01:44:52.710Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] vertical-duplikat: Vertical (14), „duplikuj" → edycja, MODEL 2L→1R, szerokość 910, ilość 3
-[2026-11-19T02:12:27.834Z] ConfiguratorTester (kopiowanie):   baza: poz. 12809 (z 7708, wersja 0.3.344)
-[2026-11-19T02:12:27.835Z] ConfiguratorTester (kopiowanie):   kopia 1/2
-[2026-11-19T02:12:32.448Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: po otwarciu kopii — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
-[2026-11-19T02:12:38.787Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: przed zapisem — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
-[2026-11-19T02:13:09.208Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
-[2026-11-19T02:13:09.208Z] ConfiguratorTester (kopiowanie):   kopia 2/2
-[2026-11-19T02:13:13.788Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: po otwarciu kopii — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
-[2026-11-19T02:13:18.710Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: przed zapisem — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
-[2026-11-19T02:13:49.155Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
-[2026-11-19T02:13:53.012Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:44:53.026Z] ConfiguratorTester (kopiowanie):   baza: poz. 13017 (z 7708, wersja 0.3.348)
+[2026-11-20T01:44:53.028Z] ConfiguratorTester (kopiowanie):   kopia 1/2
+[2026-11-20T01:44:57.267Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: po otwarciu kopii — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
+[2026-11-20T01:45:03.804Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: przed zapisem — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
+[2026-11-20T01:45:34.259Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
+[2026-11-20T01:45:34.260Z] ConfiguratorTester (kopiowanie):   kopia 2/2
+[2026-11-20T01:45:39.261Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: po otwarciu kopii — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
+[2026-11-20T01:45:44.387Z] ConfiguratorTester (kopiowanie):     ✖ ROZJAZD_FORMULARZA: przed zapisem — DLUGOSC_STER: w danych "2222", a pole wygląda na puste
+[2026-11-20T01:46:14.866Z] ConfiguratorTester (kopiowanie):     ✖ ZAPIS_ZABLOKOWANY: walidacja zatrzymała zapis na: DLUGOSC_STER
+[2026-11-20T01:46:18.377Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] rzymska-ostatnia: Roleta rzymska (24), „ostatnia konfiguracja", sterowanie ręczne, szerokość → 1500
-[2026-11-19T02:13:53.462Z] ConfiguratorTester (kopiowanie):   baza: poz. 12812 (z 12169, wersja 0.3.219)
-[2026-11-19T02:13:58.636Z] ConfiguratorTester (kopiowanie):   kopia 1/2
-[2026-11-19T02:14:14.658Z] ConfiguratorTester (kopiowanie):     zapisano poz. 12813 (celowe zmiany: SZEROKOSC=1500)
-[2026-11-19T02:14:14.659Z] ConfiguratorTester (kopiowanie):   kopia 2/2
-[2026-11-19T02:14:30.786Z] ConfiguratorTester (kopiowanie):     zapisano poz. 12814 (celowe zmiany: SZEROKOSC=1500)
-[2026-11-19T02:14:34.971Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:46:18.756Z] ConfiguratorTester (kopiowanie):   baza: poz. 13020 (z 12941, wersja 0.3.223)
+[2026-11-20T01:46:23.898Z] ConfiguratorTester (kopiowanie):   kopia 1/2
+[2026-11-20T01:46:39.751Z] ConfiguratorTester (kopiowanie):     zapisano poz. 13021 (celowe zmiany: SZEROKOSC=1500)
+[2026-11-20T01:46:39.752Z] ConfiguratorTester (kopiowanie):   kopia 2/2
+[2026-11-20T01:46:56.026Z] ConfiguratorTester (kopiowanie):     zapisano poz. 13022 (celowe zmiany: SZEROKOSC=1500)
+[2026-11-20T01:47:00.179Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] h50-ostatnia: Żaluzja drewniana H50 (59), „ostatnia konfiguracja", szerokość 2720, strona LL — zlecenie Ryver 266
-[2026-11-19T02:14:35.250Z] ConfiguratorTester (kopiowanie):   baza: poz. 12815 (z 7900, wersja 0.3.619)
-[2026-11-19T02:14:41.060Z] ConfiguratorTester (kopiowanie):   kopia 1/2
-[2026-11-19T02:14:57.476Z] ConfiguratorTester (kopiowanie):     zapisano poz. 12816 (celowe zmiany: SZEROKOSC=2720)
-[2026-11-19T02:14:57.476Z] ConfiguratorTester (kopiowanie):   kopia 2/2
-[2026-11-19T02:15:13.785Z] ConfiguratorTester (kopiowanie):     zapisano poz. 12817 (celowe zmiany: SZEROKOSC=2720)
-[2026-11-19T02:15:17.699Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:47:00.607Z] ConfiguratorTester (kopiowanie):   baza: poz. 13023 (z 7900, wersja 0.3.623)
+[2026-11-20T01:47:06.585Z] ConfiguratorTester (kopiowanie):   kopia 1/2
+[2026-11-20T01:47:22.659Z] ConfiguratorTester (kopiowanie):     zapisano poz. 13024 (celowe zmiany: SZEROKOSC=2720)
+[2026-11-20T01:47:22.667Z] ConfiguratorTester (kopiowanie):   kopia 2/2
+[2026-11-20T01:47:38.796Z] ConfiguratorTester (kopiowanie):     zapisano poz. 13025 (celowe zmiany: SZEROKOSC=2720)
+[2026-11-20T01:47:43.470Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] h50-duplikat-zabezpieczenie: H50 (59), „duplikuj" → ponowny wybór CS_NO: długość sterowania 1300 → 865 jak w zleceniu 266, KOOF bez zmian
-[2026-11-19T02:15:17.963Z] ConfiguratorTester (kopiowanie):   baza: poz. 12818 (z 12797, wersja 0.3.619)
-[2026-11-19T02:15:17.965Z] ConfiguratorTester (kopiowanie):   kopia 1/1
-[2026-11-19T02:15:29.893Z] ConfiguratorTester (kopiowanie):     zapisano poz. 12819 (celowe zmiany: DLUGOSC_STER="865")
-[2026-11-19T02:15:33.180Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:47:43.702Z] ConfiguratorTester (kopiowanie):   baza: poz. 13026 (z 12952, wersja 0.3.623)
+[2026-11-20T01:47:43.704Z] ConfiguratorTester (kopiowanie):   kopia 1/1
+[2026-11-20T01:47:55.540Z] ConfiguratorTester (kopiowanie):     zapisano poz. 13027 (celowe zmiany: DLUGOSC_STER="865")
+[2026-11-20T01:47:58.466Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] h50-pusty-koof: H50 (59), pozycja z pustym KOOF, „duplikuj" → zapis bez zmian MUSI zostać zablokowany
-[2026-11-19T02:15:33.447Z] ConfiguratorTester (kopiowanie):   baza: poz. 12820 (z 12797, wersja 0.3.619)
-[2026-11-19T02:15:33.448Z] ConfiguratorTester (kopiowanie):   kopia 1/1
-[2026-11-19T02:16:09.209Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (BLENDA)
-[2026-11-19T02:16:11.805Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:47:58.755Z] ConfiguratorTester (kopiowanie):   baza: poz. 13028 (z 12952, wersja 0.3.623)
+[2026-11-20T01:47:58.756Z] ConfiguratorTester (kopiowanie):   kopia 1/1
+[2026-11-20T01:48:34.445Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (BLENDA)
+[2026-11-20T01:48:37.222Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] vertical-ostatnia-za-waska: Vertical (14), „ostatnia konfiguracja", szerokość 50 (MIN 500) — zapis MUSI zostać zablokowany
-[2026-11-19T02:16:12.183Z] ConfiguratorTester (kopiowanie):   baza: poz. 12822 (z 7708, wersja 0.3.344)
-[2026-11-19T02:16:18.854Z] ConfiguratorTester (kopiowanie):   kopia 1/1
-[2026-11-19T02:17:03.779Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC, DLUGOSC_STER)
-[2026-11-19T02:17:05.430Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:48:37.703Z] ConfiguratorTester (kopiowanie):   baza: poz. 13030 (z 7708, wersja 0.3.348)
+[2026-11-20T01:48:44.809Z] ConfiguratorTester (kopiowanie):   kopia 1/1
+[2026-11-20T01:49:29.479Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC, DLUGOSC_STER)
+[2026-11-20T01:49:31.110Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] vertical-ostatnia-za-szeroka: Vertical (14), „ostatnia konfiguracja", szerokość 9000 (MAX 6900) — zapis MUSI zostać zablokowany
-[2026-11-19T02:17:05.806Z] ConfiguratorTester (kopiowanie):   baza: poz. 12823 (z 7708, wersja 0.3.344)
-[2026-11-19T02:17:11.410Z] ConfiguratorTester (kopiowanie):   kopia 1/1
-[2026-11-19T02:17:55.958Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC, DLUGOSC_STER)
-[2026-11-19T02:17:57.630Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:49:31.487Z] ConfiguratorTester (kopiowanie):   baza: poz. 13031 (z 7708, wersja 0.3.348)
+[2026-11-20T01:49:37.613Z] ConfiguratorTester (kopiowanie):   kopia 1/1
+[2026-11-20T01:50:22.490Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC, DLUGOSC_STER)
+[2026-11-20T01:50:24.110Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] vertical-ostatnia-zly-wymiar-w-kopii: Vertical (14), kopiowana linia ma już szerokość 9000 — zapis kopii BEZ zmian MUSI zostać zablokowany
-[2026-11-19T02:17:58.061Z] ConfiguratorTester (kopiowanie):   baza: poz. 12824 (z 7708, wersja 0.3.344)
-[2026-11-19T02:18:03.912Z] ConfiguratorTester (kopiowanie):   kopia 1/1
-[2026-11-19T02:18:48.524Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC, DLUGOSC_STER)
-[2026-11-19T02:18:50.164Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:50:24.475Z] ConfiguratorTester (kopiowanie):   baza: poz. 13032 (z 7708, wersja 0.3.348)
+[2026-11-20T01:50:30.319Z] ConfiguratorTester (kopiowanie):   kopia 1/1
+[2026-11-20T01:51:15.274Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC, DLUGOSC_STER)
+[2026-11-20T01:51:16.920Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] vertical-duplikat-za-waska: Vertical (14), „duplikuj" → edycja, szerokość 50 (MIN 500) — zapis MUSI zostać zablokowany
-[2026-11-19T02:18:50.536Z] ConfiguratorTester (kopiowanie):   baza: poz. 12825 (z 7708, wersja 0.3.344)
-[2026-11-19T02:18:50.537Z] ConfiguratorTester (kopiowanie):   kopia 1/1
-[2026-11-19T02:19:27.150Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC, DLUGOSC_STER)
-[2026-11-19T02:19:29.986Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:51:17.312Z] ConfiguratorTester (kopiowanie):   baza: poz. 13033 (z 7708, wersja 0.3.348)
+[2026-11-20T01:51:17.313Z] ConfiguratorTester (kopiowanie):   kopia 1/1
+[2026-11-20T01:51:53.472Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC, DLUGOSC_STER)
+[2026-11-20T01:51:56.122Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] h50-ostatnia-za-waska: H50 (59), „ostatnia konfiguracja", szerokość 100 (MIN 300) — zapis MUSI zostać zablokowany
-[2026-11-19T02:19:30.284Z] ConfiguratorTester (kopiowanie):   baza: poz. 12827 (z 7900, wersja 0.3.619)
-[2026-11-19T02:19:36.377Z] ConfiguratorTester (kopiowanie):   kopia 1/1
-[2026-11-19T02:20:20.942Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC)
-[2026-11-19T02:20:22.496Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:51:56.461Z] ConfiguratorTester (kopiowanie):   baza: poz. 13035 (z 7900, wersja 0.3.623)
+[2026-11-20T01:52:02.227Z] ConfiguratorTester (kopiowanie):   kopia 1/1
+[2026-11-20T01:52:46.888Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (SZEROKOSC)
+[2026-11-20T01:52:48.496Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] h50-ostatnia-dlugosc-sterowania: H50 (59), „ostatnia konfiguracja", długość sterowania 20 (MIN2 50) — zapis MUSI zostać zablokowany
-[2026-11-19T02:20:22.793Z] ConfiguratorTester (kopiowanie):   baza: poz. 12828 (z 7900, wersja 0.3.619)
-[2026-11-19T02:20:28.162Z] ConfiguratorTester (kopiowanie):   kopia 1/1
-[2026-11-19T02:21:12.709Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (DLUGOSC_STER)
-[2026-11-19T02:21:14.499Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:52:48.758Z] ConfiguratorTester (kopiowanie):   baza: poz. 13036 (z 7900, wersja 0.3.623)
+[2026-11-20T01:52:53.928Z] ConfiguratorTester (kopiowanie):   kopia 1/1
+[2026-11-20T01:53:38.454Z] ConfiguratorTester (kopiowanie):     ✔ zapis zablokowany zgodnie z oczekiwaniem (DLUGOSC_STER)
+[2026-11-20T01:53:40.365Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 1/24: grupa 14 (VERTIKAL)
-[2026-11-19T02:23:28.304Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
-[2026-11-19T02:23:29.376Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:55:54.010Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
+[2026-11-20T01:55:55.044Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 2/24: grupa 24 (RZYMSKIE)
-[2026-11-19T02:25:42.997Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
-[2026-11-19T02:25:43.808Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:58:08.123Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
+[2026-11-20T01:58:08.996Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 3/24: grupa 59 (ŻALUZJA DREWNIANA)
-[2026-11-19T02:26:00.042Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12437 → zapisana jako 12829
-[2026-11-19T02:26:47.116Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 127.49 → 130.68; WARTOSC_VAT 0 → 24.44
-[2026-11-19T02:26:47.116Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 24.44; SUB___WARTOSC_BRUTTO (opis) (brak) → 130.68
-[2026-11-19T02:27:31.726Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym PROWADZENIE zablokowany ✔
-[2026-11-19T02:27:36.825Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T01:58:25.163Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12320 → zapisana jako 13037
+[2026-11-20T01:59:12.156Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 99.23 → 101.71; WARTOSC_VAT 0 → 19.02
+[2026-11-20T01:59:12.157Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 19.02; SUB___WARTOSC_BRUTTO (opis) (brak) → 101.71
+[2026-11-20T01:59:56.933Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym MODEL zablokowany ✔
+[2026-11-20T02:00:02.090Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 4/24: grupa 73 (ZASŁONY)
-[2026-11-19T02:27:53.007Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 10371 → zapisana jako 12833
-[2026-11-19T02:28:39.133Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (puste) → 52.84; WARTOSC_VAT (puste) → 9.88
-[2026-11-19T02:28:39.134Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___RABAT_KLIENTA (opis) 75% → (brak); SUB___CENA_PO_RABACIE (opis) 42.96 → (brak); SUB___VAT (opis) 19% → 23%; SUB___WARTOSC_VAT (opis) 9.79 → 9.88; SUB___WARTOSC_BRUTTO (opis) 61.34 → 52.84
-[2026-11-19T02:29:23.456Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym PB zablokowany ✔
-[2026-11-19T02:29:28.890Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:00:19.947Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 10360 → zapisana jako 13041
+[2026-11-20T02:01:07.378Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 68.16 → 70.45; WARTOSC_VAT 10.88 → 13.17
+[2026-11-20T02:01:07.383Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) 19% → 23%; SUB___WARTOSC_VAT (opis) 10.88 → 13.17; SUB___WARTOSC_BRUTTO (opis) 68.16 → 70.45
+[2026-11-20T02:01:51.635Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym DOL zablokowany ✔
+[2026-11-20T02:01:57.707Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 5/24: grupa 80 (MFPlus)
-[2026-11-19T02:29:45.158Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 7497 → zapisana jako 12837
-[2026-11-19T02:30:33.937Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (puste) → 191.14; WARTOSC_VAT (puste) → 35.74
-[2026-11-19T02:30:33.938Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 35.74; SUB___WARTOSC_BRUTTO (opis) (brak) → 191.14
-[2026-11-19T02:31:18.599Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym MODEL zablokowany ✔
-[2026-11-19T02:31:23.335Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:02:13.669Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 7498 → zapisana jako 13045
+[2026-11-20T02:03:00.831Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (puste) → 174.56; WARTOSC_VAT (puste) → 32.64
+[2026-11-20T02:03:00.832Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 32.64; SUB___WARTOSC_BRUTTO (opis) (brak) → 174.56
+[2026-11-20T02:03:45.332Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym KOLORSYS_ALU zablokowany ✔
+[2026-11-20T02:03:50.563Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 6/24: grupa 14 (VERTIKAL)
-[2026-11-19T02:31:39.312Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 6662 → zapisana jako 12841
-[2026-11-19T02:32:25.534Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (brak) → 6.92; WARTOSC_VAT (brak) → 1.29
-[2026-11-19T02:32:25.535Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 1.29; SUB___WARTOSC_BRUTTO (opis) (brak) → 6.92
-[2026-11-19T02:33:10.284Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym KOLOR zablokowany ✔
-[2026-11-19T02:33:15.049Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:04:06.311Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 6662 → zapisana jako 13049
+[2026-11-20T02:04:52.848Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (brak) → 6.92; WARTOSC_VAT (brak) → 1.29
+[2026-11-20T02:04:52.849Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 1.29; SUB___WARTOSC_BRUTTO (opis) (brak) → 6.92
+[2026-11-20T02:05:37.458Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym KIESZEN zablokowany ✔
+[2026-11-20T02:05:43.040Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 7/24: grupa 24 (RZYMSKIE)
-[2026-11-19T02:35:28.525Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
-[2026-11-19T02:35:29.052Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:05:58.912Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12920 → zapisana jako 13053
+[2026-11-20T02:06:45.730Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 92.16 → 113.36; WARTOSC_VAT 0 → 21.2
+[2026-11-20T02:06:45.733Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) 0% (odwrotne obciążenie VAT (sprzedaż wewnątrzunijna)) → 23%; SUB___WARTOSC_VAT (opis) 0 → 21.2; SUB___WARTOSC_BRUTTO (opis) 92.16 → 113.36
+[2026-11-20T02:07:30.037Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym PODSZEWKA zablokowany ✔
+[2026-11-20T02:07:35.755Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 8/24: grupa 59 (ŻALUZJA DREWNIANA)
-[2026-11-19T02:35:45.257Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12351 → zapisana jako 12845
-[2026-11-19T02:36:31.351Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 153.31 → 157.13; WARTOSC_VAT 0 → 29.38
-[2026-11-19T02:36:31.351Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 29.38; SUB___WARTOSC_BRUTTO (opis) (brak) → 157.13
-[2026-11-19T02:37:15.952Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym OCHRONA_CHILD_SAFETY zablokowany ✔
-[2026-11-19T02:37:20.558Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:07:51.967Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12434 → zapisana jako 13057
+[2026-11-20T02:08:39.418Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 352.65 → 361.44; WARTOSC_VAT 0 → 67.59
+[2026-11-20T02:08:39.420Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 67.59; SUB___WARTOSC_BRUTTO (opis) (brak) → 361.44
+[2026-11-20T02:09:23.965Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym PROWADZENIE zablokowany ✔
+[2026-11-20T02:09:29.181Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 9/24: grupa 73 (ZASŁONY)
-[2026-11-19T02:37:36.633Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 10369 → zapisana jako 12849
-[2026-11-19T02:38:22.333Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 68.16 → 70.45; WARTOSC_VAT 10.88 → 13.17
-[2026-11-19T02:38:22.334Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) 19% → 23%; SUB___WARTOSC_VAT (opis) 10.88 → 13.17; SUB___WARTOSC_BRUTTO (opis) 68.16 → 70.45
-[2026-11-19T02:39:06.714Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym RAPORT zablokowany ✔
-[2026-11-19T02:39:11.342Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:09:44.967Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 10371 → zapisana jako 13061
+[2026-11-20T02:10:31.933Z] ConfiguratorTester (kopiowanie):     ✖ BRAK_POLA: zgubione pola: RABAT_B2B 10 → (brak)
+[2026-11-20T02:10:31.934Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (puste) → 57.06; WARTOSC_VAT (puste) → 10.67
+[2026-11-20T02:10:31.935Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: WARTOSC_PRZED_B2B 51.55 → (brak); SUB___RABAT_B2B (opis) 10% → (brak); SUB___VAT (opis) 19% → 23%; SUB___WARTOSC_VAT (opis) 9.79 → 10.67; SUB___WARTOSC_BRUTTO (opis) 61.34 → 57.06
+[2026-11-20T02:11:16.358Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym KONFIGURACJA zablokowany ✔
+[2026-11-20T02:11:21.629Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 10/24: grupa 80 (MFPlus)
-[2026-11-19T02:39:27.095Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 8022 → zapisana jako 12853
-[2026-11-19T02:40:14.334Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (brak) → 176.84; WARTOSC_VAT (brak) → 33.07
-[2026-11-19T02:40:14.335Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 33.07; SUB___WARTOSC_BRUTTO (opis) (brak) → 176.84
-[2026-11-19T02:40:59.110Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym KOLOR zablokowany ✔
-[2026-11-19T02:41:03.900Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:11:37.766Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 8024 → zapisana jako 13065
+[2026-11-20T02:12:25.193Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (brak) → 239.83; WARTOSC_VAT (brak) → 44.85
+[2026-11-20T02:12:25.195Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 44.85; SUB___WARTOSC_BRUTTO (opis) (brak) → 239.83
+[2026-11-20T02:13:09.505Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym PROD zablokowany ✔
+[2026-11-20T02:13:15.182Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 11/24: grupa 71 (EOS)
-[2026-11-19T02:41:21.048Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12234 → zapisana jako 12857
-[2026-11-19T02:42:11.320Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 151.73 → 154.24; WARTOSC_VAT 26.33 → 28.84
-[2026-11-19T02:42:11.322Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) 21% → 23%; SUB___WARTOSC_VAT (opis) 26.33 → 28.84; SUB___WARTOSC_BRUTTO (opis) 151.73 → 154.24
-[2026-11-19T02:42:56.805Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym KOLOR zablokowany ✔
-[2026-11-19T02:43:01.743Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:13:31.622Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12245 → zapisana jako 13069
+[2026-11-20T02:14:19.700Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 847.97 → 861.98; WARTOSC_VAT 147.17 → 161.18
+[2026-11-20T02:14:19.701Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) 21% → 23%; SUB___WARTOSC_VAT (opis) 147.17 → 161.18; SUB___WARTOSC_BRUTTO (opis) 847.97 → 861.98
+[2026-11-20T02:15:05.137Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym OCHRONA_CHILD_SAFETY zablokowany ✔
+[2026-11-20T02:15:10.465Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 12/24: grupa 43 (COSIFLOR)
-[2026-11-19T02:44:48.586Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12708 → zapisana jako 12861
-[2026-11-19T02:45:39.461Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 157 → 165.09; WARTOSC_VAT 0 → 30.87
-[2026-11-19T02:45:39.463Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 30.87; SUB___WARTOSC_BRUTTO (opis) (brak) → 165.09
-[2026-11-19T02:46:24.829Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym STRONA_STEROWANIA zablokowany ✔
-[2026-11-19T02:46:30.065Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:17:26.594Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
+[2026-11-20T02:17:27.538Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 13/24: grupa 20 (BASIC)
-[2026-11-19T02:48:42.659Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
-[2026-11-19T02:48:43.493Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:19:40.037Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
+[2026-11-20T02:19:40.946Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 14/24: grupa 39 (ŻALUZJA ALUMINIOWA 16/25)
-[2026-11-19T02:48:59.934Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12783 → zapisana jako 12865
-[2026-11-19T02:49:47.502Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 161.26 → 198.35; WARTOSC_VAT 0 → 37.09
-[2026-11-19T02:49:47.503Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) 0% (odwrotne obciążenie VAT (sprzedaż wewnątrzunijna)) → 23%; SUB___WARTOSC_VAT (opis) 0 → 37.09; SUB___WARTOSC_BRUTTO (opis) 161.26 → 198.35
-[2026-11-19T02:50:32.370Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym PROWADZENIE zablokowany ✔
-[2026-11-19T02:50:37.519Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:19:57.470Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12991 → zapisana jako 13073
+[2026-11-20T02:20:45.064Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 45.5 → 55.96; WARTOSC_VAT 0 → 10.46
+[2026-11-20T02:20:45.066Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 10.46; SUB___WARTOSC_BRUTTO (opis) (brak) → 55.96
+[2026-11-20T02:21:29.651Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym DODATKI zablokowany ✔
+[2026-11-20T02:21:34.733Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 15/24: grupa 02 (ALUMINIOWA 35/50)
-[2026-11-19T02:50:53.716Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12463 → zapisana jako 12869
-[2026-11-19T02:51:41.614Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 80.28 → 98.74; WARTOSC_VAT 0 → 18.46
-[2026-11-19T02:51:41.615Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 18.46; SUB___WARTOSC_BRUTTO (opis) (brak) → 98.74
-[2026-11-19T02:52:26.232Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym STRONA_STEROWANIA zablokowany ✔
-[2026-11-19T02:52:31.826Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:21:51.027Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12697 → zapisana jako 13077
+[2026-11-20T02:22:37.955Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 69.45 → 85.42; WARTOSC_VAT 0 → 15.97
+[2026-11-20T02:22:37.957Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 15.97; SUB___WARTOSC_BRUTTO (opis) (brak) → 85.42
+[2026-11-20T02:23:22.796Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym STRONA_STEROWANIA zablokowany ✔
+[2026-11-20T02:23:27.840Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 16/24: grupa 04 (ŻALUZJA ALUMINIOWA 25 BASIC)
-[2026-11-19T02:54:17.084Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12532 → zapisana jako 12873
-[2026-11-19T02:55:03.629Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 251.09 → 259.53; WARTOSC_VAT 40.09 → 48.53
-[2026-11-19T02:55:03.630Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) 19% → 23%; SUB___WARTOSC_VAT (opis) 40.09 → 48.53; SUB___WARTOSC_BRUTTO (opis) 251.09 → 259.53
-[2026-11-19T02:55:48.495Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym MONTAZ zablokowany ✔
-[2026-11-19T02:55:53.522Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:23:43.861Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12622 → zapisana jako 13081
+[2026-11-20T02:24:29.658Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 215.39 → 222.63; WARTOSC_VAT 34.39 → 41.63
+[2026-11-20T02:24:29.658Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) 19% → 23%; SUB___WARTOSC_VAT (opis) 34.39 → 41.63; SUB___WARTOSC_BRUTTO (opis) 215.39 → 222.63
+[2026-11-20T02:25:14.290Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym KOLOR zablokowany ✔
+[2026-11-20T02:25:19.303Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 17/24: grupa 75 (COULISSE)
-[2026-11-19T02:56:10.789Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12661 → zapisana jako 12877
-[2026-11-19T02:57:00.783Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 82.17 → 79.24; WARTOSC_VAT 0 → 14.82
-[2026-11-19T02:57:00.784Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 14.82; SUB___WARTOSC_BRUTTO (opis) (brak) → 79.24
-[2026-11-19T02:57:46.303Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym MONTAZ zablokowany ✔
-[2026-11-19T02:57:51.347Z] ConfiguratorTester (kopiowanie): 
+[2026-11-20T02:26:21.022Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 12746 → zapisana jako 13085
+[2026-11-20T02:27:11.065Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO 49.51 → 47.75; WARTOSC_VAT 0 → 8.93
+[2026-11-20T02:27:11.067Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 8.93; SUB___WARTOSC_BRUTTO (opis) (brak) → 47.75
+[2026-11-20T02:27:56.568Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym MONTAZ zablokowany ✔
+[2026-11-20T02:28:01.941Z] ConfiguratorTester (kopiowanie): 
 ▶ [chromium] przypadek 18/24: grupa 76 (NOWY STYL)
-[2026-11-19T03:00:04.865Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
-[2026-11-19T03:00:05.626Z] ConfiguratorTester (kopiowanie): limit czasu — wykonano 18 z 24 przypadków wygenerowanych
-[2026-11-19T03:00:05.810Z] ConfiguratorTester (kopiowanie): koniec: 27 przypadków (16 z błędami, 5 pominiętych), 98 kopii/kontroli, 15681 porównań pól, 51.8 min
-[2026-11-19T03:00:07.156Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (128 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as 6163A2B0C03 | id <a02db330-e1e8-0518-83cf-b0ea00fb863a@e-orders.eu>
+[2026-11-20T02:30:15.313Z] ConfiguratorTester (kopiowanie):   pominięty: żadna z 3 pozycji wzorcowych nie przechodzi zapisu na dzisiejszych regułach
+[2026-11-20T02:30:16.329Z] ConfiguratorTester (kopiowanie): 
+▶ [chromium] przypadek 19/24: grupa 01 (KOMPONENTY)
+[2026-11-20T02:30:32.563Z] ConfiguratorTester (kopiowanie):   wzorzec: konfiguracja poz. 7372 → zapisana jako 13089
+[2026-11-20T02:31:20.098Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_VAT_RABATU: pola VAT / rabatu klienta (zależne od VAT_ENABLED): WARTOSC_BRUTTO (brak) → 1.99; WARTOSC_VAT (brak) → 0.37
+[2026-11-20T02:31:20.100Z] ConfiguratorTester (kopiowanie):     ✖ ZMIANA_CENY: zmienione ceny: SUB___VAT (opis) (brak) → 23%; SUB___WARTOSC_VAT (opis) (brak) → 0.37; SUB___WARTOSC_BRUTTO (opis) (brak) → 1.99
+[2026-11-20T02:32:04.707Z] ConfiguratorTester (kopiowanie):   walidacja: zapis z pustym KOLORPLISY zablokowany ✔
+[2026-11-20T02:32:09.489Z] ConfiguratorTester (kopiowanie): limit czasu — wykonano 19 z 24 przypadków wygenerowanych
+[2026-11-20T02:32:10.177Z] ConfiguratorTester (kopiowanie): koniec: 28 przypadków (17 z błędami, 5 pominiętych), 104 kopii/kontroli, 16684 porównań pól, 51.4 min
+[2026-11-20T02:32:11.254Z] ConfiguratorTester mailer: report sent to pawel.woroniecki@hkl.eu (88 findings) — SMTP przyjął: pawel.woroniecki@hkl.eu | 250 2.0.0 Ok: queued as 8F7492B11A5 | id <c44c7465-9a82-4c9b-96dc-6680727f26be@e-orders.eu>
 Sprawdzono grup: 20, pominięto: 0
-Znaleziono błędów: 128 (P1: 57)
-Skrypty cenowe: 1891 sprawdzonych, 5 niesparsowalnych
+Znaleziono błędów: 88 (P1: 42)
+Skrypty cenowe: 1904 sprawdzonych, 5 niesparsowalnych
 Symulacja tworzenia pozycji: 14/16 grup zdanych
-Kopiowanie pozycji: 27 przypadków, 98 kopii/kontroli, z błędami 16
-Pełny raport: /mnt/eform/configtest-output/2026-11-19/run-2026-11-19T01-00-03-694Z.json
-Raport HTML:  /mnt/eform/configtest-output/2026-11-19/run-2026-11-19T01-00-03-694Z.html
-=== 2026-11-19 04:00:07 — koniec: są zgłoszenia P1 (raport wysłany) ===
+Kopiowanie pozycji: 28 przypadków, 104 kopii/kontroli, z błędami 17
+Pełny raport: /mnt/eform/configtest-output/2026-11-20/run-2026-11-20T01-00-03-365Z.json
+Raport HTML:  /mnt/eform/configtest-output/2026-11-20/run-2026-11-20T01-00-03-365Z.html
+=== 2026-11-20 03:32:11 — koniec: są zgłoszenia P1 (raport wysłany) ===

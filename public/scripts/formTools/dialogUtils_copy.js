@@ -428,7 +428,7 @@ export class DialogManager {
       return filterControls;
     }
 
-    const isMobile = window.innerWidth <= 768;
+    const isMobile = window.innerWidth < 768; // 768 = desktop (jak CSS: max-width 767.98px)
     let content = filterControls;
 
     if (isMobile) {

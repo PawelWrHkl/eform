@@ -253,6 +253,8 @@ app.use((req, res, next) => {
 	// i router liczą dostęp tą samą regułą (services/serviceTickets/access.js).
 	res.locals.serviceEnabled = require('./services/serviceTickets/access').canAccessService(req.session?.user, require('./config').service);
 	res.locals.isAdminSession = !!req.session?.user?.isAdmin;
+	// Raporty organizacji: wejście w menu tylko dla ownera (admin ma /admin/reports), routes/orgReports.js.
+	res.locals.orgReportsEnabled = !!features?.orgReports && !!require('./services/orgReports').resolveReportOrg(req.session?.user).orgId;
 	// Korekta zleceń (ORDER_CORRECTION_ENABLED) — kafelek w panelu admina i przyciski w historii.
 	res.locals.orderCorrectionEnabled = !!features?.orderCorrection && res.locals.isAdminSession;
 	next();
@@ -451,6 +453,15 @@ if (features?.orgCustomers) {
 	log('[orgCustomers] moduł włączony (ORG_CUSTOMERS_ENABLED=true)');
 } else {
 	log('[orgCustomers] moduł WYŁĄCZONY — /org/customers nie jest montowany');
+}
+
+// Raporty organizacji — ta sama zasada: przy wyłączonej fladze (`ORG_REPORTS` ≠ true)
+// router nie wstaje, `/org/reports` daje 404, a menu nie ma pozycji (`orgReportsEnabled`).
+if (features?.orgReports) {
+	app.use('/org/reports', blockGroupShop, require('./routes/orgReports'));
+	log('[orgReports] moduł włączony (ORG_REPORTS=true)');
+} else {
+	log('[orgReports] moduł WYŁĄCZONY — /org/reports nie jest montowany');
 }
 
 // Asystent eForm — ta sama zasada co moduły wyżej: przy wyłączonej fladze

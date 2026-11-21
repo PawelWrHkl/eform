@@ -95,6 +95,11 @@ module.exports = {
     // `invoices`: brak zmiennej = wyłączone.
     orgCustomers: String(process.env.ORG_CUSTOMERS_ENABLED).toLowerCase() === 'true',
 
+    // Raporty organizacji (`/org/reports`, routes/orgReports.js) — raport admina
+    // zawężony do klientów organizacji ownera. `ORG_REPORTS=true` = włączone;
+    // brak zmiennej = router niezamontowany i brak pozycji w menu (wzór: SERVICE_PANEL).
+    orgReports: String(process.env.ORG_REPORTS).toLowerCase() === 'true',
+
     // Specyfikacja ceny (`<PARAM>_S`, np. `CENA_S` = „416(PG3)*1.1") — skrypt
     // cennika zwraca ją obok ceny, a `pricesCalculator.js calculateFromScript`
     // przy włączonej fladze tworzy z niej ukryte pole i wiersz „<opis>-spec"

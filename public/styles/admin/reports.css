@@ -780,3 +780,104 @@
         position: static;
     }
 }
+
+/* ── Raporty organizacji (/org/reports, .reports-org) ─────────────── */
+.reports-org .metric-toggle-row { flex-wrap: wrap; }
+/* Element siatki: bez tego szeroka tabela rozpycha stronę zamiast przewijać się w .report-table-wrap. */
+.reports-org .reports-main { min-width: 0; }
+.report-tools { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-left: auto; }
+.report-tools .btn.active { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+.report-currency { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-muted, #6c757d); }
+.report-currency select { width: auto; }
+
+.kpi-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.75rem;
+}
+.kpi-bar[hidden] { display: none; }
+.kpi-tile {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    min-width: 0;
+}
+.kpi-label {
+    font-size: 0.72rem;
+    color: var(--text-muted, #6c757d);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.kpi-value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-color, #212529);
+    font-variant-numeric: tabular-nums;
+    margin: 0.15rem 0 0.25rem;
+    overflow-wrap: anywhere;
+}
+.kpi-share { font-size: 0.8rem; font-weight: 600; color: var(--text-muted, #6c757d); }
+.kpi-delta { font-size: 0.75rem; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.kpi-delta.up { color: #146c43; }
+.kpi-delta.down { color: #b02a37; }
+.kpi-delta.neutral { color: var(--text-muted, #6c757d); }
+.kpi-delta-label { color: var(--text-muted, #6c757d); }
+.kpi-note { grid-column: 1 / -1; font-size: 0.75rem; color: var(--text-muted, #6c757d); }
+.kpi-sub { font-size: 0.75rem; color: var(--text-muted, #6c757d); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.report-subtitle { font-size: 0.95rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+
+.report-intro { font-size: 0.82rem; color: var(--text-muted, #6c757d); margin: 0 0 0.75rem; }
+.abc-summary { font-size: 0.85rem; margin-bottom: 0.5rem; }
+.abc-badge {
+    display: inline-block;
+    min-width: 1.6em;
+    padding: 0.05em 0.45em;
+    border-radius: 6px;
+    font-weight: 700;
+    text-align: center;
+    border: 1px solid currentColor;
+}
+.abc-A { color: #0a58ca; }
+.abc-B { color: #6c757d; }
+.abc-C { color: #adb5bd; }
+.abc-chart { margin-bottom: 1rem; }
+.season-cell { font-variant-numeric: tabular-nums; }
+.season-total td { border-top: 2px solid var(--border-color, #e9ecef); }
+@media print { .season-cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+/* Telefon: components.css daje .btn { width:100% !important; padding:15px !important } — w raporcie
+   przyciski są chipami w rzędach, a kolumny siatki nie mogą być szersze niż ekran. */
+@media (max-width: 767.98px) {
+    .reports-org .reports-layout > * { min-width: 0; max-width: 100%; }
+    .reports-org .date-row { flex-wrap: wrap; }
+    .reports-org .date-row input { min-width: 0; flex: 1 1 130px; }
+    .reports-org .btn { width: auto !important; padding: 6px 12px !important; font-size: 0.85rem !important; min-height: 36px; }
+    .reports-org #btn-run-report { width: 100% !important; }
+    .reports-org .reports-head h2 { font-size: 1.1rem !important; }
+}
+
+@media (max-width: 600px) {
+    .reports-org { padding: 0.75rem 1rem !important; }
+    .reports-org .category-toggle,
+    .reports-org .view-toggle { flex-wrap: wrap; }
+    .kpi-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kpi-value { font-size: 1.1rem; }
+    .report-tools { margin-left: 0; }
+}
+
+/* Wydruk: tylko nagłówek, KPI i aktywny widok (tabela/wykres) — bez menu, filtrów i przycisków. */
+@media print {
+    nav, header, footer, .no-print, .reports-sidebar, #eform-assistant, .category-toggle, .view-toggle,
+    .metric-toggle-row, .groups-filter-bar, .dc-dept-bar, .modern-back-btn, #mobile-back-btn,
+    main > .arrow, main > .back-text { display: none !important; }
+    .content.reports-org { margin-left: 0 !important; min-width: 0 !important; width: 100% !important; }
+    .reports-layout { display: block !important; }
+    .reports-org { padding: 0 !important; }
+    .reports-card, .kpi-tile, .report-table-wrap { box-shadow: none !important; break-inside: avoid; }
+    .report-table { font-size: 9pt; }
+    .report-table tr { break-inside: avoid; }
+    .chart-container { max-width: 100%; }
+    .kpi-bar { grid-template-columns: repeat(4, 1fr); }
+    body { background: #fff !important; }
+}

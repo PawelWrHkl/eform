@@ -242,6 +242,7 @@ async function processOneFile(fileName) {
       // admin's send-to-production, never from here.
       if (!resolved.user.autoimport) {
         result.offer = true;
+        await require('../orderOffer').markOffer(importResult.orderId);
         log(`Import: order ${importResult.orderId} left as an offer — client ${resolved.user.ident} has autoimport off`);
       } else {
         try {

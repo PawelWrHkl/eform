@@ -7,11 +7,11 @@
         margin-top: 13% !important;
     }
     .add-info-box h2 {
-        min-height: 5rem !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
+        min-height: 5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
     }
     .orders-list {
         display: grid;
@@ -51,10 +51,9 @@
         padding: 0% !important;
     }
     #last-orders-section {
-        margin-top: 0 !important
-    }
+        margin-top: 0}
     .custom-checkbox-wrapper {
-        margin-top: 0 !important;
+        margin-top: 0;
     }
     .content h3,
     .content h5 {
@@ -103,28 +102,27 @@
         display: none;
     }
     .order-info {
-        flex: 0 0 100% !important
-    }
+        flex: 0 0 100%}
     .order-card-row {
-        flex-wrap: nowrap !important;
+        flex-wrap: nowrap;
     }
     #last-orders-section.d-flex {
-        flex-direction: column !important;
-        align-items: stretch !important;
+        flex-direction: column;
+        align-items: stretch;
     }
     .container.add-info-box {
-        width: 100% !important;
-        max-width: 100% !important;
+        width: 100%;
+        max-width: 100%;
         margin-bottom: 15px !important;
         margin-right: 0 !important;
-        flex: none !important;
+        flex: none;
     }
     .container.col-4.add-info-box,
     .container.col-6.add-info-box {
-        width: 100% !important;
-        max-width: 100% !important;
-        margin-bottom: 15px !important;
-        margin-right: 0 !important;
-        flex: none !important;
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 15px;
+        margin-right: 0;
+        flex: none;
     }
 }

@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             
-            if (window.innerWidth > 768) {
+            if (window.innerWidth >= 768) { // 768 = desktop (jak CSS: max-width 767.98px)
                 card.addEventListener('mouseenter', function () {
                     this.style.transform = 'translateY(-2px)';
                     this.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.18)';

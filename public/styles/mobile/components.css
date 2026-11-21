@@ -1,15 +1,13 @@
 @media(max-width:767.98px) {
+    /* display, grubość i rozmiar czcionki daje Bootstrap (.badge, ten sam selektor, wygrywał kolejnością) */
     .badge {
-        display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: var(--bg-surface-sunken) !important;
+        background: var(--bg-surface-sunken);
         padding: 8px12px !important;
         border-radius: 20px !important;
-        font-weight: 600;
-        font-size: 0.9rem;
         border: none !important;
-        box-shadow: none !important;
+        box-shadow: none;
     }
     .list-item {
         display: flex !important;
@@ -32,8 +30,8 @@
         border-radius: 10px !important;
         font-size: 1.1rem !important;
         background: var(--bg-surface) !important;
-        box-shadow: none !important;
-        margin-bottom: 15px !important;
+        box-shadow: none;
+        margin-bottom: 15px;
         height: max-content !important;
     }
     .form-control:focus,
@@ -41,66 +39,66 @@
         border-color: var(--brand-primary) !important;
     }
     .btn {
-        width: 100% !important;
+        width: 100%;
         padding: 15px !important;
-        font-size: 1.1rem !important;
+        font-size: 1.1rem;
         border-radius: 10px !important;
         box-shadow: none !important;
-        margin-bottom: 10px !important;
+        margin-bottom: 10px;
     }
     .btn-outline-secondary {
-        background: var(--bg-surface) !important;
-        color: var(--text-secondary) !important;
+        background: var(--bg-surface);
+        color: var(--text-secondary);
         border: 2pxsolid#6c757d !important;
     }
     .form-button {
-        margin-top: 15px !important;
-        border-radius: 10px !important;
-        font-weight: 600 !important;
-        width: 100% !important;
-        padding: 15px !important;
-        font-size: 1.1rem !important;
+        margin-top: 15px;
+        border-radius: 10px;
+        font-weight: 600;
+        width: 100%;
+        padding: 15px;
+        font-size: 1.1rem;
     }
     #buttons-space {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 15px !important;
-        margin-top: 20px !important;
-        padding: 20px !important;
-        width: 100% !important;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-top: 20px;
+        padding: 20px;
+        width: 100%;
     }
     .commission-space {
-        margin: 0 !important;
-        width: 100% !important;
+        margin: 0;
+        width: 100%;
     }
     .container {
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 !important;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
     }
     .content {
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-        background: var(--bg-body) !important;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        background: var(--bg-body);
     }
     .asortment-container {
-        width: 100% !important;
+        width: 100%;
         padding: 15px0 !important;
-        margin: 0 !important;
+        margin: 0;
     }
     .asortment-inputs {
-        flex-direction: column !important;
-        gap: 15px !important;
-        width: 100% !important;
+        flex-direction: column;
+        gap: 15px;
+        width: 100%;
     }
     .asortment-inputs>div {
-        width: 100% !important;
-        max-width: 100% !important;
+        width: 100%;
+        max-width: 100%;
     }
     .comm-input {
-        width: 100% !important;
-        margin-bottom: 20px !important;
+        width: 100%;
+        margin-bottom: 20px;
     }
     label {
         font-weight: 600 !important;
@@ -109,12 +107,12 @@
         font-size: 1rem !important;
     }
     #dynamic-form {
-        width: 100% !important;
-        padding: 0 !important;
+        width: 100%;
+        padding: 0;
         margin: 20px0 !important;
     }
     .order-reminder {
-        width: 100% !important;
-        margin: 0 !important;
+        width: 100%;
+        margin: 0;
     }
 }

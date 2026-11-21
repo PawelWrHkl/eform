@@ -24,7 +24,7 @@
  *     zmieniona ręcznie w edytorze i linia ręczna idą tak, jak są na fakturze,
  *   - `hs_code`: tylko eksport poza UE (`tax_category = export`) — z tabeli Wiktorii według numeru
  *     grupy E-Form (`taryfy_celne_Luxan_grupy_EFOR.csv`); przy DE i WDT pusty, bo drukuje się na fakturze,
- *   - `invoice_email`: contractors.txt INVOICE_EMAIL (`user.invoice_email`), płatnika albo klienta.
+ *   - `invoice_email`: EMAIL konta płatnika (PAYMASTER_IDENT), a bez płatnika EMAIL klienta (Paweł 20.11.2026).
  * Czego EFOR jeszcze nie ma (kontrakt pkt 6.6, przed trybem live): skonto (null), mandat SEPA,
  * umowa bonusowa (false), osobna uwaga do faktury (`notes_de` = „”). W trybie cienia usługa
  * zgłasza je jako ostrzeżenia — nie blokują porównania.
